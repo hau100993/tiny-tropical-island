@@ -11,6 +11,35 @@ float terrainHeight(vec2 xz) {
   return texture2D(uTerrainHeight, uv).r;
 }
 
+// Small directional ripples (not part of the geometry). Returns the surface gradient
+// (dh/dx, dh/dz). Used for per-pixel water shading and, amplified, to drive caustics.
+vec2 ripple(vec2 p, float t, vec2 dir, float k, float slope, float omega) {
+  return dir * slope * cos(dot(dir, p) * k - omega * t);
+}
+
+vec2 rippleGradient(vec2 p, float t) {
+  vec2 g = ripple(p, t, vec2(0.96, 0.28), 1.30, 0.020, 1.5);
+  g += ripple(p, t, vec2(-0.45, 0.89), 1.85, 0.016, 1.9);
+  g += ripple(p, t, vec2(0.62, -0.78), 2.60, 0.012, 2.3);
+  g += ripple(p, t, vec2(-0.91, -0.41), 3.70, 0.008, 2.8);
+  return g;
+}
+
+// Water simulation lookup (see WaterSim.ts). Texel: r = height, g = velocity, ba = gradient.
+uniform sampler2D uSim;
+uniform float uSimSize;
+uniform float uSimEnabled;
+
+// Returns (height, gradX, gradZ, weight); weight fades to 0 at the region edges.
+vec4 sampleSim(vec2 xz) {
+  vec2 uv = xz / uSimSize + 0.5;
+  vec2 e = abs(uv - 0.5) * 2.0;
+  float w = uSimEnabled * (1.0 - smoothstep(0.8, 0.98, max(e.x, e.y)));
+  if (w <= 0.0) return vec4(0.0);
+  vec4 s = texture2D(uSim, uv);
+  return vec4(s.r, s.b, s.a, w);
+}
+
 float hash12(vec2 p) {
   vec3 p3 = fract(vec3(p.xyx) * 0.1031);
   p3 += dot(p3, p3.yzx + 33.33);

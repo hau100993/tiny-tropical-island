@@ -7,8 +7,9 @@ import { createHouse, type HouseInfo } from './house';
 import { createRocks, createBeachSet, createBoat, type Rocks } from './props';
 import { createSky, type Sky } from './sky';
 import { createLighting, type Lighting } from './lighting';
-import { createWaterSurface, type WaterSurface } from '../water/WaterSurface';
+import { WaterSystem } from '../water/WaterSystem';
 import { FloatingObject } from '../water/floating';
+import { patchCaustics } from './patchMaterial';
 import { createNoise2D } from '../core/noise';
 import { createRng } from '../core/rng';
 import type { SharedUniforms } from '../core/uniforms';
@@ -24,12 +25,17 @@ export interface World {
   rocks: Rocks;
   sky: Sky;
   lighting: Lighting;
-  water: WaterSurface;
+  water: WaterSystem;
   boat: FloatingObject;
   update(dt: number, time: number, camera: THREE.Camera, waveStrength: number): void;
 }
 
-export function createWorld(scene: THREE.Scene, renderer: THREE.WebGLRenderer, shared: SharedUniforms): World {
+export function createWorld(
+  scene: THREE.Scene,
+  renderer: THREE.WebGLRenderer,
+  camera: THREE.PerspectiveCamera,
+  shared: SharedUniforms,
+): World {
   const noise = createNoise2D(createRng(WORLD_SEED));
   const heightmap = new Heightmap(ISLAND_CONFIG, noise);
   const layout = createLayout(heightmap, createRng(WORLD_SEED + 1));
@@ -42,7 +48,8 @@ export function createWorld(scene: THREE.Scene, renderer: THREE.WebGLRenderer, s
 
   const lighting = createLighting(scene, shared);
 
-  scene.add(createTerrainMesh(heightmap, noise));
+  const terrain = createTerrainMesh(heightmap, noise);
+  scene.add(terrain);
 
   const palms = createPalms(heightmap, layout.clearings, noise, WORLD_SEED + 2);
   scene.add(palms.group);
@@ -65,8 +72,14 @@ export function createWorld(scene: THREE.Scene, renderer: THREE.WebGLRenderer, s
     heightTexture.minFilter = THREE.NearestFilter;
     heightTexture.magFilter = THREE.NearestFilter;
   }
-  const water = createWaterSurface(heightmap, heightTexture, shared);
-  scene.add(water.mesh);
+  const water = new WaterSystem(renderer, heightmap, heightTexture, shared, camera);
+  water.setCaptureHidden([sky.mesh]);
+  scene.add(water.surface.mesh);
+  // Underwater surfaces receive caustic light.
+  patchCaustics(terrain.material, water.causticsUniforms);
+  for (const child of rocks.group.children) {
+    patchCaustics((child as THREE.InstancedMesh).material as THREE.MeshStandardMaterial, water.causticsUniforms);
+  }
 
   return {
     heightmap,

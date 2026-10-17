@@ -9,6 +9,8 @@ export interface Settings {
   lowPower: boolean;
   autoRotate: boolean;
   showDebug: boolean;
+  /** Sea wave strength, 0 (glassy) … 1 (stormy). */
+  waveStrength: number;
 }
 
 export type SettingsPatch = Partial<Omit<Settings, 'version'>>;
@@ -20,6 +22,7 @@ export function defaultSettings(): Settings {
     lowPower: false,
     autoRotate: false,
     showDebug: true,
+    waveStrength: 0.45,
   };
 }
 
@@ -53,6 +56,8 @@ export function parseSettings(json: string | null): Settings {
   const raw = migrate(parsed as Raw);
 
   const bool = (v: unknown, fallback: boolean): boolean => (typeof v === 'boolean' ? v : fallback);
+  const unit = (v: unknown, fallback: number): number =>
+    typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : fallback;
   const quality = QUALITY_LEVELS.includes(raw.quality as QualityLevel)
     ? (raw.quality as QualityLevel)
     : defaults.quality;
@@ -63,6 +68,7 @@ export function parseSettings(json: string | null): Settings {
     lowPower: bool(raw.lowPower, defaults.lowPower),
     autoRotate: bool(raw.autoRotate, defaults.autoRotate),
     showDebug: bool(raw.showDebug, defaults.showDebug),
+    waveStrength: unit(raw.waveStrength, defaults.waveStrength),
   };
 }
 

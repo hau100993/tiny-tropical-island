@@ -8,6 +8,7 @@ import { GpuTimer } from './gpuTimer';
 import { createWorld, type World } from '../world/World';
 import { createOrbitCamera, type OrbitCamera } from '../controls/orbit';
 import { Keymap } from '../controls/keymap';
+import { onWaterClick } from '../controls/waterClick';
 import { DebugOverlay } from '../ui/DebugOverlay';
 import { vi } from '../ui/strings.vi';
 
@@ -37,12 +38,17 @@ export class App {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    // Shadows are re-rendered once per frame (by the first scene pass), not once per pass.
+    this.renderer.shadowMap.autoUpdate = false;
+    // Stats cover every pass of the frame (simulation, caustics, capture, main), not just the last.
+    this.renderer.info.autoReset = false;
     container.append(this.renderer.domElement);
     this.gpuTimer = new GpuTimer(this.renderer.getContext() as WebGL2RenderingContext);
 
     this.camera = new THREE.PerspectiveCamera(55, 1, 0.3, 6000);
-    this.world = createWorld(this.scene, this.renderer, sharedUniforms);
+    this.world = createWorld(this.scene, this.renderer, this.camera, sharedUniforms);
     this.orbit = createOrbitCamera(this.camera, this.renderer.domElement);
+    onWaterClick(this.renderer.domElement, this.camera, (x, z) => this.world.water.addRipple(x, z, 3, -1.0));
 
     this.overlay = new DebugOverlay(container, s, (patch) => this.settings.update(patch));
     this.settings.onChange((next) => this.applySettings(next));
@@ -70,8 +76,12 @@ export class App {
 
   private applySettings(s: Readonly<Settings>): void {
     const profile = effectiveProfile(s.quality, s.lowPower);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, profile.pixelRatioCap));
-    this.onResize();
+    const pixelRatio = Math.min(window.devicePixelRatio, profile.pixelRatioCap);
+    if (pixelRatio !== this.renderer.getPixelRatio()) {
+      // Resizing the canvas clears it, so only do it when the ratio really changes.
+      this.renderer.setPixelRatio(pixelRatio);
+      this.onResize();
+    }
 
     const shadows = profile.shadowMapSize > 0;
     this.renderer.shadowMap.enabled = shadows;
@@ -89,9 +99,15 @@ export class App {
     // Reduced motion: never auto-rotate, regardless of the stored setting.
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.orbit.setAutoRotate(s.autoRotate && !reducedMotion);
-    this.loop.targetFps = s.lowPower ? LOW_POWER_FPS : NORMAL_FPS;
+    const fps = s.lowPower ? LOW_POWER_FPS : NORMAL_FPS;
+    this.loop.targetFps = fps;
+    this.world.water.applyProfile(profile);
+    this.world.water.setStepRate(fps);
+    this.env.waveStrength.target = s.waveStrength;
     this.overlay.sync(s);
   }
+
+  private readonly drawingBuffer = new THREE.Vector2();
 
   private onResize = (): void => {
     const w = this.container.clientWidth || window.innerWidth;
@@ -99,10 +115,13 @@ export class App {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h, false);
+    this.renderer.getDrawingBufferSize(this.drawingBuffer);
+    this.world.water.setSize(this.drawingBuffer.x, this.drawingBuffer.y);
   };
 
   private tick = (dt: number, elapsed: number): void => {
     const cpuStart = performance.now();
+    this.renderer.info.reset();
     this.env.update(dt);
     sharedUniforms.uTime.value = elapsed;
     sharedUniforms.uWaveStrength.value = this.env.waveStrength.value;
@@ -110,6 +129,10 @@ export class App {
     this.orbit.update(dt);
     this.world.update(dt, elapsed, this.camera, this.env.waveStrength.value);
     this.gpuTimer.begin();
+    this.world.water.simulate(dt);
+    // The next scene render (capture if refraction is on, else main) refreshes the shadow map.
+    this.renderer.shadowMap.needsUpdate = true;
+    this.world.water.captureScene(this.scene, this.camera);
     this.renderer.render(this.scene, this.camera);
     this.gpuTimer.end();
     const cpuMs = performance.now() - cpuStart;

@@ -23,5 +23,8 @@ if (!container) throw new Error('#app element missing from index.html');
 if (!hasWebGL2()) {
   showFatal(vi.noWebGL2);
 } else {
-  new App(container).start();
+  const app = new App(container);
+  app.start();
+  // Dev-only handle for inspecting the running app from DevTools; stripped from production builds.
+  if (import.meta.env.DEV) (window as unknown as { __tsw: App }).__tsw = app;
 }

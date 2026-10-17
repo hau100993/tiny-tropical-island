@@ -19,9 +19,10 @@ export const vi = {
     msaaReload: 'Khử răng cưa đổi sau khi tải lại trang',
     lowPower: 'Tiết kiệm điện',
     autoRotate: 'Tự xoay',
+    waves: 'Sóng biển',
     on: 'Bật',
     off: 'Tắt',
-    hint: 'Kéo chuột: xoay · Cuộn: thu phóng · Chuột phải: dời',
+    hint: 'Kéo chuột: xoay · Cuộn: thu phóng · Chuột phải: dời · Nhấp vào nước: gợn sóng',
   },
   shortcuts: {
     debug: 'Ẩn/hiện thông số',

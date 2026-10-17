@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { createWaveUniforms, NUM_WAVES } from './gerstner';
 import type { SharedUniforms } from '../core/uniforms';
-import type { Heightmap } from '../world/heightmap';
 import waterCommon from './shaders/waterCommon.glsl?raw';
 import waterVert from './shaders/water.vert.glsl?raw';
 import waterFrag from './shaders/water.frag.glsl?raw';
@@ -46,41 +45,66 @@ function createRadialGrid(): THREE.BufferGeometry {
   return g;
 }
 
-export interface WaterSurface {
-  mesh: THREE.Mesh;
+/** Uniforms owned by the water system and shared with the surface material. */
+export interface WaterSurfaceInputs {
+  terrain: { texture: THREE.Texture; size: number; res: number };
+  sim: { value: THREE.Texture | null };
+  simSize: number;
+  simEnabled: { value: number };
+  sceneColor: { value: THREE.Texture | null };
+  sceneDepth: { value: THREE.Texture | null };
+  resolution: { value: THREE.Vector2 };
 }
 
-export function createWaterSurface(
-  hm: Heightmap,
-  heightTexture: THREE.DataTexture,
-  shared: SharedUniforms,
-): WaterSurface {
-  const material = new THREE.ShaderMaterial({
-    defines: { NUM_WAVES },
-    uniforms: {
-      ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
-      ...createWaveUniforms(),
-      // Shared uniform objects are referenced, not copied, so per-frame updates propagate.
-      uTime: shared.uTime,
-      uWaveStrength: shared.uWaveStrength,
-      uSunDir: shared.uSunDir,
-      uSunColor: shared.uSunColor,
-      uSkyTop: shared.uSkyTop,
-      uSkyHorizon: shared.uSkyHorizon,
-      uTerrainHeight: { value: heightTexture },
-      uTerrainSize: { value: hm.config.size },
-      uTerrainRes: { value: hm.res },
-      uShallowColor: { value: new THREE.Color('#3cc8c4') },
-      uDeepColor: { value: new THREE.Color('#0a4a78') },
-    },
-    vertexShader: `${waterCommon}\n${waterVert}`,
-    fragmentShader: `${waterCommon}\n${skyCommon}\n${waterFrag}`,
-    transparent: true,
-    fog: true,
-  });
-  const mesh = new THREE.Mesh(createRadialGrid(), material);
-  mesh.name = 'water';
-  // Drawn after opaque geometry so the seabed shows through shallow water.
-  mesh.renderOrder = 1;
-  return { mesh };
+export class WaterSurface {
+  readonly mesh: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>;
+
+  constructor(shared: SharedUniforms, inputs: WaterSurfaceInputs, camera: THREE.PerspectiveCamera) {
+    const material = new THREE.ShaderMaterial({
+      defines: { NUM_WAVES },
+      uniforms: {
+        ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+        ...createWaveUniforms(),
+        // Shared uniform objects are referenced, not copied, so per-frame updates propagate.
+        uTime: shared.uTime,
+        uWaveStrength: shared.uWaveStrength,
+        uSunDir: shared.uSunDir,
+        uSunColor: shared.uSunColor,
+        uSkyTop: shared.uSkyTop,
+        uSkyHorizon: shared.uSkyHorizon,
+        uTerrainHeight: { value: inputs.terrain.texture },
+        uTerrainSize: { value: inputs.terrain.size },
+        uTerrainRes: { value: inputs.terrain.res },
+        uSim: inputs.sim,
+        uSimSize: { value: inputs.simSize },
+        uSimEnabled: inputs.simEnabled,
+        uSceneColor: inputs.sceneColor,
+        uSceneDepth: inputs.sceneDepth,
+        uResolution: inputs.resolution,
+        uCameraNear: { value: camera.near },
+        uCameraFar: { value: camera.far },
+        uShallowColor: { value: new THREE.Color('#3cc8c4') },
+        uDeepColor: { value: new THREE.Color('#0a4a78') },
+      },
+      vertexShader: `${waterCommon}\n${waterVert}`,
+      fragmentShader: `${waterCommon}\n${skyCommon}\n${waterFrag}`,
+      fog: true,
+    });
+    this.mesh = new THREE.Mesh(createRadialGrid(), material);
+    this.mesh.name = 'water';
+    // Drawn after all other geometry (seabed must be in the depth buffer / scene capture first).
+    this.mesh.renderOrder = 1;
+    this.setRefraction(false);
+  }
+
+  /** Refraction makes the water opaque (it draws what's behind itself); otherwise alpha-blend. */
+  setRefraction(on: boolean): void {
+    const m = this.mesh.material;
+    const has = 'REFRACTION' in m.defines;
+    if (on === has && m.transparent === !on) return;
+    if (on) m.defines.REFRACTION = '';
+    else delete m.defines.REFRACTION;
+    m.transparent = !on;
+    m.needsUpdate = true;
+  }
 }

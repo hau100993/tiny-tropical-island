@@ -92,6 +92,15 @@ body {
   color: var(--accent);
 }
 
+.debug-slider {
+  flex-wrap: nowrap;
+}
+
+.debug-range {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
 .debug-note:not(:empty) {
   margin-top: 6px;
   color: #ffd38a;

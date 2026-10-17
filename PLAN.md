@@ -7,8 +7,8 @@
 | Phase | Status | Notes |
 |---|---|---|
 | 1a Island + orbit | ✅ Done (2026-10-17), awaiting feedback | Measured on RX 6600 (Medium, 1600×900): GPU ≈ 2.2 ms, CPU ≈ 0.7 ms per frame, 32 draw calls, 482k triangles incl. shadow pass. Bundle 153 KB gzip. Grass deferred to Phase 3 (it only matters once wind exists). Added a GPU/CPU timer to the debug overlay. |
-| 1b GPU water | ⏳ Next | |
-| 2 Audio + mixer | — | |
+| 1b GPU water | ✅ Done (2026-10-17), awaiting feedback | Heightfield sim (200 m square, ping-pong half-float), click ripples that reflect off the beach, screen-space refraction (half-res scene capture), Wallace-style caustics on seabed and rocks, foam on ripple crests, wave-strength slider (temporary home: stats panel). GPU per frame on RX 6600 @ 1600×900: Low ≈ 2.0 ms, Medium ≈ 3.1 ms, High ≈ 3.9 ms (whole frame, all passes). |
+| 2 Audio + mixer | ⏳ Next | |
 | 3 Weather | — | |
 | 4 Day/night | — | |
 | 5 First-person | — | |
@@ -16,7 +16,12 @@
 
 **Deviations from the plan so far**
 - Vitest 5.0.5 instead of 4.x/3.x: npm 10.9 crashes resolving vitest 4.1's optional peers, and vitest 3.2 has published advisories (dev-only, but avoided anyway).
-- Water triangle count will be scaled per quality preset in Phase 1b (currently one fixed radial grid, ~155k triangles, cheap on the GPU).
+- Water mesh stays one fixed radial grid (~155k triangles) on all presets: measured cost is negligible, so per-preset meshes weren't worth the complexity.
+- **Planar reflection (High) deferred to Phase 6.** All presets reflect the procedural sky for now. Reflections of palms/house would add a full extra scene pass; better judged during the perf pass with weather and day/night in place.
+- Medium caustics texture is 384² (not 256²): at 256² the caustic network blurred into blobs; the cost difference is < 0.2 ms.
+- Ripples are tuned for orbit-distance readability: 6 m/s travel speed, 3 m drops, slopes amplified ×4 in shading. Real ripples at island scale would be invisible from 100 m.
+- Caustics use amplified sub-geometry ripples (not the Gerstner swell) because visible focusing at 1–4 m depth needs stronger curvature than the visible surface has.
+- Debug: `window.__tsw` exposes the running App in `npm run dev` only (stripped from builds).
 
 ## 0. Context
 
@@ -175,7 +180,7 @@ Water technique credit: Evan Wallace, *WebGL Water* (MIT) — heightfield wave-e
 | Water sim | 128² | 256² | 512² |
 | Reflection | sky only | sky only | planar ½-res |
 | Refraction RT | off (tint only) | ½-res | ½-res |
-| Caustics | off | 256² | 512² |
+| Caustics | off | 384² | 512² |
 | Shadows | off | 1024, PCF | 2048, PCF soft |
 | Grass blades | 4k | 15k | 40k |
 | Rain / snow max | 3k / 2k | 10k / 6k | 25k / 15k |

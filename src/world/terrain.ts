@@ -15,7 +15,7 @@ const ROCK = new THREE.Color('#8b8577');
  * Flat-shaded terrain mesh: every triangle has its own 3 vertices (non-indexed), so the
  * normals computed per face give the faceted low-poly look, and each face gets one color.
  */
-export function createTerrainMesh(hm: Heightmap, noise: Noise2D): THREE.Mesh {
+export function createTerrainMesh(hm: Heightmap, noise: Noise2D): THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial> {
   const seg = hm.config.segments;
   const triCount = seg * seg * 2;
   const positions = new Float32Array(triCount * 9);

@@ -14,6 +14,7 @@ export class DebugOverlay {
   private readonly qualityButtons = new Map<QualityLevel, HTMLButtonElement>();
   private readonly lowPowerBtn: HTMLButtonElement;
   private readonly autoRotateBtn: HTMLButtonElement;
+  private readonly waveInput: HTMLInputElement;
   private readonly note: HTMLDivElement;
   private frames = 0;
   private accum = 0;
@@ -47,11 +48,22 @@ export class DebugOverlay {
     this.autoRotateBtn = button('', () => this.onChange({ autoRotate: !this.current.autoRotate }));
     toggles.append(this.lowPowerBtn, this.autoRotateBtn);
 
+    // Temporary home for the wave slider until the real control panel (Phase 2).
+    const waveRow = el('label', 'debug-row debug-slider');
+    const waveLabel = el('span', 'debug-label');
+    waveLabel.textContent = vi.debug.waves;
+    this.waveInput = el('input', 'debug-range');
+    this.waveInput.type = 'range';
+    this.waveInput.min = '0';
+    this.waveInput.max = '100';
+    this.waveInput.addEventListener('input', () => this.onChange({ waveStrength: Number(this.waveInput.value) / 100 }));
+    waveRow.append(waveLabel, this.waveInput);
+
     this.note = el('div', 'debug-note');
     const hint = el('div', 'debug-hint');
     hint.textContent = vi.debug.hint;
 
-    this.root.append(title, this.stats, qualityRow, toggles, this.note, hint);
+    this.root.append(title, this.stats, qualityRow, toggles, waveRow, this.note, hint);
     parent.append(this.root);
     this.current = settings;
     this.sync(settings);
@@ -65,6 +77,8 @@ export class DebugOverlay {
     this.lowPowerBtn.classList.toggle('active', settings.lowPower);
     this.autoRotateBtn.textContent = `${vi.debug.autoRotate}: ${settings.autoRotate ? vi.debug.on : vi.debug.off}`;
     this.autoRotateBtn.classList.toggle('active', settings.autoRotate);
+    const wave = String(Math.round(settings.waveStrength * 100));
+    if (this.waveInput.value !== wave) this.waveInput.value = wave;
     const msaaChanged = (settings.quality === 'low') !== (this.startQuality === 'low');
     this.note.textContent = msaaChanged ? vi.debug.msaaReload : '';
   }

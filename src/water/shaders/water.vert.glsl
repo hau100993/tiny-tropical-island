@@ -44,6 +44,9 @@ void main() {
     ampSum += A;
   }
   wp.xyz += disp;
+  // Ripples from the GPU simulation, on top of the swell.
+  vec4 sim = sampleSim(p);
+  wp.y += sim.x * sim.w;
   vWorldPos = wp.xyz;
   vNormalW = normalize(vec3(-nx, 1.0 - ny, -nz));
   vCrest = ampSum > 0.0 ? disp.y / ampSum : 0.0;
