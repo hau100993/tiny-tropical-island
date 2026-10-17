@@ -6,10 +6,19 @@ import * as THREE from 'three';
  */
 export const sharedUniforms = {
   uTime: { value: 0 },
+  /** True sun direction (may be below the horizon at night). */
   uSunDir: { value: new THREE.Vector3(0.55, 0.62, 0.42).normalize() },
   uSunColor: { value: new THREE.Color('#fff0d4') },
+  uMoonDir: { value: new THREE.Vector3(-0.5, 0.6, 0.4).normalize() },
+  /** Main light (sun by day, moon by night): drives water glints and caustics. */
+  uLightDir: { value: new THREE.Vector3(0.55, 0.62, 0.42).normalize() },
+  uLightColor: { value: new THREE.Color('#fff0d4') },
   uSkyTop: { value: new THREE.Color('#2f7fd6') },
   uSkyHorizon: { value: new THREE.Color('#bfe2f5') },
+  /** 0 = deep night … 1 = full daylight (with a small floor so night stays readable). */
+  uDayLight: { value: 1 },
+  /** 0 = day … 1 = dark night (stars, aurora, fireflies). */
+  uNight: { value: 0 },
   uWaveStrength: { value: 0.45 },
   // Weather (Phase 3). All 0..1 unless noted.
   /** Wind strength from the slider (smoothed). */
@@ -24,6 +33,18 @@ export const sharedUniforms = {
   uWetness: { value: 0 },
   /** How much snow has settled (grows slowly while snowing, melts afterwards). */
   uSnowCover: { value: 0 },
+  // Sky (Phase 4).
+  uCloudCover: { value: 0.35 },
+  /** Cloud layer drift (noise-space offset), integrated from the wind. */
+  uCloudOffset: { value: new THREE.Vector2() },
+  uStars: { value: 1 },
+  uAurora: { value: 0 },
+  uRainbow: { value: 0 },
+  /** Shooting stars: A = (start dir, start time), B = (end dir, duration). */
+  uMeteorA: { value: [new THREE.Vector4(0, 1, 0, -100), new THREE.Vector4(0, 1, 0, -100)] },
+  uMeteorB: { value: [new THREE.Vector4(0, 1, 0, 1), new THREE.Vector4(0, 1, 0, 1)] },
+  /** Rotation of the star field (hour angle), radians. */
+  uStarRotation: { value: 0 },
 };
 
 export type SharedUniforms = typeof sharedUniforms;

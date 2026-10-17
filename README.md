@@ -3,8 +3,9 @@
 A local web app for Windows 11 that you leave open while you work: a small stylized tropical
 island with GPU water, weather, day/night and an ambient sound mixer. Fully offline, no backend.
 
-> Status: **Phase 3** — island, GPU water, a fully synthesized sound mixer with presets, and
-> weather that follows the mixer (rain, wind, snow). See [PLAN.md](PLAN.md) for the roadmap.
+> Status: **Phase 4** — island, GPU water, synthesized sound mixer with presets, weather that
+> follows the mixer, and a day/night cycle with clouds, stars, aurora and more.
+> See [PLAN.md](PLAN.md) for the roadmap.
 
 ## Run
 
@@ -40,6 +41,7 @@ sound on later with **Bật âm thanh** in the panel).
 | `M` | Mute / unmute everything |
 | `P` | Collapse / expand the control panel |
 | `H` | Hide all UI (clean wallpaper view); press again to show |
+| `N` | Pause / resume the day-night clock |
 | `L` | Toggle low-power mode (30 fps, Low-level water, no shadows) |
 | `` ` `` (backquote) | Show/hide the stats overlay (FPS, CPU/GPU ms, draw calls) |
 
@@ -56,6 +58,24 @@ sound on later with **Bật âm thanh** in the panel).
 - **Tách hình/âm:** by default the weather you *see* follows the sound sliders (Mưa → rain,
   Tuyết lặng → snow, Gió lá → wind; switching a layer off clears that weather, muting does not).
   Turn this on to get three separate visual sliders, e.g. to hear rain under a clear sky.
+
+## Day, night and sky ("Bầu trời" in the panel)
+
+| Option | What it does |
+|---|---|
+| Một ngày | Clock speed: real local time, one day = 24 min, one day = 6 min, or paused. Drag **Giờ** to pick a time. |
+| Mây trôi | Cloud cover; clouds drift with the wind, glow at sunset, and cast moving shadows on the island and sea. Rain and snow add more cloud. |
+| Âm u | Grey, gloomy sky without rain. |
+| Cầu vồng sau mưa | After rain, with a low sun behind you, a rainbow appears at the real 42° angle. |
+| Sao & Ngân Hà | Twinkling stars and a faint Milky Way that slowly wheel across the night sky. |
+| Sao băng | How often shooting stars cross the sky. |
+| Cực quang | Green-violet aurora curtains toward the north. |
+| Đom đóm | Fireflies blinking around the garden and forest edge at night. |
+
+The sun rises in the east and sets in the west; dawn and dusk paint the horizon. At night the
+moon lights the scene in silver and leaves a glittering path on the sea, the house windows and
+porch lantern light up, birds fall silent and crickets start (needs the *Chim hót* layer on).
+The chosen time is remembered between sessions.
 
 ## Vegetation
 

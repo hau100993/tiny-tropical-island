@@ -13,6 +13,8 @@ import { WaterSystem } from '../water/WaterSystem';
 import { FloatingObject } from '../water/floating';
 import { patchWorldMaterial, type WorldMaterialFeatures } from './patchMaterial';
 import { Weather } from '../weather/Weather';
+import { DayNight } from './dayNight';
+import { Fireflies } from './fireflies';
 import { createNoise2D } from '../core/noise';
 import { createRng } from '../core/rng';
 import type { SharedUniforms } from '../core/uniforms';
@@ -32,6 +34,8 @@ export interface World {
   water: WaterSystem;
   grass: Grass;
   weather: Weather;
+  dayNight: DayNight;
+  fireflies: Fireflies;
   boat: FloatingObject;
   update(dt: number, time: number, camera: THREE.Camera, waveStrength: number): void;
 }
@@ -64,7 +68,7 @@ export function createWorld(
   scene.fog = new THREE.Fog(0xffffff, 260, 2800);
   scene.fog.color = shared.uSkyHorizon.value;
 
-  const lighting = createLighting(scene, shared);
+  const lighting = createLighting(scene);
 
   const terrain = createTerrainMesh(heightmap, noise);
   scene.add(terrain);
@@ -106,10 +110,13 @@ export function createWorld(
   patchWorldMaterial(terrain.material, { wet: true, puddles: true, snow: true, caustics }, shared);
   patchTree(rocks.group, { wet: true, porosity: 0.6, snow: true, caustics }, shared);
 
-  const weather = new Weather(scene, shared, water, lighting);
+  const weather = new Weather(scene, shared, water);
+  const dayNight = new DayNight(shared, lighting, house);
+  const fireflies = new Fireflies(heightmap, WORLD_SEED + 9, shared);
+  scene.add(fireflies.points);
   // The refraction capture only needs what lies under the water. Sky and particles would show
   // up twice; vegetation is all on land, so skipping it saves most of the capture's cost.
-  water.setCaptureHidden([sky.mesh, ...weather.particleMeshes, forest.group, grass.mesh, flowers.group]);
+  water.setCaptureHidden([sky.mesh, ...weather.particleMeshes, forest.group, grass.mesh, flowers.group, fireflies.points]);
 
   return {
     heightmap,
@@ -123,6 +130,8 @@ export function createWorld(
     water,
     grass,
     weather,
+    dayNight,
+    fireflies,
     boat,
     update(dt, time, camera, waveStrength) {
       sky.follow(camera);

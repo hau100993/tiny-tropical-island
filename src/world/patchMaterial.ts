@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { SharedUniforms } from '../core/uniforms';
+import clouds from './shaders/clouds.glsl?raw';
 
 /**
  * One place where weather touches the world's materials. `onBeforeCompile` splices GLSL into
@@ -88,6 +89,9 @@ wPos = modelMatrix * wPos;
 #endif
 #ifdef WORLD_VARYINGS
   vWorldPosW = wPos.xyz;
+  // Cloud shadow is evaluated per vertex: shadows are ~100 m across, so this is plenty of
+  // detail, and it avoids running the cloud noise for every (overdrawn) leaf pixel.
+  vCloudShadow = cloudShadow(wPos.xz, uSunDir);
 #endif
 vec4 mvPosition = viewMatrix * wPos;
 gl_Position = projectionMatrix * mvPosition;
@@ -97,14 +101,16 @@ const FRAG_PARS = /* glsl */ `
 uniform float uWetness;
 uniform float uSnowCover;
 uniform float uPorosity;
+uniform vec3 uSunDir;
+uniform float uDayLight;
 varying vec3 vWorldPosW;
 varying vec3 vWorldNormalW;
+varying float vCloudShadow;
 #ifdef WORLD_CAUSTICS
 uniform sampler2D uCaustics;
 uniform float uCausticsSize;
 uniform float uCausticsOn;
 uniform vec3 uSunColor;
-uniform vec3 uSunDir;
 #endif
 
 float wHash(vec2 p) {
@@ -148,6 +154,8 @@ const SURFACE_GLSL = /* glsl */ `
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.93, 0.97), cover);
   roughnessFactor = mix(roughnessFactor, 0.85, cover);
 #endif
+  // Cloud shadows drifting over the island (computed per vertex, see PROJECT_GLSL).
+  diffuseColor.rgb *= 1.0 - 0.6 * vCloudShadow;
 }
 `;
 
@@ -195,6 +203,10 @@ export function patchWorldMaterial(
     uWindDir: shared.uWindDir,
     uWetness: shared.uWetness,
     uSnowCover: shared.uSnowCover,
+    uSunDir: shared.uSunDir,
+    uDayLight: shared.uDayLight,
+    uCloudCover: shared.uCloudCover,
+    uCloudOffset: shared.uCloudOffset,
     uPorosity: { value: features.porosity ?? 1 },
     ...(features.caustics ?? {}),
   };
@@ -205,7 +217,7 @@ export function patchWorldMaterial(
       shader.vertexShader
         .replace(
           'void main() {',
-          `${SWAY_GLSL}\nvarying vec3 vWorldPosW;\nvarying vec3 vWorldNormalW;\nvoid main() {`,
+          `${SWAY_GLSL}\n${clouds}\nuniform vec3 uSunDir;\nvarying vec3 vWorldPosW;\nvarying vec3 vWorldNormalW;\nvarying float vCloudShadow;\nvoid main() {`,
         )
         .replace(
           '#include <beginnormal_vertex>',

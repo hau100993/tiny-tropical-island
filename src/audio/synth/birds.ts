@@ -22,17 +22,41 @@ export class BirdsLayer extends BaseLayer {
     super(engine, 'birds', engine.ambience, 3.5);
   }
 
-  /** 1 = lively day, ~0.1 = quiet night (Phase 4). */
+  /** 1 = lively day, ~0.1 = quiet night. */
   setDensity(density: number): void {
     this.density = density;
   }
 
+  /** 0 = no crickets … 1 = full night chorus. */
+  setCrickets(level: number): void {
+    this.crickets = level;
+  }
+
+  private crickets = 0;
+  private nextCricket = 0;
+
   protected startNodes(): void {
     this.nextCall = this.engine.now + 0.3;
+    this.nextCricket = this.engine.now + 0.5;
     this.engine.scheduler.add(this.schedule);
   }
 
+  /** Crickets: bursts of 3 very short high pulses, many insects at different pitches. */
+  private scheduleCrickets(until: number): void {
+    while (this.nextCricket < until) {
+      const t = this.nextCricket;
+      if (this.crickets > 0.03) {
+        const pitch = 4300 + Math.random() * 900;
+        const pan = Math.random() * 1.6 - 0.8;
+        const gain = (0.15 + Math.random() * 0.25) * this.crickets;
+        for (let k = 0; k < 3; k++) this.note(t + k * 0.045, 0.022, pitch, pitch, gain, pan);
+      }
+      this.nextCricket = t + 0.15 + Math.random() * (0.6 / Math.max(0.2, this.crickets));
+    }
+  }
+
   private scheduleCalls(until: number): void {
+    this.scheduleCrickets(until);
     while (this.nextCall < until) {
       const species = SPECIES[Math.floor(Math.random() * SPECIES.length)];
       const pan = Math.random() * 1.6 - 0.8;

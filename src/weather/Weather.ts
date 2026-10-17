@@ -5,7 +5,6 @@ import { gustShape } from './wind';
 import { SmoothedValue } from '../core/envState';
 import type { QualityProfile } from '../core/quality';
 import type { SharedUniforms } from '../core/uniforms';
-import type { Lighting } from '../world/lighting';
 import type { WaterSystem } from '../water/WaterSystem';
 
 export interface WeatherTargets {
@@ -21,7 +20,8 @@ const SPLASH_RADIUS = 95;
 
 /**
  * Turns the three weather intensities into everything you see: particles, wind gusts,
- * wet/snowy surfaces (via shared uniforms), raindrop ripples, and a greyer, dimmer sky.
+ * wet/snowy surfaces (via shared uniforms) and raindrop ripples. It also reports how overcast
+ * the sky should be; DayNight greys the time-of-day palette by that amount.
  */
 export class Weather {
   readonly rainFx: Precipitation;
@@ -31,22 +31,13 @@ export class Weather {
   private readonly wind = new SmoothedValue(0, 0.5);
   private acc: Accumulation = { wetness: 0, snowCover: 0 };
   private splashDebt = 0;
-
-  // Clear-weather atmosphere, captured once; overcast blends toward the grey versions.
-  private readonly baseTop: THREE.Color;
-  private readonly baseHorizon: THREE.Color;
-  private readonly baseSun: THREE.Color;
-  private readonly baseSunIntensity: number;
-  private readonly baseHemiIntensity: number;
-  private readonly greyTop = new THREE.Color('#6f7f8c');
-  private readonly greyHorizon = new THREE.Color('#a3adb4');
-  private readonly greySun = new THREE.Color('#c9cfd4');
+  /** Sky grey-out from current weather (applied by DayNight on top of the time-of-day palette). */
+  overcast = 0;
 
   constructor(
     scene: THREE.Scene,
     private readonly shared: SharedUniforms,
     private readonly water: WaterSystem,
-    private readonly lighting: Lighting,
   ) {
     this.rainFx = new Precipitation(
       {
@@ -75,11 +66,6 @@ export class Weather {
       shared,
     );
     scene.add(this.rainFx.mesh, this.snowFx.mesh);
-    this.baseTop = shared.uSkyTop.value.clone();
-    this.baseHorizon = shared.uSkyHorizon.value.clone();
-    this.baseSun = shared.uSunColor.value.clone();
-    this.baseSunIntensity = lighting.sun.intensity;
-    this.baseHemiIntensity = lighting.hemi.intensity;
   }
 
   get particleMeshes(): THREE.Object3D[] {
@@ -143,17 +129,14 @@ export class Weather {
       this.water.addRipple(Math.cos(a) * r, Math.sin(a) * r, 0.7, -0.06);
     }
 
-    this.applyAtmosphere(overcast(rain, snow, wind));
+    this.overcast = overcast(rain, snow, wind);
   }
 
-  /** Bad weather greys the sky (and fog, which shares the horizon color) and dims the sun. */
-  private applyAtmosphere(oc: number): void {
-    const u = this.shared;
-    u.uSkyTop.value.copy(this.baseTop).lerp(this.greyTop, oc * 0.85);
-    u.uSkyHorizon.value.copy(this.baseHorizon).lerp(this.greyHorizon, oc * 0.85);
-    u.uSunColor.value.copy(this.baseSun).lerp(this.greySun, oc * 0.7);
-    this.lighting.sun.intensity = this.baseSunIntensity * (1 - 0.6 * oc);
-    this.lighting.hemi.intensity = this.baseHemiIntensity * (1 - 0.2 * oc);
-    this.lighting.update();
+  get wetness(): number {
+    return this.acc.wetness;
+  }
+
+  get rainAmount(): number {
+    return this.rain.value;
   }
 }

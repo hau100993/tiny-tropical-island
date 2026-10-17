@@ -1,4 +1,7 @@
 import { QUALITY_LEVELS, type QualityLevel } from './quality';
+import type { TimeMode } from '../world/celestial';
+
+const TIME_MODES: readonly TimeMode[] = ['real', 'cycle24', 'cycle6', 'paused'];
 
 export const SETTINGS_KEY = 'tsw.settings';
 export const SETTINGS_VERSION = 1;
@@ -17,6 +20,18 @@ export interface Settings {
   visualRain: number;
   visualSnow: number;
   visualWind: number;
+  // Sky (Phase 4)
+  timeMode: TimeMode;
+  /** Base cloud cover, 0..1 (rain and snow add more). */
+  clouds: number;
+  /** Extra gloom ("âm u"): grey sky without rain, 0..1. */
+  gloom: number;
+  rainbow: boolean;
+  stars: boolean;
+  /** Shooting-star frequency, 0..1. */
+  meteors: number;
+  aurora: number;
+  fireflies: boolean;
 }
 
 export type SettingsPatch = Partial<Omit<Settings, 'version'>>;
@@ -34,6 +49,14 @@ export function defaultSettings(): Settings {
     visualRain: 0,
     visualSnow: 0,
     visualWind: 0.3,
+    timeMode: 'cycle24',
+    clouds: 0.35,
+    gloom: 0,
+    rainbow: true,
+    stars: true,
+    meteors: 0.4,
+    aurora: 0.5,
+    fireflies: true,
   };
 }
 
@@ -85,6 +108,14 @@ export function parseSettings(json: string | null): Settings {
     visualRain: unit(raw.visualRain, defaults.visualRain),
     visualSnow: unit(raw.visualSnow, defaults.visualSnow),
     visualWind: unit(raw.visualWind, defaults.visualWind),
+    timeMode: TIME_MODES.includes(raw.timeMode as TimeMode) ? (raw.timeMode as TimeMode) : defaults.timeMode,
+    clouds: unit(raw.clouds, defaults.clouds),
+    gloom: unit(raw.gloom, defaults.gloom),
+    rainbow: bool(raw.rainbow, defaults.rainbow),
+    stars: bool(raw.stars, defaults.stars),
+    meteors: unit(raw.meteors, defaults.meteors),
+    aurora: unit(raw.aurora, defaults.aurora),
+    fireflies: bool(raw.fireflies, defaults.fireflies),
   };
 }
 

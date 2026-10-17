@@ -5,6 +5,7 @@ import waterCommon from './shaders/waterCommon.glsl?raw';
 import waterVert from './shaders/water.vert.glsl?raw';
 import waterFrag from './shaders/water.frag.glsl?raw';
 import skyCommon from '../world/shaders/skyCommon.glsl?raw';
+import clouds from '../world/shaders/clouds.glsl?raw';
 
 /**
  * Radial grid centered on the island: ~1.2 m spacing out to 150 m (where waves and foam
@@ -73,6 +74,13 @@ export class WaterSurface {
         uSunColor: shared.uSunColor,
         uSkyTop: shared.uSkyTop,
         uSkyHorizon: shared.uSkyHorizon,
+        uMoonDir: shared.uMoonDir,
+        uNight: shared.uNight,
+        uDayLight: shared.uDayLight,
+        uLightDir: shared.uLightDir,
+        uLightColor: shared.uLightColor,
+        uCloudCover: shared.uCloudCover,
+        uCloudOffset: shared.uCloudOffset,
         uTerrainHeight: { value: inputs.terrain.texture },
         uTerrainSize: { value: inputs.terrain.size },
         uTerrainRes: { value: inputs.terrain.res },
@@ -87,7 +95,7 @@ export class WaterSurface {
         uShallowColor: { value: new THREE.Color('#3cc8c4') },
         uDeepColor: { value: new THREE.Color('#0a4a78') },
       },
-      vertexShader: `${waterCommon}\n${waterVert}`,
+      vertexShader: `${waterCommon}\n${clouds}\n${waterVert}`,
       fragmentShader: `${waterCommon}\n${skyCommon}\n${waterFrag}`,
       fog: true,
     });

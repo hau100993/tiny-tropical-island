@@ -1,5 +1,6 @@
 uniform vec3 uColor;
 uniform float uOpacity;
+uniform float uDayLight;
 
 varying vec2 vCorner;
 varying float vFade;
@@ -15,7 +16,8 @@ void main() {
 #endif
   a *= uOpacity * vFade;
   if (a < 0.003) discard;
-  gl_FragColor = vec4(uColor, a);
+  // Drops and flakes only show the light that falls on them: dim at night.
+  gl_FragColor = vec4(uColor * (0.2 + 0.8 * uDayLight), a);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }

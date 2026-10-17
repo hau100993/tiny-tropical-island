@@ -7,6 +7,7 @@ import { LAYER_IDS, type LayerId, type MixerState } from '../audio/types';
 import type { Keymap } from '../controls/keymap';
 import { QUALITY_LEVELS, type QualityLevel } from '../core/quality';
 import type { Settings, SettingsStore } from '../core/settings';
+import { formatClock, type TimeMode } from '../world/celestial';
 
 interface LayerRow {
   enabled: ToggleControl;
@@ -22,7 +23,11 @@ export interface PanelDeps {
   keymap: Keymap;
   /** Starts audio from a click (autoplay policy). */
   startAudio: () => void;
+  getHours: () => number;
+  setHours: (hours: number) => void;
 }
+
+const TIME_MODES: readonly TimeMode[] = ['real', 'cycle24', 'cycle6', 'paused'];
 
 /** The collapsible control panel: sound mixer, presets, scene options, shortcuts. */
 export class Panel {
@@ -49,6 +54,16 @@ export class Panel {
   private readonly visualSnow: SliderControl;
   private readonly visualWind: SliderControl;
   private readonly startQuality: QualityLevel;
+  private readonly timeModeBtns = new Map<TimeMode, HTMLButtonElement>();
+  private clock: SliderControl | null = null;
+  private clouds: SliderControl | null = null;
+  private gloom: SliderControl | null = null;
+  private meteors: SliderControl | null = null;
+  private aurora: SliderControl | null = null;
+  private rainbow: ToggleControl | null = null;
+  private stars: ToggleControl | null = null;
+  private fireflies: ToggleControl | null = null;
+  private shownMinute = -1;
   /** Preset whose values are currently loaded; cleared when the user changes anything. */
   private activePreset = '';
   private applyingPreset = false;
@@ -153,7 +168,7 @@ export class Panel {
     }
     keys.body.append(list, el('div', 'note', vi.shortcuts.mouse));
 
-    content.append(audio.root, scene.root, keys.root);
+    content.append(audio.root, this.buildSky(s), scene.root, keys.root);
     this.root.append(header, content);
     parent.append(this.root);
 
@@ -162,6 +177,60 @@ export class Panel {
     settings.onChange((next) => this.syncSettings(next));
     this.syncMixer(mixer.current);
     this.syncSettings(s);
+  }
+
+  /** Sky section: time of day, day options (clouds, gloom, rainbow), night options. */
+  private buildSky(s: Readonly<Settings>): HTMLElement {
+    const { settings } = this.deps;
+    const sky = section(vi.panel.sky);
+    const modeRow = el('div', 'button-row');
+    modeRow.append(el('span', 'slider-label', vi.panel.timeModeLabel));
+    for (const mode of TIME_MODES) {
+      const b = button(vi.panel.timeModes[mode], () => settings.update({ timeMode: mode }), 'seg');
+      this.timeModeBtns.set(mode, b);
+      modeRow.append(b);
+    }
+    // Dragging the clock in "real time" mode switches to a fixed (paused) time.
+    this.clock = slider(vi.panel.time, this.deps.getHours(), (h) => {
+      if (settings.get().timeMode === 'real') settings.update({ timeMode: 'paused' });
+      this.deps.setHours(h);
+    }, { min: 0, max: 23.99, step: 0.05, format: formatClock });
+
+    const dayTitle = el('div', 'subhead', vi.panel.day);
+    this.clouds = slider(vi.panel.clouds, s.clouds, (v) => settings.update({ clouds: v }));
+    this.gloom = slider(vi.panel.gloom, s.gloom, (v) => settings.update({ gloom: v }));
+    this.rainbow = toggle(vi.panel.rainbow, s.rainbow, (on) => settings.update({ rainbow: on }));
+    const nightTitle = el('div', 'subhead', vi.panel.night);
+    this.meteors = slider(vi.panel.meteors, s.meteors, (v) => settings.update({ meteors: v }));
+    this.aurora = slider(vi.panel.aurora, s.aurora, (v) => settings.update({ aurora: v }));
+    this.stars = toggle(vi.panel.stars, s.stars, (on) => settings.update({ stars: on }));
+    this.fireflies = toggle(vi.panel.fireflies, s.fireflies, (on) => settings.update({ fireflies: on }));
+    const dayToggles = el('div', 'button-row');
+    dayToggles.append(this.rainbow.root);
+    const nightToggles = el('div', 'button-row');
+    nightToggles.append(this.stars.root, this.fireflies.root);
+
+    sky.body.append(
+      modeRow,
+      this.clock.root,
+      dayTitle,
+      this.clouds.root,
+      this.gloom.root,
+      dayToggles,
+      nightTitle,
+      this.meteors.root,
+      this.aurora.root,
+      nightToggles,
+    );
+    return sky.root;
+  }
+
+  /** Called every frame; only touches the DOM when the displayed minute changes. */
+  setClock(hours: number): void {
+    const minute = Math.floor(hours * 60);
+    if (minute === this.shownMinute || document.activeElement === this.clock?.input) return;
+    this.shownMinute = minute;
+    this.clock?.set(hours);
   }
 
   /** Any manual tweak means the mix no longer matches the selected preset. */
@@ -208,6 +277,14 @@ export class Panel {
     this.visualRain.set(s.visualRain);
     this.visualSnow.set(s.visualSnow);
     this.visualWind.set(s.visualWind);
+    for (const [mode, b] of this.timeModeBtns) b.setAttribute('aria-pressed', String(mode === s.timeMode));
+    this.clouds?.set(s.clouds);
+    this.gloom?.set(s.gloom);
+    this.rainbow?.set(s.rainbow);
+    this.meteors?.set(s.meteors);
+    this.aurora?.set(s.aurora);
+    this.stars?.set(s.stars);
+    this.fireflies?.set(s.fireflies);
   }
 
   private refreshPresets(): void {

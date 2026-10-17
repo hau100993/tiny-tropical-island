@@ -24,24 +24,32 @@ export interface SliderControl {
   set(value: number): void;
 }
 
-/** 0..1 range slider showing a percentage. Calls `onInput` while dragging. */
-export function slider(label: string, value: number, onInput: (v: number) => void): SliderControl {
+export interface SliderOptions {
+  min: number;
+  max: number;
+  step: number;
+  format: (v: number) => string;
+}
+
+const PERCENT: SliderOptions = { min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%` };
+
+/** Range slider (0..1 as a percentage by default). Calls `onInput` while dragging. */
+export function slider(label: string, value: number, onInput: (v: number) => void, opts: SliderOptions = PERCENT): SliderControl {
   const root = el('label', 'slider');
   const name = el('span', 'slider-label', label);
   const input = el('input', 'slider-input');
   input.type = 'range';
-  input.min = '0';
-  input.max = '100';
-  input.step = '1';
+  input.min = String(opts.min);
+  input.max = String(opts.max);
+  input.step = String(opts.step);
   const out = el('span', 'slider-value');
   const set = (v: number): void => {
-    const s = String(Math.round(v * 100));
-    if (input.value !== s) input.value = s;
-    out.textContent = `${s}%`;
+    if (Math.abs(Number(input.value) - v) > opts.step / 2) input.value = String(v);
+    out.textContent = opts.format(v);
   };
   input.addEventListener('input', () => {
-    const v = Number(input.value) / 100;
-    out.textContent = `${input.value}%`;
+    const v = Number(input.value);
+    out.textContent = opts.format(v);
     onInput(v);
   });
   set(value);

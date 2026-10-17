@@ -22,8 +22,10 @@ export interface HouseInfo {
   group: THREE.Group;
   floorY: number;
   placement: Placement;
-  /** Material of the window panes and lantern; Phase 4 drives its emissive at night. */
+  /** Material of the window panes and lantern; glows from dusk to dawn. */
   windowMaterial: THREE.MeshStandardMaterial;
+  /** Warm porch lantern light (off by day). */
+  lamp: THREE.PointLight;
 }
 
 const WOOD = '#8b5a2b';
@@ -208,11 +210,14 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
   body.castShadow = true;
   body.receiveShadow = true;
   const panes = new THREE.Mesh(glass.build(), windowMaterial);
-  group.add(body, panes);
+  // Lantern light: lights the porch, steps and the ground in front of the house at night.
+  const lamp = new THREE.PointLight('#ffb867', 0, 16, 2);
+  lamp.position.set(0.9, eaveY - 0.8, D.porchFront - 0.6);
+  group.add(body, panes, lamp);
   group.position.set(placement.x, 0, placement.z);
   group.rotation.y = placement.rotY;
 
-  return { group, floorY: F, placement, windowMaterial };
+  return { group, floorY: F, placement, windowMaterial, lamp };
 }
 
 /**

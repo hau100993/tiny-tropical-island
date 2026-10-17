@@ -8,6 +8,8 @@ uniform vec4 uWaveB[NUM_WAVES]; // omega, Q, phase, unused
 varying vec3 vWorldPos;
 varying vec3 vNormalW;
 varying float vCrest;
+varying float vCloudShadow;
+uniform vec3 uSunDir;
 
 #include <fog_pars_vertex>
 
@@ -50,6 +52,8 @@ void main() {
   vWorldPos = wp.xyz;
   vNormalW = normalize(vec3(-nx, 1.0 - ny, -nz));
   vCrest = ampSum > 0.0 ? disp.y / ampSum : 0.0;
+  // Only near the island: far away the shadow patches would alias.
+  vCloudShadow = cloudShadow(wp.xz, uSunDir) * (1.0 - smoothstep(300.0, 700.0, dist));
 
   vec4 mvPosition = viewMatrix * wp;
   gl_Position = projectionMatrix * mvPosition;

@@ -17,6 +17,8 @@ import { Mixer } from '../audio/mixer';
 import { PresetStore } from '../audio/presets';
 import type { WeatherTargets } from '../weather/Weather';
 import { wallSeconds } from '../weather/wind';
+import type { SkyOptions, SkyWeather } from '../world/dayNight';
+import type { TimeMode } from '../world/celestial';
 
 export class App {
   private readonly renderer: THREE.WebGLRenderer;
@@ -32,6 +34,9 @@ export class App {
   private readonly gpuTimer: GpuTimer;
   private readonly mixer = new Mixer();
   private readonly presets = new PresetStore();
+  private readonly panel: Panel;
+  /** Time mode to return to when N un-pauses the clock. */
+  private resumeMode: TimeMode = 'cycle24';
   private shadowsOn: boolean | null = null;
 
   constructor(private readonly container: HTMLElement) {
@@ -66,12 +71,14 @@ export class App {
     const ui = document.createElement('div');
     ui.className = 'ui-layer';
     container.append(ui);
-    new Panel(ui, {
+    this.panel = new Panel(ui, {
       mixer: this.mixer,
       presets: this.presets,
       settings: this.settings,
       keymap: this.keymap,
       startAudio: () => void this.startAudio(),
+      getHours: () => this.world.dayNight.hours,
+      setHours: (h) => this.world.dayNight.setHours(h),
     });
     new StartScreen(container, () => this.startAudio());
 
@@ -116,6 +123,19 @@ export class App {
       label: vi.shortcuts.hideUI,
       action: () => document.body.classList.toggle('ui-hidden'),
     });
+    this.keymap.register({
+      code: 'KeyN',
+      keyLabel: 'N',
+      label: vi.shortcuts.pauseTime,
+      action: () => {
+        const mode = this.settings.get().timeMode;
+        if (mode === 'paused') this.settings.update({ timeMode: this.resumeMode });
+        else {
+          this.resumeMode = mode;
+          this.settings.update({ timeMode: 'paused' });
+        }
+      },
+    });
     this.keymap.register({ code: 'KeyL', keyLabel: 'L', label: vi.shortcuts.lowPower, action: toggleSetting('lowPower') });
     this.keymap.register({ code: 'Backquote', keyLabel: '`', label: vi.shortcuts.debug, action: toggleSetting('showDebug') });
   }
@@ -128,6 +148,7 @@ export class App {
       this.renderer.setPixelRatio(pixelRatio);
       this.onResize();
     }
+    this.world.fireflies.setPixelRatio(pixelRatio);
 
     const shadows = profile.shadowMapSize > 0;
     this.renderer.shadowMap.enabled = shadows;
@@ -157,6 +178,11 @@ export class App {
   }
 
   private readonly drawingBuffer = new THREE.Vector2();
+  // Reused every frame (no per-frame allocations).
+  private readonly skyOptions: SkyOptions = {
+    mode: 'cycle24', clouds: 0, gloom: 0, rainbow: true, stars: true, meteors: 0, aurora: 0,
+  };
+  private readonly skyWeather: SkyWeather = { overcast: 0, rain: 0, wetness: 0 };
 
   private onResize = (): void => {
     const w = this.container.clientWidth || window.innerWidth;
@@ -177,6 +203,25 @@ export class App {
     const weather = this.world.weather;
     weather.setTargets(this.weatherTargets());
     weather.update(dt, wallSeconds());
+
+    // Sky after weather: the time-of-day palette is greyed by the weather's overcast.
+    const s = this.settings.get();
+    const dayNight = this.world.dayNight;
+    this.skyOptions.mode = s.timeMode;
+    this.skyOptions.clouds = s.clouds;
+    this.skyOptions.gloom = s.gloom;
+    this.skyOptions.rainbow = s.rainbow;
+    this.skyOptions.stars = s.stars;
+    this.skyOptions.meteors = s.meteors;
+    this.skyOptions.aurora = s.aurora;
+    this.skyWeather.overcast = weather.overcast;
+    this.skyWeather.rain = weather.rainAmount;
+    this.skyWeather.wetness = weather.wetness;
+    dayNight.update(dt, this.skyOptions, this.skyWeather);
+    const night = dayNight.night;
+    this.world.fireflies.update(s.fireflies ? night * (1 - weather.rainAmount) * (1 - sharedUniforms.uSnow.value) : 0);
+    this.mixer.setNight(night);
+    this.panel.setClock(dayNight.hours);
     // Wind roughens the sea on top of the wave slider; the surf sound follows the same value.
     const sea = Math.min(1, this.env.waveStrength.value + weather.seaBoost);
     sharedUniforms.uWaveStrength.value = sea;

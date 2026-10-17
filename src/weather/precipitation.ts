@@ -67,6 +67,7 @@ export class Precipitation {
         uSize: { value: opts.size },
         uColor: { value: new THREE.Color(opts.color) },
         uOpacity: { value: opts.opacity },
+        uDayLight: shared.uDayLight,
       },
       vertexShader: precipVert,
       fragmentShader: precipFrag,

@@ -19,7 +19,9 @@ export class Mixer {
   private engine: AudioEngine | null = null;
   private readonly layers = new Map<LayerId, AudioLayer>();
   private waves: WavesLayer | null = null;
+  private birds: BirdsLayer | null = null;
   private seaState = 0.45;
+  private night = 0;
   private readonly listeners: Listener[] = [];
   private saveTimer = 0;
 
@@ -42,7 +44,9 @@ export class Mixer {
     this.engine = engine;
     this.waves = new WavesLayer(engine);
     this.waves.setSeaState(this.seaState);
-    const all: AudioLayer[] = [this.waves, new BirdsLayer(engine), new WindLayer(engine), new RainLayer(engine), new SnowQuietLayer(engine)];
+    this.birds = new BirdsLayer(engine);
+    this.setNight(this.night);
+    const all: AudioLayer[] = [this.waves, this.birds, new WindLayer(engine), new RainLayer(engine), new SnowQuietLayer(engine)];
     for (const layer of all) this.layers.set(layer.id, layer);
     this.applyAll(0.7);
     this.emit();
@@ -74,6 +78,13 @@ export class Mixer {
 
   reset(): void {
     this.load(defaultMixerState());
+  }
+
+  /** 0 = day … 1 = night: birds fall silent and crickets take over. */
+  setNight(night: number): void {
+    this.night = night;
+    this.birds?.setDensity(1 - 0.92 * night);
+    this.birds?.setCrickets(night);
   }
 
   /** Wave strength of the sea (scene setting) also shapes the surf sound. */
