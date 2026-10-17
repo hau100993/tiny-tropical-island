@@ -1,0 +1,91 @@
+import type { Heightmap } from './heightmap';
+import type { Rng } from '../core/rng';
+
+export interface Circle {
+  x: number;
+  z: number;
+  r: number;
+}
+
+export interface Placement {
+  x: number;
+  z: number;
+  /** Rotation around +Y, radians. */
+  rotY: number;
+}
+
+export interface RockPlacement {
+  x: number;
+  z: number;
+  scale: number;
+  rotY: number;
+  variant: number;
+}
+
+/** Where the hand-placed things go. Derived from the heightmap so it survives terrain tweaks. */
+export interface IslandLayout {
+  house: Placement;
+  umbrella: Placement;
+  boat: Placement;
+  rocks: RockPlacement[];
+  /** Areas kept free of palms. */
+  clearings: Circle[];
+}
+
+/** Compass direction (radians, in the x-z plane) the house faces. */
+const HOUSE_ANGLE = 0.7;
+
+export function createLayout(hm: Heightmap, rng: Rng): IslandLayout {
+  // House: a little inland from the dry-sand line, door facing the sea.
+  const houseR = hm.shoreDistance(HOUSE_ANGLE, 1.4) - 9;
+  const house: Placement = {
+    x: Math.cos(HOUSE_ANGLE) * houseR,
+    z: Math.sin(HOUSE_ANGLE) * houseR,
+    // Rotates local +Z (the door side) to point along HOUSE_ANGLE.
+    rotY: Math.PI / 2 - HOUSE_ANGLE,
+  };
+
+  const umbrellaAngle = HOUSE_ANGLE + 0.32;
+  const umbrellaR = hm.shoreDistance(umbrellaAngle, 0) - 7;
+  const umbrella: Placement = {
+    x: Math.cos(umbrellaAngle) * umbrellaR,
+    z: Math.sin(umbrellaAngle) * umbrellaR,
+    rotY: Math.PI / 2 - umbrellaAngle,
+  };
+
+  const boatAngle = HOUSE_ANGLE - 0.28;
+  const boatR = hm.shoreDistance(boatAngle, -1.3);
+  const boat: Placement = {
+    x: Math.cos(boatAngle) * boatR,
+    z: Math.sin(boatAngle) * boatR,
+    rotY: -boatAngle + 0.4,
+  };
+
+  const clearings: Circle[] = [
+    { x: house.x, z: house.z, r: 10 },
+    { x: umbrella.x, z: umbrella.z, r: 5 },
+    // Path from the porch steps down to the beach.
+    { x: (house.x + umbrella.x) / 2, z: (house.z + umbrella.z) / 2, r: 4 },
+  ];
+
+  const rocks: RockPlacement[] = [];
+  const addRock = (angle: number, targetH: number, scale: number): void => {
+    const r = hm.shoreDistance(angle, targetH);
+    const x = Math.cos(angle) * r;
+    const z = Math.sin(angle) * r;
+    if (clearings.some((c) => Math.hypot(c.x - x, c.z - z) < c.r + scale)) return;
+    rocks.push({ x, z, scale, rotY: rng() * Math.PI * 2, variant: Math.floor(rng() * 3) });
+  };
+  // Clusters along the shoreline, some half-submerged.
+  for (let c = 0; c < 7; c++) {
+    const base = rng() * Math.PI * 2;
+    const n = 2 + Math.floor(rng() * 3);
+    for (let k = 0; k < n; k++) {
+      addRock(base + (rng() - 0.5) * 0.12, -0.6 + rng() * 1.4, 0.5 + rng() * 1.3);
+    }
+  }
+  // A few lone rocks a bit further out in the water.
+  for (let k = 0; k < 5; k++) addRock(rng() * Math.PI * 2, -1.8 - rng() * 1.5, 0.9 + rng() * 1.0);
+
+  return { house, umbrella, boat, rocks, clearings };
+}
