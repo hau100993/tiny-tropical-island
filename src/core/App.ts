@@ -10,7 +10,11 @@ import { createOrbitCamera, type OrbitCamera } from '../controls/orbit';
 import { Keymap } from '../controls/keymap';
 import { onWaterClick } from '../controls/waterClick';
 import { DebugOverlay } from '../ui/DebugOverlay';
+import { Panel } from '../ui/Panel';
+import { StartScreen } from '../ui/StartScreen';
 import { vi } from '../ui/strings.vi';
+import { Mixer } from '../audio/mixer';
+import { PresetStore } from '../audio/presets';
 
 export class App {
   private readonly renderer: THREE.WebGLRenderer;
@@ -24,6 +28,8 @@ export class App {
   private readonly keymap = new Keymap();
   private readonly loop: Loop;
   private readonly gpuTimer: GpuTimer;
+  private readonly mixer = new Mixer();
+  private readonly presets = new PresetStore();
   private shadowsOn: boolean | null = null;
 
   constructor(private readonly container: HTMLElement) {
@@ -50,19 +56,22 @@ export class App {
     this.orbit = createOrbitCamera(this.camera, this.renderer.domElement);
     onWaterClick(this.renderer.domElement, this.camera, (x, z) => this.world.water.addRipple(x, z, 3, -1.0));
 
-    this.overlay = new DebugOverlay(container, s, (patch) => this.settings.update(patch));
+    this.overlay = new DebugOverlay(container, s.showDebug);
     this.settings.onChange((next) => this.applySettings(next));
 
-    this.keymap.register({
-      code: 'Backquote',
-      label: vi.shortcuts.debug,
-      action: () => this.settings.update({ showDebug: !this.settings.get().showDebug }),
+    this.registerShortcuts();
+    // UI layer above the canvas; hidden as a whole with the H key.
+    const ui = document.createElement('div');
+    ui.className = 'ui-layer';
+    container.append(ui);
+    new Panel(ui, {
+      mixer: this.mixer,
+      presets: this.presets,
+      settings: this.settings,
+      keymap: this.keymap,
+      startAudio: () => void this.startAudio(),
     });
-    this.keymap.register({
-      code: 'KeyL',
-      label: vi.shortcuts.lowPower,
-      action: () => this.settings.update({ lowPower: !this.settings.get().lowPower }),
-    });
+    new StartScreen(container, () => this.startAudio());
 
     window.addEventListener('resize', this.onResize);
     this.loop = new Loop(this.tick);
@@ -72,6 +81,26 @@ export class App {
 
   start(): void {
     this.loop.start();
+  }
+
+  /** Creates the audio graph; must run inside a click/keypress handler. */
+  private startAudio(): Promise<void> {
+    return this.mixer.start();
+  }
+
+  private registerShortcuts(): void {
+    const toggleSetting = (key: 'showDebug' | 'lowPower' | 'panelCollapsed') => () =>
+      this.settings.update({ [key]: !this.settings.get()[key] });
+    this.keymap.register({ code: 'KeyM', keyLabel: 'M', label: vi.shortcuts.muteAll, action: () => this.mixer.toggleMuteAll() });
+    this.keymap.register({ code: 'KeyP', keyLabel: 'P', label: vi.shortcuts.panel, action: toggleSetting('panelCollapsed') });
+    this.keymap.register({
+      code: 'KeyH',
+      keyLabel: 'H',
+      label: vi.shortcuts.hideUI,
+      action: () => document.body.classList.toggle('ui-hidden'),
+    });
+    this.keymap.register({ code: 'KeyL', keyLabel: 'L', label: vi.shortcuts.lowPower, action: toggleSetting('lowPower') });
+    this.keymap.register({ code: 'Backquote', keyLabel: '`', label: vi.shortcuts.debug, action: toggleSetting('showDebug') });
   }
 
   private applySettings(s: Readonly<Settings>): void {
@@ -104,7 +133,8 @@ export class App {
     this.world.water.applyProfile(profile);
     this.world.water.setStepRate(fps);
     this.env.waveStrength.target = s.waveStrength;
-    this.overlay.sync(s);
+    this.mixer.setSeaState(s.waveStrength);
+    this.overlay.setVisible(s.showDebug);
   }
 
   private readonly drawingBuffer = new THREE.Vector2();

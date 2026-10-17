@@ -1,89 +1,32 @@
 import type * as THREE from 'three';
+import { el } from './components';
 import { vi } from './strings.vi';
-import { QUALITY_LEVELS, type QualityLevel } from '../core/quality';
-import type { Settings, SettingsPatch } from '../core/settings';
 import type { Loop } from '../core/loop';
 
 /**
- * Small stats panel (fps, frame time, draw calls, triangles) with quality controls.
+ * Small stats panel (fps, CPU/GPU time, draw calls, triangles), toggled with the ` key.
  * The DOM is refreshed 4× per second, not every frame, to keep layout work negligible.
  */
 export class DebugOverlay {
   private readonly root: HTMLDivElement;
   private readonly stats: HTMLDivElement;
-  private readonly qualityButtons = new Map<QualityLevel, HTMLButtonElement>();
-  private readonly lowPowerBtn: HTMLButtonElement;
-  private readonly autoRotateBtn: HTMLButtonElement;
-  private readonly waveInput: HTMLInputElement;
-  private readonly note: HTMLDivElement;
   private frames = 0;
   private accum = 0;
   private cpuAccum = 0;
-  private readonly startQuality: QualityLevel;
-  private current: Readonly<Settings>;
 
-  constructor(
-    parent: HTMLElement,
-    settings: Readonly<Settings>,
-    private readonly onChange: (patch: SettingsPatch) => void,
-  ) {
-    this.startQuality = settings.quality;
+  constructor(parent: HTMLElement, visible: boolean) {
     this.root = el('div', 'debug-overlay');
-    const title = el('div', 'debug-title');
-    title.textContent = vi.debug.title;
     this.stats = el('div', 'debug-stats');
-
-    const qualityRow = el('div', 'debug-row');
-    const qLabel = el('span', 'debug-label');
-    qLabel.textContent = vi.debug.quality;
-    qualityRow.append(qLabel);
-    for (const level of QUALITY_LEVELS) {
-      const b = button(vi.debug.qualityNames[level], () => this.onChange({ quality: level }));
-      this.qualityButtons.set(level, b);
-      qualityRow.append(b);
-    }
-
-    const toggles = el('div', 'debug-row');
-    this.lowPowerBtn = button('', () => this.onChange({ lowPower: !this.current.lowPower }));
-    this.autoRotateBtn = button('', () => this.onChange({ autoRotate: !this.current.autoRotate }));
-    toggles.append(this.lowPowerBtn, this.autoRotateBtn);
-
-    // Temporary home for the wave slider until the real control panel (Phase 2).
-    const waveRow = el('label', 'debug-row debug-slider');
-    const waveLabel = el('span', 'debug-label');
-    waveLabel.textContent = vi.debug.waves;
-    this.waveInput = el('input', 'debug-range');
-    this.waveInput.type = 'range';
-    this.waveInput.min = '0';
-    this.waveInput.max = '100';
-    this.waveInput.addEventListener('input', () => this.onChange({ waveStrength: Number(this.waveInput.value) / 100 }));
-    waveRow.append(waveLabel, this.waveInput);
-
-    this.note = el('div', 'debug-note');
-    const hint = el('div', 'debug-hint');
-    hint.textContent = vi.debug.hint;
-
-    this.root.append(title, this.stats, qualityRow, toggles, waveRow, this.note, hint);
+    this.root.append(el('div', 'debug-title', vi.debug.title), this.stats);
     parent.append(this.root);
-    this.current = settings;
-    this.sync(settings);
+    this.setVisible(visible);
   }
 
-  sync(settings: Readonly<Settings>): void {
-    this.current = settings;
-    this.root.hidden = !settings.showDebug;
-    for (const [level, b] of this.qualityButtons) b.classList.toggle('active', level === settings.quality);
-    this.lowPowerBtn.textContent = `${vi.debug.lowPower}: ${settings.lowPower ? vi.debug.on : vi.debug.off}`;
-    this.lowPowerBtn.classList.toggle('active', settings.lowPower);
-    this.autoRotateBtn.textContent = `${vi.debug.autoRotate}: ${settings.autoRotate ? vi.debug.on : vi.debug.off}`;
-    this.autoRotateBtn.classList.toggle('active', settings.autoRotate);
-    const wave = String(Math.round(settings.waveStrength * 100));
-    if (this.waveInput.value !== wave) this.waveInput.value = wave;
-    const msaaChanged = (settings.quality === 'low') !== (this.startQuality === 'low');
-    this.note.textContent = msaaChanged ? vi.debug.msaaReload : '';
+  setVisible(visible: boolean): void {
+    this.root.hidden = !visible;
   }
 
-  /** Call once per rendered frame, after `renderer.render`. `gpuMs` is NaN when unsupported. */
+  /** Call once per rendered frame, after rendering. `gpuMs` is NaN when unsupported. */
   update(dt: number, info: THREE.WebGLInfo, loop: Loop, cpuMs: number, gpuMs: number): void {
     if (this.root.hidden) {
       this.frames = 0;
@@ -113,18 +56,4 @@ export class DebugOverlay {
     this.accum = 0;
     this.cpuAccum = 0;
   }
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string): HTMLElementTagNameMap[K] {
-  const e = document.createElement(tag);
-  e.className = className;
-  return e;
-}
-
-function button(text: string, onClick: () => void): HTMLButtonElement {
-  const b = el('button', 'debug-btn');
-  b.type = 'button';
-  b.textContent = text;
-  b.addEventListener('click', onClick);
-  return b;
 }

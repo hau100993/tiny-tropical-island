@@ -3,9 +3,8 @@
 A local web app for Windows 11 that you leave open while you work: a small stylized tropical
 island with GPU water, weather, day/night and an ambient sound mixer. Fully offline, no backend.
 
-> Status: **Phase 1b** — island, palm forest, stilt house, props, orbit camera, and the water:
-> Gerstner swell + GPU ripple simulation, refraction, caustics, shore foam.
-> See [PLAN.md](PLAN.md) for the roadmap.
+> Status: **Phase 2** — island, GPU water (swell, ripples, refraction, caustics) and a fully
+> synthesized sound mixer with presets. See [PLAN.md](PLAN.md) for the roadmap.
 
 ## Run
 
@@ -24,6 +23,12 @@ Other scripts:
 | `npm run preview` | Serve the built `dist/` locally (works offline) |
 | `npm test` | Unit tests (Vitest) |
 
+## First start
+
+Browsers only allow sound after a click, so the app opens with a start screen:
+**Bắt đầu nghe** starts the sound, **Chỉ ngắm cảnh** shows the island silently (you can turn
+sound on later with **Bật âm thanh** in the panel).
+
 ## Controls
 
 | Input | Action |
@@ -32,13 +37,24 @@ Other scripts:
 | Wheel / pinch | Zoom |
 | Right-drag | Pan |
 | Click on the water | Splash: ripples spread and bounce off the beach |
-| `` ` `` (backquote) | Show/hide the stats panel |
+| `M` | Mute / unmute everything |
+| `P` | Collapse / expand the control panel |
+| `H` | Hide all UI (clean wallpaper view); press again to show |
 | `L` | Toggle low-power mode (30 fps, Low-level water, no shadows) |
+| `` ` `` (backquote) | Show/hide the stats overlay (FPS, CPU/GPU ms, draw calls) |
 
-The stats panel (top left) shows FPS, CPU and GPU time per frame, draw calls and triangles,
-and lets you switch quality (Thấp / Vừa / Cao), low power, auto-rotate and wave strength
-("Sóng biển"). Settings are saved in `localStorage`. Anti-aliasing changes between Low and the
-other presets apply after a page reload.
+### Control panel (top right)
+
+- **Âm thanh (sound):** master volume, and for each layer — Sóng biển (waves), Chim hót (birds),
+  Gió lá (wind), Mưa (rain), Tuyết lặng (snow hush) — an on/off switch, a volume slider and a
+  mute button. *Off* stops the layer completely (no CPU); *mute* silences it but keeps it running.
+- **Preset:** pick *Tập trung*, *Bão*, *Tuyết yên tĩnh*, *Bình minh yên ả*, or your own.
+  **Lưu thành preset…** saves the current mix + wave strength under a name (saving with an
+  existing name overwrites it). **Xóa** deletes your own presets. Up to 20 user presets.
+- **Cảnh (scene):** wave strength, quality (Thấp / Vừa / Cao), low power, camera auto-rotate.
+  Anti-aliasing changes between Low and the other presets apply after a page reload.
+
+Everything (mix, presets, panel state, scene settings) is saved in `localStorage`.
 
 ### What the quality presets change
 
@@ -61,7 +77,25 @@ other presets apply after a page reload.
 - **Caustics:** a fine grid of "sun rays" is refracted through the surface and drawn where it
   lands on the seabed; where rays converge, triangles shrink and get brighter.
 
-Rendering stops completely while the tab is hidden; the panel shows how long the last pause was.
+Rendering stops completely while the tab is hidden (the stats overlay shows how long the last
+pause was). Sound keeps playing.
+
+## How the sound works (short version)
+
+All sound is generated in code with the Web Audio API — no audio files.
+
+- **Noise colors** (white, pink, brown) are generated once into 8 s looping buffers; each layer
+  filters them differently. Loops are made seamless so they never click.
+- **Waves:** a brown-noise rumble plus surf swells that rise, break and wash up the beach every
+  6–10 s (more often and louder when *Sóng biển* in the scene section is higher).
+- **Wind:** a resonant band of pink noise whose pitch and level follow random gusts, plus leaf rustle.
+- **Rain:** pink-noise hiss + two pre-rendered droplet loops (5.0 s and 7.3 s, so the pattern
+  repeats only every ~6 min) + low rumble.
+- **Birds:** short sine "calls" (5 species patterns) at random times and stereo positions.
+- **Tuyết lặng:** a very soft hush; it also muffles the other layers (snow absorbs high frequencies).
+- Timed events (swells, gusts, bird calls) are scheduled on the audio clock. When the tab is
+  hidden, Chrome may run timers only once a minute, so events are queued ~75 s ahead.
+- Optional real recordings (mp3/ogg) per layer arrive in Phase 6.
 
 ## Project layout
 
@@ -70,8 +104,9 @@ src/
   core/      app wiring, render loop, settings, quality presets, shared uniforms, noise/RNG
   world/     heightmap, terrain, palms, house, props, sky, lighting
   water/     Gerstner swell, ripple simulation, refraction capture, caustics, floating objects
+  audio/     audio engine, synthesized layers, mixer state, presets, scheduler
   controls/  orbit camera, water clicks, keyboard shortcuts
-  ui/        Vietnamese strings, debug overlay, styles
+  ui/        Vietnamese strings, start screen, control panel, stats overlay, styles
 tests/       unit tests for pure logic
 ```
 

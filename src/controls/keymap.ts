@@ -1,6 +1,8 @@
 export interface Shortcut {
   /** KeyboardEvent.code, e.g. 'KeyH' or 'Backquote' (layout-independent). */
   code: string;
+  /** Key as printed on the keyboard, shown in the shortcut list. */
+  keyLabel: string;
   /** Vietnamese label shown in the UI. */
   label: string;
   action: () => void;

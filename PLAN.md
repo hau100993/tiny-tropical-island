@@ -8,8 +8,8 @@
 |---|---|---|
 | 1a Island + orbit | ✅ Done (2026-10-17), awaiting feedback | Measured on RX 6600 (Medium, 1600×900): GPU ≈ 2.2 ms, CPU ≈ 0.7 ms per frame, 32 draw calls, 482k triangles incl. shadow pass. Bundle 153 KB gzip. Grass deferred to Phase 3 (it only matters once wind exists). Added a GPU/CPU timer to the debug overlay. |
 | 1b GPU water | ✅ Done (2026-10-17), awaiting feedback | Heightfield sim (200 m square, ping-pong half-float), click ripples that reflect off the beach, screen-space refraction (half-res scene capture), Wallace-style caustics on seabed and rocks, foam on ripple crests, wave-strength slider (temporary home: stats panel). GPU per frame on RX 6600 @ 1600×900: Low ≈ 2.0 ms, Medium ≈ 3.1 ms, High ≈ 3.9 ms (whole frame, all passes). |
-| 2 Audio + mixer | ⏳ Next | |
-| 3 Weather | — | |
+| 2 Audio + mixer | ✅ Done (2026-10-17), awaiting feedback | One AudioContext (created on the start-screen click), 5 synthesized layers behind a shared `AudioLayer` interface, look-ahead scheduler (1.5 s visible / 75 s hidden), snow muffle via shared lowpass, Vietnamese control panel (mixer, presets, scene, shortcuts), user presets + mix persisted. Levels balanced by measurement (solo RMS at 70%: waves −30, wind −28, rain −29, birds −35, snow −41 dBFS; all layers at max peak 0.96 before the limiter). Also pulled forward from Phase 6: `M`/`P`/`H` shortcuts and the hide-UI view. |
+| 3 Weather | ⏳ Next | |
 | 4 Day/night | — | |
 | 5 First-person | — | |
 | 6 Files, Pomodoro, polish | — | |
@@ -22,6 +22,9 @@
 - Ripples are tuned for orbit-distance readability: 6 m/s travel speed, 3 m drops, slopes amplified ×4 in shading. Real ripples at island scale would be invisible from 100 m.
 - Caustics use amplified sub-geometry ripples (not the Gerstner swell) because visible focusing at 1–4 m depth needs stronger curvature than the visible surface has.
 - Debug: `window.__tsw` exposes the running App in `npm run dev` only (stripped from builds).
+- Stats overlay is now stats-only and hidden by default (`` ` ``); quality/low-power/auto-rotate/wave controls moved into the control panel.
+- Wind gusts are generated inside the wind layer for now; Phase 3 moves the gust source into `weather/wind.ts` so sound and swaying palms share it.
+- Rain droplets are pre-rendered loops instead of per-drop scheduled nodes: no scheduling cost, nothing to stall in hidden tabs.
 
 ## 0. Context
 

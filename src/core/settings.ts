@@ -11,6 +11,7 @@ export interface Settings {
   showDebug: boolean;
   /** Sea wave strength, 0 (glassy) … 1 (stormy). */
   waveStrength: number;
+  panelCollapsed: boolean;
 }
 
 export type SettingsPatch = Partial<Omit<Settings, 'version'>>;
@@ -21,8 +22,9 @@ export function defaultSettings(): Settings {
     quality: 'medium',
     lowPower: false,
     autoRotate: false,
-    showDebug: true,
+    showDebug: false,
     waveStrength: 0.45,
+    panelCollapsed: false,
   };
 }
 
@@ -69,6 +71,7 @@ export function parseSettings(json: string | null): Settings {
     autoRotate: bool(raw.autoRotate, defaults.autoRotate),
     showDebug: bool(raw.showDebug, defaults.showDebug),
     waveStrength: unit(raw.waveStrength, defaults.waveStrength),
+    panelCollapsed: bool(raw.panelCollapsed, defaults.panelCollapsed),
   };
 }
 
