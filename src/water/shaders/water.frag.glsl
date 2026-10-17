@@ -3,6 +3,7 @@
 // tinted by how much water the view ray crosses. Otherwise: alpha blending over the seabed.
 uniform float uTime;
 uniform float uWaveStrength;
+uniform float uRain;
 uniform vec3 uShallowColor;
 uniform vec3 uDeepColor;
 
@@ -34,6 +35,12 @@ void main() {
   vec4 sim = sampleSim(xz);
   // Simulated slopes are amplified so ripple rings stay readable from orbit distance.
   g += sim.yz * sim.w * 4.0;
+  // Rain pitting: fine, fast-changing roughness (the sim adds the bigger splash rings).
+  if (uRain > 0.001) {
+    vec2 rp = xz * 3.3;
+    vec2 pit = vec2(valueNoise(rp + vec2(t * 7.1, 0.0)), valueNoise(rp + vec2(13.7, -t * 6.3))) - 0.5;
+    g += pit * 0.22 * uRain * (1.0 - smoothstep(30.0, 120.0, dist));
+  }
   vec3 N = normalize(vNormalW + vec3(-g.x, 0.0, -g.y));
   // Far away, many steep wave facets per pixel average out to a flatter surface; without this
   // the sun glint and reflections turn into blocky blobs when seen from high above.

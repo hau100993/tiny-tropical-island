@@ -7,9 +7,11 @@ import { createHouse, type HouseInfo } from './house';
 import { createRocks, createBeachSet, createBoat, type Rocks } from './props';
 import { createSky, type Sky } from './sky';
 import { createLighting, type Lighting } from './lighting';
+import { Grass } from './grass';
 import { WaterSystem } from '../water/WaterSystem';
 import { FloatingObject } from '../water/floating';
-import { patchCaustics } from './patchMaterial';
+import { patchWorldMaterial, type WorldMaterialFeatures } from './patchMaterial';
+import { Weather } from '../weather/Weather';
 import { createNoise2D } from '../core/noise';
 import { createRng } from '../core/rng';
 import type { SharedUniforms } from '../core/uniforms';
@@ -26,8 +28,22 @@ export interface World {
   sky: Sky;
   lighting: Lighting;
   water: WaterSystem;
+  grass: Grass;
+  weather: Weather;
   boat: FloatingObject;
   update(dt: number, time: number, camera: THREE.Camera, waveStrength: number): void;
+}
+
+/** Applies weather features to every MeshStandardMaterial under `root` (each material once). */
+function patchTree(root: THREE.Object3D, features: WorldMaterialFeatures, shared: SharedUniforms, skip?: THREE.Material): void {
+  const done = new Set<THREE.Material>();
+  root.traverse((o) => {
+    const m = (o as THREE.Mesh).material;
+    if (m instanceof THREE.MeshStandardMaterial && m !== skip && !done.has(m)) {
+      done.add(m);
+      patchWorldMaterial(m, features, shared);
+    }
+  });
 }
 
 export function createWorld(
@@ -51,19 +67,26 @@ export function createWorld(
   const terrain = createTerrainMesh(heightmap, noise);
   scene.add(terrain);
 
-  const palms = createPalms(heightmap, layout.clearings, noise, WORLD_SEED + 2);
+  const palms = createPalms(heightmap, layout.clearings, noise, WORLD_SEED + 2, shared);
   scene.add(palms.group);
+
+  const grass = new Grass(heightmap, noise, layout.house, WORLD_SEED + 7, shared);
+  scene.add(grass.mesh);
 
   const house = createHouse(heightmap, layout.house, WORLD_SEED + 3);
   scene.add(house.group);
+  patchTree(house.group, { wet: true, porosity: 0.7, snow: true }, shared, house.windowMaterial);
 
   const rocks = createRocks(heightmap, layout, WORLD_SEED + 4);
   scene.add(rocks.group);
 
-  scene.add(createBeachSet(heightmap, layout.umbrella, WORLD_SEED + 5));
+  const beachSet = createBeachSet(heightmap, layout.umbrella, WORLD_SEED + 5);
+  scene.add(beachSet);
+  patchTree(beachSet, { wet: true, porosity: 0.6, snow: true }, shared);
 
   const boatMesh = createBoat(WORLD_SEED + 6);
   scene.add(boatMesh);
+  patchTree(boatMesh, { wet: true, porosity: 0.5 }, shared);
   const boat = new FloatingObject(boatMesh, heightmap, layout.boat.x, layout.boat.z, layout.boat.rotY);
 
   const heightTexture = createHeightTexture(heightmap);
@@ -73,13 +96,15 @@ export function createWorld(
     heightTexture.magFilter = THREE.NearestFilter;
   }
   const water = new WaterSystem(renderer, heightmap, heightTexture, shared, camera);
-  water.setCaptureHidden([sky.mesh]);
   scene.add(water.surface.mesh);
-  // Underwater surfaces receive caustic light.
-  patchCaustics(terrain.material, water.causticsUniforms);
-  for (const child of rocks.group.children) {
-    patchCaustics((child as THREE.InstancedMesh).material as THREE.MeshStandardMaterial, water.causticsUniforms);
-  }
+  // Ground and rocks: wet sheen and puddles, snow cover, and caustic light under water.
+  const caustics = water.causticsUniforms;
+  patchWorldMaterial(terrain.material, { wet: true, puddles: true, snow: true, caustics }, shared);
+  patchTree(rocks.group, { wet: true, porosity: 0.6, snow: true, caustics }, shared);
+
+  const weather = new Weather(scene, shared, water, lighting);
+  // Neither the sky nor rain/snow belong in the refraction capture (they'd show up twice).
+  water.setCaptureHidden([sky.mesh, ...weather.particleMeshes]);
 
   return {
     heightmap,
@@ -90,6 +115,8 @@ export function createWorld(
     sky,
     lighting,
     water,
+    grass,
+    weather,
     boat,
     update(dt, time, camera, waveStrength) {
       sky.follow(camera);

@@ -12,6 +12,11 @@ export interface Settings {
   /** Sea wave strength, 0 (glassy) … 1 (stormy). */
   waveStrength: number;
   panelCollapsed: boolean;
+  /** true: rain/snow/wind visuals follow the sound mixer; false: separate visual sliders. */
+  weatherLinked: boolean;
+  visualRain: number;
+  visualSnow: number;
+  visualWind: number;
 }
 
 export type SettingsPatch = Partial<Omit<Settings, 'version'>>;
@@ -25,6 +30,10 @@ export function defaultSettings(): Settings {
     showDebug: false,
     waveStrength: 0.45,
     panelCollapsed: false,
+    weatherLinked: true,
+    visualRain: 0,
+    visualSnow: 0,
+    visualWind: 0.3,
   };
 }
 
@@ -72,6 +81,10 @@ export function parseSettings(json: string | null): Settings {
     showDebug: bool(raw.showDebug, defaults.showDebug),
     waveStrength: unit(raw.waveStrength, defaults.waveStrength),
     panelCollapsed: bool(raw.panelCollapsed, defaults.panelCollapsed),
+    weatherLinked: bool(raw.weatherLinked, defaults.weatherLinked),
+    visualRain: unit(raw.visualRain, defaults.visualRain),
+    visualSnow: unit(raw.visualSnow, defaults.visualSnow),
+    visualWind: unit(raw.visualWind, defaults.visualWind),
   };
 }
 

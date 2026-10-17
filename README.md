@@ -3,8 +3,8 @@
 A local web app for Windows 11 that you leave open while you work: a small stylized tropical
 island with GPU water, weather, day/night and an ambient sound mixer. Fully offline, no backend.
 
-> Status: **Phase 2** — island, GPU water (swell, ripples, refraction, caustics) and a fully
-> synthesized sound mixer with presets. See [PLAN.md](PLAN.md) for the roadmap.
+> Status: **Phase 3** — island, GPU water, a fully synthesized sound mixer with presets, and
+> weather that follows the mixer (rain, wind, snow). See [PLAN.md](PLAN.md) for the roadmap.
 
 ## Run
 
@@ -53,6 +53,18 @@ sound on later with **Bật âm thanh** in the panel).
   existing name overwrites it). **Xóa** deletes your own presets. Up to 20 user presets.
 - **Cảnh (scene):** wave strength, quality (Thấp / Vừa / Cao), low power, camera auto-rotate.
   Anti-aliasing changes between Low and the other presets apply after a page reload.
+- **Tách hình/âm:** by default the weather you *see* follows the sound sliders (Mưa → rain,
+  Tuyết lặng → snow, Gió lá → wind; switching a layer off clears that weather, muting does not).
+  Turn this on to get three separate visual sliders, e.g. to hear rain under a clear sky.
+
+## Weather
+
+| Effect | What happens |
+|---|---|
+| Rain | GPU rain streaks, raindrop rings on the sea, ground darkens and glosses over ~30 s (dries over ~2 min), puddle sheen on flat sand, grey sky, dimmer sun |
+| Wind | palms, fronds and grass bend and flutter; the sea gets rougher. The gusts you see are the gusts you hear (both read the same `gustShape(t)`) |
+| Snow | falling flakes; snow settles over ~90 s — first in patches, then everywhere (leaves, roofs, sand) — and melts slowly when it stops |
+| Rain + snow | sleet: fewer particles of each; snow only settles if it outweighs the rain, and melting snow makes things wet |
 
 Everything (mix, presets, panel state, scene settings) is saved in `localStorage`.
 
@@ -64,6 +76,8 @@ Everything (mix, presets, panel state, scene settings) is saved in `localStorage
 | Refraction (see the seabed bend through the water) | off (transparent water) | on | on |
 | Caustics (light patterns on the seabed) | off | 384² | 512² |
 | Shadows | off | 1024² | 2048² |
+| Grass blades | 4k | 15k | 40k |
+| Rain streaks / snowflakes (max) | 3k / 2k | 10k / 6k | 25k / 15k |
 | Max pixel ratio | 1.0 | 1.25 | 1.5 |
 
 ## How the water works (short version)
@@ -102,8 +116,9 @@ All sound is generated in code with the Web Audio API — no audio files.
 ```
 src/
   core/      app wiring, render loop, settings, quality presets, shared uniforms, noise/RNG
-  world/     heightmap, terrain, palms, house, props, sky, lighting
+  world/     heightmap, terrain, palms, grass, house, props, sky, lighting, material patching
   water/     Gerstner swell, ripple simulation, refraction capture, caustics, floating objects
+  weather/   rain/snow particles, gusts, wetness & snow-cover rules
   audio/     audio engine, synthesized layers, mixer state, presets, scheduler
   controls/  orbit camera, water clicks, keyboard shortcuts
   ui/        Vietnamese strings, start screen, control panel, stats overlay, styles

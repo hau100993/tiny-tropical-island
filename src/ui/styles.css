@@ -211,6 +211,16 @@ body.ui-hidden .debug-overlay {
   color: var(--warn);
 }
 
+.hint {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--panel-muted);
+}
+
+[hidden] {
+  display: none !important;
+}
+
 .note:empty {
   display: none;
 }

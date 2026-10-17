@@ -15,6 +15,8 @@ import { StartScreen } from '../ui/StartScreen';
 import { vi } from '../ui/strings.vi';
 import { Mixer } from '../audio/mixer';
 import { PresetStore } from '../audio/presets';
+import type { WeatherTargets } from '../weather/Weather';
+import { wallSeconds } from '../weather/wind';
 
 export class App {
   private readonly renderer: THREE.WebGLRenderer;
@@ -77,6 +79,21 @@ export class App {
     this.loop = new Loop(this.tick);
     this.applySettings(s);
     this.onResize();
+    // Start in the saved weather instead of easing in from a clear sky.
+    this.world.weather.setTargets(this.weatherTargets());
+    this.world.weather.snapToTargets();
+  }
+
+  /**
+   * Linked (default): each weather effect follows its sound layer — on/off × volume.
+   * Mute only silences the sound; the rain stays visible. Unlinked: separate visual sliders.
+   */
+  private weatherTargets(): WeatherTargets {
+    const s = this.settings.get();
+    if (!s.weatherLinked) return { rain: s.visualRain, snow: s.visualSnow, wind: s.visualWind };
+    const l = this.mixer.current.layers;
+    const level = (id: 'rain' | 'snow' | 'wind'): number => (l[id].enabled ? l[id].volume : 0);
+    return { rain: level('rain'), snow: level('snow'), wind: level('wind') };
   }
 
   start(): void {
@@ -132,8 +149,9 @@ export class App {
     this.loop.targetFps = fps;
     this.world.water.applyProfile(profile);
     this.world.water.setStepRate(fps);
+    this.world.weather.setQuality(profile);
+    this.world.grass.setCount(profile.grassCount);
     this.env.waveStrength.target = s.waveStrength;
-    this.mixer.setSeaState(s.waveStrength);
     this.overlay.setVisible(s.showDebug);
   }
 
@@ -154,10 +172,17 @@ export class App {
     this.renderer.info.reset();
     this.env.update(dt);
     sharedUniforms.uTime.value = elapsed;
-    sharedUniforms.uWaveStrength.value = this.env.waveStrength.value;
+
+    const weather = this.world.weather;
+    weather.setTargets(this.weatherTargets());
+    weather.update(dt, wallSeconds());
+    // Wind roughens the sea on top of the wave slider; the surf sound follows the same value.
+    const sea = Math.min(1, this.env.waveStrength.value + weather.seaBoost);
+    sharedUniforms.uWaveStrength.value = sea;
+    this.mixer.setSeaState(sea);
 
     this.orbit.update(dt);
-    this.world.update(dt, elapsed, this.camera, this.env.waveStrength.value);
+    this.world.update(dt, elapsed, this.camera, sea);
     this.gpuTimer.begin();
     this.world.water.simulate(dt);
     // The next scene render (capture if refraction is on, else main) refreshes the shadow map.

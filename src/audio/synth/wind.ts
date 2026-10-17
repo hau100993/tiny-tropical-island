@@ -1,15 +1,16 @@
 import { BaseLayer, stopAll } from '../Layer';
 import { chain, loopNoise, makeFilter, makeGain, type AudioEngine } from '../AudioEngine';
 import type { ScheduleFn } from '../scheduler';
+import { gustShape, wallSeconds } from '../../weather/wind';
 
-const GUST_STEP = 0.6;
+const GUST_STEP = 0.4;
 
 /**
  * Wind in the palms:
  * - body: pink noise through a resonant bandpass whose pitch and level rise with each gust,
  * - rustle: high-passed noise for leaves, which only comes alive in stronger gusts.
- * Gusts are a smoothed random walk scheduled ahead on the audio clock.
- * (Phase 3 will drive gusts from the shared weather state so they match the swaying palms.)
+ * Gusts come from gustShape(t), the same function that bends the palms on screen. Future
+ * audio times are mapped to wall-clock time, so scheduled gusts match what will be seen.
  */
 export class WindLayer extends BaseLayer {
   private nodes: AudioNode[] = [];
@@ -17,7 +18,6 @@ export class WindLayer extends BaseLayer {
   private bodyGain: GainNode | null = null;
   private rustleGain: GainNode | null = null;
   private nextStep = 0;
-  private gust = 0.4;
   private readonly schedule: ScheduleFn = (until) => this.scheduleGusts(until);
 
   constructor(engine: AudioEngine) {
@@ -43,12 +43,10 @@ export class WindLayer extends BaseLayer {
 
   private scheduleGusts(until: number): void {
     if (!this.bodyFilter || !this.bodyGain || !this.rustleGain) return;
+    const wallOffset = wallSeconds() - this.engine.now;
     while (this.nextStep < until) {
-      // Random walk pulled back toward a calm-ish mean, so gusts come and go.
-      this.gust += (Math.random() - 0.5) * 0.3 + (0.45 - this.gust) * 0.08;
-      this.gust = Math.min(1, Math.max(0.05, this.gust));
-      const g = this.gust;
       const t = this.nextStep;
+      const g = gustShape(t + wallOffset);
       this.bodyFilter.frequency.setTargetAtTime(320 + 900 * g, t, GUST_STEP * 0.8);
       this.bodyGain.gain.setTargetAtTime(0.25 + 0.75 * g, t, GUST_STEP * 0.8);
       this.rustleGain.gain.setTargetAtTime(0.02 + 0.22 * g * g, t, GUST_STEP * 0.5);

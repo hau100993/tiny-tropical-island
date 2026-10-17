@@ -68,6 +68,7 @@ export class WaterSurface {
         // Shared uniform objects are referenced, not copied, so per-frame updates propagate.
         uTime: shared.uTime,
         uWaveStrength: shared.uWaveStrength,
+        uRain: shared.uRain,
         uSunDir: shared.uSunDir,
         uSunColor: shared.uSunColor,
         uSkyTop: shared.uSkyTop,

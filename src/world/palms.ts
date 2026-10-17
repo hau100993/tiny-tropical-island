@@ -5,6 +5,8 @@ import type { Circle } from './layout';
 import type { Noise2D } from '../core/noise';
 import { createRng, randRange, type Rng } from '../core/rng';
 import { fbm2 } from '../core/noise';
+import type { SharedUniforms } from '../core/uniforms';
+import { createSwayDepthMaterial, patchWorldMaterial } from './patchMaterial';
 
 /** Trunk position, kept for first-person collision (Phase 5). */
 export interface PalmInstance {
@@ -31,7 +33,13 @@ interface PalmShape {
   leaves: THREE.BufferGeometry;
 }
 
-export function createPalms(hm: Heightmap, clearings: Circle[], noise: Noise2D, seed: number): PalmForest {
+export function createPalms(
+  hm: Heightmap,
+  clearings: Circle[],
+  noise: Noise2D,
+  seed: number,
+  shared: SharedUniforms,
+): PalmForest {
   const rng = createRng(seed);
   const shapes: PalmShape[] = [];
   for (let v = 0; v < VARIANTS; v++) shapes.push(buildPalmShape(rng, 7 + v * 1.4));
@@ -59,6 +67,11 @@ export function createPalms(hm: Heightmap, clearings: Circle[], noise: Noise2D, 
     side: THREE.DoubleSide,
     roughness: 0.75,
   });
+  // Wind sway runs in the vertex shader; shadows use matching swaying depth materials.
+  patchWorldMaterial(trunkMat, { sway: 'palm', wet: true, porosity: 0.7, snow: true }, shared);
+  patchWorldMaterial(leafMat, { sway: 'palm', tip: true, wet: true, porosity: 0.4, snow: true, twoSided: true }, shared);
+  const trunkDepth = createSwayDepthMaterial({ sway: 'palm' }, shared);
+  const leafDepth = createSwayDepthMaterial({ sway: 'palm', tip: true }, shared);
 
   const group = new THREE.Group();
   group.name = 'palms';
@@ -71,6 +84,8 @@ export function createPalms(hm: Heightmap, clearings: Circle[], noise: Noise2D, 
       trunk.setMatrixAt(i, m);
       leaves.setMatrixAt(i, m);
     });
+    trunk.customDepthMaterial = trunkDepth;
+    leaves.customDepthMaterial = leafDepth;
     for (const mesh of [trunk, leaves]) {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
@@ -217,6 +232,7 @@ function buildCrown(rng: Rng, top: THREE.Vector3): THREE.BufferGeometry {
   const segs = 6;
   const positions: number[] = [];
   const colors: number[] = [];
+  const tips: number[] = [];
   const index: number[] = [];
   const up = new THREE.Vector3(0, 1, 0);
   const dir = new THREE.Vector3();
@@ -250,6 +266,7 @@ function buildCrown(rng: Rng, top: THREE.Vector3): THREE.BufferGeometry {
         center.x - side.x * w, center.y - fold, center.z - side.z * w,
       );
       colors.push(col.r * 0.9, col.g * 0.9, col.b * 0.9, col.r * 1.1, col.g * 1.1, col.b * 1.1, col.r * 0.9, col.g * 0.9, col.b * 0.9);
+      tips.push(t, t, t);
     }
     for (let s = 0; s < segs; s++) {
       const r0 = base + s * 3;
@@ -261,6 +278,8 @@ function buildCrown(rng: Rng, top: THREE.Vector3): THREE.BufferGeometry {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  // 0 at the frond base … 1 at the tip: drives leaf flutter in the vertex shader.
+  g.setAttribute('aTip', new THREE.Float32BufferAttribute(tips, 1));
   g.setIndex(index);
   g.computeVertexNormals();
   return g;

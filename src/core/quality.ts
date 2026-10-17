@@ -17,13 +17,30 @@ export interface QualityProfile {
   refraction: boolean;
   /** Caustics texture size; 0 disables caustics. */
   causticsRes: number;
+  /** Grass blades drawn (of GRASS_MAX created at startup). */
+  grassCount: number;
+  /** Maximum rain streaks / snowflakes at full intensity. */
+  rainCount: number;
+  snowCount: number;
 }
 
 export const QUALITY_PROFILES: Record<QualityLevel, QualityProfile> = {
-  low: { pixelRatioCap: 1.0, shadowMapSize: 0, msaa: false, waterSimRes: 128, refraction: false, causticsRes: 0 },
-  medium: { pixelRatioCap: 1.25, shadowMapSize: 1024, msaa: true, waterSimRes: 256, refraction: true, causticsRes: 384 },
-  high: { pixelRatioCap: 1.5, shadowMapSize: 2048, msaa: true, waterSimRes: 512, refraction: true, causticsRes: 512 },
+  low: {
+    pixelRatioCap: 1.0, shadowMapSize: 0, msaa: false, waterSimRes: 128, refraction: false, causticsRes: 0,
+    grassCount: 4000, rainCount: 3000, snowCount: 2000,
+  },
+  medium: {
+    pixelRatioCap: 1.25, shadowMapSize: 1024, msaa: true, waterSimRes: 256, refraction: true, causticsRes: 384,
+    grassCount: 15000, rainCount: 10000, snowCount: 6000,
+  },
+  high: {
+    pixelRatioCap: 1.5, shadowMapSize: 2048, msaa: true, waterSimRes: 512, refraction: true, causticsRes: 512,
+    grassCount: 40000, rainCount: 25000, snowCount: 15000,
+  },
 };
+
+/** Grass blades generated once; presets draw a prefix of them. */
+export const GRASS_MAX = 40000;
 
 /** Low-power mode clamps the chosen preset down to Low-level costs. */
 export function effectiveProfile(level: QualityLevel, lowPower: boolean): QualityProfile {

@@ -42,6 +42,11 @@ export const vi = {
     msaaReload: 'Khử răng cưa đổi sau khi tải lại trang.',
     lowPower: 'Tiết kiệm điện',
     autoRotate: 'Tự xoay camera',
+    unlink: 'Tách hình/âm',
+    unlinkHint: 'Mưa, tuyết, gió trên hình đang theo thanh âm thanh. Bật "Tách hình/âm" để chỉnh riêng.',
+    visualRain: 'Mưa (hình)',
+    visualSnow: 'Tuyết (hình)',
+    visualWind: 'Gió (hình)',
   },
   layers: {
     waves: 'Sóng biển',

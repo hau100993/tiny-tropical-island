@@ -42,6 +42,12 @@ export class Panel {
   private readonly qualityNote: HTMLElement;
   private readonly lowPower: ToggleControl;
   private readonly autoRotate: ToggleControl;
+  private readonly unlink: ToggleControl;
+  private readonly linkHint: HTMLElement;
+  private readonly visualBox: HTMLElement;
+  private readonly visualRain: SliderControl;
+  private readonly visualSnow: SliderControl;
+  private readonly visualWind: SliderControl;
   private readonly startQuality: QualityLevel;
   /** Preset whose values are currently loaded; cleared when the user changes anything. */
   private activePreset = '';
@@ -125,7 +131,19 @@ export class Panel {
     this.lowPower = toggle(vi.panel.lowPower, s.lowPower, (on) => settings.update({ lowPower: on }));
     this.autoRotate = toggle(vi.panel.autoRotate, s.autoRotate, (on) => settings.update({ autoRotate: on }));
     toggles.append(this.lowPower.root, this.autoRotate.root);
-    scene.body.append(this.waves.root, qualityRow, this.qualityNote, toggles);
+
+    // Weather visuals: linked to the sound sliders by default, or separate.
+    const linkRow = el('div', 'button-row');
+    this.unlink = toggle(vi.panel.unlink, !s.weatherLinked, (on) => settings.update({ weatherLinked: !on }));
+    linkRow.append(this.unlink.root);
+    this.linkHint = el('div', 'hint', vi.panel.unlinkHint);
+    this.visualBox = el('div', 'section-body');
+    this.visualRain = slider(vi.panel.visualRain, s.visualRain, (v) => settings.update({ visualRain: v }));
+    this.visualSnow = slider(vi.panel.visualSnow, s.visualSnow, (v) => settings.update({ visualSnow: v }));
+    this.visualWind = slider(vi.panel.visualWind, s.visualWind, (v) => settings.update({ visualWind: v }));
+    this.visualBox.append(this.visualRain.root, this.visualSnow.root, this.visualWind.root);
+
+    scene.body.append(this.waves.root, linkRow, this.linkHint, this.visualBox, qualityRow, this.qualityNote, toggles);
 
     // --- Shortcuts ---
     const keys = section(vi.panel.shortcuts, false);
@@ -184,6 +202,12 @@ export class Panel {
     this.qualityNote.textContent = msaaChanged ? vi.panel.msaaReload : '';
     this.lowPower.set(s.lowPower);
     this.autoRotate.set(s.autoRotate);
+    this.unlink.set(!s.weatherLinked);
+    this.visualBox.hidden = s.weatherLinked;
+    this.linkHint.hidden = !s.weatherLinked;
+    this.visualRain.set(s.visualRain);
+    this.visualSnow.set(s.visualSnow);
+    this.visualWind.set(s.visualWind);
   }
 
   private refreshPresets(): void {
