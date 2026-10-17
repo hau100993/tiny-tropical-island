@@ -303,7 +303,6 @@ function crownTree(
     leaf: THREE.Color[];
     flex: number;
     fruit?: { color: THREE.Color[]; count: number; size: number; elong: number };
-    flowers?: { color: THREE.Color; count: number };
     buttress?: boolean;
     /** A liana climbing the trunk. */
     vine?: boolean;
@@ -407,25 +406,16 @@ function crownTree(
     b.tube([p1.clone(), p1.clone().lerp(side, 0.5).add(V(0, 0.3, 0)), side], [topR * 0.4, topR * 0.28, topR * 0.16], 5, bark);
   }
   const clusters = foliageCrown(b, rng, crownCenter, o.crownR, o.flat, o.leaf, o.blobs * 7);
-  // Fruit and flowers sit on the outer clusters, fruit mostly on the lower half.
-  const outer = clusters.filter((c) => c.outward > 0.75);
-  const onCrown = (lower: boolean): { p: THREE.Vector3; n: THREE.Vector3 } => {
-    const pool = outer.filter((c) => (lower ? c.dir.y < 0.3 : c.dir.y > -0.2));
-    const c = (pool.length ? pool : outer)[Math.floor(rng() * (pool.length || outer.length))];
-    const n = c.dir.clone().add(V((rng() - 0.5) * 0.6, lower ? -0.4 : 0.2, (rng() - 0.5) * 0.6)).normalize();
-    return { p: c.center.clone().addScaledVector(n, c.size * 0.95), n };
-  };
+  // Fruit hangs from the outer clusters, mostly on the lower half of the crown.
   if (o.fruit) {
+    const outer = clusters.filter((c) => c.outward > 0.75);
+    const lower = outer.filter((c) => c.dir.y < 0.3);
+    const pool = lower.length ? lower : outer;
     for (let k = 0; k < o.fruit.count; k++) {
-      const { p } = onCrown(true);
+      const c = pool[Math.floor(rng() * pool.length)];
+      const n = c.dir.clone().add(V((rng() - 0.5) * 0.6, -0.4, (rng() - 0.5) * 0.6)).normalize();
       const color = o.fruit.color[Math.floor(rng() * o.fruit.color.length)];
-      b.blob(p, o.fruit.size, V(1, o.fruit.elong, 1), color, 0.05, 0, 0.3, 0.06);
-    }
-  }
-  if (o.flowers) {
-    for (let k = 0; k < o.flowers.count; k++) {
-      const { p, n } = onCrown(false);
-      b.flower(p, n, randRange(rng, 0.25, 0.4), 5, shade(o.flowers.color, rng, 0.1), C('#ffd84a'), 0.35);
+      b.blob(c.center.clone().addScaledVector(n, c.size * 0.95), o.fruit.size, V(1, o.fruit.elong, 1), color, 0.05, 0, 0.3, 0.06);
     }
   }
   return b.build();
@@ -478,8 +468,6 @@ const canopy: Species = {
       flat: 0.7,
       flex: 0.4,
       leaf: variant === 0 ? [LEAF_DARK, LEAF] : variant === 1 ? [LEAF_OLIVE, LEAF] : [LEAF, LEAF_BRIGHT],
-      // One variant flowers like a flame tree (phượng): crimson-orange blooms over the canopy.
-      flowers: variant === 2 ? { color: C('#e2482a'), count: 70 } : undefined,
       vine: variant !== 1,
     }),
 };
