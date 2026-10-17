@@ -231,10 +231,11 @@ interface LeafCluster {
 }
 
 /**
- * A lush crown: a dark core (so you can't see through it) wrapped in many small leaf clusters
- * concentrated near the surface, plus leaf sprigs sticking out of the outer clusters to break
- * up the silhouette. Each vertex is shaded by its place in the crown (darker below and inside,
- * brighter on top and at the rim), which gives the foliage depth without extra lights.
+ * A lush crown: a dark core (so you can't see through it) wrapped in many clusters of
+ * individual leaves concentrated near the surface. Each cluster is a spray of ~14 small folded
+ * leaves fanning out and drooping from a twig point. Every vertex is shaded by its place in
+ * the crown (darker below and inside, brighter on top and at the rim), which gives the foliage
+ * depth without extra lights; every leaf flutters on its own in the wind (aTip).
  */
 function foliageCrown(
   b: PlantBuilder,
@@ -251,30 +252,37 @@ function foliageCrown(
     const rim = Math.hypot(x - center.x, z - center.z) / radius;
     return Math.min(1.2, Math.max(0.42, 0.55 + 0.28 * (up * 0.5 + 0.5) + 0.25 * rim));
   };
-  b.blob(center, radius * 0.72, V(1, flat, 1), greens[0].clone().multiplyScalar(0.7), 0.2, 1, 0.2, 0.05, depth);
+  // Small, ragged dark core: only fills gaps deep inside, never shows as a smooth lump.
+  b.blob(center, radius * 0.55, V(1, flat * 0.85, 1), greens[0].clone().multiplyScalar(0.5), 0.4, 1, 0.15, 0.1, depth);
 
   const clusters: LeafCluster[] = [];
+  const leavesPerCluster = 18;
+  const leafDir = new THREE.Vector3();
+  const baseColor = new THREE.Color();
+  const tipColor = new THREE.Color();
   for (let k = 0; k < count; k++) {
     // Random direction, slightly favoring the upper half (light-seeking crown).
     const dir = V(rng() * 2 - 1, rng() * 1.6 - 0.6, rng() * 2 - 1);
     if (dir.lengthSq() < 0.01) continue;
     dir.normalize();
-    const outward = 0.55 + 0.45 * Math.sqrt(rng());
+    // Clusters sit on the crown's outer shell, so leaves (not the core) form the surface.
+    const outward = 0.72 + 0.28 * Math.sqrt(rng());
     const c = center.clone().add(V(dir.x * radius * outward, dir.y * h * outward, dir.z * radius * outward));
-    const size = radius * randRange(rng, 0.17, 0.27);
-    const color = shade(greens[Math.floor(rng() * greens.length)], rng, 0.1);
-    b.blob(c, size, V(1, 0.8, 1), color, 0.35, 0, 0.35, 0.12, depth);
+    const size = radius * randRange(rng, 0.16, 0.24);
+    const green = shade(greens[Math.floor(rng() * greens.length)], rng, 0.1);
     clusters.push({ center: c, dir, size, outward });
 
-    // Leaf sprigs poking out of the outer clusters.
-    if (outward > 0.8 && rng() < 0.6) {
-      for (let s = 0; s < 2; s++) {
-        const d = dir.clone().add(V((rng() - 0.5) * 0.9, (rng() - 0.3) * 0.6, (rng() - 0.5) * 0.9)).normalize();
-        const base = c.clone().addScaledVector(d, size * 0.6);
-        const len = size * randRange(rng, 0.9, 1.4);
-        const leafColor = color.clone().multiplyScalar(depth(base.x, base.y, base.z) * 1.05);
-        b.leaf(base, d, len, len * 0.35, { lift: 0.1, droop: 0.4, segs: 2, fold: 0.2, base: leafColor, tip: leafColor.clone().multiplyScalar(1.1) });
-      }
+    for (let l = 0; l < leavesPerCluster; l++) {
+      // Leaves fan out over the outward hemisphere of the twig, drooping a little.
+      leafDir.set(rng() * 2 - 1, rng() * 2 - 1, rng() * 2 - 1);
+      if (leafDir.dot(dir) < 0) leafDir.addScaledVector(dir, -2 * leafDir.dot(dir));
+      leafDir.addScaledVector(dir, 0.6).add(V(0, -0.25, 0)).normalize();
+      const start = c.clone().addScaledVector(leafDir, size * 0.1);
+      const len = size * randRange(rng, 0.8, 1.25);
+      const lum = depth(start.x + leafDir.x * len, start.y + leafDir.y * len, start.z + leafDir.z * len) * (0.9 + rng() * 0.2);
+      baseColor.copy(green).multiplyScalar(lum * 0.85);
+      tipColor.copy(green).multiplyScalar(lum * 1.1);
+      b.leafCard(start, leafDir, len, len * 0.42, baseColor, tipColor, 0.5 + rng() * 0.5);
     }
   }
   return clusters;
@@ -398,7 +406,7 @@ function crownTree(
     const side = p1.clone().lerp(end, 0.5).add(V(Math.cos(a + 1.2) * o.crownR * 0.35, o.crownR * o.flat * 0.2, Math.sin(a + 1.2) * o.crownR * 0.35));
     b.tube([p1.clone(), p1.clone().lerp(side, 0.5).add(V(0, 0.3, 0)), side], [topR * 0.4, topR * 0.28, topR * 0.16], 5, bark);
   }
-  const clusters = foliageCrown(b, rng, crownCenter, o.crownR, o.flat, o.leaf, o.blobs * 4);
+  const clusters = foliageCrown(b, rng, crownCenter, o.crownR, o.flat, o.leaf, o.blobs * 7);
   // Fruit and flowers sit on the outer clusters, fruit mostly on the lower half.
   const outer = clusters.filter((c) => c.outward > 0.75);
   const onCrown = (lower: boolean): { p: THREE.Vector3; n: THREE.Vector3 } => {

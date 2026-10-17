@@ -190,6 +190,25 @@ export class PlantBuilder {
     }
   }
 
+  /**
+   * One small leaf: a diamond folded along its midrib (2 triangles). Thousands of these make
+   * a crown read as foliage rather than as solid lumps.
+   */
+  leafCard(base: THREE.Vector3, dir: THREE.Vector3, length: number, width: number, baseColor: THREE.Color, tipColor: THREE.Color, tip: number): void {
+    const side = tmpB.crossVectors(dir, Math.abs(dir.y) > 0.95 ? X : UP).normalize();
+    const n = tmpC.crossVectors(side, dir).normalize();
+    const fold = width * 0.35;
+    const mx = base.x + dir.x * length * 0.45;
+    const my = base.y + dir.y * length * 0.45;
+    const mz = base.z + dir.z * length * 0.45;
+    const b = this.vertex(base.x, base.y, base.z, baseColor, tip * 0.5);
+    const l = this.vertex(mx + side.x * width - n.x * fold, my + side.y * width - n.y * fold, mz + side.z * width - n.z * fold, baseColor, tip * 0.8);
+    const t = this.vertex(base.x + dir.x * length, base.y + dir.y * length, base.z + dir.z * length, tipColor, tip);
+    const r = this.vertex(mx - side.x * width - n.x * fold, my - side.y * width - n.y * fold, mz - side.z * width - n.z * fold, baseColor, tip * 0.8);
+    this.tri(b, l, t);
+    this.tri(b, t, r);
+  }
+
   /** Star-shaped flower facing `normal`, slightly cupped. */
   flower(center: THREE.Vector3, normal: THREE.Vector3, size: number, petals: number, petal: THREE.Color, heart: THREE.Color, tip = 0.4): void {
     tmpN.copy(normal).normalize();
