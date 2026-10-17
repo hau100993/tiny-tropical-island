@@ -45,7 +45,6 @@ export interface Species {
 // Palette
 const BARK = C('#6f5638');
 const BARK_LIGHT = C('#9a7b56');
-const BARK_GREY = C('#6f6858');
 const BARK_PALE = C('#9a917c');
 const LEAF_DARK = C('#24572a');
 const LEAF = C('#3d7f2f');
@@ -202,6 +201,26 @@ const papaya: Species = {
   },
 };
 
+const MOSS = C('#4f6b2a');
+
+/**
+ * Bark coloring for tubes: vertical streaks of lighter and darker bark around the trunk, and
+ * moss creeping up the base on one side (like the shady side of a real trunk).
+ */
+function barkColors(rng: Rng, base: THREE.Color): (t: number, ring: number, angle: number) => THREE.Color {
+  const tone = shade(base, rng, 0.06);
+  const ph = rng() * Math.PI * 2;
+  const mossSide = rng() * Math.PI * 2;
+  // Each ring gets its own brightness, so the trunk shows irregular bands (bark plates, scars).
+  const bands = Array.from({ length: 64 }, () => 0.88 + rng() * 0.24);
+  return (t, ring, angle) => {
+    const streak = 0.5 + 0.5 * Math.sin(angle * 7 + ph + t * 4) * Math.sin(angle * 3 - ph);
+    const c = tone.clone().multiplyScalar((0.62 + 0.55 * streak) * bands[ring % bands.length]);
+    const moss = Math.max(0, Math.cos(angle - mossSide)) * (1 - smoothstep(0, 0.25, t));
+    return c.lerp(MOSS, moss * 0.7);
+  };
+}
+
 /** Branching tree with a crown made of lumpy blobs (mango, breadfruit, rainforest canopy). */
 function crownTree(
   rng: Rng,
@@ -219,32 +238,71 @@ function crownTree(
     fruit?: { color: THREE.Color[]; count: number; size: number; elong: number };
     flowers?: { color: THREE.Color; count: number };
     buttress?: boolean;
+    /** A liana climbing the trunk. */
+    vine?: boolean;
   },
 ): THREE.BufferGeometry {
   const b = new PlantBuilder(rng, bendWithHeight(o.height, o.flex));
   const forkY = o.height * (o.fork ?? 0.45);
   const lean = V(randRange(rng, -0.3, 0.3), 0, randRange(rng, -0.3, 0.3));
-  const trunkTop = V(lean.x, forkY, lean.z);
-  const bark = shade(o.bark, rng, 0.05);
-  if (o.buttress) {
-    // Buttress roots grow out of the trunk itself: the cross-section near the ground is a
-    // star with a few sharp ridges that flare out and fade away up the trunk.
-    const lobes = 5;
-    const lobeAngles = Array.from({ length: lobes }, (_, k) => (k / lobes) * Math.PI * 2 + (rng() - 0.5) * 0.6);
-    const lobeReach = lobeAngles.map(() => randRange(rng, 1.6, 2.6));
-    const flare = [1, 0.8, 0.5, 0.25, 0.08, 0, 0];
-    const ys = [-0.4, 0.15, 0.6, 1.3, 2.3, forkY * 0.6, forkY];
-    const pts = ys.map((y) => V(lean.x * (y / forkY), y, lean.z * (y / forkY)));
-    const radii = ys.map((y) => o.trunkR * (1.15 - 0.3 * Math.min(1, y / forkY)));
-    b.tube(pts, radii, 30, () => bark, 0, (ring, ang) => {
-      let ridge = 0;
-      lobeAngles.forEach((la, k) => {
-        // Narrow ridge: cos^14 is wide near the ground only because the flare scales it.
-        const c = Math.max(0, Math.cos(ang - la));
-        ridge = Math.max(ridge, Math.pow(c, 14) * lobeReach[k]);
-      });
-      return 1 + flare[ring] * ridge;
+  const bark = barkColors(rng, o.bark);
+
+  // Trunk: a gently meandering, tapering, slightly irregular column whose base flares into
+  // root ridges (big plank buttresses on rainforest giants, small root flares on the rest).
+  // Rings are denser near the ground, where the shape changes fastest.
+  const rings = 10;
+  const ys: number[] = [];
+  for (let i = 0; i < rings; i++) ys.push(-0.4 + (forkY + 0.4) * Math.pow(i / (rings - 1), 1.6));
+  const pts: THREE.Vector3[] = [];
+  let wx = 0;
+  let wz = 0;
+  for (const y of ys) {
+    const f = Math.max(0, y) / forkY;
+    wx += (rng() - 0.5) * 0.3;
+    wz += (rng() - 0.5) * 0.3;
+    pts.push(V((lean.x + wx) * f, y, (lean.z + wz) * f));
+  }
+  const trunkTop = pts[pts.length - 1].clone();
+  const radii = ys.map((y) => {
+    const f = Math.max(0, y) / forkY;
+    return o.trunkR * (1.15 - 0.5 * f) * (1 + 0.45 * Math.exp(-Math.max(0, y) / 0.5));
+  });
+  const lobes = o.buttress ? 5 : 4;
+  const lobeAngles = Array.from({ length: lobes }, (_, k) => (k / lobes) * Math.PI * 2 + (rng() - 0.5) * 0.6);
+  const lobeReach = lobeAngles.map(() => (o.buttress ? randRange(rng, 1.6, 2.6) : randRange(rng, 0.35, 0.65)));
+  const flareHeight = o.buttress ? 2.6 : 0.9;
+  const sharpness = o.buttress ? 14 : 5;
+  const ph1 = rng() * Math.PI * 2;
+  const ph2 = rng() * Math.PI * 2;
+  b.tube(pts, radii, o.buttress ? 30 : 14, bark, 0, (ring, ang) => {
+    const flare = Math.pow(Math.max(0, 1 - Math.max(0, ys[ring]) / flareHeight), 1.5);
+    let ridge = 0;
+    lobeAngles.forEach((la, k) => {
+      ridge = Math.max(ridge, Math.pow(Math.max(0, Math.cos(ang - la)), sharpness) * lobeReach[k]);
     });
+    // Real trunks are never perfectly round: lumps that drift around the trunk with height
+    // (knots, fluting), so the silhouette changes as you walk around it.
+    const irregular = 1 + 0.1 * Math.sin(3 * ang + ph1 + ring * 0.7) + 0.07 * Math.sin(5 * ang + ph2 - ring * 1.1);
+    return irregular * (1 + flare * ridge);
+  });
+  if (o.vine) {
+    // A liana spiralling up the trunk, with a few leaves.
+    const vine: THREE.Vector3[] = [];
+    const vineR: number[] = [];
+    const start = rng() * Math.PI * 2;
+    for (let i = 1; i < rings; i++) {
+      const a = start + i * 0.9;
+      const r = radii[i] * 1.06;
+      vine.push(pts[i].clone().add(V(Math.cos(a) * r, 0, Math.sin(a) * r)));
+      vineR.push(0.045);
+    }
+    b.tube(vine, vineR, 4, () => C('#3d4a22'));
+    for (let k = 2; k < vine.length; k += 2) {
+      const out = vine[k].clone().sub(pts[k + 1]).setY(0).normalize();
+      b.leaf(vine[k], out.add(V(0, 0.3, 0)).normalize(), 0.35, 0.12, { lift: 0.1, droop: 0.5, segs: 2, base: LEAF_DARK, tip: LEAF });
+    }
+  }
+  if (o.buttress) {
     // A few short surface roots between the ridges. The same geometry is used on every slope,
     // so they dive steeply: on a downhill side they still end inside the soil, not in mid-air.
     for (let k = 0; k < 4; k++) {
@@ -263,20 +321,23 @@ function crownTree(
             .add(V(0, 0.1 - Math.pow(t, 1.5) * 1.1, 0)),
         );
       }
-      b.tube(root, [0.22, 0.17, 0.12, 0.08, 0.05].map((r) => r * o.trunkR * 1.3), 5, () => bark);
+      b.tube(root, [0.22, 0.17, 0.12, 0.08, 0.05].map((r) => r * o.trunkR * 1.3), 5, bark);
     }
-  } else {
-    // Start slightly below ground so the trunk never floats on a slope.
-    b.tube([V(0, -0.3, 0), V(lean.x * 0.4, forkY * 0.5, lean.z * 0.4), trunkTop], [o.trunkR * 1.25, o.trunkR, o.trunkR * 0.85], 7, () => bark);
   }
-  const crownCenter = V(lean.x * 1.5, o.height - o.crownR * o.flat * 0.9, lean.z * 1.5);
+  const crownCenter = V(trunkTop.x * 1.3, o.height - o.crownR * o.flat * 0.9, trunkTop.z * 1.3);
   const branches = 3 + Math.floor(rng() * 2);
+  const topR = radii[radii.length - 1];
   for (let k = 0; k < branches; k++) {
     const a = (k / branches) * Math.PI * 2 + rng();
     // Branch ends stay inside the crown, so no bare sticks poke out below the leaves.
     const end = crownCenter.clone().add(V(Math.cos(a) * o.crownR * 0.45, -0.25 * o.crownR * o.flat, Math.sin(a) * o.crownR * 0.45));
-    const mid = trunkTop.clone().lerp(end, 0.5).add(V(0, o.height * 0.05, 0));
-    b.tube([trunkTop.clone(), mid, end], [o.trunkR * 0.7, o.trunkR * 0.45, o.trunkR * 0.25], 5, () => shade(o.bark, rng, 0.05));
+    // Branches leave the trunk upward and curve outward, with a little kink in the middle.
+    const p1 = trunkTop.clone().lerp(end, 0.3).add(V((rng() - 0.5) * 0.4, o.height * 0.06, (rng() - 0.5) * 0.4));
+    const p2 = trunkTop.clone().lerp(end, 0.65).add(V((rng() - 0.5) * 0.5, o.height * 0.04, (rng() - 0.5) * 0.5));
+    b.tube([trunkTop.clone().add(V(0, -topR, 0)), p1, p2, end], [topR * 0.85, topR * 0.6, topR * 0.42, topR * 0.25], 7, bark);
+    // A smaller side branch from the kink.
+    const side = p1.clone().lerp(end, 0.5).add(V(Math.cos(a + 1.2) * o.crownR * 0.35, o.crownR * o.flat * 0.2, Math.sin(a + 1.2) * o.crownR * 0.35));
+    b.tube([p1.clone(), p1.clone().lerp(side, 0.5).add(V(0, 0.3, 0)), side], [topR * 0.4, topR * 0.28, topR * 0.16], 5, bark);
   }
   const blobCenters: THREE.Vector3[] = [];
   for (let k = 0; k < o.blobs; k++) {
@@ -325,12 +386,12 @@ const mango: Species = {
     variant === 0
       ? // Mango: dense dark crown with yellow-orange fruit.
         crownTree(rng, {
-          height: 7.5, trunkR: 0.28, bark: BARK_GREY, crownR: 3.4, blobs: 9, flat: 0.75, flex: 0.35,
+          height: 7.5, fork: 0.3, trunkR: 0.3, bark: C('#5e4a38'), crownR: 3.4, blobs: 9, flat: 0.75, flex: 0.35,
           leaf: [LEAF_DARK, LEAF], fruit: { color: [C('#f2b632'), C('#e8762c'), C('#c94a2a'), C('#9fb43c')], count: 22, size: 0.11, elong: 1.4 },
         })
       : // Breadfruit / jackfruit: lighter, larger leaves and big green fruit.
         crownTree(rng, {
-          height: 8.5, trunkR: 0.3, bark: BARK_PALE, crownR: 3.6, blobs: 8, flat: 0.8, flex: 0.3,
+          height: 8.5, fork: 0.32, trunkR: 0.32, bark: BARK_PALE, crownR: 3.6, blobs: 8, flat: 0.8, flex: 0.3,
           leaf: [LEAF, LEAF_BRIGHT], fruit: { color: [C('#8fb03a'), C('#a7b84a')], count: 12, size: 0.22, elong: 1.15 },
         }),
 };
@@ -350,8 +411,9 @@ const canopy: Species = {
     crownTree(rng, {
       height: 13 + variant * 1.5,
       fork: 0.4,
-      trunkR: 0.32,
-      bark: variant === 1 ? BARK_PALE : BARK_GREY,
+      trunkR: 0.34,
+      // Dark brown, grey-brown and reddish bark across the three variants.
+      bark: [C('#5a4632'), C('#6d6556'), C('#7a5440')][variant],
       crownR: 5,
       blobs: 14,
       flat: 0.7,
@@ -359,6 +421,7 @@ const canopy: Species = {
       leaf: variant === 0 ? [LEAF_DARK, LEAF] : variant === 1 ? [LEAF_OLIVE, LEAF] : [LEAF, LEAF_BRIGHT],
       // One variant flowers like a flame tree (phượng): crimson-orange blooms over the canopy.
       flowers: variant === 2 ? { color: C('#e2482a'), count: 70 } : undefined,
+      vine: variant !== 1,
     }),
 };
 
@@ -385,6 +448,7 @@ const emergent: Species = {
       flex: 0.3,
       leaf: [LEAF_DARK, LEAF_OLIVE, LEAF],
       buttress: true,
+      vine: variant === 0,
     }),
 };
 
@@ -432,18 +496,20 @@ const frangipani: Species = {
   habitat: (s) => (s.onSand ? 0.15 * edge(s) : 0.6 * orchard(s) + 0.25 * edge(s)),
   build(rng, variant) {
     const b = new PlantBuilder(rng, bendWithHeight(4.5, 0.3));
-    const bark = C('#8f8a78');
+    const bark = barkColors(rng, C('#8f8a78'));
     const petal = variant === 0 ? C('#fbf6ea') : C('#f08cb0');
-    b.tube([V(0, 0, 0), V(0, 0.9, 0), V(0.05, 1.5, 0)], [0.16, 0.14, 0.12], 6, () => bark);
+    b.tube([V(0, -0.3, 0), V(0, 0.9, 0), V(0.05, 1.5, 0)], [0.17, 0.14, 0.12], 8, bark);
     const fork = V(0.05, 1.5, 0);
+    // Child branches start a little inside their parent, so joints have no open seams.
+    const sunk = V(0, -0.15, 0);
     for (let k = 0; k < 3; k++) {
       const a = (k / 3) * Math.PI * 2 + rng() * 0.6;
       const mid = fork.clone().add(V(Math.cos(a) * 0.8, 1.1, Math.sin(a) * 0.8));
-      b.tube([fork.clone(), mid], [0.1, 0.08], 5, () => bark);
+      b.tube([fork.clone().add(sunk), fork.clone().lerp(mid, 0.5).add(V(0, 0.1, 0)), mid], [0.11, 0.09, 0.08], 6, bark);
       for (let j = 0; j < 2; j++) {
         const a2 = a + (j - 0.5) * 0.9;
         const tip = mid.clone().add(V(Math.cos(a2) * 0.7, 1.0 + rng() * 0.5, Math.sin(a2) * 0.7));
-        b.tube([mid.clone(), tip], [0.07, 0.05], 5, () => bark);
+        b.tube([mid.clone().add(sunk), tip], [0.075, 0.05], 5, bark);
         for (let l = 0; l < 6; l++) {
           b.leaf(tip, dirAt((l / 6) * Math.PI * 2 + rng(), 0.5), 0.55, 0.12, { lift: 0.15, droop: 0.45, segs: 3, base: LEAF, tip: LEAF_BRIGHT });
         }

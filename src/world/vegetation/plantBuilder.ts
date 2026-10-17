@@ -73,7 +73,7 @@ export class PlantBuilder {
     points: THREE.Vector3[],
     radii: number[],
     radial: number,
-    colorAt: (t: number, ring: number) => THREE.Color,
+    colorAt: (t: number, ring: number, angle: number) => THREE.Color,
     tip = 0,
     radialScale?: (ring: number, angle: number) => number,
   ): void {
@@ -84,10 +84,10 @@ export class PlantBuilder {
       const ref = Math.abs(tmpA.y) < 0.95 ? UP : X;
       tmpB.crossVectors(ref, tmpA).normalize();
       tmpC.crossVectors(tmpA, tmpB);
-      const c = colorAt(i / (n - 1), i);
       const p = points[i];
       for (let a = 0; a < radial; a++) {
         const ang = (a / radial) * Math.PI * 2;
+        const c = colorAt(i / (n - 1), i, ang);
         const r = radii[i] * (radialScale ? radialScale(i, ang) : 1);
         const ca = Math.cos(ang) * r;
         const sa = Math.sin(ang) * r;
