@@ -79,10 +79,22 @@ export class PlantBuilder {
   ): void {
     const n = points.length;
     const start = this.count;
+    // Parallel-transport frames: each ring's orientation is the previous one rotated by the
+    // smallest turn that follows the curve. Picking a fresh reference axis per ring instead
+    // makes the frame flip on curved trunks, which shows up as pinched, twisted sections.
+    const tangent = new THREE.Vector3();
+    const prevTangent = new THREE.Vector3();
+    const turn = new THREE.Quaternion();
     for (let i = 0; i < n; i++) {
-      tmpA.subVectors(points[Math.min(i + 1, n - 1)], points[Math.max(i - 1, 0)]).normalize();
-      const ref = Math.abs(tmpA.y) < 0.95 ? UP : X;
-      tmpB.crossVectors(ref, tmpA).normalize();
+      tangent.subVectors(points[Math.min(i + 1, n - 1)], points[Math.max(i - 1, 0)]).normalize();
+      if (i === 0) {
+        tmpB.crossVectors(Math.abs(tangent.y) < 0.95 ? UP : X, tangent).normalize();
+      } else {
+        turn.setFromUnitVectors(prevTangent, tangent);
+        tmpB.applyQuaternion(turn).normalize();
+      }
+      prevTangent.copy(tangent);
+      tmpA.copy(tangent);
       tmpC.crossVectors(tmpA, tmpB);
       const p = points[i];
       for (let a = 0; a < radial; a++) {
@@ -111,7 +123,18 @@ export class PlantBuilder {
    * Lumpy sphere (crowns, bushes, fruit). Shared corners get the same random offset so the
    * surface stays closed; vertices are welded so normals are smooth.
    */
-  blob(center: THREE.Vector3, radius: number, scale: THREE.Vector3, color: THREE.Color, jitter = 0.22, detail = 1, tip = 0.25, colorJitter = 0.1): void {
+  blob(
+    center: THREE.Vector3,
+    radius: number,
+    scale: THREE.Vector3,
+    color: THREE.Color,
+    jitter = 0.22,
+    detail = 1,
+    tip = 0.25,
+    colorJitter = 0.1,
+    /** Optional brightness per vertex position (fake ambient occlusion for crowns). */
+    shadeAt?: (x: number, y: number, z: number) => number,
+  ): void {
     const g = new THREE.IcosahedronGeometry(1, detail);
     const p = g.getAttribute('position');
     const welded = new Map<string, number>();
@@ -121,15 +144,12 @@ export class PlantBuilder {
       let index = welded.get(key);
       if (index === undefined) {
         const k = 1 + (this.rng() - 0.5) * 2 * jitter;
-        const shade = 1 + (this.rng() - 0.5) * 2 * colorJitter;
+        const vx = center.x + p.getX(i) * k * radius * scale.x;
+        const vy = center.y + p.getY(i) * k * radius * scale.y;
+        const vz = center.z + p.getZ(i) * k * radius * scale.z;
+        const shade = (1 + (this.rng() - 0.5) * 2 * colorJitter) * (shadeAt ? shadeAt(vx, vy, vz) : 1);
         tmpColor.copy(color).multiplyScalar(shade);
-        index = this.vertex(
-          center.x + p.getX(i) * k * radius * scale.x,
-          center.y + p.getY(i) * k * radius * scale.y,
-          center.z + p.getZ(i) * k * radius * scale.z,
-          tmpColor,
-          tip,
-        );
+        index = this.vertex(vx, vy, vz, tmpColor, tip);
         welded.set(key, index);
       }
       tri.push(index);
