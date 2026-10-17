@@ -57,6 +57,20 @@ sound on later with **Bật âm thanh** in the panel).
   Tuyết lặng → snow, Gió lá → wind; switching a layer off clears that weather, muting does not).
   Turn this on to get three separate visual sliders, e.g. to hear rain under a clear sky.
 
+## Vegetation
+
+The island is zoned like a real tropical island, from the coast inward:
+
+| Zone | Plants |
+|---|---|
+| Coast | coconut palms leaning out over the sand |
+| Garden around the house | banana clumps (with fruit bunch and purple bud), papaya, mango and breadfruit trees with fruit, frangipani (white or pink blossoms), hibiscus bushes (red, yellow, pink) |
+| Rainforest (inland, up the hill) | canopy trees in varied greens (one variant flowers crimson-orange like a flame tree), emergent giants with buttress roots, tree ferns; a dark mossy floor with leaf litter |
+| Understory and floor | shrubs, ground ferns, heliconia ("lobster claw" flowers), wildflower meadows in four colors on the grass |
+
+All plants are generated in code and drawn with one shared material (one draw call per plant
+variant); wind bends each species according to its stiffness.
+
 ## Weather
 
 | Effect | What happens |
@@ -77,6 +91,7 @@ Everything (mix, presets, panel state, scene settings) is saved in `localStorage
 | Caustics (light patterns on the seabed) | off | 384² | 512² |
 | Shadows | off | 1024² | 2048² |
 | Grass blades | 4k | 15k | 40k |
+| Wildflower clumps | 1.5k | 5k | 10k |
 | Rain streaks / snowflakes (max) | 3k / 2k | 10k / 6k | 25k / 15k |
 | Max pixel ratio | 1.0 | 1.25 | 1.5 |
 
@@ -116,7 +131,8 @@ All sound is generated in code with the Web Audio API — no audio files.
 ```
 src/
   core/      app wiring, render loop, settings, quality presets, shared uniforms, noise/RNG
-  world/     heightmap, terrain, palms, grass, house, props, sky, lighting, material patching
+  world/     heightmap, terrain, grass, house, props, sky, lighting, material patching
+    vegetation/  plant geometry builder, species (habitat rules), forest placement, wildflowers
   water/     Gerstner swell, ripple simulation, refraction capture, caustics, floating objects
   weather/   rain/snow particles, gusts, wetness & snow-cover rules
   audio/     audio engine, synthesized layers, mixer state, presets, scheduler

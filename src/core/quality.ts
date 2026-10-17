@@ -19,6 +19,8 @@ export interface QualityProfile {
   causticsRes: number;
   /** Grass blades drawn (of GRASS_MAX created at startup). */
   grassCount: number;
+  /** Wildflower clumps drawn (of FLOWERS_MAX created at startup). */
+  flowerCount: number;
   /** Maximum rain streaks / snowflakes at full intensity. */
   rainCount: number;
   snowCount: number;
@@ -27,15 +29,15 @@ export interface QualityProfile {
 export const QUALITY_PROFILES: Record<QualityLevel, QualityProfile> = {
   low: {
     pixelRatioCap: 1.0, shadowMapSize: 0, msaa: false, waterSimRes: 128, refraction: false, causticsRes: 0,
-    grassCount: 4000, rainCount: 3000, snowCount: 2000,
+    grassCount: 4000, flowerCount: 1500, rainCount: 3000, snowCount: 2000,
   },
   medium: {
     pixelRatioCap: 1.25, shadowMapSize: 1024, msaa: true, waterSimRes: 256, refraction: true, causticsRes: 384,
-    grassCount: 15000, rainCount: 10000, snowCount: 6000,
+    grassCount: 15000, flowerCount: 5000, rainCount: 10000, snowCount: 6000,
   },
   high: {
     pixelRatioCap: 1.5, shadowMapSize: 2048, msaa: true, waterSimRes: 512, refraction: true, causticsRes: 512,
-    grassCount: 40000, rainCount: 25000, snowCount: 15000,
+    grassCount: 40000, flowerCount: 10000, rainCount: 25000, snowCount: 15000,
   },
 };
 

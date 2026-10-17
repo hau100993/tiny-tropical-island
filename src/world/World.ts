@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { Heightmap, ISLAND_CONFIG } from './heightmap';
 import { createLayout, type IslandLayout } from './layout';
 import { createTerrainMesh, createHeightTexture } from './terrain';
-import { createPalms, type PalmForest } from './palms';
+import { createForest, type Forest } from './vegetation/forest';
+import { GroundFlowers } from './vegetation/groundFlowers';
 import { createHouse, type HouseInfo } from './house';
 import { createRocks, createBeachSet, createBoat, type Rocks } from './props';
 import { createSky, type Sky } from './sky';
@@ -22,7 +23,8 @@ export const WORLD_SEED = 20261017;
 export interface World {
   heightmap: Heightmap;
   layout: IslandLayout;
-  palms: PalmForest;
+  forest: Forest;
+  flowers: GroundFlowers;
   house: HouseInfo;
   rocks: Rocks;
   sky: Sky;
@@ -67,11 +69,13 @@ export function createWorld(
   const terrain = createTerrainMesh(heightmap, noise);
   scene.add(terrain);
 
-  const palms = createPalms(heightmap, layout.clearings, noise, WORLD_SEED + 2, shared);
-  scene.add(palms.group);
+  const forest = createForest(heightmap, noise, layout.house, layout.clearings, WORLD_SEED + 2, shared);
+  scene.add(forest.group);
 
   const grass = new Grass(heightmap, noise, layout.house, WORLD_SEED + 7, shared);
   scene.add(grass.mesh);
+  const flowers = new GroundFlowers(heightmap, noise, layout.house, WORLD_SEED + 8, shared);
+  scene.add(flowers.group);
 
   const house = createHouse(heightmap, layout.house, WORLD_SEED + 3);
   scene.add(house.group);
@@ -103,13 +107,15 @@ export function createWorld(
   patchTree(rocks.group, { wet: true, porosity: 0.6, snow: true, caustics }, shared);
 
   const weather = new Weather(scene, shared, water, lighting);
-  // Neither the sky nor rain/snow belong in the refraction capture (they'd show up twice).
-  water.setCaptureHidden([sky.mesh, ...weather.particleMeshes]);
+  // The refraction capture only needs what lies under the water. Sky and particles would show
+  // up twice; vegetation is all on land, so skipping it saves most of the capture's cost.
+  water.setCaptureHidden([sky.mesh, ...weather.particleMeshes, forest.group, grass.mesh, flowers.group]);
 
   return {
     heightmap,
     layout,
-    palms,
+    forest,
+    flowers,
     house,
     rocks,
     sky,

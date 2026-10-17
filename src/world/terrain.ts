@@ -10,6 +10,8 @@ const GRASS_A = new THREE.Color('#5d9b39');
 const GRASS_B = new THREE.Color('#45822f');
 const GRASS_C = new THREE.Color('#7fb247');
 const ROCK = new THREE.Color('#8b8577');
+const FOREST_FLOOR = new THREE.Color('#3a5a24');
+const LEAF_LITTER = new THREE.Color('#5f5230');
 
 /**
  * Flat-shaded terrain mesh: every triangle has its own 3 vertices (non-indexed), so the
@@ -104,6 +106,12 @@ function faceColor(
     out.copy(ROCK);
   } else {
     out.copy(GRASS_A).lerp(n > 0 ? GRASS_C : GRASS_B, Math.abs(n));
+    // Deeper in, the rainforest floor is dark and mossy with patches of leaf litter.
+    const deep = smoothstep(0.28, 0.55, hm.inlandAt(x, z));
+    if (deep > 0) {
+      tmp.copy(FOREST_FLOOR).lerp(LEAF_LITTER, smoothstep(0.1, 0.6, noise(x * 0.21 - 9, z * 0.21 + 4)));
+      out.lerp(tmp, deep * 0.85);
+    }
     // Sandy edge where grass meets the beach.
     tmp.copy(DRY_SAND);
     out.lerp(tmp, smoothstep(sandLine + 0.35, sandLine, h) * 0.45);

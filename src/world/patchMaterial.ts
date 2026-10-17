@@ -21,10 +21,11 @@ export interface CausticsUniforms {
 }
 
 export interface WorldMaterialFeatures {
-  /** 'palm' bends with height (+ leaf flutter if the geometry has `aTip`); 'grass' bends per blade. */
-  sway?: 'palm' | 'grass';
-  /** Geometry has an `aTip` attribute (0 at the frond base … 1 at the tip). */
-  tip?: boolean;
+  /**
+   * 'plant': bends by the geometry's `aSway` attribute and flutters by `aTip` (see
+   * vegetation/plantBuilder.ts); 'grass': bends per blade by height.
+   */
+  sway?: 'plant' | 'grass';
   wet?: boolean;
   /** How much rain darkens the surface (sand 1, wood 0.7, leaves 0.4). */
   porosity?: number;
@@ -42,7 +43,8 @@ uniform float uTime;
 uniform float uWind;
 uniform float uGust;
 uniform vec2 uWindDir;
-#ifdef HAS_TIP
+#ifdef SWAY_PLANT
+attribute float aSway;
 attribute float aTip;
 #endif
 
@@ -51,16 +53,15 @@ attribute float aTip;
 vec3 windOffset(vec3 local, vec3 origin) {
   vec3 dir = vec3(uWindDir.x, 0.0, uWindDir.y);
   float phase = dot(origin.xz, vec2(0.37, 0.71));
-#if defined(SWAY_PALM)
-  // Trunk bends quadratically with height (≈ cantilever beam), plus a slow idle sway.
-  float h = max(local.y, 0.0) * 0.1;
+#if defined(SWAY_PLANT)
+  // aSway was baked per vertex (≈ quadratic with height, scaled by how flexible the species
+  // is), so a stiff giant and a soft banana use the same code. Plus a slow idle sway.
   float sway = uGust * 0.9 + sin(uTime * 1.1 + phase) * (0.1 + 0.25 * uWind);
-  vec3 off = dir * sway * h * h;
-  #ifdef HAS_TIP
-    float flutter = sin(uTime * (4.5 + uWind * 4.0) + phase * 3.0 + local.x * 1.7 + local.z * 1.3);
-    off += dir * aTip * aTip * (0.3 * uGust + 0.04);
-    off.y += flutter * aTip * (0.04 + 0.2 * uGust);
-  #endif
+  vec3 off = dir * sway * aSway;
+  // Leaves flutter on top of the bend, strongest at their tips.
+  float flutter = sin(uTime * (4.5 + uWind * 4.0) + phase * 3.0 + local.x * 1.7 + local.z * 1.3);
+  off += dir * aTip * aTip * (0.3 * uGust + 0.04);
+  off.y += flutter * aTip * (0.04 + 0.2 * uGust);
   return off;
 #elif defined(SWAY_GRASS)
   float tip = clamp(local.y / 0.6, 0.0, 1.0);
@@ -167,8 +168,7 @@ if (uCausticsOn > 0.5 && vWorldPosW.y < 0.0) {
 
 function defines(f: WorldMaterialFeatures): string[] {
   const d: string[] = ['WORLD_VARYINGS'];
-  if (f.sway) d.push('WORLD_SWAY', f.sway === 'palm' ? 'SWAY_PALM' : 'SWAY_GRASS');
-  if (f.tip) d.push('HAS_TIP');
+  if (f.sway) d.push('WORLD_SWAY', f.sway === 'plant' ? 'SWAY_PLANT' : 'SWAY_GRASS');
   if (f.wet) d.push('WORLD_WET');
   if (f.puddles) d.push('WORLD_PUDDLES');
   if (f.snow) d.push('WORLD_SNOW');
@@ -234,10 +234,10 @@ export function patchWorldMaterial(
  * and grass move with the wind instead of staying frozen.
  */
 export function createSwayDepthMaterial(
-  features: Pick<WorldMaterialFeatures, 'sway' | 'tip'>,
+  features: Pick<WorldMaterialFeatures, 'sway'>,
   shared: SharedUniforms,
 ): THREE.MeshDepthMaterial {
-  const d = defines({ sway: features.sway, tip: features.tip }).filter((x) => x !== 'WORLD_VARYINGS');
+  const d = defines({ sway: features.sway }).filter((x) => x !== 'WORLD_VARYINGS');
   const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {

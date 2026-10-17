@@ -111,6 +111,21 @@ export class Heightmap {
     return this.normalYAt(x, z) < 0.82 ? 'rock' : 'grass';
   }
 
+  private shoreRadii: Float32Array | null = null;
+
+  /** 0 at the coastline … 1 at the island center (by direction from the center). */
+  inlandAt(x: number, z: number): number {
+    const n = 720;
+    if (!this.shoreRadii) {
+      this.shoreRadii = new Float32Array(n);
+      for (let i = 0; i < n; i++) this.shoreRadii[i] = Math.max(1, this.shoreDistance((i / n) * Math.PI * 2, 0.3));
+    }
+    let a = Math.atan2(z, x);
+    if (a < 0) a += Math.PI * 2;
+    const r = this.shoreRadii[Math.floor((a / (Math.PI * 2)) * n) % n];
+    return Math.min(1, Math.max(0, 1 - Math.hypot(x, z) / r));
+  }
+
   /**
    * Distance from the island center to the coast at `angle`, where the coast is the
    * outermost point whose height is still >= `targetHeight`.

@@ -151,6 +151,7 @@ export class App {
     this.world.water.setStepRate(fps);
     this.world.weather.setQuality(profile);
     this.world.grass.setCount(profile.grassCount);
+    this.world.flowers.setCount(profile.flowerCount);
     this.env.waveStrength.target = s.waveStrength;
     this.overlay.setVisible(s.showDebug);
   }
