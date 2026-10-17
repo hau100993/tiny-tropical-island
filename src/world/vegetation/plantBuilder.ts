@@ -65,8 +65,18 @@ export class PlantBuilder {
     this.idx.push(a, b, c);
   }
 
-  /** Tapered tube through `points` (trunks, branches, stems). */
-  tube(points: THREE.Vector3[], radii: number[], radial: number, colorAt: (t: number, ring: number) => THREE.Color, tip = 0): void {
+  /**
+   * Tapered tube through `points` (trunks, branches, stems). `radialScale(ring, angle)`
+   * optionally reshapes each ring's cross-section (e.g. buttress ridges at a trunk's base).
+   */
+  tube(
+    points: THREE.Vector3[],
+    radii: number[],
+    radial: number,
+    colorAt: (t: number, ring: number) => THREE.Color,
+    tip = 0,
+    radialScale?: (ring: number, angle: number) => number,
+  ): void {
     const n = points.length;
     const start = this.count;
     for (let i = 0; i < n; i++) {
@@ -78,8 +88,9 @@ export class PlantBuilder {
       const p = points[i];
       for (let a = 0; a < radial; a++) {
         const ang = (a / radial) * Math.PI * 2;
-        const ca = Math.cos(ang) * radii[i];
-        const sa = Math.sin(ang) * radii[i];
+        const r = radii[i] * (radialScale ? radialScale(i, ang) : 1);
+        const ca = Math.cos(ang) * r;
+        const sa = Math.sin(ang) * r;
         this.vertex(p.x + tmpB.x * ca + tmpC.x * sa, p.y + tmpB.y * ca + tmpC.y * sa, p.z + tmpB.z * ca + tmpC.z * sa, c, tip);
       }
     }
@@ -206,11 +217,6 @@ export class PlantBuilder {
       );
     }
     for (let k = 0; k < segs; k++) this.tri(apex, ring[k], ring[(k + 1) % segs]);
-  }
-
-  /** Thin triangular fin (buttress roots). */
-  fin(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, color: THREE.Color): void {
-    this.tri(this.vertex(a.x, a.y, a.z, color), this.vertex(b.x, b.y, b.z, color), this.vertex(c.x, c.y, c.z, color));
   }
 
   build(): THREE.BufferGeometry {

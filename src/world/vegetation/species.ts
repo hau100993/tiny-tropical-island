@@ -225,16 +225,49 @@ function crownTree(
   const forkY = o.height * (o.fork ?? 0.45);
   const lean = V(randRange(rng, -0.3, 0.3), 0, randRange(rng, -0.3, 0.3));
   const trunkTop = V(lean.x, forkY, lean.z);
-  b.tube([V(0, 0, 0), V(lean.x * 0.4, forkY * 0.5, lean.z * 0.4), trunkTop], [o.trunkR * 1.25, o.trunkR, o.trunkR * 0.85], 7, () => shade(o.bark, rng, 0.05));
+  const bark = shade(o.bark, rng, 0.05);
   if (o.buttress) {
-    // Plank-like buttress roots of rainforest giants.
-    for (let k = 0; k < 5; k++) {
-      const a = (k / 5) * Math.PI * 2 + rng() * 0.5;
-      const out = o.trunkR * randRange(rng, 2.6, 3.6);
-      const up = o.height * randRange(rng, 0.09, 0.13);
+    // Buttress roots grow out of the trunk itself: the cross-section near the ground is a
+    // star with a few sharp ridges that flare out and fade away up the trunk.
+    const lobes = 5;
+    const lobeAngles = Array.from({ length: lobes }, (_, k) => (k / lobes) * Math.PI * 2 + (rng() - 0.5) * 0.6);
+    const lobeReach = lobeAngles.map(() => randRange(rng, 1.6, 2.6));
+    const flare = [1, 0.8, 0.5, 0.25, 0.08, 0, 0];
+    const ys = [-0.4, 0.15, 0.6, 1.3, 2.3, forkY * 0.6, forkY];
+    const pts = ys.map((y) => V(lean.x * (y / forkY), y, lean.z * (y / forkY)));
+    const radii = ys.map((y) => o.trunkR * (1.15 - 0.3 * Math.min(1, y / forkY)));
+    b.tube(pts, radii, 30, () => bark, 0, (ring, ang) => {
+      let ridge = 0;
+      lobeAngles.forEach((la, k) => {
+        // Narrow ridge: cos^14 is wide near the ground only because the flare scales it.
+        const c = Math.max(0, Math.cos(ang - la));
+        ridge = Math.max(ridge, Math.pow(c, 14) * lobeReach[k]);
+      });
+      return 1 + flare[ring] * ridge;
+    });
+    // A few short surface roots between the ridges. The same geometry is used on every slope,
+    // so they dive steeply: on a downhill side they still end inside the soil, not in mid-air.
+    for (let k = 0; k < 4; k++) {
+      const a = lobeAngles[k] + Math.PI / lobes + (rng() - 0.5) * 0.4;
       const d = dirAt(a);
-      b.fin(V(d.x * o.trunkR * 0.6, up, d.z * o.trunkR * 0.6), V(d.x * o.trunkR * 0.7, -0.2, d.z * o.trunkR * 0.7), V(d.x * out, -0.2, d.z * out), shade(o.bark, rng, 0.05));
+      const side = V(-d.z, 0, d.x);
+      const len = randRange(rng, 1.3, 2.1);
+      const wiggle = (rng() - 0.5) * 0.5;
+      const root: THREE.Vector3[] = [];
+      for (let s = 0; s <= 4; s++) {
+        const t = s / 4;
+        root.push(
+          V(0, 0, 0)
+            .addScaledVector(d, o.trunkR * 0.8 + len * t)
+            .addScaledVector(side, Math.sin(t * Math.PI) * wiggle)
+            .add(V(0, 0.1 - Math.pow(t, 1.5) * 1.1, 0)),
+        );
+      }
+      b.tube(root, [0.22, 0.17, 0.12, 0.08, 0.05].map((r) => r * o.trunkR * 1.3), 5, () => bark);
     }
+  } else {
+    // Start slightly below ground so the trunk never floats on a slope.
+    b.tube([V(0, -0.3, 0), V(lean.x * 0.4, forkY * 0.5, lean.z * 0.4), trunkTop], [o.trunkR * 1.25, o.trunkR, o.trunkR * 0.85], 7, () => bark);
   }
   const crownCenter = V(lean.x * 1.5, o.height - o.crownR * o.flat * 0.9, lean.z * 1.5);
   const branches = 3 + Math.floor(rng() * 2);
