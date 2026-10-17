@@ -245,6 +245,9 @@ function foliageCrown(
   flat: number,
   greens: THREE.Color[],
   count: number,
+  leavesPerCluster = 18,
+  /** Core radius and leaf-spray size, both relative to the crown radius. */
+  shape: { core: number; size: [number, number] } = { core: 0.55, size: [0.16, 0.24] },
 ): LeafCluster[] {
   const h = radius * flat;
   const depth = (x: number, y: number, z: number): number => {
@@ -253,10 +256,9 @@ function foliageCrown(
     return Math.min(1.2, Math.max(0.42, 0.55 + 0.28 * (up * 0.5 + 0.5) + 0.25 * rim));
   };
   // Small, ragged dark core: only fills gaps deep inside, never shows as a smooth lump.
-  b.blob(center, radius * 0.55, V(1, flat * 0.85, 1), greens[0].clone().multiplyScalar(0.5), 0.4, 1, 0.15, 0.1, depth);
+  b.blob(center, radius * shape.core, V(1, flat * 0.85, 1), greens[0].clone().multiplyScalar(0.5), 0.4, 1, 0.15, 0.1, depth);
 
   const clusters: LeafCluster[] = [];
-  const leavesPerCluster = 18;
   const leafDir = new THREE.Vector3();
   const baseColor = new THREE.Color();
   const tipColor = new THREE.Color();
@@ -268,7 +270,7 @@ function foliageCrown(
     // Clusters sit on the crown's outer shell, so leaves (not the core) form the surface.
     const outward = 0.72 + 0.28 * Math.sqrt(rng());
     const c = center.clone().add(V(dir.x * radius * outward, dir.y * h * outward, dir.z * radius * outward));
-    const size = radius * randRange(rng, 0.16, 0.24);
+    const size = radius * randRange(rng, shape.size[0], shape.size[1]);
     const green = shade(greens[Math.floor(rng() * greens.length)], rng, 0.1);
     clusters.push({ center: c, dir, size, outward });
 
@@ -584,20 +586,33 @@ const hibiscus: Species = {
   build(rng, variant) {
     const b = new PlantBuilder(rng, bendWithHeight(1.6, 0.15));
     const petal = [C('#d81f3c'), C('#f2c12e'), C('#ef6fa3')][variant];
-    const centers: THREE.Vector3[] = [];
-    for (let k = 0; k < 6; k++) {
-      const c = V((rng() - 0.5) * 1.0, 0.45 + rng() * 0.8, (rng() - 0.5) * 1.0);
-      centers.push(c);
-      b.blob(c, randRange(rng, 0.38, 0.5), V(1, 0.85, 1), shade(LEAF, rng), 0.25, 1, 0.3);
-    }
-    for (let f = 0; f < 16; f++) {
-      const c = centers[Math.floor(rng() * centers.length)];
-      const n = V(rng() - 0.5, rng() * 0.8, rng() - 0.5).normalize();
-      b.flower(c.clone().addScaledVector(n, 0.45), n, 0.13, 5, petal, C('#f7e7a0'));
+    bushStems(b, rng, 0.7);
+    const clusters = foliageCrown(b, rng, V(0, 0.8, 0), 0.75, 0.85, [LEAF, LEAF_DARK, LEAF_BRIGHT], 34, 14, BUSH_SHAPE);
+    // Blooms sit on the outer leaf sprays, facing outward.
+    const outer = clusters.filter((c) => c.outward > 0.8 && c.dir.y > -0.3);
+    for (let f = 0; f < 16 && outer.length > 0; f++) {
+      const c = outer[Math.floor(rng() * outer.length)];
+      b.flower(c.center.clone().addScaledVector(c.dir, c.size * 0.8), c.dir, 0.12, 5, shade(petal, rng, 0.08), C('#f7e7a0'));
     }
     return b.build();
   },
 };
+
+/**
+ * Bushes are small, so leaves relative to the bush are much bigger than on a tree, and the
+ * core is tiny: otherwise the core shows through as a smooth dark lump.
+ */
+const BUSH_SHAPE = { core: 0.3, size: [0.32, 0.45] as [number, number] };
+
+/** A few woody stems from the ground up into a bush, visible under its leaves. */
+function bushStems(b: PlantBuilder, rng: Rng, height: number): void {
+  const bark = barkColors(rng, C('#5e4a38'));
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * Math.PI * 2 + rng();
+    const top = V(Math.cos(a) * 0.3, height, Math.sin(a) * 0.3);
+    b.tube([V(0, -0.1, 0), V(top.x * 0.4, height * 0.5, top.z * 0.4), top], [0.04, 0.03, 0.02], 4, bark);
+  }
+}
 
 // Understory shrubs: low dark-green mounds filling the forest floor.
 const shrub: Species = {
@@ -612,10 +627,10 @@ const shrub: Species = {
   habitat: (s) => (s.onSand ? 0 : 0.9 * forest(s) + 0.3 * edge(s)),
   build(rng, variant) {
     const b = new PlantBuilder(rng, bendWithHeight(1.2, 0.1));
-    const greens = variant === 0 ? [LEAF_DARK, LEAF] : [LEAF_OLIVE, LEAF];
-    for (let k = 0; k < 4; k++) {
-      b.blob(V((rng() - 0.5) * 0.9, 0.3 + rng() * 0.35, (rng() - 0.5) * 0.9), randRange(rng, 0.35, 0.5), V(1, 0.75, 1), shade(greens[k % 2], rng), 0.3, 1, 0.25);
-    }
+    const greens = variant === 0 ? [LEAF_DARK, LEAF, LEAF_BRIGHT] : [LEAF_OLIVE, LEAF, LEAF_LIME];
+    bushStems(b, rng, 0.45);
+    // Variant 1 is lower and wider, like a spreading ground shrub.
+    foliageCrown(b, rng, V(0, variant ? 0.45 : 0.55, 0), variant ? 0.75 : 0.62, variant ? 0.6 : 0.8, greens, 30, 14, BUSH_SHAPE);
     return b.build();
   },
 };
