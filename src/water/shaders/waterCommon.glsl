@@ -5,7 +5,8 @@ uniform float uTerrainRes;
 
 float terrainHeight(vec2 xz) {
   vec2 uv = xz / uTerrainSize + 0.5;
-  if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return -12.0;
+  // Must match OUTSIDE_HEIGHT in heightmap.ts.
+  if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return -30.0;
   // Map grid vertices onto texel centers so the texture matches the CPU heightmap.
   uv = (uv * (uTerrainRes - 1.0) + 0.5) / uTerrainRes;
   return texture2D(uTerrainHeight, uv).r;

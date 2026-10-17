@@ -35,6 +35,10 @@ void main() {
   // Simulated slopes are amplified so ripple rings stay readable from orbit distance.
   g += sim.yz * sim.w * 4.0;
   vec3 N = normalize(vNormalW + vec3(-g.x, 0.0, -g.y));
+  // Far away, many steep wave facets per pixel average out to a flatter surface; without this
+  // the sun glint and reflections turn into blocky blobs when seen from high above.
+  float far = smoothstep(80.0, 400.0, dist);
+  N = normalize(mix(N, vec3(0.0, 1.0, 0.0), far * 0.7));
 
   float depth = max(vWorldPos.y - terrainHeight(xz), 0.0);
 
@@ -56,8 +60,9 @@ void main() {
   foam += smoothstep(0.06, 0.2, sim.x) * sim.w * 0.6 * (0.4 + n2);
   foam = clamp(foam, 0.0, 1.0);
 
+  // Sun glint: widens and dims with distance (like a rougher surface).
   vec3 H = normalize(V + uSunDir);
-  float spec = pow(max(dot(N, H), 0.0), 350.0) * 3.0;
+  float spec = pow(max(dot(N, H), 0.0), mix(350.0, 120.0, far)) * mix(3.0, 0.5, far);
 
 #ifdef REFRACTION
   vec2 screenUV = gl_FragCoord.xy / uResolution;
@@ -72,7 +77,8 @@ void main() {
   vec3 behind = texture2D(uSceneColor, refrUV).rgb;
   // Turquoise tint grows quickly, then deep blue takes over.
   vec3 tint = mix(vec3(1.0), uShallowColor * 1.8, 1.0 - exp(-thickness * 0.6));
-  float absorb = 1.0 - exp(-thickness * 0.14);
+  // Rescaled so it reaches exactly 1 by ~25 m: deep seabed and "no seabed" look identical.
+  float absorb = min(1.0, (1.0 - exp(-thickness * 0.14)) / 0.97);
   vec3 body = mix(behind * tint, uDeepColor, absorb);
   // Reflection fades in with water thickness so the waterline blends into the sand.
   float reflAmount = fres * smoothstep(0.0, 0.3, thickness);

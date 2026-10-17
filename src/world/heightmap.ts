@@ -10,10 +10,11 @@ export interface IslandConfig {
   radius: number;
 }
 
-export const ISLAND_CONFIG: IslandConfig = { size: 240, segments: 160, radius: 85 };
+/** 300 m patch at 1.5 m cells: large enough that the reef drop-off ends well inside it. */
+export const ISLAND_CONFIG: IslandConfig = { size: 300, segments: 200, radius: 85 };
 
 /** Height used outside the terrain patch (open sea floor). */
-export const OUTSIDE_HEIGHT = -12;
+export const OUTSIDE_HEIGHT = -30;
 
 export type Surface = 'sand' | 'grass' | 'rock' | 'water';
 
@@ -55,11 +56,14 @@ export class Heightmap {
     const land = 1 - smoothstep(0.35, 0.8, d);
     const beach = 1 - smoothstep(0.72, 1.0, d);
     const sea = smoothstep(0.95, 1.45, d);
+    // Reef drop-off beyond the lagoon: the seabed reaches OUTSIDE_HEIGHT well before the patch
+    // edge (d ≈ 1.76 on the axes), so the square boundary of the terrain patch can't be seen.
+    const dropOff = smoothstep(1.2, 1.55, d);
     const hx = (x + 0.24 * r) / (0.28 * r);
     const hz = (z + 0.26 * r) / (0.28 * r);
     const hill = 9 * Math.exp(-(hx * hx + hz * hz));
     const detail = 1.5 * fbm2(this.noise, x * 0.035, z * 0.035, 4);
-    return -0.6 + 1.1 * beach + land * (2.2 + detail + hill) - 7.5 * sea;
+    return -0.6 + 1.1 * beach + land * (2.2 + detail + hill) - 7.5 * sea - 22 * dropOff;
   }
 
   private vertex(i: number, j: number): number {
