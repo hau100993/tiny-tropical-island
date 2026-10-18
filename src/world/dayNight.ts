@@ -127,6 +127,8 @@ export class DayNight {
     const lamps = smoothstep(0.08, -0.06, e);
     this.house.windowMaterial.emissiveIntensity = lamps * 1.6;
     this.house.lamp.intensity = lamps * 6;
+    this.house.roomLamp.intensity = lamps * 3;
+    this.house.windowMaterial.opacity = 0.3 + 0.6 * lamps;
 
     // Clouds: base cover, more with bad weather; they drift with the wind.
     u.uCloudCover.value = Math.min(1, Math.max(opts.clouds, oc * 0.95));

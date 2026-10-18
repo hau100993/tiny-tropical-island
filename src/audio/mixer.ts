@@ -4,8 +4,10 @@ import { RainLayer } from './synth/rain';
 import { SnowQuietLayer } from './synth/snowQuiet';
 import { WavesLayer } from './synth/waves';
 import { WindLayer } from './synth/wind';
+import { Footsteps, type FootSurface } from './synth/footsteps';
+import { spatialMix, type ListenerState } from './spatial';
 import { cloneMixerState, defaultMixerState, MIXER_KEY, parseMixerState } from './mixerState';
-import { LAYER_IDS, type AudioLayer, type LayerId, type LayerState, type MixerState } from './types';
+import { LAYER_IDS, type AudioLayer, type LayerId, type LayerState, type MixerState, type SpatialMix } from './types';
 import { parseJson, readStored, writeStored } from '../core/storage';
 
 type Listener = (state: Readonly<MixerState>) => void;
@@ -24,6 +26,10 @@ export class Mixer {
   private night = 0;
   private readonly listeners: Listener[] = [];
   private saveTimer = 0;
+  private footsteps: Footsteps | null = null;
+  /** Last spatial mix sent per layer (only resent when it changes noticeably). */
+  private readonly spatialSent = new Map<LayerId, SpatialMix>();
+  private readonly spatialTmp: SpatialMix = { gain: 1, pan: 0, occlusion: 0 };
 
   constructor() {
     this.state = parseMixerState(parseJson(readStored(MIXER_KEY)));
@@ -48,6 +54,7 @@ export class Mixer {
     this.setNight(this.night);
     const all: AudioLayer[] = [this.waves, this.birds, new WindLayer(engine), new RainLayer(engine), new SnowQuietLayer(engine)];
     for (const layer of all) this.layers.set(layer.id, layer);
+    this.footsteps = new Footsteps(engine);
     this.applyAll(0.7);
     this.emit();
   }
@@ -91,6 +98,32 @@ export class Mixer {
   setSeaState(value: number): void {
     this.seaState = value;
     this.waves?.setSeaState(value);
+  }
+
+  /** Where the listener stands (walk mode); `walking: false` makes every layer neutral. */
+  setListener(state: Readonly<ListenerState>): void {
+    for (const [id, layer] of this.layers) {
+      const mix = spatialMix(id, state, this.spatialTmp);
+      let sent = this.spatialSent.get(id);
+      if (
+        sent &&
+        Math.abs(sent.gain - mix.gain) < 0.01 &&
+        Math.abs(sent.pan - mix.pan) < 0.01 &&
+        Math.abs(sent.occlusion - mix.occlusion) < 0.01
+      ) {
+        continue;
+      }
+      if (!sent) {
+        sent = { gain: 1, pan: 0, occlusion: 0 };
+        this.spatialSent.set(id, sent);
+      }
+      Object.assign(sent, mix);
+      layer.setSpatial(sent);
+    }
+  }
+
+  playFootstep(surface: FootSurface, strength: number, depth: number): void {
+    this.footsteps?.play(surface, strength, depth);
   }
 
   onChange(listener: Listener): void {

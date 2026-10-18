@@ -10,6 +10,8 @@ uniform float uFall;
 uniform vec2 uDrift;    // current horizontal wind velocity (m/s), for streak direction
 uniform vec2 uOffset;   // accumulated wind drift (m); integrated on the CPU so gusts never jump
 uniform vec2 uSize;     // width, length (rain) / diameter (snow)
+uniform vec4 uShelter;     // roof box: center xz, cos, sin
+uniform vec4 uShelterSize; // half x, half z, (unused), roof top y
 
 varying vec2 vCorner;
 varying float vFade;
@@ -44,6 +46,10 @@ void main() {
   // Fade very close (no giant streaks across the screen) and near the box edges (no popping).
   float d = length(cameraPosition - p);
   vFade = smoothstep(0.6, 3.0, d) * (1.0 - smoothstep(uBox.x * 0.32, uBox.x * 0.5, d));
+  // Nothing falls under the house roof (you can stand on the porch and watch the rain).
+  vec2 sd = p.xz - uShelter.xy;
+  vec2 sl = vec2(sd.x * uShelter.z - sd.y * uShelter.w, sd.x * uShelter.w + sd.y * uShelter.z);
+  vFade *= 1.0 - step(abs(sl.x), uShelterSize.x) * step(abs(sl.y), uShelterSize.y) * step(p.y, uShelterSize.w);
   vCorner = aCorner;
   gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
 }

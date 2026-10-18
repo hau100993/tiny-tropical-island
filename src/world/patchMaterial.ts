@@ -34,6 +34,8 @@ export interface WorldMaterialFeatures {
   snow?: boolean;
   /** Double-sided foliage: snow settles on either face. */
   twoSided?: boolean;
+  /** Stays dry and snow-free under the house roof (see uShelter). */
+  sheltered?: boolean;
   caustics?: CausticsUniforms;
 }
 
@@ -103,6 +105,8 @@ uniform float uSnowCover;
 uniform float uPorosity;
 uniform vec3 uSunDir;
 uniform float uDayLight;
+uniform vec4 uShelter;
+uniform vec4 uShelterSize;
 varying vec3 vWorldPosW;
 varying vec3 vWorldNormalW;
 varying float vCloudShadow;
@@ -135,6 +139,12 @@ const SURFACE_GLSL = /* glsl */ `
   float up = wn.y;
 #endif
   float aboveWater = smoothstep(-0.05, 0.12, vWorldPosW.y);
+#ifdef WORLD_SHELTER
+  // Under the roof (floor, porch, furniture): no rain or snow reaches it.
+  vec2 shd = vWorldPosW.xz - uShelter.xy;
+  vec2 shl = vec2(shd.x * uShelter.z - shd.y * uShelter.w, shd.x * uShelter.w + shd.y * uShelter.z);
+  aboveWater *= 1.0 - step(abs(shl.x), uShelterSize.x) * step(abs(shl.y), uShelterSize.y) * step(vWorldPosW.y, uShelterSize.z);
+#endif
 #ifdef WORLD_WET
   float wet = uWetness * aboveWater * (0.6 + 0.4 * clamp(up, 0.0, 1.0));
   diffuseColor.rgb *= 1.0 - 0.35 * wet * uPorosity;
@@ -151,6 +161,9 @@ const SURFACE_GLSL = /* glsl */ `
   float sn = wNoise(vWorldPosW.xz * 1.3) + 0.5 * wNoise(vWorldPosW.xz * 4.1);
   float cover = smoothstep(0.0, 0.3, uSnowCover * 1.25 - (1.0 - up) * 1.6 - (1.5 - sn) * 0.55);
   cover *= smoothstep(0.02, 0.2, vWorldPosW.y);
+#ifdef WORLD_SHELTER
+  cover *= aboveWater;
+#endif
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.93, 0.97), cover);
   roughnessFactor = mix(roughnessFactor, 0.85, cover);
 #endif
@@ -182,6 +195,7 @@ function defines(f: WorldMaterialFeatures): string[] {
   if (f.snow) d.push('WORLD_SNOW');
   if (f.twoSided) d.push('SNOW_TWO_SIDED');
   if (f.caustics) d.push('WORLD_CAUSTICS');
+  if (f.sheltered) d.push('WORLD_SHELTER');
   return d;
 }
 
@@ -207,6 +221,8 @@ export function patchWorldMaterial(
     uDayLight: shared.uDayLight,
     uCloudCover: shared.uCloudCover,
     uCloudOffset: shared.uCloudOffset,
+    uShelter: shared.uShelter,
+    uShelterSize: shared.uShelterSize,
     uPorosity: { value: features.porosity ?? 1 },
     ...(features.caustics ?? {}),
   };

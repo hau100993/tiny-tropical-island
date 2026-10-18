@@ -25,7 +25,19 @@ export interface AudioLayer {
   setVolume(volume: number): void;
   setEnabled(enabled: boolean): void;
   setMuted(muted: boolean): void;
-  /** Extra gain from position in the world (Phase 5); 1 = neutral. */
-  setSpatialGain(gain: number): void;
+  /** Where the listener is (walk mode); neutral in orbit mode. */
+  setSpatial(spatial: Readonly<SpatialMix>): void;
   dispose(): void;
 }
+
+/** Position-dependent mix of one layer while walking. */
+export interface SpatialMix {
+  /** Extra gain; 1 = neutral. */
+  gain: number;
+  /** Stereo position, −1 (left) … 1 (right). */
+  pan: number;
+  /** 0 = open air … 1 = heard through walls (low-passed). */
+  occlusion: number;
+}
+
+export const NEUTRAL_SPATIAL: Readonly<SpatialMix> = { gain: 1, pan: 0, occlusion: 0 };

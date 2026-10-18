@@ -25,6 +25,8 @@ export interface PanelDeps {
   startAudio: () => void;
   getHours: () => number;
   setHours: (hours: number) => void;
+  /** Switches to walking (first-person). */
+  walk: () => void;
 }
 
 const TIME_MODES: readonly TimeMode[] = ['real', 'cycle24', 'cycle6', 'paused'];
@@ -47,6 +49,7 @@ export class Panel {
   private readonly qualityNote: HTMLElement;
   private readonly lowPower: ToggleControl;
   private readonly autoRotate: ToggleControl;
+  private readonly footsteps: ToggleControl;
   private readonly unlink: ToggleControl;
   private readonly linkHint: HTMLElement;
   private readonly visualBox: HTMLElement;
@@ -146,6 +149,10 @@ export class Panel {
     this.lowPower = toggle(vi.panel.lowPower, s.lowPower, (on) => settings.update({ lowPower: on }));
     this.autoRotate = toggle(vi.panel.autoRotate, s.autoRotate, (on) => settings.update({ autoRotate: on }));
     toggles.append(this.lowPower.root, this.autoRotate.root);
+    const walkRow = el('div', 'button-row');
+    const walkBtn = button(vi.panel.walk, () => deps.walk(), 'btn primary');
+    this.footsteps = toggle(vi.panel.footsteps, s.footsteps, (on) => settings.update({ footsteps: on }));
+    walkRow.append(walkBtn, this.footsteps.root);
 
     // Weather visuals: linked to the sound sliders by default, or separate.
     const linkRow = el('div', 'button-row');
@@ -158,7 +165,7 @@ export class Panel {
     this.visualWind = slider(vi.panel.visualWind, s.visualWind, (v) => settings.update({ visualWind: v }));
     this.visualBox.append(this.visualRain.root, this.visualSnow.root, this.visualWind.root);
 
-    scene.body.append(this.waves.root, linkRow, this.linkHint, this.visualBox, qualityRow, this.qualityNote, toggles);
+    scene.body.append(walkRow, this.waves.root, linkRow, this.linkHint, this.visualBox, qualityRow, this.qualityNote, toggles);
 
     // --- Shortcuts ---
     const keys = section(vi.panel.shortcuts, false);
@@ -166,7 +173,7 @@ export class Panel {
     for (const sc of deps.keymap.list()) {
       list.append(el('dt', '', sc.keyLabel), el('dd', '', sc.label));
     }
-    keys.body.append(list, el('div', 'note', vi.shortcuts.mouse));
+    keys.body.append(list, el('div', 'note', vi.shortcuts.mouse), el('div', 'note', vi.shortcuts.walkKeys));
 
     content.append(audio.root, this.buildSky(s), scene.root, keys.root);
     this.root.append(header, content);
@@ -271,6 +278,7 @@ export class Panel {
     this.qualityNote.textContent = msaaChanged ? vi.panel.msaaReload : '';
     this.lowPower.set(s.lowPower);
     this.autoRotate.set(s.autoRotate);
+    this.footsteps.set(s.footsteps);
     this.unlink.set(!s.weatherLinked);
     this.visualBox.hidden = s.weatherLinked;
     this.linkHint.hidden = !s.weatherLinked;

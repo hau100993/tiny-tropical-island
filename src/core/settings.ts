@@ -32,6 +32,8 @@ export interface Settings {
   meteors: number;
   aurora: number;
   fireflies: boolean;
+  // Walking (Phase 5)
+  footsteps: boolean;
 }
 
 export type SettingsPatch = Partial<Omit<Settings, 'version'>>;
@@ -57,6 +59,7 @@ export function defaultSettings(): Settings {
     meteors: 0.4,
     aurora: 0.5,
     fireflies: true,
+    footsteps: true,
   };
 }
 
@@ -116,6 +119,7 @@ export function parseSettings(json: string | null): Settings {
     meteors: unit(raw.meteors, defaults.meteors),
     aurora: unit(raw.aurora, defaults.aurora),
     fireflies: bool(raw.fireflies, defaults.fireflies),
+    footsteps: bool(raw.footsteps, defaults.footsteps),
   };
 }
 

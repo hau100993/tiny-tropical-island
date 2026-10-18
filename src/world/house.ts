@@ -26,6 +26,12 @@ export interface HouseInfo {
   windowMaterial: THREE.MeshStandardMaterial;
   /** Warm porch lantern light (off by day). */
   lamp: THREE.PointLight;
+  /** Lamp inside the room (off by day). */
+  roomLamp: THREE.PointLight;
+  /** Steps from the porch down to the ground (for first-person walking). */
+  steps: { count: number; rise: number; depth: number; halfWidth: number };
+  /** Top of the roof ridge (for sheltering rain). */
+  ridgeY: number;
 }
 
 const WOOD = '#8b5a2b';
@@ -37,6 +43,8 @@ const THATCH = '#c09a5c';
 const THATCH_DARK = '#a5824a';
 const FABRIC = '#d9d2c0';
 const BLANKET = '#3f7f8f';
+
+const STEP_DEPTH = 0.32;
 
 interface Hole {
   u0: number;
@@ -176,9 +184,9 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
   const steps = Math.max(1, Math.ceil(totalRise / 0.22));
   for (let k = 1; k < steps; k++) {
     const top = F - (k * totalRise) / steps;
-    const lz = D.porchFront + (k - 0.5) * 0.32;
+    const lz = D.porchFront + (k - 0.5) * STEP_DEPTH;
     const bottom = groundAt(0, lz) - 0.2;
-    b.box(1.3, top - bottom, 0.32, 0, (top + bottom) / 2, lz, k % 2 ? PLANK_A : PLANK_B);
+    b.box(1.3, top - bottom, STEP_DEPTH, 0, (top + bottom) / 2, lz, k % 2 ? PLANK_A : PLANK_B);
   }
 
   // Interior: bed, table, stool.
@@ -202,6 +210,9 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
     metalness: 0.1,
     emissive: new THREE.Color('#ffc46b'),
     emissiveIntensity: 0,
+    // See-through by day (you can look out from inside); glowing and nearly opaque at night.
+    transparent: true,
+    opacity: 0.3,
   });
 
   const group = new THREE.Group();
@@ -213,11 +224,23 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
   // Lantern light: lights the porch, steps and the ground in front of the house at night.
   const lamp = new THREE.PointLight('#ffb867', 0, 16, 2);
   lamp.position.set(0.9, eaveY - 0.8, D.porchFront - 0.6);
-  group.add(body, panes, lamp);
+  // A small warm lamp under the ridge lights the room at night (no shadows: cheap).
+  const roomLamp = new THREE.PointLight('#ffc27a', 0, 7, 2);
+  roomLamp.position.set(0, F + 2.15, -0.2);
+  group.add(body, panes, lamp, roomLamp);
   group.position.set(placement.x, 0, placement.z);
   group.rotation.y = placement.rotY;
 
-  return { group, floorY: F, placement, windowMaterial, lamp };
+  return {
+    group,
+    floorY: F,
+    placement,
+    windowMaterial,
+    lamp,
+    roomLamp,
+    steps: { count: steps, rise: totalRise / steps, depth: STEP_DEPTH, halfWidth: 0.65 },
+    ridgeY: ridgeY + 0.2,
+  };
 }
 
 /**

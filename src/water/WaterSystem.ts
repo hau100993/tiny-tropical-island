@@ -105,7 +105,8 @@ export class WaterSystem {
   }
 
   /** Step 2: capture the scene behind the water for refraction (no-op when refraction is off). */
-  captureScene(scene: THREE.Scene, camera: THREE.Camera): void {
+  captureScene(scene: THREE.Scene, camera: THREE.PerspectiveCamera): void {
+    this.surface.syncCamera(camera);
     this.capture.render(scene, camera, this.captureHidden);
   }
 }

@@ -1,17 +1,25 @@
 import type { AudioEngine } from './AudioEngine';
 import { RAMP } from './AudioEngine';
-import type { AudioLayer, LayerId } from './types';
+import type { AudioLayer, LayerId, SpatialMix } from './types';
 
 /** After switching a layer off, nodes are stopped once the fade-out has finished. */
 const STOP_DELAY_MS = 1200;
+/** Time constant (s) for position changes while walking: smooth, never zippery. */
+const SPATIAL_RAMP = 0.25;
 
 /**
  * Shared behavior for all layers: one output gain with smooth ramps, and starting/stopping
  * the actual sound nodes when the layer is switched on/off (disabled layers cost no CPU).
  * Subclasses only build their node graph (`startNodes`) and tear it down (`stopNodes`).
+ *
+ *   layer nodes ─▶ output gain ─▶ stereo pan ─▶ occlusion lowpass ─▶ destination
+ *
+ * Pan and occlusion are neutral (center, 20 kHz) except while walking.
  */
 export abstract class BaseLayer implements AudioLayer {
   protected readonly output: GainNode;
+  private readonly panner: StereoPannerNode;
+  private readonly occluder: BiquadFilterNode;
   private volume = 0.5;
   private enabled = false;
   private muted = false;
@@ -31,7 +39,12 @@ export abstract class BaseLayer implements AudioLayer {
   ) {
     this.output = engine.ctx.createGain();
     this.output.gain.value = 0;
-    this.output.connect(destination);
+    this.panner = engine.ctx.createStereoPanner();
+    this.occluder = engine.ctx.createBiquadFilter();
+    this.occluder.type = 'lowpass';
+    this.occluder.frequency.value = 20000;
+    this.occluder.Q.value = 0.5;
+    this.output.connect(this.panner).connect(this.occluder).connect(destination);
   }
 
   setVolume(volume: number): void {
@@ -44,9 +57,16 @@ export abstract class BaseLayer implements AudioLayer {
     this.applyGain();
   }
 
-  setSpatialGain(gain: number): void {
-    this.spatial = gain;
-    this.applyGain();
+  setSpatial(s: Readonly<SpatialMix>): void {
+    const now = this.engine.now;
+    if (s.gain !== this.spatial) {
+      this.spatial = s.gain;
+      this.applyGain(SPATIAL_RAMP);
+    }
+    this.panner.pan.setTargetAtTime(s.pan, now, SPATIAL_RAMP);
+    // Exponential in frequency: 0 → 20 kHz (open), 1 → 400 Hz (through a wall).
+    const freq = 20000 * Math.pow(400 / 20000, Math.min(1, Math.max(0, s.occlusion)));
+    this.occluder.frequency.setTargetAtTime(freq, now, SPATIAL_RAMP);
   }
 
   setEnabled(enabled: boolean): void {
@@ -90,6 +110,8 @@ export abstract class BaseLayer implements AudioLayer {
     if (this.running) this.stopNodes();
     this.running = false;
     this.output.disconnect();
+    this.panner.disconnect();
+    this.occluder.disconnect();
   }
 }
 

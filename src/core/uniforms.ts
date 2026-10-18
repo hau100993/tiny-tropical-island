@@ -49,6 +49,12 @@ export const sharedUniforms = {
    */
   uMeteorA: { value: Array.from({ length: METEOR_SLOTS }, () => new THREE.Vector4(0, 1, 0, -100)) },
   uMeteorB: { value: Array.from({ length: METEOR_SLOTS }, () => new THREE.Vector4(0, 1, 0, 1)) },
+  /**
+   * The house roof as an oriented box: (center x, center z, cos, sin) and (half x, half z,
+   * top of dry surfaces, top for rain/snow particles). Nothing falls or settles under it.
+   */
+  uShelter: { value: new THREE.Vector4(0, 0, 1, 0) },
+  uShelterSize: { value: new THREE.Vector4(0, 0, 0, 0) },
   /** Rotation of the star field (hour angle), radians. */
   uStarRotation: { value: 0 },
 };

@@ -3,8 +3,9 @@
 A local web app for Windows 11 that you leave open while you work: a small stylized tropical
 island with GPU water, weather, day/night and an ambient sound mixer. Fully offline, no backend.
 
-> Status: **Phase 4** — island, GPU water, synthesized sound mixer with presets, weather that
-> follows the mixer, and a day/night cycle with clouds, stars, aurora and more.
+> Status: **Phase 5** — island, GPU water, synthesized sound mixer with presets, weather that
+> follows the mixer, a day/night cycle with clouds, stars and aurora, and walking around the
+> island in first person.
 > See [PLAN.md](PLAN.md) for the roadmap.
 
 ## Run
@@ -42,6 +43,7 @@ sound on later with **Bật âm thanh** in the panel).
 | `P` | Collapse / expand the control panel |
 | `H` | Hide all UI (clean wallpaper view); press again to show |
 | `N` | Pause / resume the day-night clock |
+| `C` | Walk around the island (first person); press again to go back to the orbit view |
 | `L` | Toggle low-power mode (30 fps, Low-level water, no shadows) |
 | `` ` `` (backquote) | Show/hide the stats overlay (FPS, CPU/GPU ms, draw calls) |
 
@@ -58,6 +60,30 @@ sound on later with **Bật âm thanh** in the panel).
 - **Tách hình/âm:** by default the weather you *see* follows the sound sliders (Mưa → rain,
   Tuyết lặng → snow, Gió lá → wind; switching a layer off clears that weather, muting does not).
   Turn this on to get three separate visual sliders, e.g. to hear rain under a clear sky.
+
+## Walking on the island (`C` or **Đi bộ trên đảo** in the panel)
+
+| Input | Action |
+|---|---|
+| Mouse | Look around (the browser captures the mouse and briefly says how to release it with Esc) |
+| `W` `A` `S` `D` / arrow keys | Walk |
+| `Shift` (hold) | Run |
+| Click | Splash: a ripple where you look, if that is water |
+| `Esc` | Stop walking and return to the orbit view (also `C`) |
+
+- You start at the foot of the porch steps, looking out to sea; next time you continue where you
+  left off. The control panel hides while walking (the mouse is captured); `H` hides the hint too.
+- You follow the ground, can climb the steps onto the porch and walk into the room; trunks, rocks,
+  walls, railings and furniture block you (you slide along them).
+- You can wade into the sea up to about 0.9 m deep; the deeper, the slower.
+- If the mouse is not captured (e.g. right after pressing `Esc`, the browser waits a moment),
+  the hint says **Nhấp vào cảnh…**: click the scene.
+- **Sound follows where you are:** footsteps change with the ground (sand, grass, rock, wooden
+  floor, splashing water, snow crunch; switch off with **Tiếng bước chân**). The surf is loud on
+  the beach and fades inland, coming from the sea's side; birds get louder among the trees;
+  inside the room everything is muffled and rain sounds like rain on the roof. No rain or snow
+  falls under the roof, and the floor stays dry.
+- Head bob is off when Windows' "Animation effects" is disabled (`prefers-reduced-motion`).
 
 ## Day, night and sky ("Bầu trời" in the panel)
 
@@ -142,6 +168,10 @@ All sound is generated in code with the Web Audio API — no audio files.
   repeats only every ~6 min) + low rumble.
 - **Birds:** short sine "calls" (5 species patterns) at random times and stereo positions.
 - **Tuyết lặng:** a very soft hush; it also muffles the other layers (snow absorbs high frequencies).
+- **Footsteps** (walk mode): each step is a few short filtered-noise bursts and pitched blips,
+  shaped per surface, with random pitch/level and alternating left/right feet.
+- **Walk mode mix:** every layer passes through its own stereo panner and low-pass filter, so
+  position can move it left/right and muffle it (indoors) without touching the synth itself.
 - Timed events (swells, gusts, bird calls) are scheduled on the audio clock. When the tab is
   hidden, Chrome may run timers only once a minute, so events are queued ~75 s ahead.
 - Optional real recordings (mp3/ogg) per layer arrive in Phase 6.
@@ -156,7 +186,7 @@ src/
   water/     Gerstner swell, ripple simulation, refraction capture, caustics, floating objects
   weather/   rain/snow particles, gusts, wetness & snow-cover rules
   audio/     audio engine, synthesized layers, mixer state, presets, scheduler
-  controls/  orbit camera, water clicks, keyboard shortcuts
+  controls/  orbit camera, walking (first person), collision, water clicks, keyboard shortcuts
   ui/        Vietnamese strings, start screen, control panel, stats overlay, styles
 tests/       unit tests for pure logic
 ```

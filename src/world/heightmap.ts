@@ -115,6 +115,20 @@ export class Heightmap {
 
   /** 0 at the coastline … 1 at the island center (by direction from the center). */
   inlandAt(x: number, z: number): number {
+    const r = this.shoreRadiusToward(x, z);
+    return Math.min(1, Math.max(0, 1 - Math.hypot(x, z) / r));
+  }
+
+  /**
+   * Meters from (x, z) to the coastline, measured along the line from the island center:
+   * positive on land, negative out in the water. The island is roughly round, so this is
+   * close to the true distance to the nearest shore.
+   */
+  distanceToShore(x: number, z: number): number {
+    return this.shoreRadiusToward(x, z) - Math.hypot(x, z);
+  }
+
+  private shoreRadiusToward(x: number, z: number): number {
     const n = 720;
     if (!this.shoreRadii) {
       this.shoreRadii = new Float32Array(n);
@@ -122,8 +136,7 @@ export class Heightmap {
     }
     let a = Math.atan2(z, x);
     if (a < 0) a += Math.PI * 2;
-    const r = this.shoreRadii[Math.floor((a / (Math.PI * 2)) * n) % n];
-    return Math.min(1, Math.max(0, 1 - Math.hypot(x, z) / r));
+    return this.shoreRadii[Math.floor((a / (Math.PI * 2)) * n) % n];
   }
 
   /**

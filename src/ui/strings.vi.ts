@@ -60,6 +60,12 @@ export const vi = {
     meteors: 'Sao băng',
     aurora: 'Cực quang',
     fireflies: 'Đom đóm',
+    walk: 'Đi bộ trên đảo (C)',
+    footsteps: 'Tiếng bước chân',
+  },
+  walk: {
+    controls: 'W A S D: đi · Shift: chạy · Chuột: nhìn · Nhấp: té nước · Esc: thoát',
+    clickToLook: 'Nhấp vào cảnh để điều khiển bằng chuột · C: thoát',
   },
   layers: {
     waves: 'Sóng biển',
@@ -87,6 +93,8 @@ export const vi = {
     panel: 'Thu gọn/mở bảng',
     hideUI: 'Ẩn toàn bộ giao diện',
     pauseTime: 'Dừng/chạy thời gian',
+    walk: 'Đi bộ / xem từ trên cao',
     mouse: 'Kéo: xoay · Cuộn: thu phóng · Chuột phải: dời · Nhấp vào nước: gợn sóng',
+    walkKeys: 'Khi đi bộ: W A S D đi · Shift chạy · chuột nhìn · Esc thoát',
   },
 } as const;

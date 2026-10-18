@@ -4,16 +4,16 @@
 
 ## Status
 
-| Phase | Status | Notes |
-|---|---|---|
-| 1a Island + orbit | ✅ Done (2026-10-17), awaiting feedback | Measured on RX 6600 (Medium, 1600×900): GPU ≈ 2.2 ms, CPU ≈ 0.7 ms per frame, 32 draw calls, 482k triangles incl. shadow pass. Bundle 153 KB gzip. Grass deferred to Phase 3 (it only matters once wind exists). Added a GPU/CPU timer to the debug overlay. |
-| 1b GPU water | ✅ Done (2026-10-17), awaiting feedback | Heightfield sim (200 m square, ping-pong half-float), click ripples that reflect off the beach, screen-space refraction (half-res scene capture), Wallace-style caustics on seabed and rocks, foam on ripple crests, wave-strength slider (temporary home: stats panel). GPU per frame on RX 6600 @ 1600×900: Low ≈ 2.0 ms, Medium ≈ 3.1 ms, High ≈ 3.9 ms (whole frame, all passes). |
-| 2 Audio + mixer | ✅ Done (2026-10-17), awaiting feedback | One AudioContext (created on the start-screen click), 5 synthesized layers behind a shared `AudioLayer` interface, look-ahead scheduler (1.5 s visible / 75 s hidden), snow muffle via shared lowpass, Vietnamese control panel (mixer, presets, scene, shortcuts), user presets + mix persisted. Levels balanced by measurement (solo RMS at 70%: waves −30, wind −28, rain −29, birds −35, snow −41 dBFS; all layers at max peak 0.96 before the limiter). Also pulled forward from Phase 6: `M`/`P`/`H` shortcuts and the hide-UI view. |
-| 3 Weather | ✅ Done (2026-10-17), awaiting feedback | Deterministic gust function shared by shaders and wind audio; vertex-shader sway for palms (trunk bend + frond flutter, swaying shadows via custom depth materials) and 40k-blade instanced grass; GPU rain/snow particles (camera-anchored world-space wrap, draw-range intensity); rain rings in the ripple sim + pitting in the water shader; wetness/puddles/snow cover via one `patchWorldMaterial`; sleet rules unit-tested; overcast greys sky, fog and sun; "Tách hình/âm" with separate visual sliders. Storm GPU per frame (RX 6600, 1600×900): Medium ≈ 4.3 ms, High ≈ 4.6–8.4 ms. |
-| 3+ Forest overhaul (user request) | ✅ Done (2026-10-17), awaiting feedback | Replaced the ~380-palm forest with 12 species in ecological zones (coast palms; garden of banana, papaya, mango/breadfruit, frangipani, hibiscus; rainforest canopy incl. flowering variant, emergent giants with buttress roots, tree ferns; understory shrubs, ferns, heliconia) + 4-color wildflower meadows; dark mossy forest floor. One shared plant material with baked per-vertex `aSway`/`aTip` (replaces the palm-only sway). Vegetation is skipped in the refraction capture. GPU per frame: Low ≈ 3.3, Medium ≈ 4.4, High ≈ 4.9 ms; 68 draw calls at Medium. |
-| 4 Day/night | ✅ Done (2026-10-17), awaiting feedback | Clock with 4 modes (real / 24 min / 6 min / paused) + time slider + `N`; sun/moon paths and a keyed sky palette (night → twilight → golden hour → day) blended with weather overcast; main light switches sun ↔ moon; house windows + porch PointLight. Sky shader: drifting clouds with self-shadow, silver lining and sunset tint; stars (2 layers, twinkle, rotation) + Milky Way; aurora curtains; shooting stars; physically placed rainbow after rain. Cloud shadows on land and sea (per-vertex). Water/foam/rain dim at night, moon glint path. Fireflies; birds → crickets at night. Extra user-requested sky options: clouds, gloom, rainbow, stars, meteors, aurora, fireflies. GPU (Medium, RX 6600): day ≈ 6 ms, night ≈ 2–8 ms. |
-| 5 First-person | ⏳ Next | |
-| 6 Files, Pomodoro, polish | — | |
+| Phase                             | Status                                 | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1a Island + orbit                 | ✅ Done (2026-10-17), awaiting feedback | Measured on RX 6600 (Medium, 1600×900): GPU ≈ 2.2 ms, CPU ≈ 0.7 ms per frame, 32 draw calls, 482k triangles incl. shadow pass. Bundle 153 KB gzip. Grass deferred to Phase 3 (it only matters once wind exists). Added a GPU/CPU timer to the debug overlay.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| 1b GPU water                      | ✅ Done (2026-10-17), awaiting feedback | Heightfield sim (200 m square, ping-pong half-float), click ripples that reflect off the beach, screen-space refraction (half-res scene capture), Wallace-style caustics on seabed and rocks, foam on ripple crests, wave-strength slider (temporary home: stats panel). GPU per frame on RX 6600 @ 1600×900: Low ≈ 2.0 ms, Medium ≈ 3.1 ms, High ≈ 3.9 ms (whole frame, all passes).                                                                                                                                                                                                                                                                                                                                                         |
+| 2 Audio + mixer                   | ✅ Done (2026-10-17), awaiting feedback | One AudioContext (created on the start-screen click), 5 synthesized layers behind a shared `AudioLayer` interface, look-ahead scheduler (1.5 s visible / 75 s hidden), snow muffle via shared lowpass, Vietnamese control panel (mixer, presets, scene, shortcuts), user presets + mix persisted. Levels balanced by measurement (solo RMS at 70%: waves −30, wind −28, rain −29, birds −35, snow −41 dBFS; all layers at max peak 0.96 before the limiter). Also pulled forward from Phase 6: `M`/`P`/`H` shortcuts and the hide-UI view.                                                                                                                                                                                                    |
+| 3 Weather                         | ✅ Done (2026-10-17), awaiting feedback | Deterministic gust function shared by shaders and wind audio; vertex-shader sway for palms (trunk bend + frond flutter, swaying shadows via custom depth materials) and 40k-blade instanced grass; GPU rain/snow particles (camera-anchored world-space wrap, draw-range intensity); rain rings in the ripple sim + pitting in the water shader; wetness/puddles/snow cover via one `patchWorldMaterial`; sleet rules unit-tested; overcast greys sky, fog and sun; "Tách hình/âm" with separate visual sliders. Storm GPU per frame (RX 6600, 1600×900): Medium ≈ 4.3 ms, High ≈ 4.6–8.4 ms.                                                                                                                                                 |
+| 3+ Forest overhaul (user request) | ✅ Done (2026-10-17), awaiting feedback | Replaced the ~380-palm forest with 12 species in ecological zones (coast palms; garden of banana, papaya, mango/breadfruit, frangipani, hibiscus; rainforest canopy incl. flowering variant, emergent giants with buttress roots, tree ferns; understory shrubs, ferns, heliconia) + 4-color wildflower meadows; dark mossy forest floor. One shared plant material with baked per-vertex `aSway`/`aTip` (replaces the palm-only sway). Vegetation is skipped in the refraction capture. GPU per frame: Low ≈ 3.3, Medium ≈ 4.4, High ≈ 4.9 ms; 68 draw calls at Medium.                                                                                                                                                                      |
+| 4 Day/night                       | ✅ Done (2026-10-17), awaiting feedback | Clock with 4 modes (real / 24 min / 6 min / paused) + time slider + `N`; sun/moon paths and a keyed sky palette (night → twilight → golden hour → day) blended with weather overcast; main light switches sun ↔ moon; house windows + porch PointLight. Sky shader: drifting clouds with self-shadow, silver lining and sunset tint; stars (2 layers, twinkle, rotation) + Milky Way; aurora curtains; shooting stars; physically placed rainbow after rain. Cloud shadows on land and sea (per-vertex). Water/foam/rain dim at night, moon glint path. Fireflies; birds → crickets at night. Extra user-requested sky options: clouds, gloom, rainbow, stars, meteors, aurora, fireflies. GPU (Medium, RX 6600): day ≈ 6 ms, night ≈ 2–8 ms. |
+| 5 First-person                    | ✅ Done (2026-10-18), awaiting feedback | `C` / panel button → walk; pointer-lock look, WASD/arrows, Shift run (1.6 / 4 m/s), terrain + house floor/steps following with smoothed eye height, head bob (off with reduced motion). 2.5D collision (`controls/collision.ts`, unit-tested): trunks/rocks/umbrella pole as circles in a grid, walls/railings/furniture/stilts as height-ranged oriented boxes, floor and steps as platforms. Wading slows you down; stops at 0.9 m depth. Footsteps synthesized per surface (sand, grass, rock, wood, water, snow) + ripples when wading. Spatial mix per layer (gain/pan/low-pass): waves by distance to shore and panned toward the sea, birds by nearby trunks, wind sheltered in forest, everything muffled indoors (rain most). No rain/snow particles or wet/snow surfaces under the roof. Clear window glass by day, room lamp at night. Esc → back to orbit view. GPU (Medium, RX 6600, 1600×900): forest 2.7 ms, beach 2.6 ms, room at night 4.4 ms. |
+| 6 Files, Pomodoro, polish         | ⏳ Next                                 |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 **Deviations from the plan so far**
 - Vitest 5.0.5 instead of 4.x/3.x: npm 10.9 crashes resolving vitest 4.1's optional peers, and vitest 3.2 has published advisories (dev-only, but avoided anyway).
@@ -28,23 +28,26 @@
 - Rain droplets are pre-rendered loops instead of per-drop scheduled nodes: no scheduling cost, nothing to stall in hidden tabs.
 - Triangle budget: the "< 600k" in §6 is per scene pass. The stats overlay counts all passes of a frame (shadow + refraction capture + main), so it shows ~1.2M at Medium in a storm; measured GPU time is the number that matters and stays well under budget.
 - Overcast (grey sky/fog, dimmer sun) is applied by the weather system in Phase 3 as a simple blend; Phase 4's day/night palette will take over the base colors and keep the overcast blend on top.
-- Rain is not yet discarded under the house roof; that only matters in first-person (Phase 5), together with indoor muffling.
+- Rain/snow under the house roof (done in Phase 5): particles are hidden inside the roof footprint and the house's floor, porch and furniture stay dry and snow-free (`uShelter` uniforms).
+- Walk mode: Esc leaves walking (back to the saved orbit view) instead of pausing in place; the control panel is hidden while walking because the mouse is captured. Walking resumes where you left off within the session.
+- Walk mode keeps three's own pointer-lock handling out: a ~20-line mouse-look in `firstPerson.ts` (ignores Chrome's occasional huge first `movementX`, uses raw mouse input where supported). No new dependency.
+- Spatial audio is the cheap kind planned: per-layer gain, stereo pan and a low-pass "occlusion" filter added to every layer (`BaseLayer`), updated ~10×/s. The wave pan assumes the sea lies away from the island center (true for this round island).
 
 ## 0. Context
 
 A local, offline Windows 11 web app left open while working: a small stylized tropical island with GPU water, weather, day/night, and a synthesized ambient sound mixer. Greenfield repo (only `CLAUDE.md` exists). UI in Vietnamese; code/comments/docs in English.
 
 **Decisions from Q&A (2026-10-17)**
-| Topic | Decision |
-|---|---|
-| Runtime | Plain Chrome/Edge tab (no Lively/Wallpaper Engine integration) |
-| GPU | AMD RX 6600 → default preset **Medium**; High expected to hold 60 fps at 1080p–1440p |
-| Water | **Hybrid**: GPU heightfield sim over the island region + analytic Gerstner waves for the far sea |
-| Style | **Mix**: flat-shaded terrain/rocks/house, smoother shading for palms/leaves and water |
-| Island | Small, ~150 m across, no LOD system |
-| House | Stilt house: 1 enterable room + wooden porch |
-| Weather ↔ audio | Linked by default; "Tách hình/âm" toggle reveals separate visual sliders |
-| UI | Vanilla TS + CSS, no framework |
+| Topic           | Decision                                                                                         |
+| --------------- | ------------------------------------------------------------------------------------------------ |
+| Runtime         | Plain Chrome/Edge tab (no Lively/Wallpaper Engine integration)                                   |
+| GPU             | AMD RX 6600 → default preset **Medium**; High expected to hold 60 fps at 1080p–1440p             |
+| Water           | **Hybrid**: GPU heightfield sim over the island region + analytic Gerstner waves for the far sea |
+| Style           | **Mix**: flat-shaded terrain/rocks/house, smoother shading for palms/leaves and water            |
+| Island          | Small, ~150 m across, no LOD system                                                              |
+| House           | Stilt house: 1 enterable room + wooden porch                                                     |
+| Weather ↔ audio | Linked by default; "Tách hình/âm" toggle reveals separate visual sliders                         |
+| UI              | Vanilla TS + CSS, no framework                                                                   |
 
 ---
 
@@ -108,16 +111,16 @@ README.md, PLAN.md, CLAUDE.md
 
 ## 3. Tech choices
 
-| Choice | Why | License |
-|---|---|---|
-| Vite + TypeScript (strict) | Fast dev server, zero-config TS, `?raw` shader imports, static build that works offline | MIT / Apache-2.0 |
-| three (pinned exact version) | Mature WebGL2 renderer, InstancedMesh, shadow maps, `OrbitControls`/`PointerLockControls` in `examples/jsm` | MIT |
-| WebGL2 only (no WebGPU) | Chrome/Edge on Win11 fully support it; float render targets via `EXT_color_buffer_float`; WebGPU adds risk for no visible win here | — |
-| Web Audio API, no library | Everything needed (noise buffers, biquad filters, LFOs, panners) is native; one `AudioContext` | — |
-| No AudioWorklet initially | Buffer-based noise + scheduled one-shots is cheaper to build and debug; worklet only if CPU profiling demands it | — |
-| Vanilla TS UI | Small panel, full control over look, easy Vietnamese strings in one file | — |
-| Vitest (dev only) | Unit tests for pure logic (state machines, migrations, blend rules) | MIT |
-| Own simplex noise + seeded RNG | ~80 lines, avoids a dependency, same island every launch | — |
+| Choice                         | Why                                                                                                                                | License          |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| Vite + TypeScript (strict)     | Fast dev server, zero-config TS, `?raw` shader imports, static build that works offline                                            | MIT / Apache-2.0 |
+| three (pinned exact version)   | Mature WebGL2 renderer, InstancedMesh, shadow maps, `OrbitControls`/`PointerLockControls` in `examples/jsm`                        | MIT              |
+| WebGL2 only (no WebGPU)        | Chrome/Edge on Win11 fully support it; float render targets via `EXT_color_buffer_float`; WebGPU adds risk for no visible win here | —                |
+| Web Audio API, no library      | Everything needed (noise buffers, biquad filters, LFOs, panners) is native; one `AudioContext`                                     | —                |
+| No AudioWorklet initially      | Buffer-based noise + scheduled one-shots is cheaper to build and debug; worklet only if CPU profiling demands it                   | —                |
+| Vanilla TS UI                  | Small panel, full control over look, easy Vietnamese strings in one file                                                           | —                |
+| Vitest (dev only)              | Unit tests for pure logic (state machines, migrations, blend rules)                                                                | MIT              |
+| Own simplex noise + seeded RNG | ~80 lines, avoids a dependency, same island every launch                                                                           | —                |
 
 Water technique credit: Evan Wallace, *WebGL Water* (MIT) — heightfield wave-equation update, drop shader, and caustics-by-area-ratio idea are reimplemented in our own GLSL; credited in README and in `water/` file headers.
 
@@ -182,34 +185,34 @@ Water technique credit: Evan Wallace, *WebGL Water* (MIT) — heightfield wave-e
 
 ## 5. Quality presets & low power
 
-| | Low | Medium (default) | High |
-|---|---|---|---|
-| Water sim | 128² | 256² | 512² |
-| Reflection | sky only | sky only | planar ½-res |
-| Refraction RT | off (tint only) | ½-res | ½-res |
-| Caustics | off | 384² | 512² |
-| Shadows | off | 1024, PCF | 2048, PCF soft |
-| Grass blades | 4k | 15k | 40k |
-| Rain / snow max | 3k / 2k | 10k / 6k | 25k / 15k |
-| Pixel ratio cap | 1.0 | 1.25 | 1.5 |
-| MSAA | off | on | on |
+|                 | Low             | Medium (default) | High           |
+| --------------- | --------------- | ---------------- | -------------- |
+| Water sim       | 128²            | 256²             | 512²           |
+| Reflection      | sky only        | sky only         | planar ½-res   |
+| Refraction RT   | off (tint only) | ½-res            | ½-res          |
+| Caustics        | off             | 384²             | 512²           |
+| Shadows         | off             | 1024, PCF        | 2048, PCF soft |
+| Grass blades    | 4k              | 15k              | 40k            |
+| Rain / snow max | 3k / 2k         | 10k / 6k         | 25k / 15k      |
+| Pixel ratio cap | 1.0             | 1.25             | 1.5            |
+| MSAA            | off             | on               | on             |
 
 **Low power mode:** 30 fps limiter, forces Low-level water/particles, sim stepped every other frame, pixel ratio 1.0. **In every mode, rendering stops while the tab is hidden**; audio and Pomodoro keep running. `prefers-reduced-motion`: auto-rotate off by default, no head-bob, slower default day cycle, no UI animations.
 
 ## 6. Performance budget (Medium, 1080p, RX 6600; 16.6 ms frame)
 
-| Item | Budget |
-|---|---|
-| Water sim passes | ≤ 0.5 ms GPU |
-| Water surface + refraction capture | ≤ 3 ms GPU |
-| Terrain + vegetation + house | ≤ 3 ms GPU |
-| Shadow pass | ≤ 1.5 ms GPU |
-| Rain/snow particles | ≤ 1 ms GPU |
-| JS per frame | ≤ 2 ms, zero allocations in the loop |
-| Draw calls / triangles | < 120 / < 600k |
-| GPU memory | < 200 MB |
-| Audio | < 3% of one CPU core, < 150 live nodes |
-| JS bundle | < 450 KB gzip; repo (no node_modules) < 2 MB |
+| Item                               | Budget                                       |
+| ---------------------------------- | -------------------------------------------- |
+| Water sim passes                   | ≤ 0.5 ms GPU                                 |
+| Water surface + refraction capture | ≤ 3 ms GPU                                   |
+| Terrain + vegetation + house       | ≤ 3 ms GPU                                   |
+| Shadow pass                        | ≤ 1.5 ms GPU                                 |
+| Rain/snow particles                | ≤ 1 ms GPU                                   |
+| JS per frame                       | ≤ 2 ms, zero allocations in the loop         |
+| Draw calls / triangles             | < 120 / < 600k                               |
+| GPU memory                         | < 200 MB                                     |
+| Audio                              | < 3% of one CPU core, < 150 live nodes       |
+| JS bundle                          | < 450 KB gzip; repo (no node_modules) < 2 MB |
 
 Checked via the debug overlay (fps, frame ms, `renderer.info` draw calls/triangles; GPU timer query when `EXT_disjoint_timer_query_webgl2` is available) and Edge/Chrome performance traces.
 
@@ -217,15 +220,15 @@ Checked via the debug overlay (fps, frame ms, `renderer.info` draw calls/triangl
 
 ## 7. Phased roadmap (each phase ends runnable, build-clean, no console errors)
 
-| Phase | Deliverable | What you test |
-|---|---|---|
-| **1a** Island + orbit | Scaffold (Vite/TS strict, loop with hidden-tab pause + 30 fps limiter, settings, debug overlay). Terrain, palms, house, props, static sun/sky, Gerstner sea with simple shore foam, orbit camera | `npm install && npm run dev` → orbit/zoom around the island; switch tabs, see in the overlay that rendering paused; ~60 fps |
-| **1b** GPU water | Heightfield sim region, click ripples, refraction, caustics, sky reflection, wave-strength slider, quality preset skeleton (water res) | Click water → rings that reflect off the beach; caustics on shallow sand; slider changes the sea; Low/Med/High in the overlay |
-| **2** Audio + mixer | AudioEngine, 5 synth layers, start screen, Vietnamese panel (volume/mute/on-off/master), presets + user presets in localStorage | Start button → sound; every slider/mute/switch works without clicks; save a preset, reload the page, it's still there |
-| **3** Weather | Wind gusts (vegetation, grass, sea, audio), rain (particles, ripples, wetness, sheen), snow (particles, cover), sleet blend, link/unlink toggle | "Bão" preset → rain, ripples, sand darkens; wind sways palms in sync with the gust sound; snow slowly whitens the island; rain + snow → sleet, no fight |
-| **4** Day/night | Sky shader, palette, stars, moon, clouds tied to overcast, windows + interior light, birds fade at night | Speed up the cycle: smooth dawn/dusk, stars at night, house lights on; pause works |
-| **5** First-person | Pointer lock, WASD/Shift, terrain following, collision, house interior/porch, deep-water limit, footsteps by surface, spatial audio, indoor rain muffle | `C` → walk; can't pass trunks/walls/deep water; footsteps change on sand/grass/wood/shallows; waves louder at the shore; rain muffled indoors; Esc → orbit |
-| **6** Files, Pomodoro, polish | Audio config + manifest plugin + crossfades, Pomodoro overlay + chime + "storm calms", final quality presets, low power, reduced motion, hide-UI, shortcuts, README, perf pass | Drop an OGG into `public/audio`, edit config → real sound; delete it → synth, no red errors; Pomodoro chimes while the tab is hidden; `H` gives a clean wallpaper view; Low power holds 30 fps |
+| Phase                         | Deliverable                                                                                                                                                                                      | What you test                                                                                                                                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1a** Island + orbit         | Scaffold (Vite/TS strict, loop with hidden-tab pause + 30 fps limiter, settings, debug overlay). Terrain, palms, house, props, static sun/sky, Gerstner sea with simple shore foam, orbit camera | `npm install && npm run dev` → orbit/zoom around the island; switch tabs, see in the overlay that rendering paused; ~60 fps                                                                    |
+| **1b** GPU water              | Heightfield sim region, click ripples, refraction, caustics, sky reflection, wave-strength slider, quality preset skeleton (water res)                                                           | Click water → rings that reflect off the beach; caustics on shallow sand; slider changes the sea; Low/Med/High in the overlay                                                                  |
+| **2** Audio + mixer           | AudioEngine, 5 synth layers, start screen, Vietnamese panel (volume/mute/on-off/master), presets + user presets in localStorage                                                                  | Start button → sound; every slider/mute/switch works without clicks; save a preset, reload the page, it's still there                                                                          |
+| **3** Weather                 | Wind gusts (vegetation, grass, sea, audio), rain (particles, ripples, wetness, sheen), snow (particles, cover), sleet blend, link/unlink toggle                                                  | "Bão" preset → rain, ripples, sand darkens; wind sways palms in sync with the gust sound; snow slowly whitens the island; rain + snow → sleet, no fight                                        |
+| **4** Day/night               | Sky shader, palette, stars, moon, clouds tied to overcast, windows + interior light, birds fade at night                                                                                         | Speed up the cycle: smooth dawn/dusk, stars at night, house lights on; pause works                                                                                                             |
+| **5** First-person            | Pointer lock, WASD/Shift, terrain following, collision, house interior/porch, deep-water limit, footsteps by surface, spatial audio, indoor rain muffle                                          | `C` → walk; can't pass trunks/walls/deep water; footsteps change on sand/grass/wood/shallows; waves louder at the shore; rain muffled indoors; Esc → orbit                                     |
+| **6** Files, Pomodoro, polish | Audio config + manifest plugin + crossfades, Pomodoro overlay + chime + "storm calms", final quality presets, low power, reduced motion, hide-UI, shortcuts, README, perf pass                   | Drop an OGG into `public/audio`, edit config → real sound; delete it → synth, no red errors; Pomodoro chimes while the tab is hidden; `H` gives a clean wallpaper view; Low power holds 30 fps |
 
 After each phase: `npm run build` passes, PLAN.md status updated, README updated, and I give you exact run/test steps, then wait for your feedback.
 

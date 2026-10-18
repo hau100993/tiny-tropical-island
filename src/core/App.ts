@@ -9,6 +9,12 @@ import { createWorld, type World } from '../world/World';
 import { createOrbitCamera, type OrbitCamera } from '../controls/orbit';
 import { Keymap } from '../controls/keymap';
 import { onWaterClick } from '../controls/waterClick';
+import { IslandColliders } from '../controls/islandColliders';
+import { FirstPerson, type StepEvent } from '../controls/firstPerson';
+import { CameraManager } from '../controls/CameraManager';
+import { WalkHint } from '../ui/WalkHint';
+import type { ListenerState } from '../audio/spatial';
+import type { FootSurface } from '../audio/synth/footsteps';
 import { DebugOverlay } from '../ui/DebugOverlay';
 import { Panel } from '../ui/Panel';
 import { StartScreen } from '../ui/StartScreen';
@@ -28,6 +34,13 @@ export class App {
   private readonly env = new EnvState();
   private readonly world: World;
   private readonly orbit: OrbitCamera;
+  private readonly colliders: IslandColliders;
+  private readonly walker: FirstPerson;
+  private readonly cameras: CameraManager;
+  private readonly walkHint: WalkHint;
+  private readonly listener: ListenerState = { walking: false, shoreDistance: 0, seaSide: 0, trees: 0, shelter: 'none' };
+  private listenerTimer = 0;
+  private readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   private readonly overlay: DebugOverlay;
   private readonly keymap = new Keymap();
   private readonly loop: Loop;
@@ -61,7 +74,34 @@ export class App {
     this.camera = new THREE.PerspectiveCamera(55, 1, 0.3, 6000);
     this.world = createWorld(this.scene, this.renderer, this.camera, sharedUniforms);
     this.orbit = createOrbitCamera(this.camera, this.renderer.domElement);
-    onWaterClick(this.renderer.domElement, this.camera, (x, z) => this.world.water.addRipple(x, z, 3, -1.0));
+    const w = this.world;
+    this.colliders = new IslandColliders({
+      heightmap: w.heightmap,
+      house: w.house,
+      umbrella: w.layout.umbrella,
+      trunks: w.forest.trunks,
+      rocks: w.rocks.circles,
+    });
+    this.walker = new FirstPerson(
+      this.camera,
+      this.renderer.domElement,
+      this.colliders,
+      {
+        onStep: (e) => this.onStep(e),
+        onUnlock: () => this.cameras.setMode('orbit'),
+        onLockState: (locked, failed) => {
+          this.walkHint.update(this.cameras.mode === 'walk', locked, failed);
+        },
+      },
+      () => this.reducedMotion.matches,
+    );
+    this.cameras = new CameraManager(this.camera, this.orbit, this.walker, this.colliders.spawn);
+    onWaterClick(
+      this.renderer.domElement,
+      this.camera,
+      (x, z) => this.world.water.addRipple(x, z, 3, -1.0),
+      () => (this.cameras.mode === 'orbit' ? 'cursor' : this.walker.locked ? 'center' : 'none'),
+    );
 
     this.overlay = new DebugOverlay(container, s.showDebug);
     this.settings.onChange((next) => this.applySettings(next));
@@ -79,8 +119,19 @@ export class App {
       startAudio: () => void this.startAudio(),
       getHours: () => this.world.dayNight.hours,
       setHours: (h) => this.world.dayNight.setHours(h),
+      walk: () => this.cameras.setMode('walk'),
     });
     new StartScreen(container, () => this.startAudio());
+    this.walkHint = new WalkHint(ui);
+    this.cameras.onChange((mode) => {
+      const walking = mode === 'walk';
+      document.body.classList.toggle('walking', walking);
+      this.walkHint.update(walking, this.walker.locked, false);
+      if (!walking) {
+        this.listener.walking = false;
+        this.mixer.setListener(this.listener);
+      }
+    });
 
     window.addEventListener('resize', this.onResize);
     this.loop = new Loop(this.tick);
@@ -136,6 +187,7 @@ export class App {
         }
       },
     });
+    this.keymap.register({ code: 'KeyC', keyLabel: 'C', label: vi.shortcuts.walk, action: () => this.cameras.toggle() });
     this.keymap.register({ code: 'KeyL', keyLabel: 'L', label: vi.shortcuts.lowPower, action: toggleSetting('lowPower') });
     this.keymap.register({ code: 'Backquote', keyLabel: '`', label: vi.shortcuts.debug, action: toggleSetting('showDebug') });
   }
@@ -175,6 +227,34 @@ export class App {
     this.world.flowers.setCount(profile.flowerCount);
     this.env.waveStrength.target = s.waveStrength;
     this.overlay.setVisible(s.showDebug);
+  }
+
+  /** Footstep sound (by surface, snow on top when it has settled) and a ripple when wading. */
+  private onStep(e: StepEvent): void {
+    if (e.depth > 0.05) this.world.water.addRipple(this.walker.x, this.walker.z, 1.2, -0.35 * e.strength);
+    if (!this.settings.get().footsteps) return;
+    let surface: FootSurface = e.surface;
+    const snowy = sharedUniforms.uSnowCover.value > 0.45;
+    if (snowy && surface !== 'water' && this.walker.shelter === 'none') surface = 'snow';
+    this.mixer.playFootstep(surface, e.strength, e.depth);
+  }
+
+  /** Walk mode: where the listener stands shapes the mix (~10 times per second is plenty). */
+  private updateListener(dt: number): void {
+    if (this.cameras.mode !== 'walk') return;
+    this.listenerTimer -= dt;
+    if (this.listenerTimer > 0) return;
+    this.listenerTimer = 0.1;
+    const { x, z, yaw } = this.walker;
+    const l = this.listener;
+    l.walking = true;
+    l.shoreDistance = this.world.heightmap.distanceToShore(x, z);
+    // The sea lies roughly away from the island center; project that onto the listener's right.
+    const r = Math.hypot(x, z) || 1;
+    l.seaSide = (x / r) * Math.cos(yaw) - (z / r) * Math.sin(yaw);
+    l.trees = this.colliders.treesNear(x, z, 12);
+    l.shelter = this.walker.shelter;
+    this.mixer.setListener(l);
   }
 
   private readonly drawingBuffer = new THREE.Vector2();
@@ -227,7 +307,14 @@ export class App {
     sharedUniforms.uWaveStrength.value = sea;
     this.mixer.setSeaState(sea);
 
-    this.orbit.update(dt);
+    this.cameras.update(dt);
+    this.updateListener(dt);
+    if (this.cameras.mode === 'walk' && this.walker.shelter === 'room') {
+      // The window glow is for people outside; from inside you look out through clear glass.
+      const win = this.world.house.windowMaterial;
+      win.emissiveIntensity *= 0.1;
+      win.opacity = 0.3;
+    }
     this.world.update(dt, elapsed, this.camera, sea);
     this.gpuTimer.begin();
     this.world.water.simulate(dt);

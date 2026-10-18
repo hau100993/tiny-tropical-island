@@ -495,3 +495,51 @@ body.ui-hidden .debug-overlay {
     animation: none !important;
   }
 }
+
+/* ---------- Walk mode ---------- */
+
+/* The panel needs the mouse, which walking captures: hide it until you leave walk mode. */
+body.walking .panel {
+  display: none;
+}
+
+.walk-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  padding: 8px 16px;
+  color: var(--panel-fg);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  backdrop-filter: blur(12px);
+  font-size: 13px;
+  text-align: center;
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+}
+
+.walk-hint.faded {
+  opacity: 0;
+}
+
+.crosshair {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .walk-hint {
+    transition: none;
+  }
+}

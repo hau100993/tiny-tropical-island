@@ -106,6 +106,13 @@ export class WaterSurface {
     this.setRefraction(false);
   }
 
+  /** Keeps depth linearization in sync when the camera's near/far change (walk mode). */
+  syncCamera(camera: THREE.PerspectiveCamera): void {
+    const u = this.mesh.material.uniforms;
+    u.uCameraNear.value = camera.near;
+    u.uCameraFar.value = camera.far;
+  }
+
   /** Refraction makes the water opaque (it draws what's behind itself); otherwise alpha-blend. */
   setRefraction(on: boolean): void {
     const m = this.mesh.material;
