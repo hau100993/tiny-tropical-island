@@ -96,7 +96,9 @@ export function createWorld(
 
   const house = createHouse(heightmap, layout.house, WORLD_SEED + 3);
   scene.add(house.group);
-  patchTree(house.group, { wet: true, porosity: 0.7, snow: true, sheltered: true }, shared, [house.windowMaterial, house.glassMaterial]);
+  const houseWeather = { wet: true, porosity: 0.7, snow: true, sheltered: true } as const;
+  patchTree(house.group, houseWeather, shared, [house.windowMaterial, house.glassMaterial, house.woodMaterial]);
+  patchWorldMaterial(house.woodMaterial, { ...houseWeather, wood: true }, shared);
   setShelter(shared, house);
 
   const rocks = createRocks(heightmap, layout, WORLD_SEED + 4);

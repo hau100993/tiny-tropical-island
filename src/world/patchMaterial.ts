@@ -46,6 +46,8 @@ export interface WorldMaterialFeatures {
   ground?: boolean;
   /** Rocks: triplanar grain, cracks, lichen and a wet band above the sea (no textures). */
   stone?: boolean;
+  /** House wood: grain lines along the boards (axes from the house frame in uShelter). */
+  wood?: boolean;
   caustics?: CausticsUniforms;
 }
 
@@ -262,6 +264,27 @@ const SURFACE_GLSL = /* glsl */ `
     roughnessFactor = mix(roughnessFactor, 0.45, splash);
   }
 #endif
+#ifdef WORLD_WOOD
+  {
+    // Wood grain without textures: noise stretched along the boards. Boards run along the
+    // house's local x on floors and tabletops, and upward on walls, posts and legs. The house
+    // axes come from the shelter frame (uShelter.zw = cos, sin of the house rotation).
+    vec2 rel = vWorldPosW.xz - uShelter.xy;
+    vec2 lxz = vec2(rel.x * uShelter.z - rel.y * uShelter.w, rel.x * uShelter.w + rel.y * uShelter.z);
+    vec2 nxz = vec2(wn.x * uShelter.z - wn.z * uShelter.w, wn.x * uShelter.w + wn.z * uShelter.z);
+    float across = abs(nxz.x) > abs(nxz.y) ? lxz.y : lxz.x;
+    // gp.x runs along the grain, gp.y across it (in metres × frequency).
+    vec2 gp = abs(wn.y) > 0.6 ? vec2(lxz.x, lxz.y) : vec2(vWorldPosW.y, across);
+    float warp = wNoise(gp * vec2(1.2, 9.0)) * 4.0;
+    // Grain lines about 6 mm apart, wavy along the board; finer fibres; soft large blotches.
+    float lines = 0.5 + 0.5 * sin(gp.y * 160.0 + warp);
+    lines = smoothstep(0.35, 1.0, lines);
+    float fine = wNoise(gp * vec2(6.0, 420.0));
+    float blotch = wNoise(gp * vec2(0.9, 3.0) + 9.1);
+    float near = 1.0 - smoothstep(3.0, 18.0, length(cameraPosition - vWorldPosW));
+    diffuseColor.rgb *= 1.0 - near * (0.05 * lines + 0.05 * (fine - 0.5)) + 0.08 * (blotch - 0.5);
+  }
+#endif
 #ifdef WORLD_SHELTER
   // Under the roof (floor, porch, furniture): no rain or snow reaches it.
   vec2 shd = vWorldPosW.xz - uShelter.xy;
@@ -321,6 +344,7 @@ function defines(f: WorldMaterialFeatures): string[] {
   if (f.sheltered) d.push('WORLD_SHELTER');
   if (f.ground) d.push('WORLD_GROUND');
   if (f.stone) d.push('WORLD_STONE');
+  if (f.wood) d.push('WORLD_WOOD');
   return d;
 }
 

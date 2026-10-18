@@ -1,5 +1,7 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { GeoBuilder } from './geoBuilder';
+import { cylinder, DESK, furnish, type InteriorParts } from './houseInterior';
 import type { Heightmap } from './heightmap';
 import type { Placement } from './layout';
 import { createRng } from '../core/rng';
@@ -48,6 +50,8 @@ export interface HouseInfo {
   windowMaterial: THREE.MeshStandardMaterial;
   /** Window glass (see-through, no weather effects). */
   glassMaterial: THREE.MeshStandardMaterial;
+  /** All wooden parts (gets the procedural wood grain). */
+  woodMaterial: THREE.MeshStandardMaterial;
   /** Wall light by the door (off by day). */
   lamp: THREE.PointLight;
   /** Pendant lamp in the room (off by day). */
@@ -89,14 +93,28 @@ const POST = '#2b241f';
 const METAL = '#1e2124';
 const ROOF = '#34393e';
 const FRAME = '#16181a';
-const TATAMI = '#cbbf8a';
-const FABRIC = '#bdb5a8';
-const CUSHION = '#cdc6ba';
-const PAPER = '#efe9dc';
-const HINOKI = '#dcbf8f';
-const LEAF = ['#2f6b3a', '#3a7d44', '#2a5e34'];
+
+/** Wood colors: parts in these go to the grained wood mesh, everything else to the plain one. */
+const WOODS = new Set<string>([...CLAD, OAK, OAK_LIGHT, FLOOR_A, FLOOR_B, DECK_A, DECK_B, POST, '#8a6240']);
+
+/** Same API as GeoBuilder; sends each part to the wood or the plain builder by its color. */
+class Router {
+  constructor(
+    private readonly wood: GeoBuilder,
+    private readonly plain: GeoBuilder,
+  ) {}
+
+  box(w: number, h: number, d: number, x: number, y: number, z: number, color: string, rx = 0, ry = 0, rz = 0): void {
+    (WOODS.has(color) ? this.wood : this.plain).box(w, h, d, x, y, z, color, rx, ry, rz);
+  }
+
+  add(g: THREE.BufferGeometry, color: string): void {
+    (WOODS.has(color) ? this.wood : this.plain).add(g, color);
+  }
+}
 
 const STEP_DEPTH = 0.3;
+const OAK_DARK_TRIM = '#8a6240';
 
 interface Hole {
   u0: number;
@@ -107,9 +125,18 @@ interface Hole {
 
 export function createHouse(hm: Heightmap, placement: Placement, seed: number): HouseInfo {
   const rng = createRng(seed);
-  const b = new GeoBuilder(rng);
+  const parts: InteriorParts = {
+    wood: new GeoBuilder(rng, 0.06),
+    plain: new GeoBuilder(rng, 0.04),
+    soft: new GeoBuilder(rng, 0.03),
+    leaf: new GeoBuilder(rng, 0.08),
+    glow: new GeoBuilder(rng, 0),
+  };
+  const b = new Router(parts.wood, parts.plain);
+  // Inside lining and ceiling: big, evenly coloured panels (grain only, no per-board tint).
+  const lining = new GeoBuilder(rng, 0.012);
   const glass = new GeoBuilder(rng, 0);
-  const glow = new GeoBuilder(rng, 0);
+  const glow = parts.glow;
   const D = HOUSE_DIMS;
   const cosR = Math.cos(placement.rotY);
   const sinR = Math.sin(placement.rotY);
@@ -166,10 +193,10 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
   const rightHoles: Hole[] = [{ u0: -2.15, u1: -1.4, v0: 1.4, v1: 2.1 }]; // bath
   const glassTop = 2.9;
   const frontHoles: Hole[] = [{ u0: -3.4, u1: 3.4, v0: 0, v1: glassTop }];
-  cladWall(b, 'x', ZB, -1, -W, W, F, () => wallH(ZB), backHoles);
-  cladWall(b, 'x', ZF, 1, -W, W, F, () => wallH(ZF), frontHoles);
-  cladWall(b, 'z', -W, -1, ZB, ZF, F, wallH, leftHoles);
-  cladWall(b, 'z', W, 1, ZB, ZF, F, wallH, rightHoles);
+  cladWall(parts.wood, lining, 'x', ZB, -1, -W, W, F, () => wallH(ZB), backHoles);
+  cladWall(parts.wood, lining, 'x', ZF, 1, -W, W, F, () => wallH(ZF), frontHoles);
+  cladWall(parts.wood, lining, 'z', -W, -1, ZB, ZF, F, wallH, leftHoles);
+  cladWall(parts.wood, lining, 'z', W, 1, ZB, ZF, F, wallH, rightHoles);
   // Corner posts.
   for (const lx of [-W, W]) {
     for (const lz of [ZB, ZF]) b.box(0.16, wallH(lz) + 0.35, 0.16, lx, F + (wallH(lz) - 0.35) / 2, lz, POST);
@@ -233,7 +260,7 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
   const roofT = 0.16;
   // A box rotated by −angle around X rises toward +Z.
   b.box(roofHalfX * 2, roofT, roofLen, 0, top(roofMidZ) + roofT / 2, roofMidZ, ROOF, -angle);
-  b.box(roofHalfX * 2 - 0.02, 0.025, roofLen - 0.02, 0, top(roofMidZ) - 0.015, roofMidZ, LINING, -angle);
+  lining.box(roofHalfX * 2 - 0.02, 0.025, roofLen - 0.02, 0, top(roofMidZ) - 0.015, roofMidZ, LINING, -angle);
   // Wooden fascia boards on the roof edges.
   b.box(roofHalfX * 2 + 0.04, 0.26, 0.05, 0, top(roofZ1) + 0.05, roofZ1 + 0.02, POST);
   b.box(roofHalfX * 2 + 0.04, 0.26, 0.05, 0, top(roofZ0) + 0.05, roofZ0 - 0.02, POST);
@@ -289,17 +316,34 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
     solid(cx - (alongX ? len / 2 : 0.05), cx + (alongX ? len / 2 : 0.05), cz - (alongX ? 0.05 : len / 2), cz + (alongX ? 0.05 : len / 2), F, F + railH);
   }
 
-  // ---- Steps down from the deck (right end), solid blocks into the ground ----
-  const stepGround = groundAt(stairsX, D.deckFront + 2.0);
+  // ---- Open stairs down from the deck (right end): stringers, thick treads, handrails ----
+  const footZ = D.deckFront + 2.0;
+  const stepGround = groundAt(stairsX, footZ);
   const totalRise = F - stepGround;
-  const count = Math.max(1, Math.ceil(totalRise / 0.2));
+  const count = Math.max(1, Math.ceil(totalRise / 0.19));
   const rise = totalRise / count;
+  const run = count * STEP_DEPTH;
   for (let k = 1; k < count; k++) {
     const yTop = F - k * rise;
     const lz = D.deckFront + (k - 0.5) * STEP_DEPTH;
-    const bottom = groundAt(stairsX, lz) - 0.2;
-    b.box(stairsHalf * 2, yTop - bottom, STEP_DEPTH, stairsX, (yTop + bottom) / 2, lz, k % 2 ? DECK_A : DECK_B);
+    b.box(stairsHalf * 2 - 0.04, 0.05, STEP_DEPTH + 0.03, stairsX, yTop - 0.025, lz, k % 2 ? DECK_A : DECK_B);
   }
+  const slant = Math.atan2(totalRise, run);
+  const stringerLen = Math.hypot(run, totalRise) + 0.15;
+  for (const sx of [-1, 1]) {
+    // Inclined beam from under the deck edge down to the ground; a box rotated by +slant about X
+    // falls toward +Z.
+    const x = stairsX + sx * stairsHalf;
+    b.box(0.06, 0.24, stringerLen, x, F - totalRise / 2 - 0.1, D.deckFront + run / 2, POST, slant);
+    // Handrail: posts at both ends, a rail following the slope.
+    const yTopPost = F;
+    const yFoot = stepGround;
+    b.box(0.05, 0.95, 0.05, x, yTopPost + 0.475, D.deckFront + 0.05, FRAME);
+    b.box(0.05, 0.95, 0.05, x, yFoot + 0.475, D.deckFront + run - 0.1, FRAME);
+    b.box(0.045, 0.045, stringerLen - 0.1, x, (yTopPost + yFoot) / 2 + 0.93, D.deckFront + run / 2 - 0.02, OAK, slant);
+  }
+  // Stone pad at the foot.
+  b.box(1.4, 0.12, 0.7, stairsX, stepGround + 0.02, D.deckFront + run + 0.25, '#8f8d86');
   const stairsLen = Math.max(0, count - 1) * STEP_DEPTH;
   // Lower half of the flight for the camera (the upper treads are under the floor box).
   cameraSolids.push({
@@ -308,7 +352,11 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
   });
 
   // ---- Interior ----
-  furnish(b, glow, F, solid);
+  furnish(parts, F, (z) => top(z) - 0.02, solid);
+  // Baseboards along the inside of the walls.
+  for (const [w, d, x, z] of [[6.85, 0.02, 0, ZB + 0.08], [0.02, 4.84, -W + 0.08, 0], [0.02, 4.84, W - 0.08, 0]] as const) {
+    b.box(w, 0.08, d, x, F + 0.04, z, OAK_DARK_TRIM);
+  }
 
   // Wall light by the door, outside.
   glow.box(0.12, 0.22, 0.06, 3.38, F + 2.15, ZF + 0.12, '#ffffff');
@@ -316,13 +364,16 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
   // Monitors: two screens on the desk, angled toward the chair.
   const screens: HouseInfo['screens'] = [];
   // 24" screens sit low on short stands, so the sea stays in view above them.
-  const seatX = -0.8;
-  const seatZ = 1.1;
+  const seatX = DESK.seatX;
+  const seatZ = DESK.seatZ;
   // Seated facing the sea (local +Z), local −X is on your right: list the left screen first.
   for (const [mx, theta] of [[-0.51, 0.17], [-1.09, -0.17]] as const) {
     const my = F + 0.94;
     const mz = 2.16;
-    b.box(0.555, 0.325, 0.022, mx, my, mz, '#121314', 0, theta);
+    const bezel = new RoundedBoxGeometry(0.555, 0.325, 0.022, 2, 0.008);
+    bezel.rotateY(theta);
+    bezel.translate(mx, my, mz);
+    parts.soft.add(bezel, '#121314');
     b.box(0.05, 0.16, 0.03, mx - Math.sin(theta) * 0.04, F + 0.82, mz + Math.cos(theta) * 0.04, '#2a2c2f', 0, theta);
     b.box(0.22, 0.012, 0.16, mx - Math.sin(theta) * 0.04, F + 0.746, mz + Math.cos(theta) * 0.05, '#2a2c2f', 0, theta);
     const mat = new THREE.MeshBasicMaterial({ color: '#000000', toneMapped: false });
@@ -335,7 +386,10 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
   }
 
   // ---- Materials and meshes ----
-  const woodMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.85 });
+  const woodMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.8 });
+  const plainMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.6, metalness: 0.1 });
+  const softMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+  const leafMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, side: THREE.DoubleSide });
   const windowMaterial = new THREE.MeshStandardMaterial({
     color: '#fff3dd',
     roughness: 0.8,
@@ -353,19 +407,28 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
 
   const group = new THREE.Group();
   group.name = 'house';
-  const body = new THREE.Mesh(b.build(), woodMat);
-  body.castShadow = true;
-  body.receiveShadow = true;
+  const meshes = [
+    new THREE.Mesh(parts.wood.build(), woodMat),
+    new THREE.Mesh(lining.build(), woodMat),
+    new THREE.Mesh(parts.plain.build(), plainMat),
+    new THREE.Mesh(parts.soft.build(), softMat),
+    new THREE.Mesh(parts.leaf.build(), leafMat),
+  ];
+  for (const m of meshes) {
+    m.castShadow = true;
+    m.receiveShadow = true;
+  }
   const glassMesh = new THREE.Mesh(glass.build(), glassMaterial);
   glassMesh.name = 'glass';
   const glowMesh = new THREE.Mesh(glow.build(), windowMaterial);
   const lamp = new THREE.PointLight('#ffb867', 0, 12, 2);
   lamp.position.set(2.8, F + 2.0, ZF + 0.9);
   const roomLamp = new THREE.PointLight('#ffc27a', 0, 9, 2);
-  roomLamp.position.set(1.55, F + 1.9, 1.0);
+  // Under the washi pendant over the tea table.
+  roomLamp.position.set(-2.6, F + 1.25, 1.4);
   const fillLight = new THREE.PointLight('#fff4e6', 0, 9, 1.5);
   fillLight.position.set(-0.5, F + 2.2, 0.6);
-  group.add(body, glassMesh, glowMesh, lamp, roomLamp, fillLight, ...screens);
+  group.add(...meshes, glassMesh, glowMesh, lamp, roomLamp, fillLight, ...screens);
   group.position.set(placement.x, 0, placement.z);
   group.rotation.y = placement.rotY;
 
@@ -381,6 +444,7 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
     placement,
     windowMaterial,
     glassMaterial,
+    woodMaterial: woodMat,
     lamp,
     roomLamp,
     fillLight,
@@ -397,136 +461,6 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
   };
 }
 
-type SolidFn = (x0: number, x1: number, z0: number, z1: number, y0: number, y1: number) => void;
-
-/** Furniture: desk and chair, futon on tatami, sofa, coffee table, bath, plants, lamps. */
-function furnish(b: GeoBuilder, glow: GeoBuilder, F: number, solid: SolidFn): void {
-  // Desk along the glass, two slab legs.
-  b.box(1.9, 0.04, 0.66, -0.8, F + 0.72, 2.05, OAK);
-  for (const lx of [-1.71, 0.11]) b.box(0.04, 0.7, 0.6, lx, F + 0.35, 2.05, '#2a2a2a');
-  solid(-1.75, 0.15, 1.72, 2.38, F, F + 0.76);
-  // Keyboard, mouse, mug, desk plant, desk lamp.
-  b.box(0.44, 0.02, 0.14, -0.8, F + 0.75, 1.9, '#2b2d31');
-  b.box(0.42, 0.006, 0.12, -0.8, F + 0.763, 1.9, '#4a4d53');
-  b.box(0.06, 0.025, 0.1, -0.42, F + 0.752, 1.9, '#2b2d31');
-  b.add(cylinder(0.04, 0.09, 10, 0.0, F + 0.785, 2.2), '#f1efe9');
-  b.add(cylinder(0.05, 0.08, 10, -1.58, F + 0.78, 1.88), '#e7e1d6');
-  b.add(sphere(0.07, 0.6, -1.58, F + 0.86, 1.88), LEAF[1]);
-  b.add(cylinder(0.06, 0.015, 12, -1.6, F + 0.748, 2.28), METAL);
-  b.box(0.015, 0.42, 0.015, -1.6, F + 0.95, 2.28, METAL, 0.25);
-  glow.add(cone(0.06, 0.08, -1.6, F + 1.12, 2.2), '#ffffff');
-
-  // Office chair facing the glass.
-  const cx = -0.8;
-  const cz = 1.1;
-  b.box(0.5, 0.08, 0.48, cx, F + 0.47, cz, '#2c2f33');
-  b.box(0.48, 0.62, 0.05, cx, F + 0.86, cz - 0.27, '#33373c', 0.12);
-  b.add(cylinder(0.025, 0.36, 8, cx, F + 0.25, cz), METAL);
-  for (let k = 0; k < 5; k++) {
-    const a = (k / 5) * Math.PI * 2;
-    b.box(0.3, 0.03, 0.04, cx + Math.cos(a) * 0.15, F + 0.06, cz + Math.sin(a) * 0.15, METAL, 0, -a);
-  }
-  for (const sx of [-1, 1]) b.box(0.05, 0.03, 0.3, cx + sx * 0.27, F + 0.67, cz - 0.02, '#2c2f33');
-  solid(cx - 0.28, cx + 0.28, cz - 0.3, cz + 0.25, F, F + 1.15);
-
-  // Futon on a tatami platform (back left), paper lantern beside it.
-  b.box(2.0, 0.05, 2.0, -2.4, F + 0.025, -1.4, TATAMI);
-  for (const [w, d, x, z] of [[2.02, 0.04, -2.4, -0.4], [2.02, 0.04, -2.4, -2.4], [0.04, 2.0, -1.4, -1.4], [0.04, 2.0, -3.4, -1.4], [2.0, 0.03, -2.4, -1.4]] as const) {
-    b.box(w, 0.055, d, x, F + 0.027, z, '#4a4636');
-  }
-  b.box(0.95, 0.1, 2.0, -2.6, F + 0.1, -1.4, '#ece6da');
-  b.box(0.97, 0.05, 1.15, -2.6, F + 0.17, -0.95, '#3d5280');
-  b.box(0.55, 0.09, 0.32, -2.6, F + 0.19, -2.15, '#f4f1ea');
-  b.box(0.26, 0.03, 0.26, -1.65, F + 0.07, -2.15, OAK);
-  glow.box(0.2, 0.34, 0.2, -1.65, F + 0.26, -2.15, '#ffffff');
-
-  // Low sideboard under the left window: books and a small speaker.
-  b.box(0.4, 0.5, 0.9, -3.22, F + 0.25, 0.05, OAK);
-  for (const [h, z, c] of [[0.24, -0.25, '#8a3b2e'], [0.22, -0.2, '#2f4a6b'], [0.26, -0.15, '#d4c7a6']] as const) {
-    b.box(0.18, h, 0.04, -3.25, F + 0.5 + h / 2, z, c);
-  }
-  b.box(0.14, 0.2, 0.14, -3.22, F + 0.6, 0.35, '#3a3d42');
-  solid(-3.45, -3.0, -0.42, 0.52, F, F + 0.55);
-
-  // Sofa facing the sea, on a rug, with a low coffee table.
-  b.box(2.4, 0.012, 1.9, 1.55, F + 0.006, 0.75, '#d6d0c4');
-  b.box(1.8, 0.22, 0.85, 1.55, F + 0.2, 0.12, FABRIC);
-  for (const sx of [-0.43, 0.43]) b.box(0.84, 0.12, 0.68, 1.55 + sx, F + 0.37, 0.2, CUSHION);
-  b.box(1.8, 0.42, 0.2, 1.55, F + 0.5, -0.22, FABRIC);
-  for (const sx of [-1, 1]) b.box(0.12, 0.34, 0.85, 1.55 + sx * 0.84, F + 0.4, 0.12, FABRIC);
-  b.box(0.36, 0.3, 0.12, 0.98, F + 0.55, -0.06, '#6f8f7a', 0.25);
-  b.box(0.36, 0.3, 0.12, 2.12, F + 0.55, -0.06, '#d9a066', 0.25);
-  solid(0.65, 2.45, -0.32, 0.56, F, F + 0.72);
-  b.box(0.9, 0.04, 0.5, 1.55, F + 0.36, 1.2, OAK_LIGHT);
-  for (const [dx, dz] of [[-0.4, -0.2], [0.4, -0.2], [-0.4, 0.2], [0.4, 0.2]] as const) b.box(0.04, 0.34, 0.04, 1.55 + dx, F + 0.17, 1.2 + dz, OAK);
-  b.box(0.22, 0.03, 0.16, 1.4, F + 0.395, 1.18, '#7a4b3a');
-  solid(1.08, 2.02, 0.93, 1.47, F, F + 0.4);
-
-  // Pendant lamp (washi globe) over the coffee table.
-  b.box(0.01, 0.75, 0.01, 1.55, F + 2.55, 1.0, METAL);
-  glow.add(sphere(0.2, 1, 1.55, F + 2.1, 1.0), '#ffffff');
-
-  // Bath corner (back right): stone floor, hinoki tub with water, stool, shoji screens.
-  b.box(1.9, 0.02, 1.33, 2.5, F + 0.01, -1.83, '#8d8f8c');
-  const tx0 = 2.05;
-  const tx1 = 3.3;
-  const tz0 = -2.35;
-  const tz1 = -1.45;
-  const th = 0.62;
-  b.box(tx1 - tx0, th, 0.07, (tx0 + tx1) / 2, F + th / 2, tz0, HINOKI);
-  b.box(tx1 - tx0, th, 0.07, (tx0 + tx1) / 2, F + th / 2, tz1, HINOKI);
-  b.box(0.07, th, tz1 - tz0, tx0, F + th / 2, (tz0 + tz1) / 2, HINOKI);
-  b.box(0.07, th, tz1 - tz0, tx1, F + th / 2, (tz0 + tz1) / 2, HINOKI);
-  b.box(tx1 - tx0 - 0.07, 0.02, tz1 - tz0 - 0.07, (tx0 + tx1) / 2, F + th - 0.1, (tz0 + tz1) / 2, '#86c9c8');
-  b.box(0.32, 0.22, 0.22, 1.85, F + 0.11, -1.95, HINOKI);
-  b.add(cylinder(0.1, 0.12, 10, 1.85, F + 0.28, -1.95), HINOKI);
-  solid(tx0 - 0.04, tx1 + 0.04, tz0 - 0.04, tz1 + 0.04, F, F + th);
-  shoji(b, 'x', -1.12, 1.55, 2.85, F, solid);
-  shoji(b, 'z', 1.55, -2.45, -1.12, F, solid);
-
-  // Plants: a big monstera in the front left corner, a snake plant by the door.
-  b.add(cylinder(0.22, 0.42, 14, -3.0, F + 0.21, 1.95), '#e8e4dc');
-  for (let k = 0; k < 9; k++) {
-    const a = k * 2.4;
-    const r = 0.18 + (k % 3) * 0.08;
-    const y = F + 0.75 + (k % 4) * 0.18;
-    const lx = -3.0 + Math.cos(a) * r;
-    const lz = 1.95 + Math.sin(a) * r;
-    b.box(0.012, y - F - 0.4, 0.012, (-3.0 + lx) / 2, (F + 0.4 + y) / 2, (1.95 + lz) / 2, '#3d6b35', Math.sin(a) * 0.3, 0, -Math.cos(a) * 0.3);
-    const leaf = sphere(1, 1, 0, 0, 0);
-    leaf.scale(0.2, 0.012, 0.15);
-    leaf.rotateZ(-Math.cos(a) * 0.35);
-    leaf.rotateX(Math.sin(a) * 0.35);
-    leaf.rotateY(-a);
-    leaf.translate(lx, y, lz);
-    b.add(leaf, LEAF[k % 3]);
-  }
-  solid(-3.3, -2.7, 1.65, 2.25, F, F + 1.5);
-  b.add(cylinder(0.14, 0.32, 12, 3.1, F + 0.16, 1.05), '#3a3d42');
-  for (let k = 0; k < 7; k++) {
-    const a = k * 0.9;
-    b.box(0.05, 0.75 + (k % 3) * 0.12, 0.012, 3.1 + Math.cos(a) * 0.05, F + 0.68, 1.05 + Math.sin(a) * 0.05, k % 2 ? '#4f7a3a' : '#3f6a34', Math.sin(a) * 0.12, a, Math.cos(a) * 0.12);
-  }
-  solid(2.94, 3.26, 0.89, 1.21, F, F + 1.1);
-}
-
-/** A shoji screen (wood grid over paper), 1.9 m tall, from u0 to u1 along the wall axis. */
-function shoji(b: GeoBuilder, axis: 'x' | 'z', at: number, u0: number, u1: number, F: number, solid: SolidFn): void {
-  const len = u1 - u0;
-  const uc = (u0 + u1) / 2;
-  const H = 1.9;
-  const put = (w: number, h: number, u: number, y: number, c: string, thick: number): void => {
-    if (axis === 'x') b.box(w, h, thick, u, y, at, c);
-    else b.box(thick, h, w, at, y, u, c);
-  };
-  put(len, H, uc, F + H / 2, PAPER, 0.02);
-  for (let k = 0; k <= 4; k++) put(len, 0.025, uc, F + 0.05 + (k * (H - 0.1)) / 4, '#7a5a3a', 0.04);
-  const cols = Math.max(2, Math.round(len / 0.32));
-  for (let k = 0; k <= cols; k++) put(0.025, H, u0 + (k * len) / cols, F + H / 2, '#7a5a3a', 0.04);
-  if (axis === 'x') solid(u0, u1, at - 0.04, at + 0.04, F, F + H);
-  else solid(at - 0.04, at + 0.04, u0, u1, F, F + H);
-}
-
 /**
  * A wall along `axis` (front/back: 'x'; sides: 'z') at the fixed coordinate `at`, from u0 to u1,
  * with its top at `height(u)` above `baseY`. Outside: vertical boards in a few dark tones
@@ -534,6 +468,7 @@ function shoji(b: GeoBuilder, axis: 'x' | 'z', at: number, u0: number, u1: numbe
  */
 function cladWall(
   b: GeoBuilder,
+  lining: GeoBuilder,
   axis: 'x' | 'z',
   at: number,
   outward: number,
@@ -574,31 +509,12 @@ function cladWall(
         const ly = baseY + (lv0 + v1) / 2;
         if (axis === 'x') {
           b.box(len, v1 - v0, 0.035, mid, y, outer, color);
-          if (v1 > lv0) b.box(len, v1 - lv0, 0.03, mid, ly, inner, LINING);
+          if (v1 > lv0) lining.box(len, v1 - lv0, 0.03, mid, ly, inner, LINING);
         } else {
           b.box(0.035, v1 - v0, len, outer, y, mid, color);
-          if (v1 > lv0) b.box(0.03, v1 - lv0, len, inner, ly, mid, LINING);
+          if (v1 > lv0) lining.box(0.03, v1 - lv0, len, inner, ly, mid, LINING);
         }
       }
     }
   }
-}
-
-function cylinder(r: number, h: number, seg: number, x: number, y: number, z: number): THREE.BufferGeometry {
-  const g = new THREE.CylinderGeometry(r, r, h, seg);
-  g.translate(x, y, z);
-  return g;
-}
-
-function cone(r: number, h: number, x: number, y: number, z: number): THREE.BufferGeometry {
-  const g = new THREE.CylinderGeometry(r * 0.35, r, h, 12, 1, true);
-  g.translate(x, y, z);
-  return g;
-}
-
-function sphere(r: number, squash: number, x: number, y: number, z: number): THREE.BufferGeometry {
-  const g = new THREE.SphereGeometry(r, 12, 8);
-  g.scale(1, squash, 1);
-  g.translate(x, y, z);
-  return g;
 }

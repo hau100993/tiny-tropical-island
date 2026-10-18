@@ -111,11 +111,13 @@ recording plays it fades out. So a fresh install (the repo ships no audio) is ne
 A modern, minimal wooden house on stilts, a few steps up from the beach: dark vertical board
 cladding, a mono-pitch roof with **8 solar panels** and a **Starlink** dish (battery and inverter
 under the floor), and a **floor-to-ceiling glass wall** facing the sea with a deck in front
-(glass railing, steps at its right end, the sliding glass door is the way in). Inside,
-Japanese-style and sparse: a futon on tatami with a paper lantern, a sofa on a rug with a low
-table, a hinoki bathtub behind shoji screens, a big monstera and a snake plant, and a long oak
-desk along the glass with **two monitors**. Trees are kept out of the view from the glass to the
-sea.
+(glass railing, open wooden stairs with handrails at its right end, the sliding glass door is
+the way in). Inside, Japanese-style and sparse, under exposed timber beams: a tea corner by the
+left window (low chabudai table on tatami, zabuton cushions, a cast-iron teapot and cups, a book),
+a futon on tatami with a paper lantern, a low bookshelf, a hinoki bathtub behind shoji screens, a
+monstera with split leaves and a snake plant, and a long oak desk along the glass with **two
+monitors**. Wood has a procedural grain (shader, no textures); cushions, futon, chair and
+ceramics are rounded and smooth-shaded. Trees are kept out of the view from the glass to the sea.
 
 **Sitting at the desk:** press **B** (or *Góc làm việc* in the panel) from anywhere, or walk in
 and press **E** next to the chair. At the desk:
