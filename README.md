@@ -82,7 +82,10 @@ deleted). Up to 30 presets of your own.
 1. **+ Thêm file** (or drag files onto the list). MP3, OGG, WAV, M4A, FLAC, WebM. The file is
    **copied into the browser's storage** (IndexedDB), so it is there next time without asking;
    the original on your PC is not touched. An hour of MP3 at 128 kbps is ~58 MB.
-2. **▶** plays a recording on its own, with its own volume, whatever the scene.
+2. **▶** on a recording that is mapped to scene presets (step 3) switches to its scene: the
+   first preset it is mapped to, unless the active one is among them. **⏸** then leaves the
+   scene (its recordings fade out; the effects stay). On a recording without mappings, **▶**
+   plays it on its own, with its own volume, whatever the scene.
 3. **⚙ → Tự phát khi chọn preset cảnh:** switch on the presets it belongs to, each with its own
    volume (e.g. "Sóng biển 1h" at 70 % in *Hoàng hôn* and 100 % in *Bão*). Choosing such a
    preset fades its recordings in over ~3 s and the previous scene's out. Tags under the name

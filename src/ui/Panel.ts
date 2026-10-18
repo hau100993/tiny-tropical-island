@@ -82,7 +82,13 @@ export class Panel {
     const toggles = el('div', 'button-row');
     toggles.append(this.sceneOnly.root, this.synthFallback.root);
     this.synthStatus = el('div', 'hint');
-    const library = new LibraryView({ library: deps.library, scenes: deps.scenes, startAudio: deps.startAudio });
+    const library = new LibraryView({
+      library: deps.library,
+      scenes: deps.scenes,
+      startAudio: deps.startAudio,
+      applyScene: deps.applyScene,
+      clearScene: () => settings.update({ activeScene: '' }),
+    });
     audio.body.append(this.enableAudioBtn, masterRow, toggles, this.synthStatus, library.root);
 
     // --- Scene presets and effects ---
