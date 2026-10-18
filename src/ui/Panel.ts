@@ -37,6 +37,7 @@ export class Panel {
   private readonly collapseBtn: HTMLButtonElement;
   private readonly enableAudioBtn: HTMLButtonElement;
   private readonly masterVolume: SliderControl;
+  private readonly sceneOnly: ToggleControl;
   private readonly masterMute: HTMLButtonElement;
   private readonly rows = new Map<LayerId, LayerRow>();
   private readonly presetSelect: HTMLSelectElement;
@@ -93,7 +94,10 @@ export class Panel {
     this.masterVolume = slider(vi.panel.master, m.master.volume, (v) => mixer.setMaster({ volume: v }));
     this.masterMute = button('', () => mixer.toggleMuteAll(), 'icon-btn');
     masterRow.append(el('span', 'switch-spacer'), this.masterVolume.root, this.masterMute);
-    audio.body.append(this.enableAudioBtn, masterRow);
+    this.sceneOnly = toggle(vi.panel.sceneOnly, s.sceneOnly, (on) => settings.update({ sceneOnly: on }));
+    const sceneOnlyRow = el('div', 'button-row');
+    sceneOnlyRow.append(this.sceneOnly.root);
+    audio.body.append(this.enableAudioBtn, sceneOnlyRow, masterRow);
 
     for (const id of LAYER_IDS) {
       const row = el('div', 'mix-row');
@@ -253,7 +257,7 @@ export class Panel {
   }
 
   private syncMixer(state: Readonly<MixerState>): void {
-    this.enableAudioBtn.hidden = this.deps.mixer.started;
+    this.enableAudioBtn.hidden = this.deps.mixer.started || this.deps.settings.get().sceneOnly;
     this.masterVolume.set(state.master.volume);
     setMuteIcon(this.masterMute, state.master.muted);
     for (const id of LAYER_IDS) {
@@ -281,6 +285,8 @@ export class Panel {
     this.lowPower.set(s.lowPower);
     this.autoRotate.set(s.autoRotate);
     this.footsteps.set(s.footsteps);
+    this.sceneOnly.set(s.sceneOnly);
+    this.enableAudioBtn.hidden = this.deps.mixer.started || s.sceneOnly;
     this.thirdPerson.set(s.walkView === 'third');
     this.unlink.set(!s.weatherLinked);
     this.visualBox.hidden = s.weatherLinked;

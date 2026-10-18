@@ -5,13 +5,9 @@ export const vi = {
   appTitle: 'Đảo Nhiệt Đới',
   noWebGL2:
     'Trình duyệt không hỗ trợ WebGL2. Hãy dùng Chrome hoặc Edge bản mới và bật "Sử dụng tăng tốc phần cứng" trong cài đặt.',
-  start: {
-    title: 'Đảo Nhiệt Đới',
-    subtitle: 'Một hòn đảo nhỏ để bạn làm việc cạnh. Mọi âm thanh đều được tạo bằng code, không cần tải gì thêm.',
-    listen: 'Bắt đầu nghe',
-    silent: 'Chỉ ngắm cảnh',
-    hint: 'Nên dùng tai nghe để nghe rõ tiếng chim và sóng trái/phải.',
-    failed: 'Không khởi động được âm thanh. Hãy thử lại.',
+  audioPrompt: {
+    waiting: '🔊 Nhấp chuột hoặc nhấn phím bất kỳ để bật âm thanh',
+    failed: 'Không khởi động được âm thanh. Nhấp lại để thử.',
   },
   panel: {
     collapse: 'Thu gọn bảng',
@@ -20,6 +16,7 @@ export const vi = {
     scene: 'Cảnh',
     shortcuts: 'Phím tắt',
     enableAudio: 'Bật âm thanh',
+    sceneOnly: 'Chỉ ngắm cảnh (không âm thanh)',
     master: 'Âm lượng chung',
     mute: 'Tắt tiếng',
     unmute: 'Bật tiếng',

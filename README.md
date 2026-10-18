@@ -27,9 +27,12 @@ Other scripts:
 
 ## First start
 
-Browsers only allow sound after a click, so the app opens with a start screen:
-**Bắt đầu nghe** starts the sound, **Chỉ ngắm cảnh** shows the island silently (you can turn
-sound on later with **Bật âm thanh** in the panel).
+The island shows right away, no start screen. Browsers only allow sound after you interact
+with the page, so the sound starts with your **first click or key press anywhere** (a small
+note in the bottom-left corner says so until then).
+
+Want it silent? Turn on **Chỉ ngắm cảnh (không âm thanh)** in the *Âm thanh* section: the sound
+then never starts by itself (and is muted if it was playing). The choice is remembered.
 
 ## Controls
 

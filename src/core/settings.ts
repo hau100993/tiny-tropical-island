@@ -35,6 +35,8 @@ export interface Settings {
   fireflies: boolean;
   // Walking (Phase 5)
   footsteps: boolean;
+  /** "Chỉ ngắm cảnh": no sound (it does not start by itself, and is muted if running). */
+  sceneOnly: boolean;
   /** Walk mode view: through the eyes, or behind the character. */
   walkView: WalkView;
 }
@@ -64,6 +66,7 @@ export function defaultSettings(): Settings {
     fireflies: true,
     footsteps: true,
     walkView: 'third',
+    sceneOnly: false,
   };
 }
 
@@ -124,6 +127,7 @@ export function parseSettings(json: string | null): Settings {
     aurora: unit(raw.aurora, defaults.aurora),
     fireflies: bool(raw.fireflies, defaults.fireflies),
     footsteps: bool(raw.footsteps, defaults.footsteps),
+    sceneOnly: bool(raw.sceneOnly, defaults.sceneOnly),
     walkView: raw.walkView === 'first' || raw.walkView === 'third' ? raw.walkView : defaults.walkView,
   };
 }

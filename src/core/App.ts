@@ -18,7 +18,7 @@ import type { ListenerState } from '../audio/spatial';
 import type { FootSurface } from '../audio/synth/footsteps';
 import { DebugOverlay } from '../ui/DebugOverlay';
 import { Panel } from '../ui/Panel';
-import { StartScreen } from '../ui/StartScreen';
+import { AudioPrompt } from '../ui/AudioPrompt';
 import { vi } from '../ui/strings.vi';
 import { Mixer } from '../audio/mixer';
 import { PresetStore } from '../audio/presets';
@@ -39,6 +39,8 @@ export class App {
   private readonly walker: Walker;
   private readonly cameras: CameraManager;
   private readonly walkHint: WalkHint;
+  private readonly audioPrompt: AudioPrompt;
+  private audioStarting = false;
   private readonly avatar: Avatar;
   private readonly listener: ListenerState = { walking: false, shoreDistance: 0, seaSide: 0, trees: 0, shelter: 'none' };
   private listenerTimer = 0;
@@ -126,7 +128,13 @@ export class App {
       setHours: (h) => this.world.dayNight.setHours(h),
       walk: () => this.cameras.setMode('walk'),
     });
-    new StartScreen(container, () => this.startAudio());
+    this.audioPrompt = new AudioPrompt(ui);
+    // No start screen: sound starts with the first click or key press anywhere (browsers
+    // don't allow audio before that), unless "Chỉ ngắm cảnh" is on.
+    for (const type of ['pointerdown', 'keydown'] as const) {
+      window.addEventListener(type, () => this.onFirstGesture(), { capture: true });
+    }
+    if (!s.sceneOnly) this.audioPrompt.show();
     this.walkHint = new WalkHint(ui);
     this.cameras.onChange((mode) => {
       const walking = mode === 'walk';
@@ -165,8 +173,23 @@ export class App {
   }
 
   /** Creates the audio graph; must run inside a click/keypress handler. */
-  private startAudio(): Promise<void> {
-    return this.mixer.start();
+  private async startAudio(): Promise<void> {
+    if (this.mixer.started || this.audioStarting) return;
+    this.audioStarting = true;
+    try {
+      await this.mixer.start();
+      this.audioPrompt.hide();
+    } catch (e) {
+      console.warn('Audio start failed', e);
+      this.audioPrompt.show(true);
+    } finally {
+      this.audioStarting = false;
+    }
+  }
+
+  /** Any click or key press counts as the gesture that may start the sound. */
+  private onFirstGesture(): void {
+    if (!this.mixer.started && !this.settings.get().sceneOnly) void this.startAudio();
   }
 
   private registerShortcuts(): void {
@@ -239,6 +262,7 @@ export class App {
     this.world.flowers.setCount(profile.flowerCount);
     this.env.waveStrength.target = s.waveStrength;
     if (s.walkView !== this.walker.view) this.walker.setView(s.walkView);
+    this.applySceneOnly(s.sceneOnly);
     this.overlay.setVisible(s.showDebug);
   }
 
@@ -288,6 +312,28 @@ export class App {
     l.trees = this.colliders.treesNear(x, z, 12);
     l.shelter = this.walker.shelter;
     this.mixer.setListener(l);
+  }
+
+  private sceneOnlyApplied: boolean | null = null;
+
+  /**
+   * "Chỉ ngắm cảnh" on: mute (if sound is running) and don't auto-start. Off again: unmute, or
+   * start right away (the toggle click itself is a valid gesture).
+   */
+  private applySceneOnly(on: boolean): void {
+    if (on === this.sceneOnlyApplied) return;
+    const first = this.sceneOnlyApplied === null;
+    this.sceneOnlyApplied = on;
+    if (first) return;
+    if (on) {
+      this.audioPrompt.hide();
+      if (this.mixer.started) this.mixer.setMaster({ muted: true });
+    } else if (this.mixer.started) {
+      this.mixer.setMaster({ muted: false });
+    } else {
+      this.audioPrompt.show();
+      void this.startAudio();
+    }
   }
 
   private readonly drawingBuffer = new THREE.Vector2();
