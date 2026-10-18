@@ -50,6 +50,7 @@
 - Phase 7c was done before 7b on request. The house's door moved from the middle of the front to a sliding glass door at the right end of the glass wall, with the steps at the right end of the deck, so the centre of the view stays open.
 - Phase 7 (user request) reverses the Phase 2–3 model: the scene leads and sound follows. Weather is no longer driven by the mixer sliders; the synthesized mixer is a fallback without its own UI (only master volume/mute remain), and recordings come from the in-app library. `public/audio/config.json` (Phase 6) still works and now replaces fallback layers.
 - Phase 7: recordings are streamed (`<audio>` element), not decoded; the loop point of an MP3 may have a tiny gap once per file length.
+- Fix (2026-10-18): the High-quality water reflection mirrored its look-at point through the world origin, so it was only right while the camera faced the island center (orbit). Walking and looking out to sea showed the forest behind you smeared over the water. Now built like Reflector.js.
 - Spatial audio is the cheap kind planned: per-layer gain, stereo pan and a low-pass "occlusion" filter added to every layer (`BaseLayer`), updated ~10×/s. The wave pan assumes the sea lies away from the island center (true for this round island).
 
 ## 0. Context

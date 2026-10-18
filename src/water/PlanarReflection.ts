@@ -86,7 +86,10 @@ export class PlanarReflection {
     this.view.reflect(n).negate().add(this.planePos);
     this.rotation.extractRotation(camera.matrixWorld);
     this.lookAt.set(0, 0, -1).applyMatrix4(this.rotation).add(this.camPos);
-    const target = this.lookAt.sub(this.planePos).reflect(n).negate().add(this.planePos);
+    // Same construction as the position: (plane − point), reflected, negated, back from the plane.
+    // (Taking point − plane here mirrors the target through the plane's origin instead, which
+    // only looks right while the camera faces the island center, as the orbit camera does.)
+    const target = this.lookAt.subVectors(this.planePos, this.lookAt).reflect(n).negate().add(this.planePos);
     vc.position.copy(this.view);
     vc.up.set(0, 1, 0).applyMatrix4(this.rotation).reflect(n);
     vc.lookAt(target);
