@@ -459,7 +459,6 @@ function chestPatch(y0: number, y1: number, halfW: number, lift: number): THREE.
     for (let i = 0; i < cols; i++) {
       const a = j * (cols + 1) + i;
       const b = a + cols + 1;
-      // Counter-clockwise seen from the front (−Z): x grows to the viewer's left.
       index.push(a, a + 1, b, a + 1, b + 1, b);
     }
   }
@@ -467,6 +466,12 @@ function chestPatch(y0: number, y1: number, halfW: number, lift: number): THREE.
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setIndex(index);
   g.computeVertexNormals();
+  // It must face forward (−Z) or it is culled; flip the winding if it came out backwards.
+  if (g.getAttribute('normal').getZ(Math.floor(pos.length / 6)) > 0) {
+    for (let i = 0; i < index.length; i += 3) [index[i + 1], index[i + 2]] = [index[i + 2], index[i + 1]];
+    g.setIndex(index);
+    g.computeVertexNormals();
+  }
   return g;
 }
 
@@ -614,18 +619,30 @@ function blendY(a: THREE.Bone, b: THREE.Bone, y0: number, y1: number): Weigher {
   };
 }
 
-/** Densifies tube cross-sections (a ring every `step` m, eased between the given ones), so a
- * skinned limb has enough rings to bend smoothly at a joint. */
+/**
+ * Densifies tube cross-sections (a ring every `step` m), so a skinned limb has enough rings to
+ * bend smoothly at a joint. The sizes follow a Catmull-Rom curve through the given rings: it
+ * passes through each one with a continuous slope, so the outline has no kinks or flat bands.
+ */
 function rings(r: readonly Ring[], step = 0.012): Ring[] {
   const out: Ring[] = [];
+  const at = (i: number): Ring => r[Math.max(0, Math.min(r.length - 1, i))];
+  const cr = (p0: number, p1: number, p2: number, p3: number, t: number): number =>
+    0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (3 * p1 - p0 - 3 * p2 + p3) * t * t * t);
   for (let i = 0; i < r.length - 1; i++) {
-    const [y0, a0, f0, b0] = r[i];
-    const [y1, a1, f1, b1] = r[i + 1];
-    const n = Math.max(1, Math.round(Math.abs(y1 - y0) / step));
+    const a = at(i - 1);
+    const b = at(i);
+    const c = at(i + 1);
+    const d = at(i + 2);
+    const n = Math.max(1, Math.round(Math.abs(c[0] - b[0]) / step));
     for (let k = 0; k < n; k++) {
       const t = k / n;
-      const e = t * t * (3 - 2 * t);
-      out.push([y0 + (y1 - y0) * t, a0 + (a1 - a0) * e, f0 + (f1 - f0) * e, b0 + (b1 - b0) * e]);
+      out.push([
+        b[0] + (c[0] - b[0]) * t,
+        cr(a[1], b[1], c[1], d[1], t),
+        cr(a[2], b[2], c[2], d[2], t),
+        cr(a[3], b[3], c[3], d[3], t),
+      ]);
     }
   }
   out.push(r[r.length - 1]);
@@ -779,7 +796,8 @@ export class Avatar {
 
     // ---- Torso: slim-fit linen shirt, untucked; the hem leans with the hips ----
     const hem = blendY(H, T, -0.07, 0.1);
-    cloth.add(tube(rings(TORSO, 0.03), 32, TORSO_N), C.shirt, T, hem);
+    // (Not densified: the V neckline and placket sit on this exact outline, see torsoFront.)
+    cloth.add(tube(TORSO, 32, TORSO_N), C.shirt, T, hem);
     cloth.add(tube([[-0.072, 0.148, 0.108, 0.112], [-0.055, 0.146, 0.106, 0.11]], 32, TORSO_N), C.shirtDark, T, hem);
     // Open collar: skin in the V, a collar band round the back of the neck, points laid open.
     skin.add(chestPatch(0.35, 0.462, 0.046, 0.0015), C.skin, T);
@@ -834,10 +852,22 @@ export class Avatar {
       const sh = this.shoulders[i];
       const el = this.elbows[i];
       const wr = this.wrists[i];
-      // Sleeve: its top stretches with the shoulder, so lifting the arm doesn't open a gap.
-      const sleeve = blendY(T, sh, 0.02, -0.07);
-      cloth.add(place(ball(1, 18, 12), 0, -0.03, 0, 0, 0, 0, 0.054, 0.04, 0.057), C.shirt, sh, sleeve);
-      cloth.add(tube(rings([[-0.15, 0.056, 0.06, 0.058], [-0.08, 0.055, 0.059, 0.058], [-0.01, 0.054, 0.058, 0.057]]), 20), C.shirt, sh, sleeve);
+      // Shoulder and sleeve in one piece: a deltoid dome whose top tucks into the shirt's
+      // shoulder line, then the sleeve. The dome is weighted between the chest and the arm, so
+      // it bends like a shoulder when the arm swings instead of pivoting as a separate can.
+      const sleeve = blendY(T, sh, 0.035, -0.07);
+      cloth.add(
+        tube(
+          rings([
+            [-0.15, 0.056, 0.06, 0.058], [-0.08, 0.055, 0.059, 0.058], [-0.03, 0.056, 0.06, 0.058], [0.0, 0.052, 0.057, 0.055],
+            [0.025, 0.038, 0.046, 0.044], [0.042, 0.012, 0.018, 0.018],
+          ], 0.008),
+          22,
+        ),
+        C.shirt,
+        sh,
+        sleeve,
+      );
       cloth.add(tube([[-0.155, 0.057, 0.061, 0.059], [-0.14, 0.057, 0.061, 0.059]], 20), C.shirtDark, sh);
       const arm: Weigher = (_x, y) => {
         const e = smoothstep(-0.23, -0.31, y);
@@ -903,7 +933,6 @@ export class Avatar {
         hp,
         legW,
       );
-      skin.add(place(ball(1, 12, 10), 0, kneeY + 0.01, -0.045, 0, 0, 0, 0.026, 0.03, 0.014), C.skin, hp, legW);
       const footSkin = new GeoBuilder(rng, 0);
       const footCloth = new GeoBuilder(rng, 0);
       buildFoot(footSkin, footCloth, s);
