@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { SharedUniforms } from '../core/uniforms';
 import clouds from './shaders/clouds.glsl?raw';
+import swash from '../water/shaders/swash.glsl?raw';
 
 /**
  * One place where weather touches the world's materials. `onBeforeCompile` splices GLSL into
@@ -161,6 +162,7 @@ float wNoise(vec2 p) {
 
 const GROUND_FRAG_FNS = /* glsl */ `
 #ifdef WORLD_GROUND
+${swash}
 // Round specks scattered on a grid: one in each cell whose random value exceeds 'rarity',
 // at a random spot and size inside the cell (so the grid never shows). 'id' returns the value.
 float speck(vec2 p, float rarity, out float id) {
@@ -216,14 +218,15 @@ const SURFACE_GLSL = /* glsl */ `
     land *= 1.0 - 0.3 * speck(gp * 7.0 + 31.0, 0.94, soil) * fine;
     diffuseColor.rgb = mix(sand, land, g);
 
-    // Swash: each stretch of beach gets its own timing; the sand the wave reached stays dark
-    // and glossy, following the rhythm of the surf foam in the water shader.
-    float phase = wNoise(gp * 0.08 + 7.3) * 6.2831;
-    float surge = 0.5 + 0.5 * sin(uTime * 0.7 + phase);
-    float reach = (0.06 + 0.2 * surge) * (0.5 + uWaveStrength) + (n2 - 0.5) * 0.05;
-    float swash = smoothstep(reach + 0.1, reach - 0.02, vWorldPosW.y) * step(-0.3, vWorldPosW.y) * (1.0 - g);
-    diffuseColor.rgb *= 1.0 - 0.28 * swash;
-    roughnessFactor = mix(roughnessFactor, 0.3, swash);
+    // Wet sand from the swash (same function as the water surface): dark up to where the last
+    // wave reached, with a ragged edge, and glossy right behind the draining water.
+    vec3 sw = swash(gp, uTime, uWaveStrength);
+    float y = vWorldPosW.y + (n2 - 0.5) * 0.03;
+    // (Sand under the water is wet too: no cut-off, or the seabed would show a hard line.)
+    float wet = smoothstep(sw.y + 0.05, sw.y - 0.01, y) * (1.0 - g);
+    float fresh = (1.0 - smoothstep(sw.x, sw.x + 0.06, y)) * smoothstep(-0.4, 0.0, y) * wet;
+    diffuseColor.rgb *= 1.0 - 0.25 * wet - 0.08 * fresh;
+    roughnessFactor = mix(roughnessFactor, mix(0.4, 0.12, fresh), wet);
   }
 #endif
 #ifdef WORLD_SHELTER

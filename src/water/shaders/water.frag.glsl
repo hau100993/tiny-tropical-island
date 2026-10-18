@@ -23,6 +23,7 @@ varying vec3 vWorldPos;
 varying vec3 vNormalW;
 varying float vCrest;
 varying float vCloudShadow;
+varying vec2 vSwash;
 
 #include <fog_pars_fragment>
 
@@ -90,16 +91,22 @@ void main() {
   float n2 = valueNoise(xz * 3.1 - vec2(t * 0.3, t * 0.2));
   // Distances to the shore wander with noise, so foam lines never trace the depth contour.
   float wd = depth + (valueNoise(xz * 0.35 + vec2(t * 0.04, -t * 0.03)) - 0.5) * 0.25 + (n2 - 0.5) * 0.1;
-  // Each stretch of coast surges on its own timing (same phase field as the wet sand).
-  float phase = valueNoise(xz * 0.08 + 7.3) * 6.2831;
-  float surge = 0.5 + 0.5 * sin(t * 0.7 + phase);
+  // The swash (see swash.glsl and the vertex shader) moves the waterline itself; here it
+  // decides the foam: a thick white front while a wave runs up, thin streaky lace while the
+  // sheet drains back.
+  float rising = vSwash.x;
+  float nearShore = vSwash.y;
+  float phase = swNoise(xz * 0.08 + 7.3) * 6.2831;
   float sea = 0.5 + uWaveStrength;
   // Breaking bands rolling in toward the beach, broken into segments along the shore.
   float bands = 0.5 + 0.5 * sin(wd * 9.0 - t * 1.3 + phase + n * 2.5);
   float segs = smoothstep(0.25, 0.7, valueNoise(xz * 0.22 + vec2(t * 0.05, 0.0)));
-  float coverage = (1.0 - smoothstep(0.0, (0.2 + 0.3 * surge) * sea, wd)) * smoothstep(0.55, 0.95, bands) * (0.3 + 0.6 * segs);
-  // Swash rim at the water's edge: its width surges with the waves and varies along the shore.
-  coverage = max(coverage, 0.95 * (1.0 - smoothstep(0.0, (0.02 + 0.09 * surge * segs) * sea, wd)));
+  float coverage = (1.0 - smoothstep(0.0, 0.35 * sea, wd)) * smoothstep(0.55, 0.95, bands) * (0.3 + 0.6 * segs);
+  // The running-up front: a white rim at the edge that widens while the wave advances.
+  coverage = max(coverage, (0.6 + 0.35 * rising) * (1.0 - smoothstep(0.0, 0.025 + 0.11 * rising * sea, wd)));
+  // Backwash: the draining sheet leaves streaks of foam (noise stretched along the shore slope).
+  float streaks = valueNoise(vec2(xz.x * 1.3 + xz.y * 0.4, xz.y * 1.3 - xz.x * 0.4) + vec2(0.0, t * 0.25));
+  coverage = max(coverage, nearShore * (1.0 - rising) * (1.0 - smoothstep(0.0, 0.12, wd)) * smoothstep(0.45, 0.8, streaks) * 0.75);
   coverage += smoothstep(0.55, 0.95, vCrest) * smoothstep(0.5, 1.0, uWaveStrength) * n2;
   // A little white water on strong ripples (splashes).
   coverage += smoothstep(0.06, 0.2, sim.x) * sim.w * 0.6 * (0.4 + n2);

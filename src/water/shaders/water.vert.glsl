@@ -9,6 +9,7 @@ varying vec3 vWorldPos;
 varying vec3 vNormalW;
 varying float vCrest;
 varying float vCloudShadow;
+varying vec2 vSwash; // x: wave front running up (0..1), y: near-shore weight
 uniform vec3 uSunDir;
 
 #include <fog_pars_vertex>
@@ -49,6 +50,12 @@ void main() {
   // Ripples from the GPU simulation, on top of the swell.
   vec4 sim = sampleSim(p);
   wp.y += sim.x * sim.w;
+  // Swash: near the shore the water really runs up the beach and drains back, so the
+  // waterline (where this surface meets the sand) moves and changes shape with every wave.
+  vec3 sw = swash(p, uTime, uWaveStrength);
+  float shoreMask = smoothstep(-2.5, -0.4, -depth);
+  wp.y += sw.x * shoreMask;
+  vSwash = vec2(sw.z, shoreMask);
   vWorldPos = wp.xyz;
   vNormalW = normalize(vec3(-nx, 1.0 - ny, -nz));
   vCrest = ampSum > 0.0 ? disp.y / ampSum : 0.0;

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createWaveUniforms, NUM_WAVES } from './gerstner';
 import type { SharedUniforms } from '../core/uniforms';
 import waterCommon from './shaders/waterCommon.glsl?raw';
+import swash from './shaders/swash.glsl?raw';
 import waterVert from './shaders/water.vert.glsl?raw';
 import waterFrag from './shaders/water.frag.glsl?raw';
 import skyCommon from '../world/shaders/skyCommon.glsl?raw';
@@ -95,8 +96,8 @@ export class WaterSurface {
         uShallowColor: { value: new THREE.Color('#3cc8c4') },
         uDeepColor: { value: new THREE.Color('#0a4a78') },
       },
-      vertexShader: `${waterCommon}\n${clouds}\n${waterVert}`,
-      fragmentShader: `${waterCommon}\n${skyCommon}\n${waterFrag}`,
+      vertexShader: `${waterCommon}\n${swash}\n${clouds}\n${waterVert}`,
+      fragmentShader: `${waterCommon}\n${swash}\n${skyCommon}\n${waterFrag}`,
       fog: true,
     });
     this.mesh = new THREE.Mesh(createRadialGrid(), material);
