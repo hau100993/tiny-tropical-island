@@ -43,7 +43,8 @@ sound on later with **Bật âm thanh** in the panel).
 | `P` | Collapse / expand the control panel |
 | `H` | Hide all UI (clean wallpaper view); press again to show |
 | `N` | Pause / resume the day-night clock |
-| `C` | Walk around the island (first person); press again to go back to the orbit view |
+| `C` | Walk around the island; press again to go back to the orbit view |
+| `V` | While walking: character view (third person) ↔ eyes view (first person) |
 | `L` | Toggle low-power mode (30 fps, Low-level water, no shadows) |
 | `` ` `` (backquote) | Show/hide the stats overlay (FPS, CPU/GPU ms, draw calls) |
 
@@ -63,12 +64,20 @@ sound on later with **Bật âm thanh** in the panel).
 
 ## Walking on the island (`C` or **Đi bộ trên đảo** in the panel)
 
+Two views, switched with `V` (or **Thấy nhân vật** in the panel): behind your character, like
+a game (default), or through the character's eyes. The character is a low-poly young explorer
+built in code (red cap, dark vest with a yellow band, green backpack, fingerless gloves, baggy
+jeans, red sneakers) that walks, runs (leaning forward, arms pumping) and breathes when idle.
+In the character view the camera pulls in when a wall, the roof, a trunk or the ground is
+behind you, so it works inside the small room too.
+
 | Input | Action |
 |---|---|
 | Mouse | Look around (the browser captures the mouse and briefly says how to release it with Esc) |
 | `W` `A` `S` `D` / arrow keys | Walk |
 | `Shift` (hold) | Run |
 | Click | Splash: a ripple where you look, if that is water |
+| `V` | Switch between the character view and the eyes view |
 | `Esc` | Stop walking and return to the orbit view (also `C`) |
 
 - You start at the foot of the porch steps, looking out to sea; next time you continue where you

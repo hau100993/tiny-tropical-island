@@ -50,6 +50,7 @@ export class Panel {
   private readonly lowPower: ToggleControl;
   private readonly autoRotate: ToggleControl;
   private readonly footsteps: ToggleControl;
+  private readonly thirdPerson: ToggleControl;
   private readonly unlink: ToggleControl;
   private readonly linkHint: HTMLElement;
   private readonly visualBox: HTMLElement;
@@ -152,7 +153,8 @@ export class Panel {
     const walkRow = el('div', 'button-row');
     const walkBtn = button(vi.panel.walk, () => deps.walk(), 'btn primary');
     this.footsteps = toggle(vi.panel.footsteps, s.footsteps, (on) => settings.update({ footsteps: on }));
-    walkRow.append(walkBtn, this.footsteps.root);
+    this.thirdPerson = toggle(vi.panel.thirdPerson, s.walkView === 'third', (on) => settings.update({ walkView: on ? 'third' : 'first' }));
+    walkRow.append(walkBtn, this.thirdPerson.root, this.footsteps.root);
 
     // Weather visuals: linked to the sound sliders by default, or separate.
     const linkRow = el('div', 'button-row');
@@ -279,6 +281,7 @@ export class Panel {
     this.lowPower.set(s.lowPower);
     this.autoRotate.set(s.autoRotate);
     this.footsteps.set(s.footsteps);
+    this.thirdPerson.set(s.walkView === 'third');
     this.unlink.set(!s.weatherLinked);
     this.visualBox.hidden = s.weatherLinked;
     this.linkHint.hidden = !s.weatherLinked;

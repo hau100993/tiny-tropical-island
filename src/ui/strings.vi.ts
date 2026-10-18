@@ -62,9 +62,10 @@ export const vi = {
     fireflies: 'Đom đóm',
     walk: 'Đi bộ trên đảo (C)',
     footsteps: 'Tiếng bước chân',
+    thirdPerson: 'Thấy nhân vật (V)',
   },
   walk: {
-    controls: 'W A S D: đi · Shift: chạy · Chuột: nhìn · Nhấp: té nước · Esc: thoát',
+    controls: 'W A S D: đi · Shift: chạy · Chuột: nhìn · V: đổi góc nhìn · Nhấp: té nước · Esc: thoát',
     clickToLook: 'Nhấp vào cảnh để điều khiển bằng chuột · C: thoát',
   },
   layers: {
@@ -94,7 +95,8 @@ export const vi = {
     hideUI: 'Ẩn toàn bộ giao diện',
     pauseTime: 'Dừng/chạy thời gian',
     walk: 'Đi bộ / xem từ trên cao',
+    view: 'Khi đi bộ: thấy nhân vật / nhìn bằng mắt',
     mouse: 'Kéo: xoay · Cuộn: thu phóng · Chuột phải: dời · Nhấp vào nước: gợn sóng',
-    walkKeys: 'Khi đi bộ: W A S D đi · Shift chạy · chuột nhìn · Esc thoát',
+    walkKeys: 'Khi đi bộ: W A S D đi · Shift chạy · chuột nhìn · V đổi góc nhìn · Esc thoát',
   },
 } as const;

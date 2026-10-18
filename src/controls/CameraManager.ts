@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { OrbitCamera } from './orbit';
-import type { FirstPerson } from './firstPerson';
+import type { Walker } from './walker';
 
 export type CameraMode = 'orbit' | 'walk';
 
@@ -20,7 +20,7 @@ export class CameraManager {
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
     private readonly orbit: OrbitCamera,
-    private readonly walker: FirstPerson,
+    private readonly walker: Walker,
     private readonly spawn: { x: number; z: number; yaw: number },
   ) {}
 

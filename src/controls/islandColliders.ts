@@ -1,4 +1,4 @@
-import { CircleGrid, CollisionWorld, frame, toLocal, type BoxCollider, type CircleCollider, type Frame, type Platform } from './collision';
+import { CircleGrid, CollisionWorld, frame, rayBox, rayCircle, toLocal, type BoxCollider, type CircleCollider, type Frame, type Platform } from './collision';
 import type { Heightmap, Surface } from '../world/heightmap';
 import { HOUSE_DIMS, type HouseInfo } from '../world/house';
 import type { Placement } from '../world/layout';
@@ -30,6 +30,9 @@ export class IslandColliders {
   private readonly houseFrame: Frame;
   private readonly floorY: number;
   private readonly local = { x: 0, z: 0 };
+  /** What the third-person camera can't pass through: walls, roof, floor (see cameraDistance). */
+  private readonly cameraBoxes: BoxCollider[];
+  private readonly heightmap: Heightmap;
   /** Where walking starts: at the foot of the porch steps, looking out to sea. */
   readonly spawn: { x: number; z: number; yaw: number };
 
@@ -61,6 +64,8 @@ export class IslandColliders {
       box(W - T, W + T, D.roomBack, D.roomFront, F, wallTop),
       box(-W, -0.55, D.roomFront - T, D.roomFront + T, F, wallTop),
       box(0.55, W, D.roomFront - T, D.roomFront + T, F, wallTop),
+      // Wall above the door (only the camera can reach it; the walker's head is lower).
+      box(-0.55, 0.55, D.roomFront - T, D.roomFront + T, F + 2.05, wallTop),
       // Porch railings, open in the middle of the front for the steps.
       box(-W - T, -W + T, D.roomFront, porchEdge, F, railTop),
       box(W - T, W + T, D.roomFront, porchEdge, F, railTop),
@@ -122,6 +127,15 @@ export class IslandColliders {
       { x: u.x, z: u.z, r: 0.06 },
     ];
     this.world = new CollisionWorld<WalkSurface>(hm, circles, boxes, [floor, stairs]);
+    this.heightmap = hm;
+    // The camera also stays out of the roof and below-floor space (walls come from `boxes`).
+    const roofZ0 = D.roomBack - 0.5;
+    const roofZ1 = D.porchFront + 0.4;
+    this.cameraBoxes = [
+      ...boxes.filter((b) => b.yMin >= F - 0.01 && b.yMax >= wallTop - 0.01), // walls and lintel
+      box(-W - 0.6, W + 0.6, roofZ0, roofZ1, F + D.wallHeight - 0.05, house.ridgeY),
+      box(-W - 0.1, W + 0.1, floorZ0, floorZ1, F - 1.2, F - 0.02),
+    ];
     const foot = this.houseRect(0, D.porchFront + stairsLen + 1.2);
     // Camera yaw whose forward (−Z rotated by yaw) equals the house's local +Z.
     this.spawn = { x: foot.cx, z: foot.cz, yaw: p.rotY + Math.PI };
@@ -144,6 +158,40 @@ export class IslandColliders {
     if (lx < D.halfWidth && lz > D.roomBack && lz < D.roomFront) return 'room';
     if (lx < D.halfWidth + 0.6 && lz > D.roomBack - 0.5 && lz < D.porchFront + 0.4) return 'porch';
     return 'none';
+  }
+
+  /**
+   * How far the third-person camera can back away from the head at (ox, oy, oz) along the unit
+   * direction (dx, dy, dz) before it hits a wall, the roof, the floor, a trunk or the ground.
+   */
+  cameraDistance(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, max: number): number {
+    let t = max;
+    for (const b of this.cameraBoxes) t = Math.min(t, rayBox(b, ox, oy, oz, dx, dy, dz));
+    const h = Math.hypot(dx, dz);
+    if (h > 1e-6) {
+      // rayCircle works in the horizontal plane: convert its 2D distance back along the 3D ray.
+      const ux = dx / h;
+      const uz = dz / h;
+      this.trees.forEachNear(ox + dx * max * 0.5, oz + dz * max * 0.5, max * 0.5, (c) => {
+        const t2 = rayCircle(c, ox, oz, ux, uz);
+        if (t2 < Infinity) t = Math.min(t, t2 / h);
+      });
+    }
+    // Terrain: march along the ray, stop a little above the ground.
+    const steps = 12;
+    for (let i = 1; i <= steps; i++) {
+      const s = (t * i) / steps;
+      if (oy + dy * s < this.heightmap.heightAt(ox + dx * s, oz + dz * s) + 0.25) {
+        t = (t * (i - 1)) / steps;
+        break;
+      }
+    }
+    return t;
+  }
+
+  /** Lowest camera height at (x, z) that stays clear of the sea surface and its waves. */
+  waterClearance(x: number, z: number): number {
+    return this.heightmap.heightAt(x, z) < 0.5 ? 0.45 : -Infinity;
   }
 
   /** Tree trunks within `radius` meters. */

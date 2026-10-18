@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CollisionWorld, frame, STEP_UP, type BoxCollider, type Platform, type Support } from '../src/controls/collision';
+import { CollisionWorld, frame, rayBox, rayCircle, STEP_UP, type BoxCollider, type Platform, type Support } from '../src/controls/collision';
 import { IslandColliders, type WalkSurface } from '../src/controls/islandColliders';
 import { spatialMix, type ListenerState } from '../src/audio/spatial';
 import { createWorldData } from './worldData';
@@ -112,5 +112,31 @@ describe('spatialMix', () => {
     const porch = { ...spatialMix('rain', { ...l, shelter: 'porch' }, out) };
     expect(room.occlusion).toBeGreaterThan(porch.occlusion);
     expect(room.gain).toBeLessThan(porch.gain);
+  });
+});
+
+describe('camera rays', () => {
+  it('hits a box at the right distance, from any side, rotated or not', () => {
+    const b: BoxCollider = { ...frame(5, 0, 0), hx: 1, hz: 1, yMin: 0, yMax: 3 };
+    expect(rayBox(b, 0, 1, 0, 1, 0, 0)).toBeCloseTo(4);
+    expect(rayBox(b, 0, 5, 0, 1, 0, 0)).toBe(Infinity); // passes above
+    const r: BoxCollider = { ...frame(5, 0, Math.PI / 4), hx: 1, hz: 1, yMin: 0, yMax: 3 };
+    expect(rayBox(r, 0, 1, 0, 1, 0, 0)).toBeCloseTo(5 - Math.SQRT2);
+  });
+
+  it('hits a trunk in front, not one behind', () => {
+    expect(rayCircle({ x: 3, z: 0, r: 0.5 }, 0, 0, 1, 0)).toBeCloseTo(2.5);
+    expect(rayCircle({ x: -3, z: 0, r: 0.5 }, 0, 0, 1, 0)).toBe(Infinity);
+  });
+
+  it('keeps the camera inside the room instead of behind a wall', () => {
+    const data = createWorldData();
+    const c = new IslandColliders(data);
+    const { x, z, rotY } = data.house.placement;
+    const F = data.house.floorY;
+    // From the middle of the room, looking back toward the side wall (house-local +X).
+    const d = c.cameraDistance(x, F + 1.4, z, Math.cos(rotY), 0, -Math.sin(rotY), 4.2);
+    expect(d).toBeGreaterThan(2.2);
+    expect(d).toBeLessThan(2.5);
   });
 });

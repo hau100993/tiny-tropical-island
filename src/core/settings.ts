@@ -1,5 +1,6 @@
 import { QUALITY_LEVELS, type QualityLevel } from './quality';
 import type { TimeMode } from '../world/celestial';
+import type { WalkView } from '../controls/walker';
 
 const TIME_MODES: readonly TimeMode[] = ['real', 'cycle24', 'cycle6', 'paused'];
 
@@ -34,6 +35,8 @@ export interface Settings {
   fireflies: boolean;
   // Walking (Phase 5)
   footsteps: boolean;
+  /** Walk mode view: through the eyes, or behind the character. */
+  walkView: WalkView;
 }
 
 export type SettingsPatch = Partial<Omit<Settings, 'version'>>;
@@ -60,6 +63,7 @@ export function defaultSettings(): Settings {
     aurora: 0.5,
     fireflies: true,
     footsteps: true,
+    walkView: 'third',
   };
 }
 
@@ -120,6 +124,7 @@ export function parseSettings(json: string | null): Settings {
     aurora: unit(raw.aurora, defaults.aurora),
     fireflies: bool(raw.fireflies, defaults.fireflies),
     footsteps: bool(raw.footsteps, defaults.footsteps),
+    walkView: raw.walkView === 'first' || raw.walkView === 'third' ? raw.walkView : defaults.walkView,
   };
 }
 

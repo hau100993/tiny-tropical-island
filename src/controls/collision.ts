@@ -229,3 +229,46 @@ export class CollisionWorld<S extends string> {
     return this.grid.countWithin(x, z, radius);
   }
 }
+
+/**
+ * Distance along a ray (origin o, unit direction d) to where it enters box `b`, or Infinity.
+ * Slab method in the box's local frame (the frame only rotates around Y, so y passes through).
+ */
+export function rayBox(b: BoxCollider, ox: number, oy: number, oz: number, dx: number, dy: number, dz: number): number {
+  const rx = ox - b.cx;
+  const rz = oz - b.cz;
+  const lo = [rx * b.cos - rz * b.sin, oy, rx * b.sin + rz * b.cos];
+  const ld = [dx * b.cos - dz * b.sin, dy, dx * b.sin + dz * b.cos];
+  const min = [-b.hx, b.yMin, -b.hz];
+  const max = [b.hx, b.yMax, b.hz];
+  let t0 = 0;
+  let t1 = Infinity;
+  for (let i = 0; i < 3; i++) {
+    if (Math.abs(ld[i]) < 1e-9) {
+      if (lo[i] < min[i] || lo[i] > max[i]) return Infinity;
+      continue;
+    }
+    let a = (min[i] - lo[i]) / ld[i];
+    let c = (max[i] - lo[i]) / ld[i];
+    if (a > c) [a, c] = [c, a];
+    t0 = Math.max(t0, a);
+    t1 = Math.min(t1, c);
+    if (t0 > t1) return Infinity;
+  }
+  return t0;
+}
+
+/** Distance along a ray to where it hits an (infinitely tall) vertical cylinder, or Infinity. */
+export function rayCircle(c: CircleCollider, ox: number, oz: number, dx: number, dz: number): number {
+  const a = dx * dx + dz * dz;
+  if (a < 1e-12) return Infinity;
+  const fx = ox - c.x;
+  const fz = oz - c.z;
+  const b = fx * dx + fz * dz;
+  const cc = fx * fx + fz * fz - c.r * c.r;
+  if (cc <= 0) return Infinity; // starts inside: ignore (the walker never is)
+  const disc = b * b - a * cc;
+  if (disc < 0) return Infinity;
+  const t = (-b - Math.sqrt(disc)) / a;
+  return t >= 0 ? t : Infinity;
+}

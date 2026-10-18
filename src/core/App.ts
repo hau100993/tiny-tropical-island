@@ -10,9 +10,10 @@ import { createOrbitCamera, type OrbitCamera } from '../controls/orbit';
 import { Keymap } from '../controls/keymap';
 import { onWaterClick } from '../controls/waterClick';
 import { IslandColliders } from '../controls/islandColliders';
-import { FirstPerson, type StepEvent } from '../controls/firstPerson';
+import { Walker, type StepEvent } from '../controls/walker';
 import { CameraManager } from '../controls/CameraManager';
 import { WalkHint } from '../ui/WalkHint';
+import { Avatar, type AvatarPose } from '../world/avatar';
 import type { ListenerState } from '../audio/spatial';
 import type { FootSurface } from '../audio/synth/footsteps';
 import { DebugOverlay } from '../ui/DebugOverlay';
@@ -35,9 +36,10 @@ export class App {
   private readonly world: World;
   private readonly orbit: OrbitCamera;
   private readonly colliders: IslandColliders;
-  private readonly walker: FirstPerson;
+  private readonly walker: Walker;
   private readonly cameras: CameraManager;
   private readonly walkHint: WalkHint;
+  private readonly avatar: Avatar;
   private readonly listener: ListenerState = { walking: false, shoreDistance: 0, seaSide: 0, trees: 0, shelter: 'none' };
   private listenerTimer = 0;
   private readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -82,7 +84,7 @@ export class App {
       trunks: w.forest.trunks,
       rocks: w.rocks.circles,
     });
-    this.walker = new FirstPerson(
+    this.walker = new Walker(
       this.camera,
       this.renderer.domElement,
       this.colliders,
@@ -96,6 +98,9 @@ export class App {
       () => this.reducedMotion.matches,
     );
     this.cameras = new CameraManager(this.camera, this.orbit, this.walker, this.colliders.spawn);
+    this.avatar = new Avatar(sharedUniforms);
+    this.scene.add(this.avatar.group);
+    this.walker.setView(s.walkView);
     onWaterClick(
       this.renderer.domElement,
       this.camera,
@@ -127,6 +132,7 @@ export class App {
       const walking = mode === 'walk';
       document.body.classList.toggle('walking', walking);
       this.walkHint.update(walking, this.walker.locked, false);
+      if (walking) this.avatar.setYaw(this.walker.yaw);
       if (!walking) {
         this.listener.walking = false;
         this.mixer.setListener(this.listener);
@@ -188,6 +194,12 @@ export class App {
       },
     });
     this.keymap.register({ code: 'KeyC', keyLabel: 'C', label: vi.shortcuts.walk, action: () => this.cameras.toggle() });
+    this.keymap.register({
+      code: 'KeyV',
+      keyLabel: 'V',
+      label: vi.shortcuts.view,
+      action: () => this.settings.update({ walkView: this.settings.get().walkView === 'third' ? 'first' : 'third' }),
+    });
     this.keymap.register({ code: 'KeyL', keyLabel: 'L', label: vi.shortcuts.lowPower, action: toggleSetting('lowPower') });
     this.keymap.register({ code: 'Backquote', keyLabel: '`', label: vi.shortcuts.debug, action: toggleSetting('showDebug') });
   }
@@ -226,6 +238,7 @@ export class App {
     this.world.grass.setCount(profile.grassCount);
     this.world.flowers.setCount(profile.flowerCount);
     this.env.waveStrength.target = s.waveStrength;
+    if (s.walkView !== this.walker.view) this.walker.setView(s.walkView);
     this.overlay.setVisible(s.showDebug);
   }
 
@@ -238,6 +251,26 @@ export class App {
     if (snowy && surface !== 'water' && this.walker.shelter === 'none') surface = 'snow';
     this.mixer.playFootstep(surface, e.strength, e.depth);
   }
+
+  /** The character is shown in third-person walking, unless the camera is pressed right up to it. */
+  private updateAvatar(dt: number): void {
+    const w = this.walker;
+    const show = this.cameras.mode === 'walk' && w.view === 'third' && w.arm > 0.7;
+    this.avatar.group.visible = show;
+    if (!show) return;
+    const p = this.avatarPose;
+    p.x = w.x;
+    p.z = w.z;
+    p.feetY = w.feetY;
+    p.vx = w.vel.x;
+    p.vz = w.vel.y;
+    p.speed = w.speed;
+    p.phase = w.phase;
+    p.running = w.running;
+    this.avatar.update(dt, p);
+  }
+
+  private readonly avatarPose: AvatarPose = { x: 0, z: 0, feetY: 0, vx: 0, vz: 0, speed: 0, phase: 0, running: false };
 
   /** Walk mode: where the listener stands shapes the mix (~10 times per second is plenty). */
   private updateListener(dt: number): void {
@@ -309,6 +342,7 @@ export class App {
 
     this.cameras.update(dt);
     this.updateListener(dt);
+    this.updateAvatar(dt);
     if (this.cameras.mode === 'walk' && this.walker.shelter === 'room') {
       // The window glow is for people outside; from inside you look out through clear glass.
       const win = this.world.house.windowMaterial;
