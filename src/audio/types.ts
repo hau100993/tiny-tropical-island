@@ -27,6 +27,8 @@ export interface AudioLayer {
   setMuted(muted: boolean): void;
   /** Where the listener is (walk mode); neutral in orbit mode. */
   setSpatial(spatial: Readonly<SpatialMix>): void;
+  /** Temporary extra gain (Pomodoro "storm calms down"), eased with the given time constant (s). */
+  setDuck(gain: number, timeConstant: number): void;
   dispose(): void;
 }
 

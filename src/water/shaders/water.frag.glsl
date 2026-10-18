@@ -18,6 +18,10 @@ uniform float uCameraNear;
 uniform float uCameraFar;
 #include <packing>
 #endif
+#ifdef REFLECTION
+uniform sampler2D uReflection;
+varying vec4 vReflCoord;
+#endif
 
 varying vec3 vWorldPos;
 varying vec3 vNormalW;
@@ -84,6 +88,13 @@ void main() {
   vec3 R = reflect(-V, N);
   R.y = abs(R.y);
   vec3 refl = skyColor(R);
+#ifdef REFLECTION
+  // Mirror image of the scene (alpha 0 where only sky would be reflected). Waves bend it; far
+  // away the distortion fades with the flattened normal.
+  vec2 reflUV = vReflCoord.xy / vReflCoord.w + N.xz * 0.06 * (1.0 - far);
+  vec4 mirrored = texture2D(uReflection, reflUV);
+  refl = mix(refl, mirrored.rgb, mirrored.a);
+#endif
 
   // Shore foam. "coverage" says how much foam there should be; the lace pattern then decides
   // where: thin coverage leaves scattered bubbles, thick coverage solid white water.

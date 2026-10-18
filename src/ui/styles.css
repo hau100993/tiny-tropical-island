@@ -386,8 +386,10 @@ body.ui-hidden .debug-overlay {
 
 .audio-prompt {
   position: fixed;
-  left: 16px;
+  left: 50%;
   bottom: 16px;
+  transform: translateX(-50%);
+  white-space: nowrap;
   max-width: calc(100vw - 32px);
   padding: 6px 12px;
   color: var(--panel-fg);
@@ -503,4 +505,141 @@ body.walking .panel {
   .walk-hint {
     transition: none;
   }
+}
+
+/* ---------- Pomodoro ---------- */
+
+.pomodoro {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  width: 236px;
+  max-width: calc(100vw - 24px);
+  padding: 10px 12px;
+  color: var(--panel-fg);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(12px);
+  font-size: 12px;
+  box-sizing: border-box;
+  transition: box-shadow 0.6s ease;
+}
+
+.pomodoro[hidden] {
+  display: none;
+}
+
+.pomodoro.ring {
+  box-shadow: 0 0 0 2px var(--accent), 0 0 24px var(--accent);
+}
+
+.pomo-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pomo-phase {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.pomodoro.on-break .pomo-phase {
+  color: var(--warn);
+}
+
+.pomo-dots {
+  flex: 1;
+  color: var(--panel-muted);
+  font-size: 9px;
+  letter-spacing: 2px;
+}
+
+.pomo-time {
+  font-size: 34px;
+  font-weight: 300;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.pomodoro.paused .pomo-time {
+  opacity: 0.6;
+}
+
+.pomo-track {
+  height: 3px;
+  margin: 2px 0 8px;
+  border-radius: 2px;
+  background: var(--control-bg);
+  overflow: hidden;
+}
+
+.pomo-bar {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+}
+
+.pomodoro.on-break .pomo-bar {
+  background: var(--warn);
+}
+
+.pomo-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.pomo-notice {
+  margin-top: 8px;
+  line-height: 1.35;
+}
+
+.pomo-settings {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.pomo-settings[hidden] {
+  display: none;
+}
+
+.pomo-field {
+  display: grid;
+  grid-template-columns: 1fr 52px 30px;
+  align-items: center;
+  gap: 6px;
+}
+
+.pomo-field .unit {
+  color: var(--panel-muted);
+  font-size: 11px;
+}
+
+.text-input.num {
+  width: 52px;
+  box-sizing: border-box;
+}
+
+.icon-btn.small {
+  padding: 2px;
+}
+
+.source-tag {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 6px;
+  font-size: 10px;
+  color: var(--accent-fg);
+  background: var(--accent);
+  vertical-align: 1px;
+}
+
+body.walking .pomo-controls,
+body.walking .pomo-settings {
+  display: none;
 }

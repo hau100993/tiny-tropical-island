@@ -14,6 +14,8 @@ interface LayerRow {
   volume: SliderControl;
   mute: HTMLButtonElement;
   row: HTMLElement;
+  /** "tệp" badge: the layer plays the user's recordings. */
+  fileTag: HTMLElement;
 }
 
 export interface PanelDeps {
@@ -27,6 +29,8 @@ export interface PanelDeps {
   setHours: (hours: number) => void;
   /** Switches to walking (first-person). */
   walk: () => void;
+  /** Shows/hides the Pomodoro card. */
+  togglePomodoro: () => void;
 }
 
 const TIME_MODES: readonly TimeMode[] = ['real', 'cycle24', 'cycle6', 'paused'];
@@ -107,8 +111,12 @@ export class Panel {
       const volume = slider(name, m.layers[id].volume, (v) => this.userEdit(() => mixer.setLayer(id, { volume: v })));
       const mute = button('', () => this.userEdit(() => mixer.setLayer(id, { muted: !mixer.current.layers[id].muted })), 'icon-btn');
       row.append(enabled.root, volume.root, mute);
+      const fileTag = el('span', 'source-tag', vi.panel.fileSource);
+      fileTag.title = vi.panel.fileSourceTitle;
+      fileTag.hidden = true;
+      volume.root.querySelector('.slider-label')?.append(fileTag);
       audio.body.append(row);
-      this.rows.set(id, { enabled, volume, mute, row });
+      this.rows.set(id, { enabled, volume, mute, row, fileTag });
     }
 
     // Presets: pick one to apply; save the current mix under a name; delete your own.
@@ -159,6 +167,8 @@ export class Panel {
     this.footsteps = toggle(vi.panel.footsteps, s.footsteps, (on) => settings.update({ footsteps: on }));
     this.thirdPerson = toggle(vi.panel.thirdPerson, s.walkView === 'third', (on) => settings.update({ walkView: on ? 'third' : 'first' }));
     walkRow.append(walkBtn, this.thirdPerson.root, this.footsteps.root);
+    const pomoRow = el('div', 'button-row');
+    pomoRow.append(button(vi.panel.pomodoro, () => deps.togglePomodoro(), 'btn'));
 
     // Weather visuals: linked to the sound sliders by default, or separate.
     const linkRow = el('div', 'button-row');
@@ -171,7 +181,7 @@ export class Panel {
     this.visualWind = slider(vi.panel.visualWind, s.visualWind, (v) => settings.update({ visualWind: v }));
     this.visualBox.append(this.visualRain.root, this.visualSnow.root, this.visualWind.root);
 
-    scene.body.append(walkRow, this.waves.root, linkRow, this.linkHint, this.visualBox, qualityRow, this.qualityNote, toggles);
+    scene.body.append(walkRow, pomoRow, this.waves.root, linkRow, this.linkHint, this.visualBox, qualityRow, this.qualityNote, toggles);
 
     // --- Shortcuts ---
     const keys = section(vi.panel.shortcuts, false);
@@ -268,6 +278,7 @@ export class Panel {
       r.volume.set(l.volume);
       setMuteIcon(r.mute, l.muted);
       r.row.classList.toggle('off', !l.enabled);
+      r.fileTag.hidden = this.deps.mixer.sourceOf(id) !== 'file';
     }
   }
 

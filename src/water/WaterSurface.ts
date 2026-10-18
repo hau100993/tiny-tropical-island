@@ -56,6 +56,8 @@ export interface WaterSurfaceInputs {
   sceneColor: { value: THREE.Texture | null };
   sceneDepth: { value: THREE.Texture | null };
   resolution: { value: THREE.Vector2 };
+  reflection: { value: THREE.Texture | null };
+  reflectMatrix: { value: THREE.Matrix4 };
 }
 
 export class WaterSurface {
@@ -91,6 +93,8 @@ export class WaterSurface {
         uSceneColor: inputs.sceneColor,
         uSceneDepth: inputs.sceneDepth,
         uResolution: inputs.resolution,
+        uReflection: inputs.reflection,
+        uReflectMatrix: inputs.reflectMatrix,
         uCameraNear: { value: camera.near },
         uCameraFar: { value: camera.far },
         uShallowColor: { value: new THREE.Color('#3cc8c4') },
@@ -112,6 +116,15 @@ export class WaterSurface {
     const u = this.mesh.material.uniforms;
     u.uCameraNear.value = camera.near;
     u.uCameraFar.value = camera.far;
+  }
+
+  /** Planar reflection (High): mirror image of the scene instead of the sky alone. */
+  setReflection(on: boolean): void {
+    const m = this.mesh.material;
+    if (on === 'REFLECTION' in m.defines) return;
+    if (on) m.defines.REFLECTION = '';
+    else delete m.defines.REFLECTION;
+    m.needsUpdate = true;
   }
 
   /** Refraction makes the water opaque (it draws what's behind itself); otherwise alpha-blend. */

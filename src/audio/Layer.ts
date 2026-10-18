@@ -24,6 +24,7 @@ export abstract class BaseLayer implements AudioLayer {
   private enabled = false;
   private muted = false;
   private spatial = 1;
+  private duck = 1;
   private running = false;
   private stopTimer = 0;
 
@@ -69,6 +70,12 @@ export abstract class BaseLayer implements AudioLayer {
     this.occluder.frequency.setTargetAtTime(freq, now, SPATIAL_RAMP);
   }
 
+  setDuck(gain: number, timeConstant: number): void {
+    if (gain === this.duck) return;
+    this.duck = gain;
+    this.applyGain(timeConstant);
+  }
+
   setEnabled(enabled: boolean): void {
     if (enabled === this.enabled) return;
     this.enabled = enabled;
@@ -95,7 +102,7 @@ export abstract class BaseLayer implements AudioLayer {
   /** Perceptual curve: slider position squared ≈ even loudness steps. */
   private applyGain(timeConstant = RAMP): void {
     const on = this.enabled && !this.muted;
-    const target = on ? this.volume * this.volume * this.spatial * this.trim : 0;
+    const target = on ? this.volume * this.volume * this.spatial * this.duck * this.trim : 0;
     const p = this.output.gain;
     const now = this.engine.now;
     p.cancelScheduledValues(now);

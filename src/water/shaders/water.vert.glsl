@@ -11,6 +11,10 @@ varying float vCrest;
 varying float vCloudShadow;
 varying vec2 vSwash; // x: wave front running up (0..1), y: near-shore weight
 uniform vec3 uSunDir;
+#ifdef REFLECTION
+uniform mat4 uReflectMatrix;
+varying vec4 vReflCoord;
+#endif
 
 #include <fog_pars_vertex>
 
@@ -57,6 +61,10 @@ void main() {
   wp.y += sw.x * shoreMask;
   vSwash = vec2(sw.z, shoreMask);
   vWorldPos = wp.xyz;
+#ifdef REFLECTION
+  // Projected onto the flat mirror plane; wave slopes distort the lookup in the fragment shader.
+  vReflCoord = uReflectMatrix * vec4(wp.x, 0.0, wp.z, 1.0);
+#endif
   vNormalW = normalize(vec3(-nx, 1.0 - ny, -nz));
   vCrest = ampSum > 0.0 ? disp.y / ampSum : 0.0;
   // Only near the island: far away the shadow patches would alias.

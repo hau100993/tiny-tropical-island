@@ -159,6 +159,10 @@ export class SettingsStore {
       json = null;
     }
     this.settings = parseSettings(json);
+    // First run with "reduce motion" turned on in Windows: the slowest day cycle (real clock).
+    if (json === null && typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      this.settings.timeMode = 'real';
+    }
   }
 
   get(): Readonly<Settings> {

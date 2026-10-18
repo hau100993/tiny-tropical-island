@@ -6,6 +6,10 @@ import { WavesLayer } from './synth/waves';
 import { WindLayer } from './synth/wind';
 import { Footsteps, type FootSurface } from './synth/footsteps';
 import { spatialMix, type ListenerState } from './spatial';
+import { LayerSlot, type LayerSource } from './LayerSlot';
+import { FileLayer } from './file/FileLayer';
+import { loadAudioFileConfig } from './file/config';
+import { scheduleChime, type ChimeKind } from './synth/chime';
 import { cloneMixerState, defaultMixerState, MIXER_KEY, parseMixerState } from './mixerState';
 import { LAYER_IDS, type AudioLayer, type LayerId, type LayerState, type MixerState, type SpatialMix } from './types';
 import { parseJson, readStored, writeStored } from '../core/storage';
@@ -19,7 +23,7 @@ type Listener = (state: Readonly<MixerState>) => void;
 export class Mixer {
   private state: MixerState;
   private engine: AudioEngine | null = null;
-  private readonly layers = new Map<LayerId, AudioLayer>();
+  private readonly layers = new Map<LayerId, LayerSlot>();
   private waves: WavesLayer | null = null;
   private birds: BirdsLayer | null = null;
   private seaState = 0.45;
@@ -30,6 +34,7 @@ export class Mixer {
   /** Last spatial mix sent per layer (only resent when it changes noticeably). */
   private readonly spatialSent = new Map<LayerId, SpatialMix>();
   private readonly spatialTmp: SpatialMix = { gain: 1, pan: 0, occlusion: 0 };
+  private calm = 1;
 
   constructor() {
     this.state = parseMixerState(parseJson(readStored(MIXER_KEY)));
@@ -53,10 +58,54 @@ export class Mixer {
     this.birds = new BirdsLayer(engine);
     this.setNight(this.night);
     const all: AudioLayer[] = [this.waves, this.birds, new WindLayer(engine), new RainLayer(engine), new SnowQuietLayer(engine)];
-    for (const layer of all) this.layers.set(layer.id, layer);
+    for (const layer of all) this.layers.set(layer.id, new LayerSlot(layer.id, layer, () => this.emit()));
     this.footsteps = new Footsteps(engine);
     this.applyAll(0.7);
+    this.applyCalm(0.01);
     this.emit();
+    void this.attachFiles(engine);
+  }
+
+  /** Optional recordings from public/audio/config.json replace synth layers once decoded. */
+  private async attachFiles(engine: AudioEngine): Promise<void> {
+    const config = await loadAudioFileConfig();
+    for (const id of LAYER_IDS) {
+      const cfg = config[id];
+      const slot = this.layers.get(id);
+      if (!cfg || !slot) continue;
+      const destination = id === 'snow' ? engine.direct : engine.ambience;
+      const file = new FileLayer(engine, id, destination, cfg, () => slot.detachFile());
+      void slot.attachFile(file, this.state.layers[id]);
+    }
+  }
+
+  /** Whether a layer currently plays the synthesized sound or the user's recordings. */
+  sourceOf(id: LayerId): LayerSource {
+    return this.layers.get(id)?.source ?? 'synth';
+  }
+
+  /**
+   * Pomodoro "storm calms down": rain, wind and snow sounds scale to `factor` (eased over ~20 s
+   * on the audio clock, so it also happens in a hidden tab).
+   */
+  setCalm(factor: number): void {
+    if (factor === this.calm) return;
+    this.calm = factor;
+    this.applyCalm(6);
+  }
+
+  private applyCalm(timeConstant: number): void {
+    for (const id of ['rain', 'wind', 'snow'] as const) this.layers.get(id)?.setDuck(this.calm, timeConstant);
+  }
+
+  /**
+   * Schedules a chime at a wall-clock time (ms since epoch). Returns a cancel function, or null
+   * when sound isn't running.
+   */
+  scheduleChime(atMs: number, kind: ChimeKind): (() => void) | null {
+    if (!this.engine) return null;
+    const when = this.engine.now + Math.max(0, (atMs - Date.now()) / 1000);
+    return scheduleChime(this.engine, when, kind);
   }
 
   setLayer(id: LayerId, patch: Partial<LayerState>): void {

@@ -3,9 +3,9 @@
 A local web app for Windows 11 that you leave open while you work: a small stylized tropical
 island with GPU water, weather, day/night and an ambient sound mixer. Fully offline, no backend.
 
-> Status: **Phase 5** — island, GPU water, synthesized sound mixer with presets, weather that
-> follows the mixer, a day/night cycle with clouds, stars and aurora, and walking around the
-> island in first person.
+> Status: **Phase 6** (all planned phases built) — island, GPU water with reflections, synthesized
+> sound mixer with presets and optional real recordings, weather that follows the mixer, a
+> day/night cycle with clouds, stars and aurora, walking around the island, and a Pomodoro timer.
 > See [PLAN.md](PLAN.md) for the roadmap.
 
 ## Run
@@ -29,7 +29,7 @@ Other scripts:
 
 The island shows right away, no start screen. Browsers only allow sound after you interact
 with the page, so the sound starts with your **first click or key press anywhere** (a small
-note in the bottom-left corner says so until then).
+note at the bottom of the screen says so until then).
 
 Want it silent? Turn on **Chỉ ngắm cảnh (không âm thanh)** in the *Âm thanh* section: the sound
 then never starts by itself (and is muted if it was playing). The choice is remembered.
@@ -48,6 +48,7 @@ then never starts by itself (and is muted if it was playing). The choice is reme
 | `N` | Pause / resume the day-night clock |
 | `C` | Walk around the island; press again to go back to the orbit view |
 | `V` | While walking: character view (third person) ↔ eyes view (first person) |
+| `T` | Pomodoro: show the timer and start / pause it |
 | `L` | Toggle low-power mode (30 fps, Low-level water, no shadows) |
 | `` ` `` (backquote) | Show/hide the stats overlay (FPS, CPU/GPU ms, draw calls) |
 
@@ -56,14 +57,78 @@ then never starts by itself (and is muted if it was playing). The choice is reme
 - **Âm thanh (sound):** master volume, and for each layer — Sóng biển (waves), Chim hót (birds),
   Gió lá (wind), Mưa (rain), Tuyết lặng (snow hush) — an on/off switch, a volume slider and a
   mute button. *Off* stops the layer completely (no CPU); *mute* silences it but keeps it running.
+  A small **tệp** badge next to a layer means it plays your own recordings (see below).
 - **Preset:** pick *Tập trung*, *Bão*, *Tuyết yên tĩnh*, *Bình minh yên ả*, or your own.
   **Lưu thành preset…** saves the current mix + wave strength under a name (saving with an
   existing name overwrites it). **Xóa** deletes your own presets. Up to 20 user presets.
-- **Cảnh (scene):** wave strength, quality (Thấp / Vừa / Cao), low power, camera auto-rotate.
+- **Cảnh (scene):** walk button, **Pomodoro (T)** (show/hide the timer), wave strength,
+  quality (Thấp / Vừa / Cao), low power, camera auto-rotate.
   Anti-aliasing changes between Low and the other presets apply after a page reload.
 - **Tách hình/âm:** by default the weather you *see* follows the sound sliders (Mưa → rain,
   Tuyết lặng → snow, Gió lá → wind; switching a layer off clears that weather, muting does not).
   Turn this on to get three separate visual sliders, e.g. to hear rain under a clear sky.
+
+## Pomodoro (`T` or **Pomodoro (T)** in the panel)
+
+A small card in the bottom-left corner: **25 min focus → 5 min break**, and a 15 min long break
+after every 4 focus sessions (the dots show how many are done). Buttons: start/pause, skip to
+the next part, reset, settings (⚙), hide (✕).
+
+- **Settings (⚙):** lengths of focus, short and long break (minutes), long break after N
+  sessions (0 = never), and three switches:
+  - **Tự chạy tiếp** — the next part starts by itself (otherwise the timer waits for you).
+  - **Chuông báo** — a soft bell when a part ends (falling notes into a break, rising back to
+    focus). It rings even when the soundscape is muted with `M`, but not in *Chỉ ngắm cảnh*.
+  - **Bão dịu đi khi nghỉ** — during breaks rain, wind and snow (sound *and* visuals) ease down to
+    30 % over ~20 s, and come back when focus starts.
+- The browser tab title shows the countdown (e.g. `18:42 · Tập trung`), so you can see it on the
+  taskbar.
+- Works with the tab in the background: the bell is placed on the audio clock in advance, so it
+  rings on time even though Chrome runs background timers only once a minute.
+- The timer is saved: reloading the page or restarting the browser continues where it was.
+
+## Your own sound files (optional)
+
+Every layer is synthesized by default. To use real recordings instead:
+
+1. Put audio files under `public/audio/` (any sub-folders), e.g. `public/audio/waves/beach1.ogg`.
+   OGG (Vorbis/Opus), MP3, WAV, M4A, FLAC and WebM work in Chrome/Edge.
+2. List them in [`public/audio/config.json`](public/audio/config.json):
+
+   ```json
+   {
+     "layers": {
+       "waves": {
+         "files": ["waves/beach1.ogg", { "src": "waves/beach2.mp3", "gain": 0.8, "loopEnd": 59.9 }],
+         "crossfadeSec": 4,
+         "rotateEverySec": [90, 240]
+       }
+     }
+   }
+   ```
+
+   | Field | Default | Meaning |
+   |---|---|---|
+   | `files` | — | Paths relative to `public/audio/`. A plain string or an object with the fields below |
+   | `gain` | 1 | Level of this file (0–4), to match recordings to each other |
+   | `loop` | true | `false`: play once, then crossfade to the next file |
+   | `loopStart`, `loopEnd` | 0, end | Loop points in seconds (cut MP3 padding or a bad ending) |
+   | `crossfadeSec` | 4 | Equal-power crossfade when switching files |
+   | `rotateEverySec` | [90, 180] | With several files: switch to a random other one after this many seconds |
+
+3. Reload the page (in `npm run dev` new files are picked up right away; for the built version
+   run `npm run build` again, or drop the files into `dist/audio/` and use `npm run preview`).
+
+When a layer's first file is decoded it crossfades from the synthesized sound to the recording,
+and the panel shows **tệp** next to it. Missing files and files that can't be decoded are
+skipped with one `console.info` line; if none work, the layer keeps its synthesized sound.
+Volume, mute, walk-mode position and the weather link work the same for recordings.
+
+Tips: OGG loops seamlessly; MP3 adds a little silence at the start and end (use `loopStart`/
+`loopEnd`, or convert to OGG). Keep loops between 30 s and 3 min: each file is decoded into
+memory (~20 MB per stereo minute) and at most two per layer are kept. Check the license of
+every file you use (e.g. [Freesound](https://freesound.org) with the CC0 filter); don't commit
+files you may not redistribute. More details in [`public/audio/README.md`](public/audio/README.md).
 
 ## Walking on the island (`C` or **Đi bộ trên đảo** in the panel)
 
@@ -147,6 +212,7 @@ Everything (mix, presets, panel state, scene settings) is saved in `localStorage
 |---|---|---|---|
 | Ripple simulation grid | 128² | 256² | 512² |
 | Refraction (see the seabed bend through the water) | off (transparent water) | on | on |
+| Reflection of palms, house and rocks in the water | off (sky only) | off (sky only) | on (+~0.7 ms GPU) |
 | Caustics (light patterns on the seabed) | off | 384² | 512² |
 | Shadows | off | 1024² | 2048² |
 | Grass blades | 4k | 15k | 40k |
@@ -162,6 +228,10 @@ Everything (mix, presets, panel state, scene settings) is saved in `localStorage
   are swapped every step (double buffering). Land cells are pinned to zero, so ripples reflect.
 - **Refraction:** the scene without water is rendered at half resolution; the water shader
   samples it, shifted by the surface normal and tinted by how much water the view ray crosses.
+- **Reflection (High):** the scene is rendered a second time at half resolution from a camera
+  mirrored below the sea level, with its near plane tilted onto the water plane so nothing under
+  water leaks in. The water shader looks that image up, bent by the wave slopes; where nothing
+  is reflected it uses the sky color.
 - **Caustics:** a fine grid of "sun rays" is refracted through the surface and drawn where it
   lands on the seabed; where rays converge, triangles shrink and get brighter.
 - **Swash (the moving waterline):** near the shore the water surface itself runs up the beach
@@ -182,7 +252,8 @@ pause was). Sound keeps playing.
 
 ## How the sound works (short version)
 
-All sound is generated in code with the Web Audio API — no audio files.
+All sound is generated in code with the Web Audio API — no audio files are needed (you can add
+your own, see above).
 
 - **Noise colors** (white, pink, brown) are generated once into 8 s looping buffers; each layer
   filters them differently. Loops are made seamless so they never click.
@@ -199,7 +270,11 @@ All sound is generated in code with the Web Audio API — no audio files.
   position can move it left/right and muffle it (indoors) without touching the synth itself.
 - Timed events (swells, gusts, bird calls) are scheduled on the audio clock. When the tab is
   hidden, Chrome may run timers only once a minute, so events are queued ~75 s ahead.
-- Optional real recordings (mp3/ogg) per layer arrive in Phase 6.
+- **Recordings** (optional) play through the same per-layer chain. A small Vite plugin writes
+  `audio-manifest.json` with the files that really exist, so the app never requests a missing
+  file (no red 404s in the console).
+- **Pomodoro bell:** a few sine partials of a small bar chime with exponential decay, on its own
+  output so mute-all doesn't silence it.
 
 ## Project layout
 
@@ -211,13 +286,16 @@ src/
   water/     Gerstner swell, ripple simulation, refraction capture, caustics, floating objects
   weather/   rain/snow particles, gusts, wetness & snow-cover rules
   audio/     audio engine, synthesized layers, mixer state, presets, scheduler
+    file/      audio config parsing and the recording player (crossfades)
   controls/  orbit camera, walking (first person), collision, water clicks, keyboard shortcuts
-  ui/        Vietnamese strings, start screen, control panel, stats overlay, styles
+  ui/        Vietnamese strings, control panel, Pomodoro (state machine + card), stats overlay, styles
 tests/       unit tests for pure logic
+vite-plugins/  audio-manifest plugin (lists files in public/audio)
+public/audio/  config.json for optional recordings (+ README)
 ```
 
-Everything is procedural (geometry, colors, sky, water): there are no texture, model or audio
-files in the repo.
+Everything is procedural (geometry, colors, sky, water, sound): there are no texture, model or
+audio files in the repo.
 
 ## Credits and licenses
 
@@ -228,3 +306,4 @@ files in the repo.
 | Simplex noise | public domain | reimplemented after Stefan Gustavson's reference |
 | Gerstner waves | — | technique from *GPU Gems* (2004), ch. 1 |
 | [WebGL Water](https://madebyevan.com/webgl-water/) by Evan Wallace | MIT | the heightfield ripple simulation (drop + update passes) and the caustics-by-area-ratio technique are reimplemented after it in `src/water/` |
+| Planar reflection camera (`src/water/PlanarReflection.ts`) | MIT | mirrored camera and oblique near plane adapted from three.js `examples/jsm/objects/Reflector.js` |

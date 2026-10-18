@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { WaterSim, SIM_SIZE } from './WaterSim';
 import { Caustics } from './Caustics';
 import { SceneCapture } from './SceneCapture';
+import { PlanarReflection } from './PlanarReflection';
 import { WaterSurface } from './WaterSurface';
 import type { SharedUniforms } from '../core/uniforms';
 import type { QualityProfile } from '../core/quality';
@@ -22,6 +23,8 @@ export class WaterSystem {
   private readonly simEnabled = { value: 0 };
   private readonly resolution = { value: new THREE.Vector2(1, 1) };
   private captureHidden: THREE.Object3D[] = [];
+  private readonly reflection: PlanarReflection;
+  private reflectionHidden: THREE.Object3D[] = [];
   /** Pass to `patchCaustics` for materials that should receive caustic light. */
   readonly causticsUniforms: CausticsUniforms;
 
@@ -40,6 +43,7 @@ export class WaterSystem {
     this.simEnabled.value = this.sim ? 1 : 0;
     this.caustics = floatTargets ? new Caustics(renderer, hm, heightTexture, shared, this.simTexture) : null;
     this.capture = new SceneCapture(renderer);
+    this.reflection = new PlanarReflection(renderer);
     this.causticsUniforms = {
       uCaustics: { value: null },
       uCausticsSize: { value: SIM_SIZE },
@@ -57,10 +61,13 @@ export class WaterSystem {
         sceneColor: this.capture.color,
         sceneDepth: this.capture.depth,
         resolution: this.resolution,
+        reflection: this.reflection.texture,
+        reflectMatrix: this.reflection.matrix,
       },
       camera,
     );
     this.captureHidden = [this.surface.mesh];
+    this.reflectionHidden = [this.surface.mesh];
   }
 
   applyProfile(profile: QualityProfile): void {
@@ -71,6 +78,8 @@ export class WaterSystem {
     this.causticsUniforms.uCausticsOn.value = causticsRes > 0 ? 1 : 0;
     this.capture.setEnabled(profile.refraction, this.resolution.value.x, this.resolution.value.y);
     this.surface.setRefraction(profile.refraction);
+    this.reflection.setEnabled(profile.reflection, this.resolution.value.x, this.resolution.value.y);
+    this.surface.setReflection(profile.reflection);
   }
 
   /** Simulation steps per second (follows the frame cap). */
@@ -82,6 +91,7 @@ export class WaterSystem {
   setSize(width: number, height: number): void {
     this.resolution.value.set(width, height);
     this.capture.setSize(width, height);
+    this.reflection.setSize(width, height);
   }
 
   /** Splash at world (x, z) if it is open water inside the simulated area. */
@@ -93,6 +103,11 @@ export class WaterSystem {
   /** Objects besides the water to leave out of the refraction capture (e.g. the sky dome). */
   setCaptureHidden(objects: THREE.Object3D[]): void {
     this.captureHidden = [this.surface.mesh, ...objects];
+  }
+
+  /** Objects besides the water to leave out of the reflection (sky, particles, small plants). */
+  setReflectionHidden(objects: THREE.Object3D[]): void {
+    this.reflectionHidden = [this.surface.mesh, ...objects];
   }
 
   /** Step 1 of the frame: simulation and caustics passes (no scene geometry involved). */
@@ -108,5 +123,6 @@ export class WaterSystem {
   captureScene(scene: THREE.Scene, camera: THREE.PerspectiveCamera): void {
     this.surface.syncCamera(camera);
     this.capture.render(scene, camera, this.captureHidden);
+    this.reflection.render(scene, camera, this.reflectionHidden, 0);
   }
 }

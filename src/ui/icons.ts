@@ -9,4 +9,10 @@ export const icons = {
   speakerOff: svg(`${speaker}<path d="m16 9 6 6"/><path d="m22 9-6 6"/>`),
   chevronRight: svg('<path d="m9 6 6 6-6 6"/>'),
   chevronLeft: svg('<path d="m15 6-6 6 6 6"/>'),
+  play: svg('<path d="M7 5v14l12-7z" fill="currentColor" stroke="none"/>'),
+  pause: svg('<path d="M8 5v14"/><path d="M16 5v14"/>'),
+  skip: svg('<path d="M6 5v14l9-7z" fill="currentColor" stroke="none"/><path d="M18 5v14"/>'),
+  reset: svg('<path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 4v4h4"/>'),
+  gear: svg('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>'),
+  close: svg('<path d="m6 6 12 12"/><path d="M18 6 6 18"/>'),
 };

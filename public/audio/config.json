@@ -1,0 +1,10 @@
+{
+  "_help": "Optional real recordings per layer. See public/audio/README.md. Empty lists = synthesized sound.",
+  "layers": {
+    "waves": { "files": [], "crossfadeSec": 4, "rotateEverySec": [90, 240] },
+    "birds": { "files": [], "crossfadeSec": 4, "rotateEverySec": [90, 240] },
+    "wind": { "files": [], "crossfadeSec": 4, "rotateEverySec": [90, 240] },
+    "rain": { "files": [], "crossfadeSec": 4, "rotateEverySec": [90, 240] },
+    "snow": { "files": [], "crossfadeSec": 4, "rotateEverySec": [90, 240] }
+  }
+}

@@ -9,6 +9,7 @@ export const RAMP = 0.12;
  *
  *   layers ─▶ ambience bus ─▶ muffle lowpass ─┐
  *   snow layer ─▶ direct bus ─────────────────┼─▶ master gain ─▶ compressor ─▶ speakers
+ *   Pomodoro chime ─▶ alerts bus ───────────────────────────────┘ (not affected by mute-all)
  *
  * The context is created only after a user gesture (browser autoplay policy).
  */
@@ -20,6 +21,8 @@ export class AudioEngine {
   readonly ambience: GainNode;
   /** Layers that should not be muffled (the snow hush itself). */
   readonly direct: GainNode;
+  /** Notification sounds: skip the master volume/mute so a muted soundscape still chimes. */
+  readonly alerts: GainNode;
   private readonly muffle: BiquadFilterNode;
   private readonly master: GainNode;
   private masterVolume = 0.8;
@@ -53,6 +56,8 @@ export class AudioEngine {
     this.ambience.connect(this.muffle);
     this.direct = ctx.createGain();
     this.direct.connect(this.master);
+    this.alerts = ctx.createGain();
+    this.alerts.connect(compressor);
 
     // If Windows switches audio devices or the context gets suspended, resume on next gesture.
     const resumeOnGesture = (): void => {

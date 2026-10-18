@@ -132,6 +132,8 @@ export function createWorld(
   // The refraction capture only needs what lies under the water. Sky and particles would show
   // up twice; vegetation is all on land, so skipping it saves most of the capture's cost.
   water.setCaptureHidden([sky.mesh, ...weather.particleMeshes, forest.group, grass.mesh, flowers.group, fireflies.points]);
+  // Reflections keep the trees (that's what you want to see mirrored) but skip small stuff.
+  water.setReflectionHidden([sky.mesh, ...weather.particleMeshes, grass.mesh, flowers.group, fireflies.points]);
 
   return {
     heightmap,

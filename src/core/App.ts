@@ -19,6 +19,7 @@ import type { FootSurface } from '../audio/synth/footsteps';
 import { DebugOverlay } from '../ui/DebugOverlay';
 import { Panel } from '../ui/Panel';
 import { AudioPrompt } from '../ui/AudioPrompt';
+import { PomodoroOverlay } from '../ui/PomodoroOverlay';
 import { vi } from '../ui/strings.vi';
 import { Mixer } from '../audio/mixer';
 import { PresetStore } from '../audio/presets';
@@ -26,6 +27,11 @@ import type { WeatherTargets } from '../weather/Weather';
 import { wallSeconds } from '../weather/wind';
 import type { SkyOptions, SkyWeather } from '../world/dayNight';
 import type { TimeMode } from '../world/celestial';
+
+/** Weather level during a Pomodoro break with "Bão dịu đi khi nghỉ". */
+const CALM_LEVEL = 0.3;
+/** Time constant of the calm-down, seconds (≈ 20 s to settle). */
+const CALM_EASE = 6;
 
 export class App {
   private readonly renderer: THREE.WebGLRenderer;
@@ -52,6 +58,10 @@ export class App {
   private readonly mixer = new Mixer();
   private readonly presets = new PresetStore();
   private readonly panel: Panel;
+  private readonly pomodoro: PomodoroOverlay;
+  /** Pomodoro storm calm: target and the eased value the visuals use. */
+  private calmTarget = 1;
+  private calmVisual = 1;
   /** Time mode to return to when N un-pauses the clock. */
   private resumeMode: TimeMode = 'cycle24';
   private shadowsOn: boolean | null = null;
@@ -127,6 +137,15 @@ export class App {
       getHours: () => this.world.dayNight.hours,
       setHours: (h) => this.world.dayNight.setHours(h),
       walk: () => this.cameras.setMode('walk'),
+      togglePomodoro: () => this.pomodoro.setVisible(!this.pomodoro.isVisible),
+    });
+    this.pomodoro = new PomodoroOverlay(ui, {
+      scheduleChime: (atMs, kind) => this.mixer.scheduleChime(atMs, kind),
+      soundOn: () => this.mixer.started && !this.settings.get().sceneOnly,
+      onCalm: (active) => {
+        this.calmTarget = active ? CALM_LEVEL : 1;
+        this.mixer.setCalm(this.calmTarget);
+      },
     });
     this.audioPrompt = new AudioPrompt(ui);
     // No start screen: sound starts with the first click or key press anywhere (browsers
@@ -162,9 +181,10 @@ export class App {
    */
   private weatherTargets(): WeatherTargets {
     const s = this.settings.get();
-    if (!s.weatherLinked) return { rain: s.visualRain, snow: s.visualSnow, wind: s.visualWind };
+    const k = this.calmVisual;
+    if (!s.weatherLinked) return { rain: s.visualRain * k, snow: s.visualSnow * k, wind: s.visualWind * k };
     const l = this.mixer.current.layers;
-    const level = (id: 'rain' | 'snow' | 'wind'): number => (l[id].enabled ? l[id].volume : 0);
+    const level = (id: 'rain' | 'snow' | 'wind'): number => (l[id].enabled ? l[id].volume * k : 0);
     return { rain: level('rain'), snow: level('snow'), wind: level('wind') };
   }
 
@@ -179,6 +199,7 @@ export class App {
     try {
       await this.mixer.start();
       this.audioPrompt.hide();
+      this.pomodoro.refreshSound();
     } catch (e) {
       console.warn('Audio start failed', e);
       this.audioPrompt.show(true);
@@ -216,6 +237,7 @@ export class App {
         }
       },
     });
+    this.keymap.register({ code: 'KeyT', keyLabel: 'T', label: vi.shortcuts.pomodoro, action: () => this.pomodoro.toggleRunning() });
     this.keymap.register({ code: 'KeyC', keyLabel: 'C', label: vi.shortcuts.walk, action: () => this.cameras.toggle() });
     this.keymap.register({
       code: 'KeyV',
@@ -325,6 +347,7 @@ export class App {
     const first = this.sceneOnlyApplied === null;
     this.sceneOnlyApplied = on;
     if (first) return;
+    this.pomodoro.refreshSound();
     if (on) {
       this.audioPrompt.hide();
       if (this.mixer.started) this.mixer.setMaster({ muted: true });
@@ -359,6 +382,7 @@ export class App {
     this.env.update(dt);
     sharedUniforms.uTime.value = elapsed;
 
+    this.calmVisual += (this.calmTarget - this.calmVisual) * (1 - Math.exp(-dt / CALM_EASE));
     const weather = this.world.weather;
     weather.setTargets(this.weatherTargets());
     weather.update(dt, wallSeconds());
