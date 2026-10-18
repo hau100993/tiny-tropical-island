@@ -110,6 +110,20 @@ export class PomodoroOverlay {
     this.render();
   }
 
+  /** For the desk monitor: phase, time left, progress; null while hidden and idle. */
+  snapshot(): { phase: string; remaining: string; progress: number; running: boolean; onBreak: boolean } | null {
+    const s = this.state;
+    if (!this.visible && !s.running) return null;
+    const left = remaining(s, Date.now());
+    return {
+      phase: vi.pomodoro.phases[s.phase],
+      remaining: formatRemaining(left),
+      progress: 1 - left / phaseMs(s.phase, this.config),
+      running: s.running,
+      onBreak: isBreak(s.phase),
+    };
+  }
+
   get isVisible(): boolean {
     return this.visible;
   }

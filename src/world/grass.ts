@@ -38,7 +38,7 @@ export class Grass {
       const x = randRange(rng, -extent, extent);
       const z = randRange(rng, -extent, extent);
       if (hm.surfaceAt(x, z) !== 'grass') continue;
-      if (Math.hypot(x - house.x, z - house.z) < 4.5) continue;
+      if (Math.hypot(x - house.x, z - house.z) < 5.5) continue;
       // Clumps: more blades where the noise is high.
       const clump = 0.5 + 0.5 * fbm2(noise, x * 0.08 - 11, z * 0.08 + 5, 2);
       if (rng() > 0.25 + 0.75 * clump) continue;

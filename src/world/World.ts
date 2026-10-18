@@ -4,7 +4,7 @@ import { createLayout, type IslandLayout } from './layout';
 import { createTerrainMesh, createHeightTexture } from './terrain';
 import { createForest, type Forest } from './vegetation/forest';
 import { GroundFlowers } from './vegetation/groundFlowers';
-import { createHouse, HOUSE_DIMS, type HouseInfo } from './house';
+import { createHouse, type HouseInfo } from './house';
 import { createRocks, createBeachSet, createBoat, type Rocks } from './props';
 import { createSky, type Sky } from './sky';
 import { createLighting, type Lighting } from './lighting';
@@ -41,29 +41,28 @@ export interface World {
 }
 
 /** Applies weather features to every MeshStandardMaterial under `root` (each material once). */
-function patchTree(root: THREE.Object3D, features: WorldMaterialFeatures, shared: SharedUniforms, skip?: THREE.Material): void {
-  const done = new Set<THREE.Material>();
+function patchTree(root: THREE.Object3D, features: WorldMaterialFeatures, shared: SharedUniforms, skip: THREE.Material[] = []): void {
+  const done = new Set<THREE.Material>(skip);
   root.traverse((o) => {
     const m = (o as THREE.Mesh).material;
-    if (m instanceof THREE.MeshStandardMaterial && m !== skip && !done.has(m)) {
+    if (m instanceof THREE.MeshStandardMaterial && !done.has(m)) {
       done.add(m);
       patchWorldMaterial(m, features, shared);
     }
   });
 }
 
-/** Roof footprint (house-local x ∈ ±3.1, z ∈ [−2.5, 4.7]) → shared shelter uniforms. */
+/** Roof footprint (house-local rectangle) → shared shelter uniforms. */
 function setShelter(shared: SharedUniforms, house: HouseInfo): void {
   const p = house.placement;
-  const z0 = HOUSE_DIMS.roomBack - 0.5;
-  const z1 = HOUSE_DIMS.porchFront + 0.4;
+  const { x1, z0, z1 } = house.roof;
   const zc = (z0 + z1) / 2;
   const c = Math.cos(p.rotY);
   const s = Math.sin(p.rotY);
   // House-local (0, zc) in world space; the shaders rotate world → local with (cos, sin).
   shared.uShelter.value.set(p.x + zc * s, p.z + zc * c, c, s);
   // Dry below the eaves (roof surfaces above still get snow); particles hidden up to the ridge.
-  shared.uShelterSize.value.set(HOUSE_DIMS.halfWidth + 0.6, (z1 - z0) / 2, house.floorY + 2.15, house.ridgeY);
+  shared.uShelterSize.value.set(x1, (z1 - z0) / 2, house.eaveY, house.ridgeY);
 }
 
 export function createWorld(
@@ -97,7 +96,7 @@ export function createWorld(
 
   const house = createHouse(heightmap, layout.house, WORLD_SEED + 3);
   scene.add(house.group);
-  patchTree(house.group, { wet: true, porosity: 0.7, snow: true, sheltered: true }, shared, house.windowMaterial);
+  patchTree(house.group, { wet: true, porosity: 0.7, snow: true, sheltered: true }, shared, [house.windowMaterial, house.glassMaterial]);
   setShelter(shared, house);
 
   const rocks = createRocks(heightmap, layout, WORLD_SEED + 4);

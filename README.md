@@ -4,10 +4,10 @@ A local web app for Windows 11 that you leave open while you work: a small styli
 island with GPU water, weather, day/night and your own ambient sound recordings. Fully offline,
 no backend.
 
-> Status: **Phase 7a** — island, GPU water with reflections, scene presets (weather + sky +
+> Status: **Phase 7c** — island, GPU water with reflections, scene presets (weather + sky +
 > time), a library of your own recordings that play with the scenes (synthesized sound as the
-> fallback), a day/night cycle with clouds, stars and aurora, walking around the island, and a
-> Pomodoro timer.
+> fallback), a day/night cycle with clouds, stars and aurora, walking around the island, a
+> modern wooden house with a work desk facing the sea, and a Pomodoro timer.
 > See [PLAN.md](PLAN.md) for the roadmap.
 
 ## Run
@@ -51,6 +51,9 @@ then never starts by itself (and is muted if it was playing). The choice is reme
 | `C` | Walk around the island; press again to go back to the orbit view |
 | `V` | While walking: character view (third person) ↔ eyes view (first person) |
 | `T` | Pomodoro: show the timer and start / pause it |
+| `B` | Work desk: sit down at the desk in the house (from anywhere) / get up |
+| `E` | While walking next to the desk: sit down; at the desk: get up |
+| `Esc` | At the desk: get up |
 | `L` | Toggle low-power mode (30 fps, Low-level water, no shadows) |
 | `` ` `` (backquote) | Show/hide the stats overlay (FPS, CPU/GPU ms, draw calls) |
 
@@ -61,7 +64,8 @@ then never starts by itself (and is muted if it was playing). The choice is reme
 - **Cảnh (scene):** pick a scene preset, save the current effects as your own, update or delete
   your presets; sliders for rain, snow, wind, waves, clouds and gloom, and the rainbow.
 - **Bầu trời (sky):** day length, clock, night options (shooting stars, aurora, stars, fireflies).
-- **Hiển thị (display):** walk, character view, footsteps, **Pomodoro (T)**, quality
+- **Hiển thị (display):** **Góc làm việc (B)**, **Mở app ở góc làm việc** (start the app
+  sitting at the desk), walk, character view, footsteps, **Pomodoro (T)**, quality
   (Thấp / Vừa / Cao), low power, camera auto-rotate. Anti-aliasing changes between Low and the
   other qualities apply after a page reload.
 
@@ -101,6 +105,29 @@ muffle and the Pomodoro calm apply to them. A file the browser can't play is mar
 synthesized soundscape plays whenever none of your recordings is playing, and it follows the
 scene (rain slider → rain sound, wind → gusts, waves → surf, birds by day). As soon as a
 recording plays it fades out. So a fresh install (the repo ships no audio) is never silent.
+
+## The house and the work desk
+
+A modern, minimal wooden house on stilts, a few steps up from the beach: dark vertical board
+cladding, a mono-pitch roof with **8 solar panels** and a **Starlink** dish (battery and inverter
+under the floor), and a **floor-to-ceiling glass wall** facing the sea with a deck in front
+(glass railing, steps at its right end, the sliding glass door is the way in). Inside,
+Japanese-style and sparse: a futon on tatami with a paper lantern, a sofa on a rug with a low
+table, a hinoki bathtub behind shoji screens, a big monstera and a snake plant, and a long oak
+desk along the glass with **two monitors**. Trees are kept out of the view from the glass to the
+sea.
+
+**Sitting at the desk:** press **B** (or *Góc làm việc* in the panel) from anywhere, or walk in
+and press **E** next to the chair. At the desk:
+
+- **drag** with the mouse to look around (screens, the sea, the room); **scroll** to lean in and
+  read the screens; **E**, **Esc** or **B** to get up. The mouse stays free, so the panel and the
+  Pomodoro card work as usual.
+- **Left monitor:** a code editor that slowly types code (a few files of this project).
+  **Right monitor:** the clock and date, the Pomodoro timer, the scene preset and its effects,
+  what is playing, and the time on the island.
+- Rain is muffled indoors; at night the pendant lamp and the desk lamp light the room.
+- **Mở app ở góc làm việc** in the *Hiển thị* section opens the app straight at the desk.
 
 ## Pomodoro (`T` or **Pomodoro (T)** in the panel)
 

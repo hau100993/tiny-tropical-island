@@ -46,6 +46,8 @@ export interface Settings {
   activeScene: string;
   /** Play the synthesized soundscape while no recording is playing. */
   synthFallback: boolean;
+  /** Open the app sitting at the desk in the house. */
+  startAtDesk: boolean;
 }
 
 export type SettingsPatch = Partial<Omit<Settings, 'version'>>;
@@ -76,6 +78,7 @@ export function defaultSettings(): Settings {
     sceneOnly: false,
     activeScene: 'b-sunny',
     synthFallback: true,
+    startAtDesk: false,
   };
 }
 
@@ -140,6 +143,7 @@ export function parseSettings(json: string | null): Settings {
     walkView: raw.walkView === 'first' || raw.walkView === 'third' ? raw.walkView : defaults.walkView,
     activeScene: typeof raw.activeScene === 'string' ? raw.activeScene.slice(0, 64) : defaults.activeScene,
     synthFallback: bool(raw.synthFallback, defaults.synthFallback),
+    startAtDesk: bool(raw.startAtDesk, defaults.startAtDesk),
   };
 }
 

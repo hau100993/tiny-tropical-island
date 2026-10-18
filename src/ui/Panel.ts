@@ -28,6 +28,8 @@ export interface PanelDeps {
   walk: () => void;
   /** Shows/hides the Pomodoro card. */
   togglePomodoro: () => void;
+  /** Sit at the desk in the house (or get up). */
+  toggleDesk: () => void;
 }
 
 const TIME_MODES: readonly TimeMode[] = ['real', 'cycle24', 'cycle6', 'paused'];
@@ -48,6 +50,7 @@ export class Panel {
   private readonly autoRotate: ToggleControl;
   private readonly footsteps: ToggleControl;
   private readonly thirdPerson: ToggleControl;
+  private readonly startAtDesk: ToggleControl;
   private readonly startQuality: QualityLevel;
   private readonly timeModeBtns = new Map<TimeMode, HTMLButtonElement>();
   private clock: SliderControl | null = null;
@@ -107,6 +110,9 @@ export class Panel {
     this.thirdPerson = toggle(vi.panel.thirdPerson, s.walkView === 'third', (on) => settings.update({ walkView: on ? 'third' : 'first' }));
     this.footsteps = toggle(vi.panel.footsteps, s.footsteps, (on) => settings.update({ footsteps: on }));
     walkRow.append(walkBtn, this.thirdPerson.root, this.footsteps.root);
+    const deskRow = el('div', 'button-row');
+    this.startAtDesk = toggle(vi.desk.startAtDesk, s.startAtDesk, (on) => settings.update({ startAtDesk: on }));
+    deskRow.append(button(vi.desk.button, () => deps.toggleDesk(), 'btn primary'), this.startAtDesk.root);
     const pomoRow = el('div', 'button-row');
     pomoRow.append(button(vi.panel.pomodoro, () => deps.togglePomodoro(), 'btn'));
     const qualityRow = el('div', 'button-row');
@@ -121,7 +127,7 @@ export class Panel {
     this.lowPower = toggle(vi.panel.lowPower, s.lowPower, (on) => settings.update({ lowPower: on }));
     this.autoRotate = toggle(vi.panel.autoRotate, s.autoRotate, (on) => settings.update({ autoRotate: on }));
     displayToggles.append(this.lowPower.root, this.autoRotate.root);
-    display.body.append(walkRow, pomoRow, qualityRow, this.qualityNote, displayToggles);
+    display.body.append(deskRow, walkRow, pomoRow, qualityRow, this.qualityNote, displayToggles);
 
     // --- Shortcuts ---
     const keys = section(vi.panel.shortcuts, false);
@@ -210,6 +216,7 @@ export class Panel {
     this.synthFallback.set(s.synthFallback);
     this.enableAudioBtn.hidden = this.deps.mixer.started || s.sceneOnly;
     this.thirdPerson.set(s.walkView === 'third');
+    this.startAtDesk.set(s.startAtDesk);
     for (const [mode, b] of this.timeModeBtns) b.setAttribute('aria-pressed', String(mode === s.timeMode));
     this.meteors?.set(s.meteors);
     this.aurora?.set(s.aurora);

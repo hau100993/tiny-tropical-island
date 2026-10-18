@@ -1,6 +1,6 @@
 import { CircleGrid, CollisionWorld, frame, rayBox, rayCircle, toLocal, type BoxCollider, type CircleCollider, type Frame, type Platform } from './collision';
 import type { Heightmap, Surface } from '../world/heightmap';
-import { HOUSE_DIMS, type HouseInfo } from '../world/house';
+import type { HouseInfo, LocalBox, LocalRect } from '../world/house';
 import type { Placement } from '../world/layout';
 import type { TrunkInstance } from '../world/vegetation/forest';
 
@@ -33,6 +33,7 @@ export class IslandColliders {
   /** What the third-person camera can't pass through: walls, roof, floor (see cameraDistance). */
   private readonly cameraBoxes: BoxCollider[];
   private readonly heightmap: Heightmap;
+  private readonly house: HouseInfo;
   /** Where walking starts: at the foot of the porch steps, looking out to sea. */
   readonly spawn: { x: number; z: number; yaw: number };
 
@@ -41,65 +42,33 @@ export class IslandColliders {
     const p = house.placement;
     this.houseFrame = frame(p.x, p.z, p.rotY);
     this.floorY = house.floorY;
+    this.house = house;
     const F = house.floorY;
-    const D = HOUSE_DIMS;
 
-    // House-local rectangle → collider in world space (its frame sits at the rectangle center).
-    const box = (x0: number, x1: number, z0: number, z1: number, yMin: number, yMax: number): BoxCollider => ({
-      ...this.houseRect((x0 + x1) / 2, (z0 + z1) / 2),
-      hx: Math.abs(x1 - x0) / 2,
-      hz: Math.abs(z1 - z0) / 2,
-      yMin,
-      yMax,
+    // House-local box → collider in world space (its frame sits at the box center).
+    const box = (l: LocalBox): BoxCollider => ({
+      ...this.houseRect((l.x0 + l.x1) / 2, (l.z0 + l.z1) / 2),
+      hx: (l.x1 - l.x0) / 2,
+      hz: (l.z1 - l.z0) / 2,
+      yMin: l.y0,
+      yMax: l.y1,
     });
-    const W = D.halfWidth;
-    const T = 0.08; // half wall thickness
-    const wallTop = F + D.wallHeight;
-    const porchEdge = D.porchFront - 0.1;
-    const railTop = F + 0.95;
-    const boxes: BoxCollider[] = [
-      // Room walls; the front wall has a 1.1 m door gap in the middle.
-      box(-W, W, D.roomBack - T, D.roomBack + T, F, wallTop),
-      box(-W - T, -W + T, D.roomBack, D.roomFront, F, wallTop),
-      box(W - T, W + T, D.roomBack, D.roomFront, F, wallTop),
-      box(-W, -0.55, D.roomFront - T, D.roomFront + T, F, wallTop),
-      box(0.55, W, D.roomFront - T, D.roomFront + T, F, wallTop),
-      // Wall above the door (only the camera can reach it; the walker's head is lower).
-      box(-0.55, 0.55, D.roomFront - T, D.roomFront + T, F + 2.05, wallTop),
-      // Porch railings, open in the middle of the front for the steps.
-      box(-W - T, -W + T, D.roomFront, porchEdge, F, railTop),
-      box(W - T, W + T, D.roomFront, porchEdge, F, railTop),
-      box(-W, -0.7, porchEdge - T, porchEdge + T, F, railTop),
-      box(0.7, W, porchEdge - T, porchEdge + T, F, railTop),
-      // Furniture: bed, table, stool.
-      box(-2.35, -1.35, -1.9, 0.1, F, F + 0.57),
-      box(1.0, 2.0, -1.65, -0.95, F, F + 0.78),
-      box(1.33, 1.67, -0.78, -0.43, F, F + 0.45),
-    ];
-    // Stilts under the floor (only matter where the ground is low enough to walk under).
-    for (const lz of [-1.9, 0, 1.9, 4.1]) {
-      for (const lx of [-2.4, 0, 2.4]) {
-        if (lz === 0 && lx === 0) continue;
-        // Top just below the floor beams, so it never catches feet on the top step.
-        boxes.push(box(lx - 0.1, lx + 0.1, lz - 0.1, lz + 0.1, -100, F - 0.35));
-      }
-    }
+    // Walls, glass, railings, furniture and stilts all come from the house itself.
+    const boxes: BoxCollider[] = house.solids.map(box);
 
-    const floorZ0 = D.roomBack - 0.05;
-    const floorZ1 = D.porchFront;
+    const fl = house.floor;
     const floor: Platform<WalkSurface> = {
-      ...this.houseRect(0, (floorZ0 + floorZ1) / 2),
-      hx: W + 0.1,
-      hz: (floorZ1 - floorZ0) / 2,
+      ...this.houseRect((fl.x0 + fl.x1) / 2, (fl.z0 + fl.z1) / 2),
+      hx: (fl.x1 - fl.x0) / 2,
+      hz: (fl.z1 - fl.z0) / 2,
       height: () => F,
       surface: 'wood',
     };
-    // Treads step down from the porch: tread k (1-based) spans [porchFront + (k−1)·depth, porchFront + k·depth].
-    const s = house.steps;
+    // Treads step down from the deck: tread k (1-based) spans [z0 + (k−1)·depth, z0 + k·depth].
+    const s = house.stairs;
     const stairsLen = Math.max(0, s.count - 1) * s.depth;
-    const stairsMid = D.porchFront + stairsLen / 2;
     const stairs: Platform<WalkSurface> = {
-      ...this.houseRect(0, stairsMid),
+      ...this.houseRect(s.x, s.z0 + stairsLen / 2),
       hx: s.halfWidth,
       hz: stairsLen / 2,
       height: (_lx, lz) => {
@@ -128,18 +97,13 @@ export class IslandColliders {
     ];
     this.world = new CollisionWorld<WalkSurface>(hm, circles, boxes, [floor, stairs]);
     this.heightmap = hm;
-    // The camera also stays out of the roof and below-floor space (walls come from `boxes`).
-    const roofZ0 = D.roomBack - 0.5;
-    const roofZ1 = D.porchFront + 0.4;
+    // The camera stays out of full-height solids (walls, glass), the roof, the floor slab and
+    // the steps; furniture and railings don't block it.
     this.cameraBoxes = [
-      ...boxes.filter((b) => b.yMin >= F - 0.01 && b.yMax >= wallTop - 0.01), // walls and lintel
-      box(-W - 0.6, W + 0.6, roofZ0, roofZ1, F + D.wallHeight - 0.05, house.ridgeY),
-      box(-W - 0.1, W + 0.1, floorZ0, floorZ1, F - 1.2, F - 0.02),
-      // The steps are solid blocks down to the ground; their top follows the treads, so use
-      // the lower half of the flight (the upper treads are covered by the floor box above).
-      box(-s.halfWidth, s.halfWidth, D.porchFront, D.porchFront + stairsLen, F - s.count * s.rise - 0.5, F - (s.count / 2) * s.rise),
+      ...house.solids.filter((l) => l.y0 >= F - 0.01 && l.y1 >= F + 2.4).map(box),
+      ...house.cameraSolids.map(box),
     ];
-    const foot = this.houseRect(0, D.porchFront + stairsLen + 1.2);
+    const foot = this.houseRect(s.x, s.z0 + stairsLen + 1.2);
     // Camera yaw whose forward (−Z rotated by yaw) equals the house's local +Z.
     this.spawn = { x: foot.cx, z: foot.cz, yaw: p.rotY + Math.PI };
     this.trees = new CircleGrid(inputs.trunks.map((t) => ({ x: t.x, z: t.z, r: t.radius })), 6);
@@ -155,12 +119,28 @@ export class IslandColliders {
   shelterAt(x: number, z: number, feetY: number): Shelter {
     if (feetY < this.floorY - 0.3) return 'none';
     toLocal(this.houseFrame, x, z, this.local);
-    const lx = Math.abs(this.local.x);
-    const lz = this.local.z;
-    const D = HOUSE_DIMS;
-    if (lx < D.halfWidth && lz > D.roomBack && lz < D.roomFront) return 'room';
-    if (lx < D.halfWidth + 0.6 && lz > D.roomBack - 0.5 && lz < D.porchFront + 0.4) return 'porch';
+    if (inside(this.house.room, this.local.x, this.local.z)) return 'room';
+    if (inside(this.house.roof, this.local.x, this.local.z)) return 'porch';
     return 'none';
+  }
+
+  /** World position of a house-local point. */
+  houseToWorld(lx: number, lz: number, out: { x: number; z: number }): { x: number; z: number } {
+    const f = this.houseFrame;
+    out.x = f.cx + lx * f.cos + lz * f.sin;
+    out.z = f.cz - lx * f.sin + lz * f.cos;
+    return out;
+  }
+
+  /** House-local position of a world point. */
+  worldToHouse(x: number, z: number, out: { x: number; z: number }): { x: number; z: number } {
+    toLocal(this.houseFrame, x, z, out);
+    return out;
+  }
+
+  /** Camera yaw that looks along house-local +Z (out through the glass wall, to the sea). */
+  get seaYaw(): number {
+    return this.house.placement.rotY + Math.PI;
   }
 
   /**
@@ -201,4 +181,8 @@ export class IslandColliders {
   treesNear(x: number, z: number, radius: number): number {
     return this.trees.countWithin(x, z, radius);
   }
+}
+
+function inside(r: LocalRect, x: number, z: number): boolean {
+  return x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1;
 }

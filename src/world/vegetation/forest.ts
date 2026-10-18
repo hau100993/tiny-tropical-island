@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { SPECIES, type Site, type Species } from './species';
 import type { Heightmap } from '../heightmap';
-import type { Circle, Placement } from '../layout';
+import { inHouseView, type Circle, type Placement } from '../layout';
 import { createSwayDepthMaterial, patchWorldMaterial } from '../patchMaterial';
 import { fbm2, type Noise2D } from '../../core/noise';
 import { createRng, randRange } from '../../core/rng';
@@ -76,8 +76,9 @@ export function createForest(
         house: Math.hypot(x - house.x, z - house.z),
         patch: 0.5 + 0.5 * fbm2(noise, x * 0.04 + 31, z * 0.04 - 17, 2),
       };
-      if (site.house < (sp.layer === 'tree' ? 8 + sp.radius * 0.5 : 4.5)) continue;
+      if (site.house < (sp.layer === 'tree' ? 9 + sp.radius * 0.5 : 6)) continue;
       if (sp.layer === 'tree' && clearings.some((c) => Math.hypot(c.x - x, c.z - z) < c.r)) continue;
+      if (sp.layer === 'tree' && inHouseView(house, x, z)) continue;
       if (rng() > sp.habitat(site)) continue;
       const s = randRange(rng, sp.scale[0], sp.scale[1]);
       if (!grid.free(x, z, sp, s)) continue;

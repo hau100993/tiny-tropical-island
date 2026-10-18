@@ -32,6 +32,20 @@ export interface IslandLayout {
   clearings: Circle[];
 }
 
+/**
+ * True inside the wedge seen from the house's glass wall toward the sea (house-local +Z,
+ * about ±45°): trees are kept out so the view from the desk stays open.
+ */
+export function inHouseView(house: Placement, x: number, z: number): boolean {
+  const dx = x - house.x;
+  const dz = z - house.z;
+  const c = Math.cos(house.rotY);
+  const s = Math.sin(house.rotY);
+  const lx = dx * c - dz * s;
+  const lz = dx * s + dz * c;
+  return lz > 2 && lz < 90 && Math.abs(lx) < 5 + lz;
+}
+
 /** Compass direction (radians, in the x-z plane) the house faces. */
 const HOUSE_ANGLE = 0.7;
 
@@ -62,7 +76,7 @@ export function createLayout(hm: Heightmap, rng: Rng): IslandLayout {
   };
 
   const clearings: Circle[] = [
-    { x: house.x, z: house.z, r: 10 },
+    { x: house.x, z: house.z, r: 11 },
     { x: umbrella.x, z: umbrella.z, r: 5 },
     // Path from the porch steps down to the beach.
     { x: (house.x + umbrella.x) / 2, z: (house.z + umbrella.z) / 2, r: 4 },

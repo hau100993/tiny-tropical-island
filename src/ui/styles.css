@@ -484,6 +484,32 @@ body.walking .panel {
   transition: opacity 0.8s ease;
 }
 
+.desk-prompt {
+  position: fixed;
+  left: 50%;
+  top: 58%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  color: #fff;
+  background: rgba(16, 28, 36, 0.62);
+  border-radius: 999px;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.fader {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.fader.on {
+  opacity: 1;
+}
+
 .walk-hint.faded {
   opacity: 0;
 }

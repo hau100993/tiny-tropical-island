@@ -123,12 +123,13 @@ export class DayNight {
     u.uLightColor.value.copy(this.tmp).multiplyScalar(useSun ? Math.min(1, sunI / 2.6) : moonI * 2.2);
     this.lighting.setHemi(p.hemiSky, p.hemiGround, p.hemiIntensity * (1 - 0.25 * oc));
 
-    // House: windows and the porch lantern glow from dusk to dawn.
+    // House: lamp shades and the wall light glow from dusk to dawn; by day a soft bounce
+    // light keeps the room readable next to the bright sea outside the glass.
     const lamps = smoothstep(0.08, -0.06, e);
     this.house.windowMaterial.emissiveIntensity = lamps * 1.6;
-    this.house.lamp.intensity = lamps * 6;
-    this.house.roomLamp.intensity = lamps * 3;
-    this.house.windowMaterial.opacity = 0.3 + 0.6 * lamps;
+    this.house.lamp.intensity = lamps * 4;
+    this.house.roomLamp.intensity = lamps * 5;
+    this.house.fillLight.intensity = sunUp * (1 - 0.5 * oc) * 2.2 + lamps * 0.6;
 
     // Clouds: base cover, more with bad weather; they drift with the wind.
     u.uCloudCover.value = Math.min(1, Math.max(opts.clouds, oc * 0.95));

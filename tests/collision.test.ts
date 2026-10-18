@@ -61,30 +61,43 @@ describe('IslandColliders', () => {
     expect(c.shelterAt(x, z, data.heightmap.heightAt(x, z))).toBe('none');
   });
 
-  it('can climb the steps to the porch and walk into the room', () => {
-    const { x: hx, z: hz, rotY } = data.house.placement;
-    const toWorld = (lx: number, lz: number): [number, number] => [
-      hx + lx * Math.cos(rotY) + lz * Math.sin(rotY),
-      hz - lx * Math.sin(rotY) + lz * Math.cos(rotY),
-    ];
-    // Walk from the spawn point up the steps (local +Z → −Z along x = 0) into the room.
-    let feet = data.heightmap.heightAt(c.spawn.x, c.spawn.z);
-    for (let lz = 7; lz >= -1; lz -= 0.05) {
-      const [x, z] = toWorld(0, lz);
+  const toWorld = (lx: number, lz: number): [number, number] => {
+    const o = c.houseToWorld(lx, lz, { x: 0, z: 0 });
+    return [o.x, o.z];
+  };
+
+  it('can climb the steps to the deck and walk in through the sliding door', () => {
+    // From below the steps (deck's right end), up along local −Z, through the open glass door.
+    const lx = data.house.stairs.x - 0.1;
+    const start = toWorld(lx, data.house.stairs.z0 + 4);
+    let feet = data.heightmap.heightAt(start[0], start[1]);
+    const out = { x: 0, z: 0 };
+    for (let lz = data.house.stairs.z0 + 4; lz >= 1.6; lz -= 0.05) {
+      const [x, z] = toWorld(lx, lz);
       expect(c.world.supportAt(x, z, feet, sup), `blocked at local z = ${lz.toFixed(2)}`).toBe(true);
+      c.world.resolve(x, z, sup.y, 0.3, out);
+      expect(Math.hypot(out.x - x, out.z - z), `pushed at local z = ${lz.toFixed(2)}`).toBeLessThan(1e-6);
       feet = sup.y;
     }
     expect(feet).toBeCloseTo(data.house.floorY, 5);
-    const [x, z] = toWorld(0, -1);
+    const [x, z] = toWorld(lx, 1.6);
     expect(c.shelterAt(x, z, feet)).toBe('room');
   });
 
-  it('cannot walk under the house floor from the side', () => {
-    const { x, z, rotY } = data.house.placement;
-    const lx = 2.0;
-    const wx = x + lx * Math.cos(rotY);
-    const wz = z - lx * Math.sin(rotY);
-    expect(c.world.supportAt(wx, wz, data.heightmap.heightAt(wx, wz), sup)).toBe(false);
+  it('cannot walk through the glass wall', () => {
+    const F = data.house.floorY;
+    const out = { x: 0, z: 0 };
+    const [x, z] = toWorld(-0.8, 2.55);
+    c.world.resolve(x, z, F, 0.3, out);
+    expect(Math.hypot(out.x - x, out.z - z)).toBeGreaterThan(0.2);
+  });
+
+  it('has the desk chair inside the room, facing the glass', () => {
+    const d = data.house.desk;
+    const [x, z] = toWorld(d.seatX, d.seatZ);
+    expect(c.shelterAt(x, z, data.house.floorY)).toBe('room');
+    expect(d.eyeY - data.house.floorY).toBeGreaterThan(1.0);
+    expect(d.seatZ).toBeLessThan(data.house.room.z1);
   });
 });
 
@@ -134,9 +147,9 @@ describe('camera rays', () => {
     const c = new IslandColliders(data);
     const { x, z, rotY } = data.house.placement;
     const F = data.house.floorY;
-    // From the middle of the room, looking back toward the side wall (house-local +X).
+    // From the middle of the room, looking toward the side wall (house-local +X, 3.5 m away).
     const d = c.cameraDistance(x, F + 1.4, z, Math.cos(rotY), 0, -Math.sin(rotY), 4.2);
-    expect(d).toBeGreaterThan(2.2);
-    expect(d).toBeLessThan(2.5);
+    expect(d).toBeGreaterThan(3.2);
+    expect(d).toBeLessThan(3.5);
   });
 });

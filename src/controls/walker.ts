@@ -141,6 +141,16 @@ export class Walker {
     this.requestLock();
   }
 
+  /** Puts the walker at (x, z) facing `yaw` (e.g. next to the chair after getting up). */
+  placeAt(x: number, z: number, yaw: number): void {
+    this.x = x;
+    this.z = z;
+    this.yaw = yaw;
+    this.pitch = -0.1;
+    if (this.colliders.world.supportAt(x, z, 1000, this.sup)) this.feetY = this.sup.y;
+    this.placed = true;
+  }
+
   setView(view: WalkView): void {
     this.view = view;
     const [lo, hi] = PITCH[view];

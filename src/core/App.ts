@@ -12,6 +12,9 @@ import { onWaterClick } from '../controls/waterClick';
 import { IslandColliders } from '../controls/islandColliders';
 import { Walker, type StepEvent } from '../controls/walker';
 import { CameraManager } from '../controls/CameraManager';
+import { DeskView } from '../controls/deskView';
+import { DeskScreens, type ScreenInfo } from '../world/deskScreens';
+import { formatClock } from '../world/celestial';
 import { WalkHint } from '../ui/WalkHint';
 import { Avatar, type AvatarPose } from '../world/avatar';
 import type { ListenerState } from '../audio/spatial';
@@ -46,6 +49,10 @@ export class App {
   private readonly colliders: IslandColliders;
   private readonly walker: Walker;
   private readonly cameras: CameraManager;
+  private readonly deskView: DeskView;
+  private readonly deskScreens: DeskScreens;
+  private readonly fader: HTMLElement;
+  private faderTimer = 0;
   private readonly walkHint: WalkHint;
   private readonly audioPrompt: AudioPrompt;
   private audioStarting = false;
@@ -112,7 +119,16 @@ export class App {
       },
       () => this.reducedMotion.matches,
     );
-    this.cameras = new CameraManager(this.camera, this.orbit, this.walker, this.colliders.spawn);
+    this.deskView = new DeskView(this.camera, this.renderer.domElement);
+    const d = w.house.desk;
+    const seat = this.colliders.houseToWorld(d.seatX, d.seatZ, { x: 0, z: 0 });
+    const stand = this.colliders.houseToWorld(d.standX, d.standZ, { x: 0, z: 0 });
+    const seaYaw = this.colliders.seaYaw;
+    this.cameras = new CameraManager(this.camera, this.orbit, this.walker, this.deskView, this.colliders.spawn, {
+      seat: { x: seat.x, y: d.eyeY, z: seat.z, yaw: seaYaw },
+      stand: { x: stand.x, z: stand.z, yaw: seaYaw },
+    });
+    this.deskScreens = new DeskScreens(w.house.screens, this.renderer.capabilities.getMaxAnisotropy(), () => this.screenInfo());
     this.avatar = new Avatar(sharedUniforms);
     this.scene.add(this.avatar.group);
     this.walker.setView(s.walkView);
@@ -147,6 +163,7 @@ export class App {
       setHours: (h) => this.world.dayNight.setHours(h),
       walk: () => this.cameras.setMode('walk'),
       togglePomodoro: () => this.pomodoro.setVisible(!this.pomodoro.isVisible),
+      toggleDesk: () => this.toggleDesk(),
     });
     this.pomodoro = new PomodoroOverlay(ui, {
       scheduleChime: (atMs, kind) => this.mixer.scheduleChime(atMs, kind),
@@ -165,12 +182,18 @@ export class App {
     }
     if (!s.sceneOnly) this.audioPrompt.show();
     this.walkHint = new WalkHint(ui);
+    this.fader = document.createElement('div');
+    this.fader.className = 'fader';
+    container.append(this.fader);
     this.cameras.onChange((mode) => {
       const walking = mode === 'walk';
       document.body.classList.toggle('walking', walking);
+      document.body.classList.toggle('at-desk', mode === 'desk');
       this.walkHint.update(walking, this.walker.locked, false);
+      this.walkHint.showDesk(mode === 'desk');
+      this.listenerTimer = 0;
       if (walking) this.avatar.setYaw(this.walker.yaw);
-      if (!walking) {
+      if (mode === 'orbit') {
         this.listener.walking = false;
         this.mixer.setListener(this.listener);
       }
@@ -180,6 +203,7 @@ export class App {
     this.loop = new Loop(this.tick);
     this.applySettings(s);
     this.onResize();
+    if (s.startAtDesk) this.cameras.setMode('desk');
     // Start in the saved weather instead of easing in from a clear sky.
     this.world.weather.setTargets(this.weatherTargets());
     this.world.weather.snapToTargets();
@@ -293,6 +317,24 @@ export class App {
       },
     });
     this.keymap.register({ code: 'KeyT', keyLabel: 'T', label: vi.shortcuts.pomodoro, action: () => this.pomodoro.toggleRunning() });
+    this.keymap.register({ code: 'KeyB', keyLabel: 'B', label: vi.shortcuts.desk, action: () => this.toggleDesk() });
+    this.keymap.register({
+      code: 'KeyE',
+      keyLabel: 'E',
+      label: vi.shortcuts.sit,
+      action: () => {
+        if (this.cameras.mode === 'desk') this.cameras.toggleDesk(false);
+        else if (this.nearDesk()) this.cameras.toggleDesk(true);
+      },
+    });
+    this.keymap.register({
+      code: 'Escape',
+      keyLabel: 'Esc',
+      label: vi.shortcuts.leaveDesk,
+      action: () => {
+        if (this.cameras.mode === 'desk') this.toggleDesk();
+      },
+    });
     this.keymap.register({ code: 'KeyC', keyLabel: 'C', label: vi.shortcuts.walk, action: () => this.cameras.toggle() });
     this.keymap.register({
       code: 'KeyV',
@@ -345,6 +387,51 @@ export class App {
     this.overlay.setVisible(s.showDebug);
   }
 
+  /**
+   * B / panel button: sit at the desk from anywhere, or get up. From far away (orbit, walking
+   * elsewhere) the screen fades through black instead of flying through walls.
+   */
+  private toggleDesk(): void {
+    const glide = this.cameras.mode === 'walk' && this.nearDesk();
+    if (glide) {
+      this.cameras.toggleDesk(glide);
+      return;
+    }
+    window.clearTimeout(this.faderTimer);
+    this.fader.classList.add('on');
+    this.faderTimer = window.setTimeout(() => {
+      this.cameras.toggleDesk(false);
+      this.fader.classList.remove('on');
+    }, 300);
+  }
+
+  /** Standing in the room next to the chair (walk mode). */
+  private nearDesk(): boolean {
+    if (this.cameras.mode !== 'walk' || this.walker.shelter !== 'room') return false;
+    const d = this.world.house.desk;
+    const l = this.colliders.worldToHouse(this.walker.x, this.walker.z, this.tmpLocal);
+    return Math.hypot(l.x - d.seatX, l.z - d.seatZ) < 1.3;
+  }
+
+  private readonly tmpLocal = { x: 0, z: 0 };
+
+  /** What the right-hand desk monitor shows. */
+  private screenInfo(): ScreenInfo {
+    const s = this.settings.get();
+    const pct = (v: number): string => `${Math.round(v * 100)}%`;
+    const weather = [`Mưa ${pct(s.visualRain)}`, `Gió ${pct(s.visualWind)}`, `Sóng ${pct(s.waveStrength)}`];
+    if (s.visualSnow > 0.01) weather.push(`Tuyết ${pct(s.visualSnow)}`);
+    const names = this.library.playingNames();
+    const soundOn = this.mixer.started && !s.sceneOnly;
+    return {
+      pomodoro: this.pomodoro.snapshot(),
+      scene: this.scenes.get(s.activeScene)?.name ?? '',
+      playing: !soundOn ? vi.desk.soundOff : names.length > 0 ? names.join('  ·  ') : vi.desk.synth,
+      islandTime: formatClock(this.world.dayNight.hours),
+      weather: weather.join('  ·  '),
+    };
+  }
+
   /** Footstep sound (by surface, snow on top when it has settled) and a ripple when wading. */
   private onStep(e: StepEvent): void {
     if (e.depth > 0.05) this.world.water.addRipple(this.walker.x, this.walker.z, 1.2, -0.35 * e.strength);
@@ -375,13 +462,19 @@ export class App {
 
   private readonly avatarPose: AvatarPose = { x: 0, z: 0, feetY: 0, vx: 0, vz: 0, speed: 0, phase: 0, running: false };
 
-  /** Walk mode: where the listener stands shapes the mix (~10 times per second is plenty). */
+  /** Walk/desk mode: where the listener is shapes the mix (~10 times per second is plenty). */
   private updateListener(dt: number): void {
-    if (this.cameras.mode !== 'walk') return;
+    const mode = this.cameras.mode;
+    if (mode === 'orbit') return;
+    if (mode === 'walk') this.walkHint.setPrompt(this.nearDesk());
     this.listenerTimer -= dt;
     if (this.listenerTimer > 0) return;
     this.listenerTimer = 0.1;
-    const { x, z, yaw } = this.walker;
+    const atDesk = mode === 'desk';
+    const seat = this.deskView.seat;
+    const x = atDesk ? seat.x : this.walker.x;
+    const z = atDesk ? seat.z : this.walker.z;
+    const yaw = atDesk ? seat.yaw : this.walker.yaw;
     const l = this.listener;
     l.walking = true;
     l.shoreDistance = this.world.heightmap.distanceToShore(x, z);
@@ -389,7 +482,7 @@ export class App {
     const r = Math.hypot(x, z) || 1;
     l.seaSide = (x / r) * Math.cos(yaw) - (z / r) * Math.sin(yaw);
     l.trees = this.colliders.treesNear(x, z, 12);
-    l.shelter = this.walker.shelter;
+    l.shelter = atDesk ? 'room' : this.walker.shelter;
     this.mixer.setListener(l);
   }
 
@@ -470,13 +563,8 @@ export class App {
     this.cameras.update(dt);
     this.updateListener(dt);
     this.updateAvatar(dt);
-    if (this.cameras.mode === 'walk' && this.walker.shelter === 'room') {
-      // The window glow is for people outside; from inside you look out through clear glass.
-      const win = this.world.house.windowMaterial;
-      win.emissiveIntensity *= 0.1;
-      win.opacity = 0.3;
-    }
     this.world.update(dt, elapsed, this.camera, sea);
+    this.deskScreens.update(dt, this.camera);
     this.gpuTimer.begin();
     this.world.water.simulate(dt);
     // The next scene render (capture if refraction is on, else main) refreshes the shadow map.

@@ -55,6 +55,11 @@ export class SoundLibrary {
     return this.tracks.some((t) => trackLevel(t, this.activePreset, 1) > 0 && !this.failed(t.id));
   }
 
+  /** Names of the recordings playing now (on their own or with the scene). */
+  playingNames(): string[] {
+    return this.tracks.filter((t) => trackLevel(t, this.activePreset, 1) > 0 && !this.failed(t.id)).map((t) => t.name);
+  }
+
   /** Call once sound has started (needs the AudioContext). */
   attach(engine: AudioEngine): void {
     this.engine = engine;

@@ -8,15 +8,36 @@ const SHOW_MS = 6000;
 export class WalkHint {
   private readonly hint: HTMLElement;
   private readonly dot: HTMLElement;
+  private readonly prompt: HTMLElement;
   private timer = 0;
 
   constructor(parent: HTMLElement) {
     this.hint = el('div', 'walk-hint');
     this.hint.setAttribute('role', 'status');
     this.dot = el('div', 'crosshair');
+    this.prompt = el('div', 'desk-prompt', vi.desk.sit);
     this.hint.hidden = true;
     this.dot.hidden = true;
-    parent.append(this.hint, this.dot);
+    this.prompt.hidden = true;
+    parent.append(this.hint, this.dot, this.prompt);
+  }
+
+  /** "E: Ngồi làm việc" while standing next to the desk. */
+  setPrompt(show: boolean): void {
+    if (this.prompt.hidden === !show) return;
+    this.prompt.hidden = !show;
+  }
+
+  /** At the desk: the look/zoom/leave reminder, fading out like the walking one. */
+  showDesk(on: boolean): void {
+    window.clearTimeout(this.timer);
+    this.dot.hidden = true;
+    this.prompt.hidden = true;
+    this.hint.hidden = !on;
+    if (!on) return;
+    this.hint.classList.remove('faded');
+    this.hint.textContent = vi.desk.controls;
+    this.timer = window.setTimeout(() => this.hint.classList.add('faded'), SHOW_MS);
   }
 
   /**
