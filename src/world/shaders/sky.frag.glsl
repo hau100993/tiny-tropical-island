@@ -5,8 +5,10 @@ uniform float uStars;
 uniform float uAurora;
 uniform float uRainbow;
 uniform float uStarRotation;
-uniform vec4 uMeteorA[2];
-uniform vec4 uMeteorB[2];
+// Size must match METEOR_SLOTS in core/uniforms.ts.
+#define METEOR_SLOTS 6
+uniform vec4 uMeteorA[METEOR_SLOTS];
+uniform vec4 uMeteorB[METEOR_SLOTS];
 
 varying vec3 vDir;
 
@@ -86,29 +88,32 @@ vec3 aurora(vec3 dir) {
 
 vec3 meteors(vec3 dir) {
   vec3 col = vec3(0.0);
-  for (int i = 0; i < 2; i++) {
+  for (int i = 0; i < METEOR_SLOTS; i++) {
     float p = (uTime - uMeteorA[i].w) / uMeteorB[i].w;
     if (p < 0.0 || p > 1.0) continue;
     vec3 s = uMeteorA[i].xyz;
     vec3 e = uMeteorB[i].xyz;
+    // Per-meteor brightness and tint from its start time (mostly faint, a few bright ones).
+    float h = fract(sin(uMeteorA[i].w * 12.9898) * 43758.5453);
+    float bright = 0.6 + 2.2 * h * h;
     vec3 head = normalize(mix(s, e, p));
-    vec3 tail = normalize(mix(s, e, max(0.0, p - 0.45)));
+    vec3 tail = normalize(mix(s, e, max(0.0, p - 0.5)));
     vec3 ab = head - tail;
     float t = clamp(dot(dir - tail, ab) / max(dot(ab, ab), 1e-7), 0.0, 1.0);
     float d = length(dir - (tail + ab * t));
     // Fade in fast, burn out at the end.
-    float life = smoothstep(0.0, 0.08, p) * (1.0 - smoothstep(0.7, 1.0, p));
-    // The tail tapers: wide and bright at the head, thin and faint at the end. Widths are in
-    // radians; 0.002 is about 2 px at 1080p, so the core never falls between pixels.
-    float w = mix(0.0006, 0.0022, t);
-    float core = 1.0 - smoothstep(0.0, w, d);
-    float glow = exp(-d / (w * 2.5)) * 0.35;
-    float streak = (core + glow) * t * t * life;
-    // White-hot head with a faint green-blue tail (burning metals).
-    vec3 c = mix(vec3(0.6, 0.9, 1.0), vec3(1.0, 0.97, 0.9), t);
-    col += c * streak * 4.0;
-    // Small bright halo around the head.
-    col += vec3(1.0, 0.95, 0.85) * exp(-length(dir - head) / 0.0018) * life * 1.0;
+    float life = smoothstep(0.0, 0.1, p) * (1.0 - smoothstep(0.6, 1.0, p));
+    // About as thin as a star (1 px ≈ 0.001 rad at 1080p): a soft Gaussian line whose width
+    // and brightness taper from the head to nothing at the end of the tail.
+    float w = mix(0.00035, 0.0007, t);
+    float line = exp(-(d * d) / (w * w));
+    float grad = t * t * t;
+    // Tail colors: faint blue-green at the end, warm white near the head.
+    vec3 c = mix(vec3(0.45, 0.75, 1.0), mix(vec3(1.0, 0.9, 0.75), vec3(1.0), h), smoothstep(0.4, 1.0, t));
+    col += c * line * grad * life * bright;
+    // The head: a star-sized point.
+    float hd = length(dir - head);
+    col += vec3(1.0, 0.97, 0.92) * exp(-(hd * hd) / 0.0000006) * life * bright * 1.5;
   }
   return col;
 }

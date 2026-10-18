@@ -68,7 +68,7 @@ sound on later with **Bật âm thanh** in the panel).
 | Âm u | Grey, gloomy sky without rain. |
 | Cầu vồng sau mưa | After rain, with a low sun behind you, a rainbow appears at the real 42° angle. |
 | Sao & Ngân Hà | Twinkling stars and a faint Milky Way that slowly wheel across the night sky. |
-| Sao băng | How often shooting stars cross the sky. |
+| Sao băng | How often shooting stars cross the visible sky: thin, star-sized streaks with a fading tail, in random directions, sometimes two or three at once. |
 | Cực quang | Green-violet aurora curtains toward the north. |
 | Đom đóm | Fireflies blinking around the garden and forest edge at night. |
 

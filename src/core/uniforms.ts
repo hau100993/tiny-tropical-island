@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 
+/** Shooting stars that can be in the sky at the same time. */
+export const METEOR_SLOTS = 6;
+
 /**
  * Uniforms shared by many materials. Materials reference these exact objects, so writing
  * `sharedUniforms.uTime.value` once per frame updates every shader that uses it.
@@ -40,9 +43,12 @@ export const sharedUniforms = {
   uStars: { value: 1 },
   uAurora: { value: 0 },
   uRainbow: { value: 0 },
-  /** Shooting stars: A = (start dir, start time), B = (end dir, duration). */
-  uMeteorA: { value: [new THREE.Vector4(0, 1, 0, -100), new THREE.Vector4(0, 1, 0, -100)] },
-  uMeteorB: { value: [new THREE.Vector4(0, 1, 0, 1), new THREE.Vector4(0, 1, 0, 1)] },
+  /**
+   * Shooting stars (METEOR_SLOTS of them): A = (start dir, start time), B = (end dir,
+   * duration). Must match the array size in sky.frag.glsl.
+   */
+  uMeteorA: { value: Array.from({ length: METEOR_SLOTS }, () => new THREE.Vector4(0, 1, 0, -100)) },
+  uMeteorB: { value: Array.from({ length: METEOR_SLOTS }, () => new THREE.Vector4(0, 1, 0, 1)) },
   /** Rotation of the star field (hour angle), radians. */
   uStarRotation: { value: 0 },
 };
