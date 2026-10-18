@@ -6,7 +6,7 @@ uniform float uAurora;
 uniform float uRainbow;
 uniform float uStarRotation;
 // Size must match METEOR_SLOTS in core/uniforms.ts.
-#define METEOR_SLOTS 6
+#define METEOR_SLOTS 8
 uniform vec4 uMeteorA[METEOR_SLOTS];
 uniform vec4 uMeteorB[METEOR_SLOTS];
 

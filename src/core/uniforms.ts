@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 /** Shooting stars that can be in the sky at the same time. */
-export const METEOR_SLOTS = 6;
+export const METEOR_SLOTS = 8;
 
 /**
  * Uniforms shared by many materials. Materials reference these exact objects, so writing

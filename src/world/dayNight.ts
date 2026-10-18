@@ -51,7 +51,6 @@ export class DayNight {
   private readonly tmp = new THREE.Color();
   private saveTimer = 0;
   private nextMeteor = 0;
-  private meteorSlot = 0;
   private readonly meteorTmp = new THREE.Vector3();
   private readonly meteorStart = new THREE.Vector3();
   private readonly meteorEnd = new THREE.Vector3();
@@ -200,13 +199,21 @@ export class DayNight {
         .addScaledVector(side, Math.cos(theta) * len)
         .addScaledVector(up, Math.sin(theta) * len)
         .normalize();
-      const i = this.meteorSlot;
-      this.meteorSlot = (this.meteorSlot + 1) % METEOR_SLOTS;
-      // Slight stagger inside a group; short streaks are quick, long ones take longer.
+      // Use a slot whose meteor has burnt out, so none vanishes mid-flight.
+      const i = this.freeMeteorSlot(t);
+      if (i < 0) return;
+      // Slight stagger inside a group; short streaks take ~1.5 s, long ones up to ~4 s.
       const delay = k * (0.1 + Math.random() * 0.6);
       u.uMeteorA.value[i].set(start.x, start.y, start.z, t + delay);
-      u.uMeteorB.value[i].set(end.x, end.y, end.z, (0.6 + Math.random() * 0.5) * (0.7 + len * 3));
+      u.uMeteorB.value[i].set(end.x, end.y, end.z, (1.3 + Math.random() * 0.9) * (0.8 + len * 4));
     }
+  }
+
+  private freeMeteorSlot(t: number): number {
+    const a = this.shared.uMeteorA.value;
+    const b = this.shared.uMeteorB.value;
+    for (let i = 0; i < METEOR_SLOTS; i++) if (t > a[i].w + b[i].w) return i;
+    return -1;
   }
 
   get sunElevation(): number {
