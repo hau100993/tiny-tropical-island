@@ -187,7 +187,7 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
   // Holes: u runs along the wall (local x for front/back, local z for the sides), v above the floor.
   const backHoles: Hole[] = [
     { u0: -3.1, u1: -0.3, v0: 1.75, v1: 2.25 }, // high strip window over the futon
-    { u0: 2.05, u1: 3.05, v0: 1.4, v1: 2.1 }, // bath window
+    { u0: 1.6, u1: 3.3, v0: 0.72, v1: 2.35 }, // big bath window onto the forest
   ];
   const leftHoles: Hole[] = [{ u0: 0.55, u1: 2.2, v0: 0.85, v1: 2.3 }]; // beside the desk
   const rightHoles: Hole[] = [{ u0: -2.15, u1: -1.4, v0: 1.4, v1: 2.1 }]; // bath

@@ -25,7 +25,7 @@ const OAK_DARK = '#8a6240';
 const METAL = '#1e2124';
 const TATAMI = '#cbbf8a';
 const TATAMI_EDGE = '#4a4636';
-const PAPER = '#efe9dc';
+const CHROME = '#c3c8cc';
 const HINOKI = '#dcbf8f';
 const CERAMIC = '#ebe7df';
 const STEM = '#4f7a3a';
@@ -37,8 +37,8 @@ export const DESK = { seatX: -0.8, seatZ: 1.1 } as const;
 /**
  * Japanese-minimal interior: desk and chair at the glass, a tea corner with a low chabudai and
  * zabuton cushions by the left window, futon on tatami (back left), a low bookshelf and a
- * monstera against the back wall, hinoki bath behind shoji (back right), a snake plant by the
- * door, timber beams under the ceiling.
+ * monstera against the back wall, an open bath corner (back right: hinoki tub at a big window
+ * onto the forest, rain shower), a snake plant by the door, timber beams under the ceiling.
  */
 export function furnish(p: InteriorParts, F: number, ceilingY: (z: number) => number, solid: SolidFn): void {
   const { wood, plain, soft, glow } = p;
@@ -147,26 +147,64 @@ export function furnish(p: InteriorParts, F: number, ceilingY: (z: number) => nu
   monstera(p, 1.05, F, -1.7, 1.0);
   solid(0.8, 1.3, -1.95, -1.45, F, F + 1.4);
 
-  // ---- Bath corner (back right): stone floor, hinoki tub, stool, bucket, towel, shoji ----
-  plain.box(1.9, 0.02, 1.33, 2.5, F + 0.01, -1.83, '#8d8f8c');
-  const tx0 = 2.05;
+  // ---- Open bath corner (back right): slate floor, hinoki tub at a big window onto the
+  // forest, a rain shower on the side wall, stool, bucket, towel rail, a fern on the sill ----
+  slateFloor(plain, 1.5, 3.44, -2.44, -0.45, F);
+  const tx0 = 1.95;
   const tx1 = 3.3;
-  const tz0 = -2.35;
-  const tz1 = -1.45;
+  const tz0 = -2.36;
+  const tz1 = -1.55;
   const th = 0.62;
-  wood.box(tx1 - tx0, th, 0.07, (tx0 + tx1) / 2, F + th / 2, tz0, HINOKI);
-  wood.box(tx1 - tx0, th, 0.07, (tx0 + tx1) / 2, F + th / 2, tz1, HINOKI);
-  wood.box(0.07, th, tz1 - tz0, tx0, F + th / 2, (tz0 + tz1) / 2, HINOKI);
-  wood.box(0.07, th, tz1 - tz0, tx1, F + th / 2, (tz0 + tz1) / 2, HINOKI);
-  plain.box(tx1 - tx0 - 0.07, 0.02, tz1 - tz0 - 0.07, (tx0 + tx1) / 2, F + th - 0.1, (tz0 + tz1) / 2, '#86c9c8');
-  wood.box(0.32, 0.2, 0.22, 1.85, F + 0.1, -1.95, HINOKI);
-  soft.add(rounded(0.26, 0.05, 0.17, 0.02, 1.85, F + 0.225, -1.95), '#f2efe8');
-  const bucket = new THREE.CylinderGeometry(0.11, 0.09, 0.14, 16, 1, true);
-  bucket.translate(1.85, F + 0.07, -1.6);
-  wood.add(bucket, HINOKI);
+  const rim = 0.06;
+  wood.box(tx1 - tx0, th, rim, (tx0 + tx1) / 2, F + th / 2, tz0, HINOKI);
+  wood.box(tx1 - tx0, th, rim, (tx0 + tx1) / 2, F + th / 2, tz1, HINOKI);
+  wood.box(rim, th, tz1 - tz0, tx0, F + th / 2, (tz0 + tz1) / 2, HINOKI);
+  wood.box(rim, th, tz1 - tz0, tx1, F + th / 2, (tz0 + tz1) / 2, HINOKI);
+  // Dark band around the rim (copper hoops of a traditional tub).
+  for (const y of [0.15, 0.47]) {
+    plain.box(tx1 - tx0 + 0.012, 0.025, 0.012, (tx0 + tx1) / 2, F + y, tz1 + rim / 2, '#6b4a2b');
+  }
+  plain.box(tx1 - tx0 - rim, 0.02, tz1 - tz0 - rim, (tx0 + tx1) / 2, F + th - 0.1, (tz0 + tz1) / 2, '#86c9c8');
+  // Spout over the tub from the back wall.
+  plain.add(cylinder(0.015, 0.16, 10, 2.62, F + 0.78, -2.4), CHROME);
+  const spout = new THREE.CylinderGeometry(0.014, 0.014, 0.14, 10);
+  spout.rotateX(Math.PI / 2);
+  spout.translate(2.62, F + 0.86, -2.33);
+  plain.add(spout, CHROME);
   solid(tx0 - 0.04, tx1 + 0.04, tz0 - 0.04, tz1 + 0.04, F, F + th);
-  shoji(wood, plain, 'x', -1.12, 1.55, 2.85, F, solid);
-  shoji(wood, plain, 'z', 1.55, -2.45, -1.12, F, solid);
+
+  // Rain shower on the right wall: drain, pipe, arm, square head, mixer.
+  const shX = 3.43;
+  const shZ = -0.95;
+  plain.box(0.3, 0.006, 0.06, 2.95, F + 0.024, shZ, '#2a2c2f');
+  plain.add(cylinder(0.013, 1.95, 10, shX - 0.03, F + 1.15, shZ), CHROME);
+  plain.box(0.4, 0.02, 0.02, shX - 0.23, F + 2.12, shZ, CHROME);
+  soft.add(rounded(0.26, 0.012, 0.26, 0.004, shX - 0.42, F + 2.1, shZ), CHROME);
+  plain.add(cylinder(0.035, 0.012, 16, shX - 0.42, F + 2.092, shZ), '#5a5e63');
+  soft.add(rounded(0.03, 0.12, 0.12, 0.01, shX - 0.02, F + 1.1, shZ), CHROME);
+  const knob = new THREE.CylinderGeometry(0.025, 0.025, 0.04, 12);
+  knob.rotateZ(Math.PI / 2);
+  knob.translate(shX - 0.05, F + 1.1, shZ);
+  plain.add(knob, CHROME);
+
+  // Stool and bucket by the shower, towel rail with towels.
+  wood.box(0.34, 0.03, 0.22, 2.3, F + 0.2, -0.95, HINOKI);
+  for (const dx of [-0.13, 0.13]) wood.box(0.04, 0.19, 0.2, 2.3 + dx, F + 0.095, -0.95, HINOKI);
+  solid(2.12, 2.48, -1.07, -0.83, F, F + 0.22);
+  const bucket = new THREE.CylinderGeometry(0.11, 0.09, 0.14, 16, 1, true);
+  bucket.translate(2.3, F + 0.29, -0.95);
+  wood.add(bucket, HINOKI);
+  plain.add(cylinder(0.1, 0.01, 16, 2.3, F + 0.225, -0.95), HINOKI);
+  const rail = new THREE.CylinderGeometry(0.01, 0.01, 0.6, 8);
+  rail.rotateX(Math.PI / 2);
+  rail.translate(3.4, F + 1.25, -1.85);
+  plain.add(rail, CHROME);
+  for (const dz of [-0.13, 0.12]) soft.add(rounded(0.045, 0.5, 0.24, 0.02, 3.39, F + 1.03, -1.85 + dz), dz < 0 ? '#f2efe8' : '#c9d6d3');
+  // A fern on the window sill, a stack of towels on the tub's end.
+  wood.box(1.85, 0.04, 0.16, 2.42, F + 0.69, -2.44, OAK);
+  fern(p, 3.05, F + 0.71, -2.42);
+  soft.add(rounded(0.3, 0.06, 0.22, 0.02, 2.05, F + th + 0.03, -1.96), '#f2efe8');
+  soft.add(rounded(0.28, 0.05, 0.2, 0.02, 2.05, F + th + 0.085, -1.96), '#d9c7a8');
 
   // ---- Snake plant by the door ----
   soft.add(lathe([[0, 0], [0.13, 0], [0.15, 0.3], [0.155, 0.32], [0.14, 0.32], [0, 0.3]], 3.1, F, 1.05), '#3a3d42');
@@ -194,24 +232,6 @@ function tatami(plain: GeoBuilder, x0: number, x1: number, z0: number, z1: numbe
   plain.box(e, 0.055, z1 - z0, x0 + e / 2, F + 0.027, zc, TATAMI_EDGE);
   plain.box(e, 0.055, z1 - z0, x1 - e / 2, F + 0.027, zc, TATAMI_EDGE);
   plain.box(e, 0.055, z1 - z0, xc, F + 0.027, zc, TATAMI_EDGE);
-}
-
-/** A shoji screen (wood grid over paper), 1.9 m tall, from u0 to u1 along the wall axis. */
-function shoji(wood: GeoBuilder, plain: GeoBuilder, axis: 'x' | 'z', at: number, u0: number, u1: number, F: number, solid: SolidFn): void {
-  const len = u1 - u0;
-  const uc = (u0 + u1) / 2;
-  const H = 1.9;
-  const put = (w: number, h: number, u: number, y: number, c: string, thick: number, to = wood): void => {
-    if (axis === 'x') to.box(w, h, thick, u, y, at, c);
-    else to.box(thick, h, w, at, y, u, c);
-  };
-  // Paper has no wood grain.
-  put(len, H, uc, F + H / 2, PAPER, 0.02, plain);
-  for (let k = 0; k <= 4; k++) put(len, 0.025, uc, F + 0.05 + (k * (H - 0.1)) / 4, '#7a5a3a', 0.04);
-  const cols = Math.max(2, Math.round(len / 0.32));
-  for (let k = 0; k <= cols; k++) put(0.025, H, u0 + (k * len) / cols, F + H / 2, '#7a5a3a', 0.04);
-  if (axis === 'x') solid(u0, u1, at - 0.04, at + 0.04, F, F + H);
-  else solid(at - 0.04, at + 0.04, u0, u1, F, F + H);
 }
 
 /**
@@ -406,4 +426,46 @@ function sphere(r: number, squash: number, x: number, y: number, z: number): THR
   g.scale(1, squash, 1);
   g.translate(x, y, z);
   return g;
+}
+
+/** Dark slate tiles with light grout lines. */
+function slateFloor(plain: GeoBuilder, x0: number, x1: number, z0: number, z1: number, F: number): void {
+  plain.box(x1 - x0, 0.02, z1 - z0, (x0 + x1) / 2, F + 0.01, (z0 + z1) / 2, '#9a9a94');
+  const tile = 0.4;
+  for (let x = x0; x < x1 - 0.01; x += tile) {
+    for (let z = z0; z < z1 - 0.01; z += tile) {
+      const w = Math.min(tile, x1 - x) - 0.008;
+      const d = Math.min(tile, z1 - z) - 0.008;
+      plain.box(w, 0.022, d, x + w / 2 + 0.004, F + 0.011, z + d / 2 + 0.004, (Math.round((x + z) * 7) % 3) ? '#4a4c4d' : '#55585a');
+    }
+  }
+}
+
+/** A small fern: arching fronds of tiny leaflets in a ceramic pot. */
+function fern(p: InteriorParts, x: number, y: number, z: number): void {
+  p.soft.add(lathe([[0, 0], [0.07, 0], [0.085, 0.12], [0.09, 0.13], [0, 0.12]], x, y, z), CERAMIC);
+  for (let k = 0; k < 7; k++) {
+    const a = k * 0.9;
+    const frond = new THREE.BufferGeometry();
+    const pos: number[] = [];
+    const idx: number[] = [];
+    const n = 10;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const r = t * 0.22;
+      const h = 0.12 + 0.12 * Math.sin(t * Math.PI * 0.8) - 0.06 * t * t;
+      const w = 0.04 * Math.sin(Math.PI * Math.min(1, t * 1.1));
+      pos.push(r, h, -w, r, h, w);
+    }
+    for (let i = 0; i < n; i++) {
+      const b = i * 2;
+      idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2);
+    }
+    frond.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    frond.setIndex(idx);
+    frond.computeVertexNormals();
+    frond.rotateY(-a);
+    frond.translate(x, y, z);
+    p.leaf.add(frond, k % 2 ? '#4f8a3e' : '#3f7a34');
+  }
 }
