@@ -56,25 +56,32 @@ vec3 aurora(vec3 dir) {
   if (dir.y < 0.0) return vec3(0.0);
   // North is −Z (the sun culminates toward +Z).
   float az = atan(dir.x, -dir.z);
-  float north = 1.0 - smoothstep(0.7, 2.0, abs(az));
+  // Broad bell-shaped falloff away from north: no hard sides.
+  float north = exp(-az * az * 0.8);
   vec3 acc = vec3(0.0);
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 3; i++) {
     float fi = float(i);
-    float t = uTime * (0.02 + 0.01 * fi);
-    // Thin curtains with folds that drift and ripple sideways.
-    float wave = az * (3.0 + fi * 1.5) + cNoise(vec2(az * 1.5 + t, fi * 5.0)) * 3.0 + sin(az * 2.0 + t * 2.0 + fi) * 0.5;
-    float fold = pow(0.5 + 0.5 * sin(wave * 3.0 + t * 4.0), 6.0);
-    // Fine vertical rays inside each curtain.
-    float rays = 0.3 + 0.7 * pow(cNoise(vec2(az * 70.0 + t * 3.0, fi * 3.0)), 2.0);
-    float base = 0.1 + 0.06 * fi + 0.04 * sin(az * 1.7 + t + fi);
+    float t = uTime * (0.012 + 0.006 * fi);
+    // The curtain's lower edge meanders up and down along the horizon.
+    float base = 0.07 + 0.05 * fi + 0.1 * (cNoise(vec2(az * 0.9 + t * 0.6, fi * 7.3)) - 0.5);
     float hgt = dir.y - base;
-    // Sharp lower edge, long soft fade upward.
-    float vert = smoothstep(0.0, 0.015, hgt) * exp(-max(hgt, 0.0) * (3.5 - fi * 0.6));
-    // Green at the bottom, fading to violet higher up.
-    vec3 c = mix(vec3(0.15, 1.0, 0.5), vec3(0.65, 0.25, 1.0), smoothstep(0.03, 0.3, hgt));
-    acc += c * fold * rays * vert * (1.0 - fi * 0.2);
+    // Brightness drifts in slow patches along the curtain, so no even, box-like bands.
+    float patchy = smoothstep(0.2, 0.8, cNoise(vec2(az * 1.4 - t * 0.8, fi * 3.1 + t * 0.15)));
+    // Soft folds (gentle sine, not a sharp spike) bent by noise.
+    float fold = 0.5 + 0.5 * sin(az * (4.0 + fi * 2.0) + cNoise(vec2(az * 2.0 + t, fi)) * 4.0 + t * 2.5);
+    fold = 0.35 + 0.65 * fold * fold;
+    // Faint vertical rays, low contrast.
+    float rays = 0.75 + 0.25 * cNoise(vec2(az * 45.0 + t * 1.5, fi * 3.0));
+    // Soft lower edge, then a long fade upward (thinner air glows less).
+    float vert = smoothstep(-0.03, 0.04, hgt) * exp(-max(hgt, 0.0) * (5.5 - fi * 1.2));
+    // Green at the bottom → teal → violet at the top.
+    vec3 c = mix(vec3(0.12, 1.0, 0.45), vec3(0.1, 0.75, 0.65), smoothstep(0.0, 0.12, hgt));
+    c = mix(c, vec3(0.55, 0.22, 0.95), smoothstep(0.1, 0.4, hgt));
+    acc += c * patchy * fold * rays * vert * (1.0 - fi * 0.25);
   }
-  return acc * north * 0.6;
+  // A diffuse green glow low over the horizon blends the curtains into the sky.
+  acc += vec3(0.06, 0.35, 0.18) * exp(-dir.y * 7.0) * 0.18;
+  return acc * north * 0.55;
 }
 
 vec3 meteors(vec3 dir) {
@@ -85,12 +92,23 @@ vec3 meteors(vec3 dir) {
     vec3 s = uMeteorA[i].xyz;
     vec3 e = uMeteorB[i].xyz;
     vec3 head = normalize(mix(s, e, p));
-    vec3 tail = normalize(mix(s, e, max(0.0, p - 0.35)));
+    vec3 tail = normalize(mix(s, e, max(0.0, p - 0.45)));
     vec3 ab = head - tail;
     float t = clamp(dot(dir - tail, ab) / max(dot(ab, ab), 1e-7), 0.0, 1.0);
     float d = length(dir - (tail + ab * t));
-    float streak = (1.0 - smoothstep(0.0, 0.0015, d)) * t * t * sin(p * 3.14159);
-    col += vec3(1.0, 0.95, 0.85) * streak * 3.0;
+    // Fade in fast, burn out at the end.
+    float life = smoothstep(0.0, 0.08, p) * (1.0 - smoothstep(0.7, 1.0, p));
+    // The tail tapers: wide and bright at the head, thin and faint at the end. Widths are in
+    // radians; 0.002 is about 2 px at 1080p, so the core never falls between pixels.
+    float w = mix(0.0006, 0.0022, t);
+    float core = 1.0 - smoothstep(0.0, w, d);
+    float glow = exp(-d / (w * 2.5)) * 0.35;
+    float streak = (core + glow) * t * t * life;
+    // White-hot head with a faint green-blue tail (burning metals).
+    vec3 c = mix(vec3(0.6, 0.9, 1.0), vec3(1.0, 0.97, 0.9), t);
+    col += c * streak * 4.0;
+    // Small bright halo around the head.
+    col += vec3(1.0, 0.95, 0.85) * exp(-length(dir - head) / 0.0018) * life * 1.0;
   }
   return col;
 }

@@ -217,7 +217,7 @@ export class App {
     this.skyWeather.overcast = weather.overcast;
     this.skyWeather.rain = weather.rainAmount;
     this.skyWeather.wetness = weather.wetness;
-    dayNight.update(dt, this.skyOptions, this.skyWeather);
+    dayNight.update(dt, this.skyOptions, this.skyWeather, this.camera);
     const night = dayNight.night;
     this.world.fireflies.update(s.fireflies ? night * (1 - weather.rainAmount) * (1 - sharedUniforms.uSnow.value) : 0);
     this.mixer.setNight(night);

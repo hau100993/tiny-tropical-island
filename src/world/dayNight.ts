@@ -52,6 +52,7 @@ export class DayNight {
   private saveTimer = 0;
   private nextMeteor = 0;
   private meteorSlot = 0;
+  private readonly meteorTmp = new THREE.Vector3();
   private elevation = 0;
 
   constructor(
@@ -79,7 +80,7 @@ export class DayNight {
     writeStored(CLOCK_KEY, this.hours);
   }
 
-  update(dt: number, opts: SkyOptions, weather: SkyWeather): void {
+  update(dt: number, opts: SkyOptions, weather: SkyWeather, camera: THREE.PerspectiveCamera): void {
     const u = this.shared;
     this.hours = advanceTime(this.hours, opts.mode, dt, new Date());
     this.saveTimer += dt;
@@ -137,11 +138,15 @@ export class DayNight {
     const lowSun = smoothstep(0.02, 0.1, e) * (1 - smoothstep(0.45, 0.65, e));
     u.uRainbow.value = opts.rainbow ? lowSun * smoothstep(0.15, 0.5, weather.wetness) * (1 - smoothstep(0.1, 0.4, weather.rain)) * (1 - oc * 0.5) : 0;
 
-    this.updateMeteors(opts.meteors * clearNight);
+    this.updateMeteors(opts.meteors * clearNight, camera);
   }
 
-  /** Spawns occasional shooting stars into two uniform slots. */
-  private updateMeteors(rate: number): void {
+  /**
+   * Spawns occasional shooting stars into two uniform slots. They start inside the visible
+   * part of the sky (from the camera's view), otherwise most would fall behind the viewer or
+   * above the top of the screen — the orbit camera mostly looks down at the island.
+   */
+  private updateMeteors(rate: number, camera: THREE.PerspectiveCamera): void {
     const u = this.shared;
     const t = u.uTime.value;
     if (rate <= 0.01) {
@@ -149,19 +154,29 @@ export class DayNight {
       return;
     }
     if (t < this.nextMeteor) return;
-    // Average gap shrinks with the slider: ~40 s at the low end, ~6 s at the top.
-    this.nextMeteor = t + (6 + 34 * (1 - rate)) * (0.4 + Math.random() * 1.2);
-    const az = Math.random() * Math.PI * 2;
-    const alt = 0.5 + Math.random() * 0.7;
+    // Average gap shrinks with the slider: ~25 s at the low end, ~4 s at the top.
+    this.nextMeteor = t + (4 + 21 * (1 - rate)) * (0.5 + Math.random());
+
+    const fwd = camera.getWorldDirection(this.meteorTmp);
+    const camAz = Math.atan2(fwd.z, fwd.x);
+    const pitch = Math.asin(THREE.MathUtils.clamp(fwd.y, -1, 1));
+    const halfV = THREE.MathUtils.degToRad(camera.fov) / 2;
+    const halfH = Math.atan(Math.tan(halfV) * camera.aspect);
+    // Altitude band between just above the horizon and near the top of the screen.
+    const lo = Math.max(0.06, pitch - halfV * 0.5);
+    const hi = Math.max(lo + 0.08, Math.min(1.3, pitch + halfV * 0.55));
+    const alt = lo + Math.random() * (hi - lo);
+    const az = camAz + (Math.random() * 2 - 1) * halfH * 0.7;
     const start = new THREE.Vector3(Math.cos(az) * Math.cos(alt), Math.sin(alt), Math.sin(az) * Math.cos(alt));
-    // Travel mostly sideways and down by 12–25°.
+    // Travel mostly sideways and a little down (never below the horizon).
     const side = new THREE.Vector3(-Math.sin(az), 0, Math.cos(az)).multiplyScalar(Math.random() < 0.5 ? 1 : -1);
-    const len = 0.2 + Math.random() * 0.25;
-    const end = start.clone().addScaledVector(side, len).add(new THREE.Vector3(0, -len * 0.6, 0)).normalize();
+    const len = 0.18 + Math.random() * 0.2;
+    const drop = Math.min(len * 0.5, Math.max(0, alt - 0.04));
+    const end = start.clone().addScaledVector(side, len).add(new THREE.Vector3(0, -drop, 0)).normalize();
     const i = this.meteorSlot;
     this.meteorSlot = (this.meteorSlot + 1) % 2;
     u.uMeteorA.value[i].set(start.x, start.y, start.z, t);
-    u.uMeteorB.value[i].set(end.x, end.y, end.z, 0.5 + Math.random() * 0.7);
+    u.uMeteorB.value[i].set(end.x, end.y, end.z, 0.9 + Math.random() * 0.7);
   }
 
   get sunElevation(): number {
