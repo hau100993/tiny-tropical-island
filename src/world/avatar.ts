@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GeoBuilder } from './geoBuilder';
 import { patchWorldMaterial } from './patchMaterial';
 import { createRng, type Rng } from '../core/rng';
@@ -21,9 +21,12 @@ import type { SharedUniforms } from '../core/uniforms';
  *   depth), so chest, calves and forearms have muscle shape instead of being cylinders.
  * - Hands with fingers and a thumb, feet with toes on the flip-flops.
  *
- * It is a tiny "skeleton" of groups (hips → torso → head/arms → hands, hips → legs → feet)
- * animated in JS: ~20 joint rotations per frame, nothing per vertex. Each body part is a few
- * merged meshes, one per material (skin, cloth, hair/eyes), about 35 draw calls in total.
+ * It is a skinned mesh: a skeleton of 15 bones (hips → spine → head, shoulders → elbows →
+ * wrists, hips → knees → ankles). Arms and legs are each ONE continuous skin whose vertices
+ * near a joint are weighted between the two bones, so the GPU bends the knee and elbow smoothly
+ * (no rigid, toy-like segments). JS only sets ~25 joint angles per frame from a gait cycle
+ * (heel strike, knee give, push-off, knee fold in the swing). Three draw calls (skin, cloth,
+ * hair/eyes, sharing one skeleton) plus the two eyelids.
  *
  * The model faces −Z, the same convention as the camera, so `rotation.y = yaw` turns it to
  * face along the camera's forward direction for that yaw.
@@ -543,6 +546,99 @@ function buildFoot(skin: GeoBuilder, cloth: GeoBuilder, s: number): void {
   for (const k of [-1, 1]) cloth.add(capsule(0.0045, tx, -0.05, -0.12, k * 0.037 - s * 0.004, -0.064, -0.055), C.strap);
 }
 
+/** Influences on one vertex: up to four (bone, weight) pairs. */
+type Influence = ReadonlyArray<readonly [THREE.Bone, number]>;
+/** Skin weights for a vertex at (x, y, z) in the coordinates of the bone it was built for. */
+type Weigher = (x: number, y: number, z: number) => Influence;
+
+/**
+ * Collects parts of a skinned mesh. Each part is built around one bone (in that bone's
+ * coordinates, as if the body stood in its rest pose), weighted to that bone or blended
+ * between neighbours, then moved into the model's rest pose.
+ */
+class SkinBuilder {
+  private parts: THREE.BufferGeometry[] = [];
+
+  constructor(private readonly bones: readonly THREE.Bone[]) {}
+
+  /** `color` null keeps the part's own vertex colors (parts merged by a GeoBuilder). */
+  add(g: THREE.BufferGeometry, color: string | null, bone: THREE.Bone, weigh?: Weigher): void {
+    if (g.getAttribute('uv')) g.deleteAttribute('uv');
+    if (!g.getAttribute('normal')) g.computeVertexNormals();
+    const pos = g.getAttribute('position');
+    const n = pos.count;
+    if (!g.index) g.setIndex(Array.from({ length: n }, (_, i) => i));
+    if (color !== null) {
+      const c = new THREE.Color(color);
+      const colors = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) colors.set([c.r, c.g, c.b], i * 3);
+      g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    }
+    const index = new Uint16Array(n * 4);
+    const weight = new Float32Array(n * 4);
+    const self = this.bones.indexOf(bone);
+    for (let i = 0; i < n; i++) {
+      if (!weigh) {
+        index[i * 4] = self;
+        weight[i * 4] = 1;
+        continue;
+      }
+      const inf = weigh(pos.getX(i), pos.getY(i), pos.getZ(i));
+      let sum = 0;
+      for (const [, w] of inf) sum += w;
+      inf.slice(0, 4).forEach(([b, w], k) => {
+        index[i * 4 + k] = this.bones.indexOf(b);
+        weight[i * 4 + k] = w / sum;
+      });
+    }
+    g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(index, 4));
+    g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weight, 4));
+    g.applyMatrix4(bone.matrixWorld);
+    this.parts.push(g);
+  }
+
+  build(): THREE.BufferGeometry {
+    const merged = mergeGeometries(this.parts, false);
+    for (const p of this.parts) p.dispose();
+    this.parts = [];
+    if (!merged) throw new Error('SkinBuilder: failed to merge geometries');
+    return merged;
+  }
+}
+
+/** Two bones blended along local y: all `a` above `y0`, all `b` below `y1`. */
+function blendY(a: THREE.Bone, b: THREE.Bone, y0: number, y1: number): Weigher {
+  return (_x, y) => {
+    const t = smoothstep(y0, y1, y);
+    return [[a, 1 - t], [b, t]];
+  };
+}
+
+/** Densifies tube cross-sections (a ring every `step` m, eased between the given ones), so a
+ * skinned limb has enough rings to bend smoothly at a joint. */
+function rings(r: readonly Ring[], step = 0.012): Ring[] {
+  const out: Ring[] = [];
+  for (let i = 0; i < r.length - 1; i++) {
+    const [y0, a0, f0, b0] = r[i];
+    const [y1, a1, f1, b1] = r[i + 1];
+    const n = Math.max(1, Math.round(Math.abs(y1 - y0) / step));
+    for (let k = 0; k < n; k++) {
+      const t = k / n;
+      const e = t * t * (3 - 2 * t);
+      out.push([y0 + (y1 - y0) * t, a0 + (a1 - a0) * e, f0 + (f1 - f0) * e, b0 + (b1 - b0) * e]);
+    }
+  }
+  out.push(r[r.length - 1]);
+  return out;
+}
+
+/** Copies a geometry built by a GeoBuilder (keeps its colors). */
+function built(fill: (b: GeoBuilder) => void, rng: Rng): THREE.BufferGeometry {
+  const b = new GeoBuilder(rng, 0);
+  fill(b);
+  return b.build();
+}
+
 /** State the avatar animates from (the walker). */
 export interface AvatarPose {
   x: number;
@@ -557,23 +653,60 @@ export interface AvatarPose {
   running: boolean;
 }
 
-interface Part {
-  skin: GeoBuilder;
-  cloth: GeoBuilder;
-  gloss: GeoBuilder;
+/** One leg's joint angles (rad) at gait cycle position `s` (0 = heel strike, 0.6 = toe off). */
+interface LegAngles {
+  hip: number;
+  knee: number;
+  foot: number;
+  /** 1 while the foot is on the ground, 0 in the swing. */
+  stance: number;
+}
+
+const TAU = Math.PI * 2;
+/** Bump centered at `c` on the cycle (wraps around), width `w`. */
+const bump = (s: number, c: number, w: number): number => {
+  let d = Math.abs(s - c) % 1;
+  if (d > 0.5) d = 1 - d;
+  return Math.exp(-((d / w) ** 2));
+};
+
+/**
+ * Walking: heel strike with the leg forward and the toes up; the knee gives a little as the
+ * body weight lands (~15°), straightens in mid stance, the heel lifts and the toes push off;
+ * in the swing the knee folds (~60°) so the foot clears the ground, then reaches forward.
+ * Running: longer reach, deeper folds, a flight phase, landing on a bent knee.
+ * `hip` > 0 swings the leg forward, `knee` is the flexion (bend), `foot` the sole's pitch
+ * against the ground (> 0 toes up).
+ */
+function legAngles(s: number, run: number, out: LegAngles): LegAngles {
+  const walkHip = 0.06 + 0.36 * Math.cos(TAU * (s - 0.03));
+  const walkKnee = 0.26 * bump(s, 0.13, 0.08) + 1.05 * bump(s, 0.73, 0.11) + 0.05;
+  const walkFoot = 0.28 * bump(s, 0.0, 0.05) - 0.55 * bump(s, 0.58, 0.07) + 0.12 * bump(s, 0.92, 0.07);
+  const runHip = 0.12 + 0.45 * Math.cos(TAU * (s - 0.05));
+  const runKnee = 0.5 * bump(s, 0.15, 0.1) + 1.35 * bump(s, 0.68, 0.13) + 0.15;
+  const runFoot = 0.15 * bump(s, 0.0, 0.05) - 0.7 * bump(s, 0.42, 0.08) + 0.2 * bump(s, 0.85, 0.08);
+  out.hip = walkHip + (runHip - walkHip) * run;
+  out.knee = walkKnee + (runKnee - walkKnee) * run;
+  out.foot = walkFoot + (runFoot - walkFoot) * run;
+  const walkStance = 1 - smoothstep(0.56, 0.68, s) + smoothstep(0.92, 1.0, s);
+  const runStance = 1 - smoothstep(0.36, 0.48, s) + smoothstep(0.92, 1.0, s);
+  out.stance = walkStance + (runStance - walkStance) * run;
+  return out;
 }
 
 export class Avatar {
   readonly group = new THREE.Group();
-  private readonly hips = new THREE.Group();
-  private readonly torso = new THREE.Group();
-  private readonly head = new THREE.Group();
+  private readonly hips = new THREE.Bone();
+  private readonly torso = new THREE.Bone();
+  private readonly head = new THREE.Bone();
   private readonly lids: THREE.Object3D[] = [];
-  private readonly shoulders: THREE.Group[] = [];
-  private readonly elbows: THREE.Group[] = [];
-  private readonly hipJoints: THREE.Group[] = [];
-  private readonly knees: THREE.Group[] = [];
-  private readonly ankles: THREE.Group[] = [];
+  private readonly shoulders: THREE.Bone[] = [];
+  private readonly elbows: THREE.Bone[] = [];
+  private readonly wrists: THREE.Bone[] = [];
+  private readonly hipJoints: THREE.Bone[] = [];
+  private readonly knees: THREE.Bone[] = [];
+  private readonly ankles: THREE.Bone[] = [];
+  private readonly leg: LegAngles = { hip: 0, knee: 0, foot: 0, stance: 1 };
   private yaw = 0;
   private gait = 0;
   private run = 0;
@@ -591,65 +724,96 @@ export class Avatar {
     patchWorldMaterial(clothMat, { wet: true, porosity: 0.7 }, shared);
     patchWorldMaterial(glossMat, { wet: true, porosity: 0.4 }, shared);
     const rng = createRng(77);
-    const part = (): Part => ({ skin: new GeoBuilder(rng, 0), cloth: new GeoBuilder(rng, 0), gloss: new GeoBuilder(rng, 0) });
-    const attach = (p: Part, parent: THREE.Object3D): void => {
-      for (const [b, m] of [[p.skin, skinMat], [p.cloth, clothMat], [p.gloss, glossMat]] as const) {
-        if (b.isEmpty) continue;
-        const mesh = new THREE.Mesh(b.build(), m);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        parent.add(mesh);
-      }
-    };
 
-    // Hips at HIP_Y; everything above hangs off the torso, legs off the hips.
+    // ---- Skeleton (rest pose: standing straight, arms down) ----
+    const L = LEG_SCALE;
     this.hips.position.y = HIP_Y;
+    this.torso.position.y = 0.06;
+    this.head.position.set(0, 0.58, -0.004);
     this.group.add(this.hips);
-    const pelvis = part();
-    // Board shorts: seat and waistband (mostly under the untucked shirt).
-    pelvis.cloth.add(
+    this.hips.add(this.torso);
+    this.torso.add(this.head);
+    for (const s of [-1, 1]) {
+      const shoulder = new THREE.Bone();
+      shoulder.position.set(s * 0.19, 0.37, 0);
+      const elbow = new THREE.Bone();
+      elbow.position.y = -0.27;
+      const wrist = new THREE.Bone();
+      wrist.position.y = -0.225;
+      this.torso.add(shoulder);
+      shoulder.add(elbow);
+      elbow.add(wrist);
+      this.shoulders.push(shoulder);
+      this.elbows.push(elbow);
+      this.wrists.push(wrist);
+      const hip = new THREE.Bone();
+      hip.position.set(s * 0.08, -0.03, 0);
+      const knee = new THREE.Bone();
+      knee.position.y = -0.41 * L;
+      const ankle = new THREE.Bone();
+      ankle.position.y = -0.375 * L;
+      this.hips.add(hip);
+      hip.add(knee);
+      knee.add(ankle);
+      this.hipJoints.push(hip);
+      this.knees.push(knee);
+      this.ankles.push(ankle);
+    }
+    const bones: THREE.Bone[] = [];
+    this.hips.traverse((o) => {
+      if (o instanceof THREE.Bone) bones.push(o);
+    });
+    this.group.updateMatrixWorld(true);
+    const skin = new SkinBuilder(bones);
+    const cloth = new SkinBuilder(bones);
+    const gloss = new SkinBuilder(bones);
+    const T = this.torso;
+    const H = this.hips;
+
+    // ---- Pelvis: board shorts seat (follows the hips) ----
+    cloth.add(
       tube([[-0.16, 0.05, 0.04, 0.05], [-0.12, 0.125, 0.09, 0.105], [-0.06, 0.142, 0.095, 0.11], [0.0, 0.142, 0.094, 0.1], [0.06, 0.134, 0.09, 0.092]], 24, 2.2),
       C.shorts,
+      H,
     );
-    attach(pelvis, this.hips);
 
-    this.torso.position.y = 0.06;
-    this.hips.add(this.torso);
-    const body = part();
-    // Slim-fit linen shirt: broad shoulders, narrow waist, worn untucked (wider hem).
-    body.cloth.add(place(tube(TORSO, 32, TORSO_N), 0, 0, 0), C.shirt);
-    body.cloth.add(tube([[-0.072, 0.148, 0.108, 0.112], [-0.055, 0.146, 0.106, 0.11]], 32, TORSO_N), C.shirtDark);
+    // ---- Torso: slim-fit linen shirt, untucked; the hem leans with the hips ----
+    const hem = blendY(H, T, -0.07, 0.1);
+    cloth.add(tube(rings(TORSO, 0.03), 32, TORSO_N), C.shirt, T, hem);
+    cloth.add(tube([[-0.072, 0.148, 0.108, 0.112], [-0.055, 0.146, 0.106, 0.11]], 32, TORSO_N), C.shirtDark, T, hem);
     // Open collar: skin in the V, a collar band round the back of the neck, points laid open.
-    body.skin.add(chestPatch(0.35, 0.462, 0.046, 0.0015), C.skin);
-    body.cloth.add(
+    skin.add(chestPatch(0.35, 0.462, 0.046, 0.0015), C.skin, T);
+    cloth.add(
       place(new THREE.TorusGeometry(0.054, 0.009, 6, 24, Math.PI * 1.1), 0, 0.452, 0.006, -Math.PI / 2 + 0.25, 0, Math.PI * 0.95),
       C.shirt,
+      T,
     );
     for (const s of [-1, 1]) {
-      body.cloth.add(
+      cloth.add(
         place(new THREE.ConeGeometry(0.022, 0.07, 3), s * 0.04, 0.41, torsoFront(0.41, s * 0.04) - 0.002, 0.15, Math.PI, -s * 0.55, 1, 1, 0.12),
         C.shirtDark,
+        T,
       );
     }
     // Button placket following the chest curve, buttons, chest pocket.
     for (let y = 0.0; y < 0.34; y += 0.04) {
-      body.cloth.add(place(new THREE.BoxGeometry(0.017, 0.042, 0.003), 0, y + 0.02, torsoFront(y + 0.02, 0) - 0.0008), C.shirtDark);
+      cloth.add(place(new THREE.BoxGeometry(0.017, 0.042, 0.003), 0, y + 0.02, torsoFront(y + 0.02, 0) - 0.0008), C.shirtDark, T, hem);
     }
-    for (const y of [0.06, 0.15, 0.24, 0.32]) body.gloss.add(place(ball(0.0055, 8, 6), 0, y, torsoFront(y, 0) - 0.0025, 0, 0, 0, 1, 1, 0.5), C.button);
-    body.cloth.add(place(new THREE.BoxGeometry(0.058, 0.064, 0.003), -0.068, 0.29, torsoFront(0.29, -0.068) - 0.0012, 0, 0.32, 0), C.shirtDark);
-    body.cloth.add(place(new THREE.BoxGeometry(0.06, 0.012, 0.004), -0.068, 0.318, torsoFront(0.318, -0.068) - 0.002, 0, 0.32, 0), C.shirt);
-    // Neck.
-    body.skin.add(tube([[0.4, 0.044, 0.043, 0.046], [0.48, 0.041, 0.04, 0.044], [0.56, 0.04, 0.038, 0.042]], 18), C.skin);
-    attach(body, this.torso);
+    for (const y of [0.06, 0.15, 0.24, 0.32]) {
+      gloss.add(place(ball(0.0055, 8, 6), 0, y, torsoFront(y, 0) - 0.0025, 0, 0, 0, 1, 1, 0.5), C.button, T, hem);
+    }
+    cloth.add(place(new THREE.BoxGeometry(0.058, 0.064, 0.003), -0.068, 0.29, torsoFront(0.29, -0.068) - 0.0012, 0, 0.32, 0), C.shirtDark, T);
+    cloth.add(place(new THREE.BoxGeometry(0.06, 0.012, 0.004), -0.068, 0.318, torsoFront(0.318, -0.068) - 0.002, 0, 0.32, 0), C.shirt, T);
+    // Neck: bends between the shoulders and the head.
+    skin.add(tube(rings([[0.4, 0.044, 0.043, 0.046], [0.48, 0.041, 0.04, 0.044], [0.57, 0.04, 0.038, 0.042]]), 18), C.skin, T, blendY(T, this.head, 0.47, 0.56));
 
-    this.head.position.set(0, 0.58, -0.004);
-    // Slightly large head: keeps the face readable at game-camera distance.
-    this.head.scale.setScalar(1.0);
-    this.torso.add(this.head);
-    const head = part();
+    // ---- Head ----
+    const headSkin = new GeoBuilder(rng, 0);
+    const headGloss = new GeoBuilder(rng, 0);
     const eyes: THREE.Vector3[] = [];
-    buildHead({ skin: head.skin, gloss: head.gloss, eyes }, rng);
-    attach(head, this.head);
+    buildHead({ skin: headSkin, gloss: headGloss, eyes }, rng);
+    skin.add(headSkin.build(), null, this.head);
+    gloss.add(headGloss.build(), null, this.head);
     // Eyelids: skin caps hinged at the top of each eye, squashed up while open; they blink.
     const lidGeo = new THREE.SphereGeometry(1, 14, 10);
     for (const e of eyes) {
@@ -664,76 +828,101 @@ export class Avatar {
       this.lids.push(hinge);
     }
 
-    // Arms: short shirt sleeves, toned upper arms and forearms, hands, a bead bracelet.
-    for (const s of [-1, 1]) {
-      const shoulder = new THREE.Group();
-      shoulder.position.set(s * 0.19, 0.37, 0);
-      this.torso.add(shoulder);
-      const upper = part();
-      upper.cloth.add(place(ball(1, 18, 12), 0, -0.03, 0, 0, 0, 0, 0.054, 0.04, 0.057), C.shirt);
-      upper.cloth.add(tube([[-0.15, 0.056, 0.06, 0.058], [-0.08, 0.055, 0.059, 0.058], [-0.01, 0.054, 0.058, 0.057]], 20), C.shirt);
-      upper.cloth.add(tube([[-0.155, 0.057, 0.061, 0.059], [-0.14, 0.057, 0.061, 0.059]], 20), C.shirtDark);
-      upper.skin.add(
-        tube([[-0.1, 0.044, 0.044, 0.043], [-0.16, 0.044, 0.047, 0.041], [-0.21, 0.04, 0.042, 0.038], [-0.27, 0.034, 0.034, 0.034], [-0.295, 0.028, 0.028, 0.03]], 16),
+    // ---- Arms: one continuous skin from shoulder to wrist (bends smoothly at the elbow) ----
+    for (let i = 0; i < 2; i++) {
+      const s = i === 0 ? -1 : 1;
+      const sh = this.shoulders[i];
+      const el = this.elbows[i];
+      const wr = this.wrists[i];
+      // Sleeve: its top stretches with the shoulder, so lifting the arm doesn't open a gap.
+      const sleeve = blendY(T, sh, 0.02, -0.07);
+      cloth.add(place(ball(1, 18, 12), 0, -0.03, 0, 0, 0, 0, 0.054, 0.04, 0.057), C.shirt, sh, sleeve);
+      cloth.add(tube(rings([[-0.15, 0.056, 0.06, 0.058], [-0.08, 0.055, 0.059, 0.058], [-0.01, 0.054, 0.058, 0.057]]), 20), C.shirt, sh, sleeve);
+      cloth.add(tube([[-0.155, 0.057, 0.061, 0.059], [-0.14, 0.057, 0.061, 0.059]], 20), C.shirtDark, sh);
+      const arm: Weigher = (_x, y) => {
+        const e = smoothstep(-0.23, -0.31, y);
+        const w = smoothstep(-0.47, -0.5, y);
+        return [[sh, 1 - e], [el, e * (1 - w)], [wr, w]];
+      };
+      skin.add(
+        tube(
+          rings([
+            [-0.08, 0.044, 0.044, 0.043], [-0.16, 0.044, 0.047, 0.041], [-0.22, 0.039, 0.04, 0.037], [-0.27, 0.034, 0.033, 0.037],
+            [-0.31, 0.035, 0.037, 0.036], [-0.39, 0.03, 0.031, 0.03], [-0.47, 0.02, 0.025, 0.024], [-0.505, 0.019, 0.024, 0.023],
+          ]),
+          18,
+        ),
         C.skin,
-      );
-      attach(upper, shoulder);
-      const elbow = new THREE.Group();
-      elbow.position.y = -0.27;
-      shoulder.add(elbow);
-      const fore = part();
-      fore.skin.add(
-        tube([[0.02, 0.031, 0.032, 0.032], [-0.04, 0.035, 0.037, 0.037], [-0.12, 0.03, 0.031, 0.03], [-0.2, 0.02, 0.025, 0.024], [-0.235, 0.019, 0.024, 0.023]], 16),
-        C.skin,
+        sh,
+        arm,
       );
       if (s > 0) {
         for (let k = 0; k < 14; k++) {
           const a = (k / 14) * Math.PI * 2;
-          fore.gloss.add(place(ball(0.0058, 8, 6), Math.cos(a) * 0.025, -0.205, Math.sin(a) * 0.029), k % 4 ? C.bead : C.beadLight);
+          gloss.add(place(ball(0.0058, 8, 6), Math.cos(a) * 0.025, -0.205, Math.sin(a) * 0.029), k % 4 ? C.bead : C.beadLight, el);
         }
       }
-      // The hand is built around the wrist, then moved down to it.
-      const hand = new GeoBuilder(rng, 0);
-      buildHand(hand, s);
-      fore.skin.add(place(hand.build(), 0, -0.225, 0), C.skin);
-      attach(fore, elbow);
-      this.shoulders.push(shoulder);
-      this.elbows.push(elbow);
+      skin.add(built((b) => buildHand(b, s), rng), C.skin, wr);
     }
 
-    // Legs: board shorts to the knee (white side stripe), bare calves, flip-flops.
-    for (const s of [-1, 1]) {
-      const hip = new THREE.Group();
-      hip.position.set(s * 0.08, -0.03, 0);
-      hip.scale.set(1, LEG_SCALE, 1);
-      this.hips.add(hip);
-      const thigh = part();
-      thigh.cloth.add(
-        tube([[-0.37, 0.09, 0.09, 0.09], [-0.2, 0.087, 0.086, 0.088], [-0.05, 0.085, 0.085, 0.09], [0.03, 0.068, 0.068, 0.072]], 22),
-        C.shorts,
-      );
-      thigh.cloth.add(tube([[-0.378, 0.092, 0.092, 0.092], [-0.35, 0.091, 0.091, 0.091]], 22), C.shortsDark);
-      thigh.cloth.add(place(new THREE.BoxGeometry(0.004, 0.33, 0.026), s * 0.088, -0.19, 0), C.stripe);
-      thigh.skin.add(tube([[-0.43, 0.05, 0.05, 0.05], [-0.39, 0.056, 0.058, 0.055], [-0.3, 0.066, 0.068, 0.066]], 18), C.skin);
-      attach(thigh, hip);
-      const knee = new THREE.Group();
-      knee.position.y = -0.41;
-      hip.add(knee);
-      const shin = part();
-      shin.skin.add(
-        tube([[-0.385, 0.03, 0.03, 0.032], [-0.33, 0.029, 0.028, 0.03], [-0.24, 0.038, 0.034, 0.042], [-0.15, 0.047, 0.042, 0.06], [-0.08, 0.05, 0.046, 0.06], [-0.02, 0.049, 0.05, 0.05], [0.03, 0.046, 0.05, 0.046]], 18),
+    // ---- Legs: one continuous skin from mid thigh to ankle (a real knee), shorts, feet ----
+    for (let i = 0; i < 2; i++) {
+      const s = i === 0 ? -1 : 1;
+      const hp = this.hipJoints[i];
+      const kn = this.knees[i];
+      const an = this.ankles[i];
+      // Shorts leg: its top follows the pelvis a little, so the seat stretches over a raised leg.
+      const shorts: Weigher = (_x, y) => {
+        const t = smoothstep(-0.1 * L, 0.04 * L, y) * 0.6;
+        return [[H, t], [hp, 1 - t]];
+      };
+      const scaleL = (g: THREE.BufferGeometry): THREE.BufferGeometry => g.scale(1, L, 1);
+      cloth.add(scaleL(tube(rings([[-0.37, 0.09, 0.09, 0.09], [-0.2, 0.087, 0.086, 0.088], [-0.05, 0.085, 0.085, 0.09], [0.03, 0.068, 0.068, 0.072]], 0.02), 22)), C.shorts, hp, shorts);
+      cloth.add(scaleL(tube([[-0.378, 0.092, 0.092, 0.092], [-0.35, 0.091, 0.091, 0.091]], 22)), C.shortsDark, hp);
+      cloth.add(scaleL(place(new THREE.BoxGeometry(0.004, 0.33, 0.026), s * 0.088, -0.19, 0)), C.stripe, hp);
+      const kneeY = -0.41 * L;
+      const ankleY = kneeY - 0.375 * L;
+      const legW: Weigher = (_x, y) => {
+        const k = smoothstep(kneeY + 0.045, kneeY - 0.045, y);
+        const a = smoothstep(ankleY + 0.04, ankleY - 0.005, y);
+        return [[hp, 1 - k], [kn, k * (1 - a)], [an, a]];
+      };
+      // Thigh → knee (a slight bony narrowing, kneecap in front) → calf → ankle.
+      skin.add(
+        scaleL(
+          tube(
+            rings([
+              [-0.28, 0.068, 0.07, 0.068], [-0.36, 0.06, 0.062, 0.06], [-0.41, 0.05, 0.054, 0.05], [-0.45, 0.047, 0.048, 0.052],
+              [-0.5, 0.05, 0.046, 0.06], [-0.57, 0.047, 0.042, 0.06], [-0.65, 0.038, 0.034, 0.042], [-0.74, 0.029, 0.028, 0.03],
+              [-0.79, 0.03, 0.03, 0.032],
+            ]),
+            20,
+          ),
+        ),
         C.skin,
+        hp,
+        legW,
       );
-      attach(shin, knee);
-      const ankle = new THREE.Group();
-      ankle.position.y = -0.375;
-      knee.add(ankle);
-      const foot = part();
-      buildFoot(foot.skin, foot.cloth, s);
-      attach(foot, ankle);
-      this.hipJoints.push(hip);
-      this.knees.push(knee);
-      this.ankles.push(ankle);
+      skin.add(place(ball(1, 12, 10), 0, kneeY + 0.01, -0.045, 0, 0, 0, 0.026, 0.03, 0.014), C.skin, hp, legW);
+      const footSkin = new GeoBuilder(rng, 0);
+      const footCloth = new GeoBuilder(rng, 0);
+      buildFoot(footSkin, footCloth, s);
+      skin.add(scaleL(footSkin.build()), null, an);
+      cloth.add(scaleL(footCloth.build()), null, an);
+    }
+
+    // One skinned mesh per material, all sharing the skeleton: the GPU bends each vertex by
+    // its (up to four) weighted bones, so elbows and knees fold smoothly instead of the parts
+    // pivoting like toy blocks.
+    const skeleton = new THREE.Skeleton(bones);
+    for (const [b, m] of [[skin, skinMat], [cloth, clothMat], [gloss, glossMat]] as const) {
+      const mesh = new THREE.SkinnedMesh(b.build(), m);
+      mesh.bind(skeleton);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      // The bones move the vertices far from the rest-pose bounds; the body is small, never cull.
+      mesh.frustumCulled = false;
+      this.group.add(mesh);
     }
     this.group.name = 'avatar';
     this.group.visible = false;
@@ -755,43 +944,53 @@ export class Avatar {
     const g = this.gait;
     const r = this.run;
 
-    // Footfall at integer phase = legs at full stride (heel strike).
-    const ph = Math.PI * p.phase;
-    const swing = Math.cos(ph) * g * (0.45 + 0.35 * r);
-    const lift = Math.sin(ph);
-    const [hl, hr] = this.hipJoints;
-    const [kl, kr] = this.knees;
-    const [al, ar] = this.ankles;
-    hl.rotation.x = swing;
-    hr.rotation.x = -swing;
-    // The knee bends while that leg swings forward.
-    kl.rotation.x = -(0.05 + g * (0.5 + 0.6 * r) * Math.max(0, -lift));
-    kr.rotation.x = -(0.05 + g * (0.5 + 0.6 * r) * Math.max(0, lift));
-    // Feet stay roughly level with the ground; toes lift a little as a leg swings through.
-    al.rotation.x = -0.65 * (hl.rotation.x + kl.rotation.x);
-    ar.rotation.x = -0.65 * (hr.rotation.x + kr.rotation.x);
-
-    // Arms swing opposite to the legs; elbows bend more when running.
+    // Gait cycle: two steps per cycle; the left heel strikes at even footfalls, the right
+    // at odd ones (the walker's step sounds land on these).
+    const cycle = p.phase / 2;
     const breathe = Math.sin(this.time * 1.8);
-    const [sl, sr] = this.shoulders;
-    const [el, er] = this.elbows;
-    sl.rotation.x = -swing * 0.8;
-    sr.rotation.x = swing * 0.8;
-    sl.rotation.z = -0.08 - 0.02 * breathe * (1 - g);
-    sr.rotation.z = 0.08 + 0.02 * breathe * (1 - g);
-    el.rotation.x = er.rotation.x = 0.25 + 0.9 * r;
+    for (let i = 0; i < 2; i++) {
+      const s = (((cycle + i * 0.5) % 1) + 1) % 1;
+      const a = legAngles(s, r, this.leg);
+      const hip = a.hip * g;
+      const knee = 0.04 + (a.knee - 0.05) * g;
+      this.hipJoints[i].rotation.x = hip;
+      this.knees[i].rotation.x = -knee;
+      // On the ground the ankle sets the sole's pitch against the ground (undoing the shin's
+      // angle); in the swing the foot just hangs off the shin, toes a little up.
+      const onGround = a.foot * g - (hip - knee);
+      this.ankles[i].rotation.x = a.stance * onGround + (1 - a.stance) * 0.12 * g;
+      // Legs slightly apart at rest, a touch less while walking (feet under the body).
+      this.hipJoints[i].rotation.z = (i === 0 ? -1 : 1) * (0.03 - 0.01 * g);
+    }
 
-    // Body: bob (lowest at each footfall), hips turn with the stride and the chest turns back
-    // against them, lean forward when running, breathing at rest.
-    this.hips.position.y = HIP_Y + 0.035 * g * Math.abs(lift) - 0.03 * r;
-    this.hips.rotation.y = 0.12 * swing;
-    this.torso.rotation.y = -0.2 * swing;
-    this.torso.rotation.x = -0.18 * r - 0.03 * g;
+    // Pelvis: lowest just after each heel strike (the knee gives), highest in mid stance;
+    // drops on the side of the swinging leg and turns with the forward leg.
+    const sL = (((cycle % 1) + 1) % 1) * TAU;
+    this.hips.position.y = HIP_Y - g * (0.012 + 0.025 * r) * Math.cos(2 * (sL - 0.6)) - g * (0.01 + 0.05 * r);
+    this.hips.rotation.z = 0.045 * g * Math.sin(sL);
+    this.hips.rotation.y = 0.11 * g * Math.cos(sL);
+    // Chest turns against the hips, leans forward when running.
+    this.torso.rotation.y = -0.17 * g * Math.cos(sL);
+    this.torso.rotation.z = -0.03 * g * Math.sin(sL);
+    this.torso.rotation.x = -0.2 * r - 0.04 * g;
     this.torso.scale.y = 1 + 0.008 * breathe * (1 - g);
-    // Standing still, the head looks around slowly.
+
+    // Arms swing against the legs (left arm forward with the right leg); the elbow bends more
+    // as the arm comes forward, a lot when running.
+    for (let i = 0; i < 2; i++) {
+      const side = i === 0 ? -1 : 1;
+      const fwd = -Math.cos(sL + i * Math.PI);
+      const amp = 0.32 + 0.4 * r;
+      this.shoulders[i].rotation.x = fwd * amp * g;
+      this.shoulders[i].rotation.z = side * (0.08 + 0.02 * breathe * (1 - g) + 0.06 * r);
+      this.elbows[i].rotation.x = 0.18 + g * (0.12 + 0.15 * Math.max(0, fwd)) + r * (1.05 + 0.3 * fwd);
+      this.wrists[i].rotation.x = 0.08 * fwd * g;
+    }
+
+    // Head stays level (counters the torso), looks around slowly when standing still.
     const idle = 1 - g;
-    this.head.rotation.x = 0.12 * r + 0.05 * idle * Math.sin(this.time * 0.23);
-    this.head.rotation.y = 0.08 * swing + idle * 0.3 * Math.sin(this.time * 0.31) * Math.sin(this.time * 0.13 + 1);
+    this.head.rotation.x = 0.16 * r + 0.04 * g + 0.05 * idle * Math.sin(this.time * 0.23);
+    this.head.rotation.y = 0.12 * g * Math.cos(sL) + idle * 0.3 * Math.sin(this.time * 0.31) * Math.sin(this.time * 0.13 + 1);
 
     // Blink every few seconds (a quick close and open).
     this.blink -= dt;

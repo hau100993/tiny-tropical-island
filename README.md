@@ -207,8 +207,11 @@ the beach, built entirely in code (Korean-style two-block hair with a soft fring
 pale linen shirt with an open collar, board shorts, flip-flops, a bead bracelet, fair skin and a
 friendly face). The head is a sculpted sphere (jaw, cheekbones, nose, eye sockets, ears); the hair
 grows from a hairline and is made of tapered locks; chest, arms and calves have muscle shape; hands
-have fingers, feet have toes. He walks and runs (hips and shoulders counter-turning, feet staying
-level), breathes, blinks and looks around slowly when standing.
+have fingers, feet have toes. The body is a skinned mesh on a 15-bone skeleton, so knees and
+elbows bend smoothly. The walk follows a real gait cycle (heel strike, the knee giving under the
+weight, push-off from the toes, the knee folding as the leg swings through, hips dropping and
+turning against the shoulders); running adds a flight phase and pumping arms. He breathes, blinks
+and looks around slowly when standing.
 In the character view the camera pulls in when a wall, the roof, a trunk or the ground is
 behind you, so it works inside the small room too.
 
