@@ -122,7 +122,7 @@ export function createWorld(
   scene.add(water.surface.mesh);
   // Ground and rocks: wet sheen and puddles, snow cover, and caustic light under water.
   const caustics = water.causticsUniforms;
-  patchWorldMaterial(terrain.material, { wet: true, puddles: true, snow: true, caustics }, shared);
+  patchWorldMaterial(terrain.material, { wet: true, puddles: true, snow: true, caustics, ground: true }, shared);
   patchTree(rocks.group, { wet: true, porosity: 0.6, snow: true, caustics }, shared);
 
   const weather = new Weather(scene, shared, water);

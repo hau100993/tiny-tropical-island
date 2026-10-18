@@ -26,6 +26,31 @@ varying float vCloudShadow;
 
 #include <fog_pars_fragment>
 
+// Distance to the nearest of a jittered grid of points (Worley / cellular noise), 0 … ~0.8.
+float cellDist(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  float d = 1.0;
+  for (int y = -1; y <= 1; y++) {
+    for (int x = -1; x <= 1; x++) {
+      vec2 o = vec2(float(x), float(y));
+      vec2 h = vec2(hash12(i + o), hash12(i + o + 19.19));
+      vec2 r = o + h - f;
+      d = min(d, dot(r, r));
+    }
+  }
+  return sqrt(d);
+}
+
+// Foam "lace": the threshold foam must exceed to show. High at bubble centers (holes), low
+// along the walls between bubbles, so thin foam breaks up into a bubbly net, like real surf.
+float foamLace(vec2 p, float t) {
+  vec2 drift = vec2(t * 0.06, t * 0.035);
+  float a = cellDist(p * 2.6 + drift);
+  float b = cellDist(p * 6.5 - drift * 1.7);
+  return 1.0 - smoothstep(0.0, 0.75, a * 0.6 + b * 0.4);
+}
+
 void main() {
   vec3 toCam = cameraPosition - vWorldPos;
   float dist = length(toCam);
@@ -59,17 +84,33 @@ void main() {
   R.y = abs(R.y);
   vec3 refl = skyColor(R);
 
-  // Shore foam: bands that wash toward the beach, broken up by noise.
+  // Shore foam. "coverage" says how much foam there should be; the lace pattern then decides
+  // where: thin coverage leaves scattered bubbles, thick coverage solid white water.
   float n = valueNoise(xz * 0.9 + vec2(t * 0.15, -t * 0.1));
   float n2 = valueNoise(xz * 3.1 - vec2(t * 0.3, t * 0.2));
-  float shore = 1.0 - smoothstep(0.0, 0.45, depth);
-  float wash = 0.5 + 0.5 * sin(depth * 14.0 - t * 1.4 + n * 3.0);
-  float foam = shore * smoothstep(0.55, 0.85, wash * 0.65 + n2 * 0.45);
-  foam += (1.0 - smoothstep(0.0, 0.06, depth)) * 0.7;
-  foam += smoothstep(0.55, 0.95, vCrest) * smoothstep(0.5, 1.0, uWaveStrength) * n2;
+  // Distances to the shore wander with noise, so foam lines never trace the depth contour.
+  float wd = depth + (valueNoise(xz * 0.35 + vec2(t * 0.04, -t * 0.03)) - 0.5) * 0.25 + (n2 - 0.5) * 0.1;
+  // Each stretch of coast surges on its own timing (same phase field as the wet sand).
+  float phase = valueNoise(xz * 0.08 + 7.3) * 6.2831;
+  float surge = 0.5 + 0.5 * sin(t * 0.7 + phase);
+  float sea = 0.5 + uWaveStrength;
+  // Breaking bands rolling in toward the beach, broken into segments along the shore.
+  float bands = 0.5 + 0.5 * sin(wd * 9.0 - t * 1.3 + phase + n * 2.5);
+  float segs = smoothstep(0.25, 0.7, valueNoise(xz * 0.22 + vec2(t * 0.05, 0.0)));
+  float coverage = (1.0 - smoothstep(0.0, (0.2 + 0.3 * surge) * sea, wd)) * smoothstep(0.55, 0.95, bands) * (0.3 + 0.6 * segs);
+  // Swash rim at the water's edge: its width surges with the waves and varies along the shore.
+  coverage = max(coverage, 0.95 * (1.0 - smoothstep(0.0, (0.02 + 0.09 * surge * segs) * sea, wd)));
+  coverage += smoothstep(0.55, 0.95, vCrest) * smoothstep(0.5, 1.0, uWaveStrength) * n2;
   // A little white water on strong ripples (splashes).
-  foam += smoothstep(0.06, 0.2, sim.x) * sim.w * 0.6 * (0.4 + n2);
-  foam = clamp(foam, 0.0, 1.0);
+  coverage += smoothstep(0.06, 0.2, sim.x) * sim.w * 0.6 * (0.4 + n2);
+  float foam = 0.0;
+  if (coverage > 0.01) {
+    // Thin foam is see-through bubbles; only thick coverage turns solid white.
+    float near = smoothstep(0.15, 0.25, foamLace(xz, t) - coverage + 0.2);
+    float laced = (1.0 - near) * (0.55 + 0.4 * smoothstep(0.5, 1.0, coverage));
+    // Far away the lace would shimmer (many cells per pixel): use a soft, thinner average.
+    foam = mix(laced, smoothstep(0.35, 1.0, coverage) * 0.6, smoothstep(25.0, 110.0, dist));
+  }
   // Foam and water body follow the light level (dark sea at night).
   vec3 foamColor = vec3(0.92, 0.96, 0.97) * (0.03 + 0.97 * uDayLight * uDayLight);
   // Cloud shadows darken the water body (reflections of the sky stay).

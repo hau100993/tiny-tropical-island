@@ -32,6 +32,8 @@
 - Rain/snow under the house roof (done in Phase 5): particles are hidden inside the roof footprint and the house's floor, porch and furniture stay dry and snow-free (`uShelter` uniforms).
 - Walk mode: Esc leaves walking (back to the saved orbit view) instead of pausing in place; the control panel is hidden while walking because the mouse is captured. Walking resumes where you left off within the session.
 - Walk mode keeps three's own pointer-lock handling out: a ~20-line mouse-look in `firstPerson.ts` (ignores Chrome's occasional huge first `movementX`, uses raw mouse input where supported). No new dependency.
+- Terrain is no longer flat-shaded (user feedback: visible triangles looked fake): smooth normals, per-vertex sand/land colors, and per-pixel procedural detail and sand/grass edges in `patchMaterial` (WORLD_GROUND). Rocks and the house keep the faceted low-poly look.
+- Shore foam reworked (user feedback: "too perfect" contour): noise-bent distances, per-stretch surge timing, segmented breaking bands, and a cellular-noise lace that dissolves thin foam into bubbles; matching wet-sand swash band on the beach. Cost: ~+0.5 ms GPU at Medium.
 - Spatial audio is the cheap kind planned: per-layer gain, stereo pan and a low-pass "occlusion" filter added to every layer (`BaseLayer`), updated ~10×/s. The wave pan assumes the sea lies away from the island center (true for this round island).
 
 ## 0. Context

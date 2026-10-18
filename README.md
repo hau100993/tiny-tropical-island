@@ -160,6 +160,13 @@ Everything (mix, presets, panel state, scene settings) is saved in `localStorage
   samples it, shifted by the surface normal and tinted by how much water the view ray crosses.
 - **Caustics:** a fine grid of "sun rays" is refracted through the surface and drawn where it
   lands on the seabed; where rays converge, triangles shrink and get brighter.
+- **Surf foam:** the shader decides *how much* foam a spot should have (breaking bands rolling in,
+  a swash rim at the edge, each stretch of coast surging on its own timing, lines bent by noise),
+  then a cellular "lace" pattern decides *where*: thin foam breaks into a bubbly net, thick foam
+  is solid white. The sand the wave just reached stays dark and glossy, on the same rhythm.
+- **Ground:** the terrain is smooth-shaded; sand and grass are blended per pixel with ragged,
+  noise-driven edges, plus sand grain, ripples, pebbles and grass streaks that fade out with
+  distance (no textures).
 
 Rendering stops completely while the tab is hidden (the stats overlay shows how long the last
 pause was). Sound keeps playing.

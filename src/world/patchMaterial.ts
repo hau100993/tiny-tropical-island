@@ -11,6 +11,7 @@ import clouds from './shaders/clouds.glsl?raw';
  * - wet: rain darkens and glosses surfaces; optional puddles on flat ground.
  * - snow: settled snow whitens upward-facing surfaces.
  * - caustics: underwater light patterns from the water system.
+ * - ground: procedural detail for the terrain (no textures).
  */
 
 export interface CausticsUniforms {
@@ -36,6 +37,12 @@ export interface WorldMaterialFeatures {
   twoSided?: boolean;
   /** Stays dry and snow-free under the house roof (see uShelter). */
   sheltered?: boolean;
+  /**
+   * Terrain: blends the per-vertex sand and land colors with ragged, noise-driven edges, adds
+   * sand grain/ripples and mottled grass, and a wet band that follows the surf up the beach.
+   * Needs the `aSandColor` and `aGrass` attributes (see terrain.ts).
+   */
+  ground?: boolean;
   caustics?: CausticsUniforms;
 }
 
@@ -99,6 +106,22 @@ vec4 mvPosition = viewMatrix * wPos;
 gl_Position = projectionMatrix * mvPosition;
 `;
 
+const GROUND_VERT_PARS = /* glsl */ `
+#ifdef WORLD_GROUND
+attribute vec3 aSandColor;
+attribute float aGrass;
+varying vec3 vSandColor;
+varying float vGrass;
+#endif
+`;
+
+const GROUND_VERT = /* glsl */ `
+#ifdef WORLD_GROUND
+  vSandColor = aSandColor;
+  vGrass = aGrass;
+#endif
+`;
+
 const FRAG_PARS = /* glsl */ `
 uniform float uWetness;
 uniform float uSnowCover;
@@ -107,6 +130,12 @@ uniform vec3 uSunDir;
 uniform float uDayLight;
 uniform vec4 uShelter;
 uniform vec4 uShelterSize;
+#ifdef WORLD_GROUND
+uniform float uTime;
+uniform float uWaveStrength;
+varying vec3 vSandColor;
+varying float vGrass;
+#endif
 varying vec3 vWorldPosW;
 varying vec3 vWorldNormalW;
 varying float vCloudShadow;
@@ -130,6 +159,20 @@ float wNoise(vec2 p) {
 }
 `;
 
+const GROUND_FRAG_FNS = /* glsl */ `
+#ifdef WORLD_GROUND
+// Round specks scattered on a grid: one in each cell whose random value exceeds 'rarity',
+// at a random spot and size inside the cell (so the grid never shows). 'id' returns the value.
+float speck(vec2 p, float rarity, out float id) {
+  vec2 c = floor(p);
+  id = wHash(c);
+  vec2 center = 0.25 + 0.5 * vec2(wHash(c + 5.3), wHash(c + 9.1));
+  float r = 0.08 + 0.14 * wHash(c + 2.7);
+  return (1.0 - smoothstep(r * 0.6, r, length(fract(p) - center))) * step(rarity, id);
+}
+#endif
+`;
+
 const SURFACE_GLSL = /* glsl */ `
 {
   vec3 wn = normalize(vWorldNormalW);
@@ -139,6 +182,50 @@ const SURFACE_GLSL = /* glsl */ `
   float up = wn.y;
 #endif
   float aboveWater = smoothstep(-0.05, 0.12, vWorldPosW.y);
+#ifdef WORLD_GROUND
+  {
+    vec2 gp = vWorldPosW.xz;
+    // Three octaves of world-space noise: patches (2 m), tufts (60 cm), grain (15 cm).
+    float n1 = wNoise(gp * 0.45);
+    float n2 = wNoise(gp * 1.7 + 11.0);
+    float n3 = wNoise(gp * 6.3 - 7.0);
+    // Ragged sand/grass edge: noise pushes the blend weight around, then it is sharpened, so
+    // grass reaches onto the sand in tufts and sand shows through in bare patches.
+    float edge = n1 * 0.5 + n2 * 0.33 + n3 * 0.17;
+    float g = smoothstep(0.4, 0.6, vGrass + (edge - 0.5) * 0.9);
+    // Sand: fine grain and soft wind ripples (bent by the noise so they never look ruled).
+    float grain = 0.93 + 0.05 * n3 + 0.06 * wNoise(gp * 14.0);
+    float ripple = sin(dot(gp, vec2(2.3, 1.2)) * 2.2 + n1 * 6.0) * 0.03 * smoothstep(0.35, 1.5, vWorldPosW.y);
+    // Close-up detail fades out with distance (it would only shimmer far away).
+    float fine = 1.0 - smoothstep(8.0, 45.0, length(cameraPosition - vWorldPosW));
+    // Fine grain plus scattered pebbles (darker) and shell bits (lighter), ~8 cm cells.
+    grain += (wNoise(gp * 38.0) - 0.5) * 0.12 * fine;
+    float bit;
+    float dotMask = speck(gp * 12.0, 0.965, bit) * fine;
+    vec3 sand = vSandColor * (grain + ripple) * (1.0 + dotMask * (bit > 0.983 ? 0.18 : -0.3));
+    // Land: lighter and darker patches and tufts on top of the per-vertex color.
+    vec3 land = diffuseColor.rgb * (0.82 + 0.3 * n2) * (0.94 + 0.12 * n3);
+    land = mix(land, land * vec3(1.08, 1.04, 0.86), smoothstep(0.55, 0.8, n1) * 0.5);
+    // Close up: blade-like streaks (stretched noise, direction varying by patch) and soil specks.
+    // (Two fixed directions blended by patch: rotating the coordinates instead would swirl.)
+    float bladesA = wNoise(gp * vec2(30.0, 4.0)) * 0.6 + wNoise(gp * vec2(55.0, 7.0) + 3.0) * 0.4;
+    float bladesB = wNoise(gp * vec2(4.0, 30.0) + 9.0) * 0.6 + wNoise(gp * vec2(7.0, 55.0) - 3.0) * 0.4;
+    float blades = mix(bladesA, bladesB, smoothstep(0.3, 0.7, n1));
+    land *= 1.0 + (blades - 0.5) * 0.35 * fine;
+    float soil;
+    land *= 1.0 - 0.3 * speck(gp * 7.0 + 31.0, 0.94, soil) * fine;
+    diffuseColor.rgb = mix(sand, land, g);
+
+    // Swash: each stretch of beach gets its own timing; the sand the wave reached stays dark
+    // and glossy, following the rhythm of the surf foam in the water shader.
+    float phase = wNoise(gp * 0.08 + 7.3) * 6.2831;
+    float surge = 0.5 + 0.5 * sin(uTime * 0.7 + phase);
+    float reach = (0.06 + 0.2 * surge) * (0.5 + uWaveStrength) + (n2 - 0.5) * 0.05;
+    float swash = smoothstep(reach + 0.1, reach - 0.02, vWorldPosW.y) * step(-0.3, vWorldPosW.y) * (1.0 - g);
+    diffuseColor.rgb *= 1.0 - 0.28 * swash;
+    roughnessFactor = mix(roughnessFactor, 0.3, swash);
+  }
+#endif
 #ifdef WORLD_SHELTER
   // Under the roof (floor, porch, furniture): no rain or snow reaches it.
   vec2 shd = vWorldPosW.xz - uShelter.xy;
@@ -196,6 +283,7 @@ function defines(f: WorldMaterialFeatures): string[] {
   if (f.twoSided) d.push('SNOW_TWO_SIDED');
   if (f.caustics) d.push('WORLD_CAUSTICS');
   if (f.sheltered) d.push('WORLD_SHELTER');
+  if (f.ground) d.push('WORLD_GROUND');
   return d;
 }
 
@@ -223,6 +311,7 @@ export function patchWorldMaterial(
     uCloudOffset: shared.uCloudOffset,
     uShelter: shared.uShelter,
     uShelterSize: shared.uShelterSize,
+    uWaveStrength: shared.uWaveStrength,
     uPorosity: { value: features.porosity ?? 1 },
     ...(features.caustics ?? {}),
   };
@@ -233,8 +322,9 @@ export function patchWorldMaterial(
       shader.vertexShader
         .replace(
           'void main() {',
-          `${SWAY_GLSL}\n${clouds}\nuniform vec3 uSunDir;\nvarying vec3 vWorldPosW;\nvarying vec3 vWorldNormalW;\nvarying float vCloudShadow;\nvoid main() {`,
+          `${SWAY_GLSL}\n${clouds}\n${GROUND_VERT_PARS}\nuniform vec3 uSunDir;\nvarying vec3 vWorldPosW;\nvarying vec3 vWorldNormalW;\nvarying float vCloudShadow;\nvoid main() {`,
         )
+        .replace('#include <color_vertex>', `#include <color_vertex>\n${GROUND_VERT}`)
         .replace(
           '#include <beginnormal_vertex>',
           `#include <beginnormal_vertex>
@@ -250,7 +340,7 @@ export function patchWorldMaterial(
     shader.fragmentShader =
       header(d) +
       shader.fragmentShader
-        .replace('void main() {', `${FRAG_PARS}\nvoid main() {`)
+        .replace('void main() {', `${FRAG_PARS}\n${GROUND_FRAG_FNS}\nvoid main() {`)
         .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\n${SURFACE_GLSL}`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${CAUSTICS_GLSL}`);
   };
