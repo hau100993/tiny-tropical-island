@@ -22,6 +22,7 @@ export class SceneView {
   private readonly select: HTMLSelectElement;
   private readonly updateBtn: HTMLButtonElement;
   private readonly deleteBtn: HTMLButtonElement;
+  private readonly resetBtn: HTMLButtonElement;
   private readonly saveForm: HTMLFormElement;
   private readonly saveInput: HTMLInputElement;
   private readonly withTime: ToggleControl;
@@ -50,7 +51,9 @@ export class SceneView {
     this.updateBtn = button(vi.scene.update, () => this.updatePreset(), 'btn small');
     this.updateBtn.title = vi.scene.updateTitle;
     this.deleteBtn = button(vi.scene.delete, () => this.deletePreset(), 'btn small');
-    actions.append(saveAs, this.updateBtn, this.deleteBtn);
+    this.resetBtn = button(vi.scene.reset, () => this.resetPreset(), 'btn small');
+    this.resetBtn.title = vi.scene.resetTitle;
+    actions.append(saveAs, this.updateBtn, this.deleteBtn, this.resetBtn);
 
     this.saveForm = el('form', 'save-form wrap');
     this.saveForm.hidden = true;
@@ -122,8 +125,11 @@ export class SceneView {
       return typeof a === 'number' && typeof b === 'number' ? Math.abs(a - b) > 0.005 : a !== b;
     });
     this.edited.hidden = !edited;
-    this.updateBtn.disabled = !p || p.builtIn || !edited;
+    this.updateBtn.disabled = !p || !edited;
     this.deleteBtn.disabled = !p || p.builtIn;
+    // Built-ins can't be deleted, but edits to them can be undone.
+    this.deleteBtn.hidden = !!p && p.builtIn;
+    this.resetBtn.hidden = !p || !p.builtIn || !this.deps.scenes.isModified(p.id);
     for (const [key, c] of this.sliders) c.set(s[key] as number);
     this.rainbow.set(s.rainbow);
   }
@@ -154,6 +160,14 @@ export class SceneView {
   private updatePreset(): void {
     const { scenes, settings } = this.deps;
     if (scenes.update(settings.get().activeScene, sceneValuesOf(settings.get()))) this.msg.textContent = vi.scene.saved;
+  }
+
+  private resetPreset(): void {
+    const { scenes, settings } = this.deps;
+    const p = scenes.get(settings.get().activeScene);
+    if (!p || !p.builtIn || !window.confirm(vi.scene.confirmReset(p.name))) return;
+    scenes.resetBuiltIn(p.id);
+    this.deps.applyScene(p.id);
   }
 
   private deletePreset(): void {

@@ -73,7 +73,9 @@ Built in: *Ngày nắng*, *Hoàng hôn yên ả*, *Bão nhiệt đới*, *Mưa r
 *Sáng sương mù*, *Đêm tuyết cực quang*. Your own presets: set the sliders, then
 **Lưu thành preset…** (turn on **Kèm giờ hiện tại** to store the time too; saving under an
 existing name overwrites it). Moving a slider afterwards shows *(đã chỉnh)*; **Cập nhật preset**
-writes the new values into your preset. Up to 30 presets of your own.
+writes the new values into the selected preset, built-in ones included. An edited built-in
+preset gets a **Khôi phục gốc** button that restores its original values (built-ins can't be
+deleted). Up to 30 presets of your own.
 
 **Âm thanh của tôi** holds your recordings (e.g. a one-hour rain MP3 you downloaded):
 

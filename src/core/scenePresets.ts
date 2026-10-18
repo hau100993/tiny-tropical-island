@@ -2,6 +2,8 @@ import { bool, clamp01, isRecord, parseJson, readStored, writeStored } from './s
 import type { Settings } from './settings';
 
 export const SCENE_PRESETS_KEY = 'tsw.scenePresets';
+/** The user's edits of built-in presets: { [builtInId]: SceneValues }. */
+export const SCENE_OVERRIDES_KEY = 'tsw.sceneOverrides';
 export const MAX_USER_PRESETS = 30;
 export const MAX_PRESET_NAME = 32;
 
@@ -117,19 +119,45 @@ export function parseUserScenes(raw: unknown): ScenePreset[] {
   return out;
 }
 
+/** Validates stored built-in overrides; unknown ids are dropped. */
+export function parseOverrides(raw: unknown): Record<string, SceneValues> {
+  const out: Record<string, SceneValues> = {};
+  if (!isRecord(raw)) return out;
+  for (const p of BUILT_IN_SCENES) {
+    if (isRecord(raw[p.id])) out[p.id] = parseSceneValues(raw[p.id]);
+  }
+  return out;
+}
+
 type Listener = () => void;
 
 /** Built-in scenes plus the user's own (localStorage). Saving under an existing name overwrites it. */
 export class ScenePresetStore {
   private user: ScenePreset[];
+  private overrides: Record<string, SceneValues>;
   private readonly listeners: Listener[] = [];
 
   constructor() {
     this.user = parseUserScenes(parseJson(readStored(SCENE_PRESETS_KEY)));
+    this.overrides = parseOverrides(parseJson(readStored(SCENE_OVERRIDES_KEY)));
   }
 
+  /** Built-ins (with the user's edits applied) followed by the user's own presets. */
   all(): ScenePreset[] {
-    return [...BUILT_IN_SCENES, ...this.user];
+    const builtIns = BUILT_IN_SCENES.map((p) => (this.overrides[p.id] ? { ...p, values: { ...this.overrides[p.id] } } : p));
+    return [...builtIns, ...this.user];
+  }
+
+  /** A built-in preset whose values the user has changed. */
+  isModified(id: string): boolean {
+    return id in this.overrides;
+  }
+
+  /** Restores a built-in preset's original values. */
+  resetBuiltIn(id: string): void {
+    if (!(id in this.overrides)) return;
+    delete this.overrides[id];
+    this.persist();
   }
 
   get(id: string): ScenePreset | undefined {
@@ -155,8 +183,13 @@ export class ScenePresetStore {
     return preset;
   }
 
-  /** Overwrites a user preset's values (keeps its name and time). */
+  /** Overwrites a preset's values (keeps its name and time). Built-ins keep their original for reset. */
   update(id: string, values: SceneValues): boolean {
+    if (BUILT_IN_SCENES.some((b) => b.id === id)) {
+      this.overrides[id] = { ...values };
+      this.persist();
+      return true;
+    }
     const p = this.user.find((x) => x.id === id);
     if (!p) return false;
     p.values = { ...values };
@@ -175,6 +208,7 @@ export class ScenePresetStore {
 
   private persist(): void {
     writeStored(SCENE_PRESETS_KEY, this.user);
+    writeStored(SCENE_OVERRIDES_KEY, this.overrides);
     for (const l of this.listeners) l();
   }
 }

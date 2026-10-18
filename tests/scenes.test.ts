@@ -4,6 +4,7 @@ import {
   DEFAULT_SCENE,
   MAX_USER_PRESETS,
   parseSceneValues,
+  parseOverrides,
   parseUserScenes,
   sanitizePresetName,
   sceneValuesOf,
@@ -41,6 +42,16 @@ describe('scene presets', () => {
     expect(list[1]).toMatchObject({ id: 'u1', hours: 1 });
     expect(parseUserScenes([{ id: 'a', name: 'A', hours: 'x' }])[0].hours).toBeNull();
     expect(sanitizePresetName('  Mưa   đêm ')).toBe('Mưa đêm');
+  });
+});
+
+describe('built-in overrides', () => {
+  it('keeps only known built-ins and repairs their values', () => {
+    const o = parseOverrides({ 'b-storm': { visualRain: 0.3, stars: 1 }, 'nope': { visualRain: 1 }, 'b-sunny': 'x' });
+    expect(Object.keys(o)).toEqual(['b-storm']);
+    expect(o['b-storm'].visualRain).toBe(0.3);
+    expect(o['b-storm'].stars).toBe(DEFAULT_SCENE.stars);
+    expect(parseOverrides(null)).toEqual({});
   });
 });
 
