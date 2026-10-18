@@ -52,8 +52,8 @@ then never starts by itself (and is muted if it was playing). The choice is reme
 | `V` | While walking: character view (third person) ↔ eyes view (first person) |
 | `T` | Pomodoro: show the timer and start / pause it |
 | `B` | Work desk: sit down at the desk in the house (from anywhere) / get up |
-| `E` | While walking next to the desk: sit down; at the desk: get up |
-| `Esc` | At the desk: get up |
+| `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up |
+| `Esc` | Seated (desk or bathtub): get up |
 | `L` | Toggle low-power mode (30 fps, Low-level water, no shadows) |
 | `` ` `` (backquote) | Show/hide the stats overlay (FPS, CPU/GPU ms, draw calls) |
 
@@ -131,6 +131,10 @@ and press **E** next to the chair. At the desk:
   what is playing, and the time on the island.
 - Rain is muffled indoors; at night the pendant lamp and the desk lamp light the room.
 - **Mở app ở góc làm việc** in the *Hiển thị* section opens the app straight at the desk.
+
+**Soaking in the tub:** **Ngâm bồn tắm** in the panel (from anywhere), or walk to the bath corner
+and press **E** next to the tub. You sit in the water looking out of the big window at the
+forest; drag to look around, **E** or **Esc** to get out.
 
 ## Pomodoro (`T` or **Pomodoro (T)** in the panel)
 

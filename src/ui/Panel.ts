@@ -30,6 +30,8 @@ export interface PanelDeps {
   togglePomodoro: () => void;
   /** Sit at the desk in the house (or get up). */
   toggleDesk: () => void;
+  /** Get into the bathtub (or out). */
+  toggleBath: () => void;
 }
 
 const TIME_MODES: readonly TimeMode[] = ['real', 'cycle24', 'cycle6', 'paused'];
@@ -112,7 +114,11 @@ export class Panel {
     walkRow.append(walkBtn, this.thirdPerson.root, this.footsteps.root);
     const deskRow = el('div', 'button-row');
     this.startAtDesk = toggle(vi.desk.startAtDesk, s.startAtDesk, (on) => settings.update({ startAtDesk: on }));
-    deskRow.append(button(vi.desk.button, () => deps.toggleDesk(), 'btn primary'), this.startAtDesk.root);
+    deskRow.append(
+      button(vi.desk.button, () => deps.toggleDesk(), 'btn primary'),
+      button(vi.bath.button, () => deps.toggleBath(), 'btn'),
+      this.startAtDesk.root,
+    );
     const pomoRow = el('div', 'button-row');
     pomoRow.append(button(vi.panel.pomodoro, () => deps.togglePomodoro(), 'btn'));
     const qualityRow = el('div', 'button-row');

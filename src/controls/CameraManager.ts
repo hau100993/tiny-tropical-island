@@ -3,27 +3,31 @@ import type { OrbitCamera } from './orbit';
 import type { Walker } from './walker';
 import type { DeskPose, DeskView } from './deskView';
 
-export type CameraMode = 'orbit' | 'walk' | 'desk';
+/** 'seat': sitting somewhere in the house (the desk or the bathtub). */
+export type CameraMode = 'orbit' | 'walk' | 'seat';
+export type SeatId = 'desk' | 'bath';
 
 /** Near plane per mode: close enough not to clip walls (or the monitors) indoors. */
-const NEAR = { orbit: 0.3, walk: 0.08, desk: 0.05 } as const;
+const NEAR = { orbit: 0.3, walk: 0.08, seat: 0.05 } as const;
 
-export interface DeskSpot {
-  /** Where the eyes are when seated, looking out to sea. */
+export interface SeatSpot {
+  /** Where the eyes are when seated, and the look direction. */
   seat: DeskPose;
   /** Where you stand when you get up (feet), and which way you face. */
   stand: { x: number; z: number; yaw: number };
 }
 
 /**
- * Switches between the orbit camera, walking and sitting at the desk. Leaving to orbit puts the
- * orbit camera back exactly where it was; walking resumes where you left off (or next to the
- * chair after getting up).
+ * Switches between the orbit camera, walking and sitting (at the desk or in the bathtub).
+ * Leaving to orbit puts the orbit camera back exactly where it was; walking resumes where you
+ * left off (or next to the seat after getting up).
  */
 export class CameraManager {
   mode: CameraMode = 'orbit';
-  /** Where getting up from the desk goes back to. */
-  private deskReturn: 'orbit' | 'walk' = 'orbit';
+  /** Which seat, while mode is 'seat'. */
+  seat: SeatId = 'desk';
+  /** Where getting up goes back to. */
+  private seatReturn: 'orbit' | 'walk' = 'orbit';
   private readonly savedPos = new THREE.Vector3();
   private readonly savedTarget = new THREE.Vector3();
   private readonly listeners: Array<(mode: CameraMode) => void> = [];
@@ -32,9 +36,9 @@ export class CameraManager {
     private readonly camera: THREE.PerspectiveCamera,
     private readonly orbit: OrbitCamera,
     private readonly walker: Walker,
-    private readonly desk: DeskView,
+    private readonly sitter: DeskView,
     private readonly spawn: { x: number; z: number; yaw: number },
-    private readonly deskSpot: DeskSpot,
+    private readonly seats: Record<SeatId, SeatSpot>,
   ) {}
 
   onChange(fn: (mode: CameraMode) => void): void {
@@ -45,10 +49,22 @@ export class CameraManager {
     this.setMode(this.mode === 'orbit' ? 'walk' : 'orbit');
   }
 
-  /** Sit down (from anywhere) or get up again. `animate`: glide onto the chair. */
-  toggleDesk(animate: boolean): void {
-    if (this.mode === 'desk') this.setMode(this.deskReturn);
-    else this.setMode('desk', animate);
+  /** Sit down at `id` (from anywhere, or move from the other seat). `animate`: glide there. */
+  sit(id: SeatId, animate: boolean): void {
+    if (this.mode === 'seat') {
+      if (id === this.seat) return;
+      this.seat = id;
+      this.sitter.enter(this.seats[id].seat, animate);
+      for (const fn of this.listeners) fn(this.mode);
+      return;
+    }
+    this.seat = id;
+    this.setMode('seat', animate);
+  }
+
+  /** Stand up again: back to walking next to the seat, or to the orbit view. */
+  getUp(): void {
+    if (this.mode === 'seat') this.setMode(this.seatReturn);
   }
 
   setMode(mode: CameraMode, animate = false): void {
@@ -63,14 +79,17 @@ export class CameraManager {
     } else if (from === 'walk') {
       this.walker.exit();
     } else {
-      this.desk.exit();
+      this.sitter.exit();
     }
     // Enter the new one.
-    if (mode === 'desk') {
-      this.deskReturn = from === 'walk' ? 'walk' : 'orbit';
-      this.desk.enter(this.deskSpot.seat, animate);
+    if (mode === 'seat') {
+      this.seatReturn = from === 'walk' ? 'walk' : 'orbit';
+      this.sitter.enter(this.seats[this.seat].seat, animate);
     } else if (mode === 'walk') {
-      if (from === 'desk') this.walker.placeAt(this.deskSpot.stand.x, this.deskSpot.stand.z, this.deskSpot.stand.yaw);
+      if (from === 'seat') {
+        const s = this.seats[this.seat].stand;
+        this.walker.placeAt(s.x, s.z, s.yaw);
+      }
       this.walker.enter(this.spawn);
     } else {
       this.camera.position.copy(this.savedPos);
@@ -85,7 +104,7 @@ export class CameraManager {
 
   update(dt: number): void {
     if (this.mode === 'walk') this.walker.update(dt);
-    else if (this.mode === 'desk') this.desk.update(dt);
+    else if (this.mode === 'seat') this.sitter.update(dt);
     else this.orbit.update(dt);
   }
 }

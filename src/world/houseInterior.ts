@@ -165,11 +165,11 @@ export function furnish(p: InteriorParts, F: number, ceilingY: (z: number) => nu
     plain.box(tx1 - tx0 + 0.012, 0.025, 0.012, (tx0 + tx1) / 2, F + y, tz1 + rim / 2, '#6b4a2b');
   }
   plain.box(tx1 - tx0 - rim, 0.02, tz1 - tz0 - rim, (tx0 + tx1) / 2, F + th - 0.1, (tz0 + tz1) / 2, '#86c9c8');
-  // Spout over the tub from the back wall.
-  plain.add(cylinder(0.015, 0.16, 10, 2.62, F + 0.78, -2.4), CHROME);
+  // Spout over the tub's left end, out of the view through the window.
+  plain.add(cylinder(0.015, 0.16, 10, 2.1, F + 0.78, -2.4), CHROME);
   const spout = new THREE.CylinderGeometry(0.014, 0.014, 0.14, 10);
   spout.rotateX(Math.PI / 2);
-  spout.translate(2.62, F + 0.86, -2.33);
+  spout.translate(2.1, F + 0.86, -2.33);
   plain.add(spout, CHROME);
   solid(tx0 - 0.04, tx1 + 0.04, tz0 - 0.04, tz1 + 0.04, F, F + th);
 

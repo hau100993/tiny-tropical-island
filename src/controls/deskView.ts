@@ -5,8 +5,8 @@ import { clamp, damp } from '../core/math';
 const YAW_LIMIT = 1.25;
 const PITCH_MIN = -0.75;
 const PITCH_MAX = 0.4;
-/** Looking slightly down: both screens and the sea above them in view. */
-const DEFAULT_PITCH = -0.13;
+/** Desk: looking slightly down, both screens and the sea above them in view. */
+export const DEFAULT_PITCH = -0.13;
 const LOOK_SPEED = 0.0035;
 /** Field of view: wide when sitting back, narrow when "leaning in" to read the screens. */
 const FOV_WIDE = 62;
@@ -18,8 +18,10 @@ export interface DeskPose {
   x: number;
   y: number;
   z: number;
-  /** Camera yaw looking out to sea (forward = −Z rotated by yaw). */
+  /** Camera yaw looking straight ahead from the seat (forward = −Z rotated by yaw). */
   yaw: number;
+  /** Default look up/down (rad). */
+  pitch: number;
 }
 
 /**
@@ -29,7 +31,7 @@ export interface DeskPose {
  */
 export class DeskView {
   active = false;
-  private pose: DeskPose = { x: 0, y: 0, z: 0, yaw: 0 };
+  private pose: DeskPose = { x: 0, y: 0, z: 0, yaw: 0, pitch: DEFAULT_PITCH };
   private yaw = 0;
   private pitch = DEFAULT_PITCH;
   private zoom = 0;
@@ -89,7 +91,7 @@ export class DeskView {
     this.pose = { ...pose };
     this.active = true;
     this.yaw = 0;
-    this.pitch = DEFAULT_PITCH;
+    this.pitch = pose.pitch;
     this.zoom = 0;
     this.zoomTarget = 0;
     this.baseFov = this.camera.fov;

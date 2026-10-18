@@ -117,6 +117,11 @@ export const vi = {
     toFocus: 'Hết giờ nghỉ. Quay lại làm việc thôi.',
     noSound: 'Âm thanh đang tắt nên chuông không kêu.',
   },
+  bath: {
+    enter: 'E: Vào bồn tắm',
+    controls: 'Kéo chuột: nhìn quanh · Cuộn: nhìn gần · E hoặc Esc: ra khỏi bồn',
+    button: 'Ngâm bồn tắm',
+  },
   desk: {
     sit: 'E: Ngồi làm việc',
     controls: 'Kéo chuột: nhìn quanh · Cuộn: nhìn gần màn hình · E hoặc Esc: đứng dậy',
@@ -159,8 +164,8 @@ export const vi = {
     view: 'Khi đi bộ: thấy nhân vật / nhìn bằng mắt',
     pomodoro: 'Pomodoro: chạy / tạm dừng',
     desk: 'Góc làm việc: ngồi vào bàn / rời bàn',
-    sit: 'Đứng gần bàn trong nhà: ngồi xuống / đứng dậy',
-    leaveDesk: 'Rời bàn làm việc',
+    sit: 'Đứng gần bàn hoặc bồn tắm: ngồi vào / đứng dậy',
+    leaveDesk: 'Đứng dậy (bàn làm việc, bồn tắm)',
     mouse: 'Kéo: xoay · Cuộn: thu phóng · Chuột phải: dời · Nhấp vào nước: gợn sóng',
     walkKeys: 'Khi đi bộ: W A S D đi · Shift chạy · chuột nhìn · V đổi góc nhìn · Esc thoát',
   },

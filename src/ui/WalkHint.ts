@@ -22,21 +22,25 @@ export class WalkHint {
     parent.append(this.hint, this.dot, this.prompt);
   }
 
-  /** "E: Ngồi làm việc" while standing next to the desk. */
-  setPrompt(show: boolean): void {
-    if (this.prompt.hidden === !show) return;
-    this.prompt.hidden = !show;
+  /** "E: Ngồi làm việc" / "E: Vào bồn tắm" while standing next to a seat; null hides it. */
+  setPrompt(text: string | null): void {
+    if (text === null) {
+      this.prompt.hidden = true;
+      return;
+    }
+    if (this.prompt.textContent !== text) this.prompt.textContent = text;
+    this.prompt.hidden = false;
   }
 
-  /** At the desk: the look/zoom/leave reminder, fading out like the walking one. */
-  showDesk(on: boolean): void {
+  /** Seated: the look/zoom/leave reminder (`text`), fading out like the walking one. */
+  showSeat(on: boolean, text: string): void {
     window.clearTimeout(this.timer);
     this.dot.hidden = true;
     this.prompt.hidden = true;
     this.hint.hidden = !on;
     if (!on) return;
     this.hint.classList.remove('faded');
-    this.hint.textContent = vi.desk.controls;
+    this.hint.textContent = text;
     this.timer = window.setTimeout(() => this.hint.classList.add('faded'), SHOW_MS);
   }
 

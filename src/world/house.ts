@@ -25,6 +25,19 @@ export const HOUSE_DIMS = {
   clearance: 1.6,
 } as const;
 
+/** A place to sit: eyes at (seatX, eyeY, seatZ) in house-local coordinates. */
+export interface HouseSeat {
+  seatX: number;
+  seatZ: number;
+  eyeY: number;
+  standX: number;
+  standZ: number;
+  /** true: looks along local +Z (to the sea); false: along −Z (the back of the house). */
+  facesSea: boolean;
+  /** Default look up/down (rad). */
+  pitch: number;
+}
+
 /** House-local box (x/z local, y absolute) used for collisions. */
 export interface LocalBox {
   x0: number;
@@ -74,8 +87,10 @@ export interface HouseInfo {
   eaveY: number;
   /** Steps from the deck front down to the ground, along local +Z. */
   stairs: { x: number; halfWidth: number; z0: number; count: number; rise: number; depth: number };
-  /** Work spot: chair, seated eye height, where you stand up, and the seat's look direction (local +Z). */
-  desk: { seatX: number; seatZ: number; eyeY: number; standX: number; standZ: number };
+  /** Work spot: chair, seated eye height, where you stand up; looks out to sea (local +Z). */
+  desk: HouseSeat;
+  /** Soaking in the tub: looks out of the back window at the forest (local −Z). */
+  bath: HouseSeat;
   /** The two monitor screens (left, right as seen from the chair), textured by DeskScreens. */
   screens: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[];
 }
@@ -456,7 +471,8 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
     roof: { x0: -roofHalfX, x1: roofHalfX, z0: roofZ0, z1: roofZ1 },
     eaveY: top(ZB) - 0.1,
     stairs: { x: stairsX, halfWidth: stairsHalf, z0: D.deckFront, count, rise, depth: STEP_DEPTH },
-    desk: { seatX, seatZ, eyeY: F + 1.24, standX: -0.15, standZ: 0.75 },
+    desk: { seatX, seatZ, eyeY: F + 1.24, standX: -0.15, standZ: 0.75, facesSea: true, pitch: -0.13 },
+    bath: { seatX: 2.62, seatZ: -1.72, eyeY: F + 0.86, standX: 1.75, standZ: -0.9, facesSea: false, pitch: -0.14 },
     screens,
   };
 }
