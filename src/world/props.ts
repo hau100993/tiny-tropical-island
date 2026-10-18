@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GeoBuilder } from './geoBuilder';
 import type { Heightmap } from './heightmap';
 import type { IslandLayout, Placement } from './layout';
@@ -12,11 +13,11 @@ export interface Rocks {
   circles: Array<{ x: number; z: number; r: number }>;
 }
 
-/** Jittered icosahedra, flat shaded, drawn as 3 instanced variants. */
+/** Noise-shaped boulders, smooth shaded, drawn as 3 instanced variants. */
 export function createRocks(hm: Heightmap, layout: IslandLayout, seed: number): Rocks {
   const rng = createRng(seed);
   const geos = ROCK_COLORS.map((c) => rockGeometry(rng, new THREE.Color(c)));
-  const material = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.95 });
+  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 });
   const group = new THREE.Group();
   group.name = 'rocks';
 
@@ -44,26 +45,79 @@ export function createRocks(hm: Heightmap, layout: IslandLayout, seed: number): 
   return { group, circles: layout.rocks.map((r) => ({ x: r.x, z: r.z, r: r.scale * 1.0 })) };
 }
 
+/** Smooth 3D value noise in [0, 1] on a seeded lattice (for rock shapes). */
+function createNoise3D(rng: Rng): (x: number, y: number, z: number) => number {
+  const N = 256;
+  const table = new Float32Array(N);
+  for (let i = 0; i < N; i++) table[i] = rng();
+  const perm = new Uint8Array(N);
+  for (let i = 0; i < N; i++) perm[i] = i;
+  for (let i = N - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [perm[i], perm[j]] = [perm[j], perm[i]];
+  }
+  const at = (x: number, y: number, z: number): number => table[perm[(perm[(perm[x & 255] + y) & 255] + z) & 255]];
+  const fade = (t: number): number => t * t * (3 - 2 * t);
+  return (x, y, z) => {
+    const xi = Math.floor(x);
+    const yi = Math.floor(y);
+    const zi = Math.floor(z);
+    const u = fade(x - xi);
+    const v = fade(y - yi);
+    const w = fade(z - zi);
+    const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
+    const x00 = lerp(at(xi, yi, zi), at(xi + 1, yi, zi), u);
+    const x10 = lerp(at(xi, yi + 1, zi), at(xi + 1, yi + 1, zi), u);
+    const x01 = lerp(at(xi, yi, zi + 1), at(xi + 1, yi, zi + 1), u);
+    const x11 = lerp(at(xi, yi + 1, zi + 1), at(xi + 1, yi + 1, zi + 1), u);
+    return lerp(lerp(x00, x10, v), lerp(x01, x11, v), w);
+  };
+}
+
+/**
+ * A weathered boulder: a finely subdivided sphere (1280 triangles) pushed in and out by layered
+ * 3D noise (big lumps, then knobs and small pits), flattened underneath so it sits on the sand,
+ * smooth-shaded. Vertex colors add mottling, dark crevices and a little moss on top, so no
+ * individual triangle reads at walking distance.
+ */
 function rockGeometry(rng: Rng, color: THREE.Color): THREE.BufferGeometry {
-  // Detail 1 icosahedron is non-indexed; jitter by original position so shared corners stay welded.
-  const g = new THREE.IcosahedronGeometry(1, 1);
+  let g: THREE.BufferGeometry = new THREE.IcosahedronGeometry(1, 3);
   g.deleteAttribute('uv');
+  g.deleteAttribute('normal');
+  // The icosahedron comes non-indexed; weld it so neighbors share vertices (smooth normals).
+  g = mergeVertices(g);
+  const noise = createNoise3D(rng);
+  const ox = rng() * 50;
+  const oz = rng() * 50;
   const pos = g.getAttribute('position');
-  const offsets = new Map<string, number>();
-  for (let i = 0; i < pos.count; i++) {
-    const key = `${pos.getX(i).toFixed(3)},${pos.getY(i).toFixed(3)},${pos.getZ(i).toFixed(3)}`;
-    let k = offsets.get(key);
-    if (k === undefined) {
-      k = 0.75 + rng() * 0.45;
-      offsets.set(key, k);
-    }
-    pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * k, pos.getZ(i) * k);
+  const count = pos.count;
+  const crev = new Float32Array(count);
+  const v = new THREE.Vector3();
+  for (let i = 0; i < count; i++) {
+    v.fromBufferAttribute(pos, i).normalize();
+    const big = noise(v.x * 1.3 + ox, v.y * 1.3, v.z * 1.3 + oz);
+    const mid = noise(v.x * 3.1 + oz, v.y * 3.1 + 7, v.z * 3.1 + ox);
+    const fine = noise(v.x * 7.5 - ox, v.y * 7.5, v.z * 7.5 - oz);
+    const r = 0.72 + 0.45 * big + 0.16 * mid + 0.05 * fine;
+    v.multiplyScalar(r);
+    // Flat-ish bottom, slightly squashed overall: boulders rest, they don't float.
+    if (v.y < -0.35) v.y = -0.35 + (v.y + 0.35) * 0.25;
+    pos.setXYZ(i, v.x, v.y, v.z);
+    crev[i] = mid * 0.6 + fine * 0.4;
   }
   g.computeVertexNormals();
-  const colors = new Float32Array(pos.count * 3);
-  for (let f = 0; f < pos.count / 3; f++) {
-    const j = 0.9 + rng() * 0.2;
-    for (let v = 0; v < 3; v++) colors.set([color.r * j, color.g * j, color.b * j], (f * 3 + v) * 3);
+  const nrm = g.getAttribute('normal');
+  const colors = new Float32Array(count * 3);
+  const c = new THREE.Color();
+  const moss = new THREE.Color('#6f7f4a');
+  const dark = color.clone().multiplyScalar(0.55);
+  for (let i = 0; i < count; i++) {
+    c.copy(color).multiplyScalar(0.88 + 0.24 * noise(pos.getX(i) * 4 + 3, pos.getY(i) * 4, pos.getZ(i) * 4));
+    // Pits and cracks are darker; upward faces collect a little moss and lichen.
+    c.lerp(dark, Math.max(0, 0.55 - crev[i]) * 1.2);
+    const up = nrm.getY(i);
+    c.lerp(moss, Math.max(0, up - 0.55) * 0.5 * noise(pos.getX(i) * 2.5 - 9, 0.5, pos.getZ(i) * 2.5));
+    colors.set([c.r, c.g, c.b], i * 3);
   }
   g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   return g;

@@ -135,6 +135,9 @@ export class IslandColliders {
       ...boxes.filter((b) => b.yMin >= F - 0.01 && b.yMax >= wallTop - 0.01), // walls and lintel
       box(-W - 0.6, W + 0.6, roofZ0, roofZ1, F + D.wallHeight - 0.05, house.ridgeY),
       box(-W - 0.1, W + 0.1, floorZ0, floorZ1, F - 1.2, F - 0.02),
+      // The steps are solid blocks down to the ground; their top follows the treads, so use
+      // the lower half of the flight (the upper treads are covered by the floor box above).
+      box(-s.halfWidth, s.halfWidth, D.porchFront, D.porchFront + stairsLen, F - s.count * s.rise - 0.5, F - (s.count / 2) * s.rise),
     ];
     const foot = this.houseRect(0, D.porchFront + stairsLen + 1.2);
     // Camera yaw whose forward (−Z rotated by yaw) equals the house's local +Z.

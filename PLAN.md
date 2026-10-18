@@ -36,6 +36,7 @@
 - Shore foam reworked (user feedback: "too perfect" contour): noise-bent distances, per-stretch surge timing, segmented breaking bands, and a cellular-noise lace that dissolves thin foam into bubbles; matching wet-sand swash band on the beach. Cost: ~+0.5 ms GPU at Medium.
 - No start screen any more (user request): sound starts on the first click/key press anywhere (autoplay policy), with a small corner note until then; "Chỉ ngắm cảnh" became a remembered panel option (`sceneOnly`) that keeps the app silent.
 - Moving waterline (user feedback: the shore outline still looked fixed): a shared swash function raises/lowers the water surface near the shore (fast run-up, slow backwash, per-stretch timing, per-wave size), and drives the foam front/backwash lace and the wet-sand band.
+- Character redesigned on request: smooth-shaded rounded shapes (capsule limbs, ball joints, lathe-turned torso) instead of blocky boxes; beachwear and Korean-style hair, no cap/backpack. Rocks: subdivided, noise-displaced, smooth-shaded boulders with triplanar grain, cracks, lichen and a waterline band (WORLD_STONE) instead of faceted icosahedra.
 - Spatial audio is the cheap kind planned: per-layer gain, stereo pan and a low-pass "occlusion" filter added to every layer (`BaseLayer`), updated ~10×/s. The wave pan assumes the sea lies away from the island center (true for this round island).
 
 ## 0. Context

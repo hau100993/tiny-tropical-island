@@ -68,9 +68,10 @@ then never starts by itself (and is muted if it was playing). The choice is reme
 ## Walking on the island (`C` or **Đi bộ trên đảo** in the panel)
 
 Two views, switched with `V` (or **Thấy nhân vật** in the panel): behind your character, like
-a game (default), or through the character's eyes. The character is a low-poly young explorer
-built in code (red cap, dark vest with a yellow band, green backpack, fingerless gloves, baggy
-jeans, red sneakers) that walks, runs (leaning forward, arms pumping) and breathes when idle.
+a game (default), or through the character's eyes. The character is a young man dressed for
+the beach, built in code from smooth rounded shapes (Korean-style two-block hair with a soft
+fringe, slim-fit pale linen shirt with an open collar, board shorts, flip-flops, a bead bracelet,
+fair skin and a happy face). He walks, runs (leaning forward, arms pumping) and breathes when idle.
 In the character view the camera pulls in when a wall, the roof, a trunk or the ground is
 behind you, so it works inside the small room too.
 

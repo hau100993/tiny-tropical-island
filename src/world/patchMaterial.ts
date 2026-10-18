@@ -44,6 +44,8 @@ export interface WorldMaterialFeatures {
    * Needs the `aSandColor` and `aGrass` attributes (see terrain.ts).
    */
   ground?: boolean;
+  /** Rocks: triplanar grain, cracks, lichen and a wet band above the sea (no textures). */
+  stone?: boolean;
   caustics?: CausticsUniforms;
 }
 
@@ -160,6 +162,15 @@ float wNoise(vec2 p) {
 }
 `;
 
+const STONE_FRAG_FNS = /* glsl */ `
+#ifdef WORLD_STONE
+// World-space noise seen from the three axes, blended by the normal weights 'w'.
+float triNoise(vec3 p, vec3 w, float s) {
+  return wNoise(p.yz * s) * w.x + wNoise(p.xz * s + 17.0) * w.y + wNoise(p.xy * s - 31.0) * w.z;
+}
+#endif
+`;
+
 const GROUND_FRAG_FNS = /* glsl */ `
 #ifdef WORLD_GROUND
 ${swash}
@@ -229,6 +240,28 @@ const SURFACE_GLSL = /* glsl */ `
     roughnessFactor = mix(roughnessFactor, mix(0.4, 0.12, fresh), wet);
   }
 #endif
+#ifdef WORLD_STONE
+  {
+    // Rock grain, projected from three sides and blended by the normal ("triplanar"), so it
+    // never stretches on steep faces. Big blotches, grain, then fine speckle up close.
+    vec3 tw = abs(wn);
+    tw /= tw.x + tw.y + tw.z;
+    vec3 sp = vWorldPosW;
+    float b1 = triNoise(sp, tw, 1.6);
+    float b2 = triNoise(sp, tw, 5.5);
+    float b3 = triNoise(sp, tw, 17.0);
+    float near = 1.0 - smoothstep(10.0, 50.0, length(cameraPosition - sp));
+    diffuseColor.rgb *= 0.75 + 0.4 * b1 + 0.32 * (b2 - 0.5) + 0.3 * (b3 - 0.5) * near;
+    // Dark cracks where the mid-scale noise dips.
+    diffuseColor.rgb *= 1.0 - 0.35 * (1.0 - smoothstep(0.12, 0.26, b2));
+    // Small, muted lichen flecks on faces that look up; a darker, wetter band at the waterline.
+    float lichen = smoothstep(0.76, 0.8, triNoise(sp + 3.7, tw, 11.0)) * smoothstep(0.2, 0.7, wn.y);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.72, 0.72, 0.6), lichen * 0.3);
+    float splash = 1.0 - smoothstep(0.02, 0.25, sp.y);
+    diffuseColor.rgb *= 1.0 - 0.3 * splash;
+    roughnessFactor = mix(roughnessFactor, 0.45, splash);
+  }
+#endif
 #ifdef WORLD_SHELTER
   // Under the roof (floor, porch, furniture): no rain or snow reaches it.
   vec2 shd = vWorldPosW.xz - uShelter.xy;
@@ -287,6 +320,7 @@ function defines(f: WorldMaterialFeatures): string[] {
   if (f.caustics) d.push('WORLD_CAUSTICS');
   if (f.sheltered) d.push('WORLD_SHELTER');
   if (f.ground) d.push('WORLD_GROUND');
+  if (f.stone) d.push('WORLD_STONE');
   return d;
 }
 
@@ -343,7 +377,7 @@ export function patchWorldMaterial(
     shader.fragmentShader =
       header(d) +
       shader.fragmentShader
-        .replace('void main() {', `${FRAG_PARS}\n${GROUND_FRAG_FNS}\nvoid main() {`)
+        .replace('void main() {', `${FRAG_PARS}\n${GROUND_FRAG_FNS}\n${STONE_FRAG_FNS}\nvoid main() {`)
         .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\n${SURFACE_GLSL}`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${CAUSTICS_GLSL}`);
   };

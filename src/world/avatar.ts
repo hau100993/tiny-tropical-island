@@ -6,43 +6,40 @@ import { clamp, damp } from '../core/math';
 import type { SharedUniforms } from '../core/uniforms';
 
 /**
- * The walker's body for the third-person view: a low-poly young explorer (red cap, dark vest
- * with a yellow band over a white T-shirt, green backpack, fingerless gloves, baggy blue jeans,
- * red-and-black sneakers), about 1.6 m tall. Original design built from primitives in code.
+ * The walker's body for the third-person view: a young man dressed for the beach (Korean
+ * "two-block" hair with a soft fringe, slim-fit pale linen shirt with an open collar, board
+ * shorts, flip-flops, a bead bracelet), about 1.7 m tall, fair skin and a happy face.
+ * Original design built in code from smooth, rounded shapes (capsule limbs, ball joints, a
+ * lathe-turned torso).
  *
  * It is a tiny "skeleton" of groups (hips → torso → head/arms, hips → legs) animated in JS:
  * ~10 joint rotations per frame, nothing per vertex. Each body part is one merged,
- * vertex-colored mesh (10 draw calls, ~3k triangles).
+ * vertex-colored mesh (10 draw calls).
  *
  * The model faces −Z, the same convention as the camera, so `rotation.y = yaw` turns it to
  * face along the camera's forward direction for that yaw.
  */
 
 const C = {
-  skin: '#f2c49b',
-  hair: '#1d1f26',
-  cap: '#d23a2e',
-  capFront: '#26303f',
-  badge: '#f2f2ea',
-  vest: '#2f4153',
-  band: '#f2b632',
-  hem: '#a9d2ec',
-  shirt: '#f4f4f0',
-  pack: '#5cae3c',
-  packDark: '#3f8a2a',
-  glove: '#2b2b2e',
-  wrist: '#b8e06a',
-  jeans: '#5b9fd6',
-  jeansDark: '#4a87bb',
-  shoe: '#d93b30',
-  shoeTop: '#2a3240',
-  sole: '#f1f1ee',
-  eye: '#15161a',
-  mouth: '#9b3b3b',
+  skin: '#f9dcc6',
+  blush: '#f3b3a6',
+  hair: '#1c1612',
+  white: '#f4f4f0',
+  shirt: '#d3ebef',
+  shirtDark: '#b5d3db',
+  shorts: '#2f5d8a',
+  shortsDark: '#244a70',
+  bracelet: '#6b4a32',
+  sandal: '#2b2f36',
+  strap: '#3f6f8f',
+  eye: '#1a1614',
+  mouth: '#c4655c',
 } as const;
 
-/** Hip height: the legs (0.03 + (0.41 + 0.47) × 0.92 scale) reach just to the ground. */
-const HIP_Y = 0.84;
+/** Legs are scaled along their length; with it the feet (0.03 + (0.41 + 0.455) × scale below
+ * the hips) reach just to the ground. */
+const LEG_SCALE = 0.94;
+const HIP_Y = 0.03 + (0.41 + 0.455) * LEG_SCALE;
 
 const tmpM = new THREE.Matrix4();
 const tmpQ = new THREE.Quaternion();
@@ -50,7 +47,7 @@ const tmpE = new THREE.Euler();
 const tmpP = new THREE.Vector3();
 const tmpS = new THREE.Vector3();
 
-/** Moves/rotates/scales a fresh geometry (low segment counts keep the faceted look). */
+/** Moves/rotates/scales a fresh geometry (normals follow, so smooth shading stays correct). */
 function place(
   g: THREE.BufferGeometry,
   x: number,
@@ -72,6 +69,83 @@ function place(
 const cyl = (rTop: number, rBottom: number, h: number, seg = 8): THREE.BufferGeometry =>
   new THREE.CylinderGeometry(rTop, rBottom, h, seg, 1);
 const ball = (r: number, w = 8, h = 6): THREE.BufferGeometry => new THREE.SphereGeometry(r, w, h);
+
+/** Torso radius at height y (0 = waist … 0.455 = base of the neck), before flattening. */
+function torsoRadius(y: number): number {
+  const pts: Array<[number, number]> = [
+    [0.0, 0.118], [0.06, 0.12], [0.15, 0.132], [0.26, 0.148], [0.33, 0.158], [0.385, 0.15], [0.425, 0.108], [0.455, 0.052],
+  ];
+  for (let i = 1; i < pts.length; i++) {
+    const [y1, r1] = pts[i];
+    const [y0, r0] = pts[i - 1];
+    if (y <= y1) {
+      const t = (y - y0) / (y1 - y0);
+      return r0 + (r1 - r0) * t * t * (3 - 2 * t);
+    }
+  }
+  return pts[pts.length - 1][1];
+}
+
+/** Head ellipsoid semi-axes (sphere 0.12 scaled 0.93 × 1.06 × 1). */
+const HEAD_AXES = [0.12 * 0.93, 0.12 * 1.06, 0.12] as const;
+
+/** Z of the front of the head at (x, y): face details are placed on this surface. */
+function faceZ(x: number, y: number): number {
+  const [a, b, c] = HEAD_AXES;
+  return -c * Math.sqrt(Math.max(0, 1 - (x / a) ** 2 - (y / b) ** 2));
+}
+
+/**
+ * The fringe: the front slice of a sphere (over the forehead), whose lower edge is cut into
+ * tapered strands of different lengths, so it reads as hair rather than a helmet rim.
+ */
+function fringeGeometry(r: number): THREE.BufferGeometry {
+  const cols = 56;
+  const rows = 8;
+  const phi0 = Math.PI * 1.2;
+  const phi1 = Math.PI * 1.8;
+  const theta0 = 0.2;
+  const strands = 7;
+  const pos: number[] = [];
+  const index: number[] = [];
+  for (let j = 0; j <= rows; j++) {
+    for (let i = 0; i <= cols; i++) {
+      const u = i / cols;
+      // Strand tips: longest at each strand's middle, short in between; lengths vary.
+      // Wide strands with narrow V-shaped gaps between them (1 in the middle, 0 at the gaps).
+      const tip = 1 - Math.pow(Math.abs(Math.cos(Math.PI * strands * u)), 4);
+      const len = 0.08 + 0.12 * Math.abs(Math.sin(u * 9.1 + 1.3));
+      const theta1 = 1.0 + (u - 0.5) * 0.14 + tip * len;
+      const theta = theta0 + (theta1 - theta0) * (j / rows);
+      const phi = phi0 + (phi1 - phi0) * u;
+      pos.push(-r * Math.cos(phi) * Math.sin(theta), r * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta));
+    }
+  }
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const a = j * (cols + 1) + i;
+      const b = a + cols + 1;
+      // Counter-clockwise seen from outside (phi grows toward the viewer's right, theta downward).
+      index.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(index);
+  g.computeVertexNormals();
+  return g;
+}
+
+/** One horizontal slice of the torso (lathe between y0 and y1). */
+function torsoBand(y0: number, y1: number): THREE.BufferGeometry {
+  const steps = Math.max(2, Math.round((y1 - y0) / 0.015));
+  const profile: THREE.Vector2[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const y = y0 + ((y1 - y0) * i) / steps;
+    profile.push(new THREE.Vector2(torsoRadius(y), y));
+  }
+  return new THREE.LatheGeometry(profile, 28);
+}
 
 /** State the avatar animates from (the walker). */
 export interface AvatarPose {
@@ -102,7 +176,8 @@ export class Avatar {
   private time = 0;
 
   constructor(shared: SharedUniforms) {
-    const material = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.75 });
+    // Smooth shading: the body parts are rounded shapes, not facets.
+    const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 });
     // Gets wet in the rain and cloud shadows like the rest of the world.
     patchWorldMaterial(material, { wet: true, porosity: 0.4 }, shared);
     const rng = createRng(77);
@@ -118,111 +193,116 @@ export class Avatar {
     this.hips.position.y = HIP_Y;
     this.group.add(this.hips);
     const pelvis = builder();
-    pelvis.add(place(cyl(0.15, 0.14, 0.14), 0, 0, 0, 0, 0, 0, 1, 1, 0.72), C.jeans);
+    // Board shorts: seat and waistband with a white drawstring.
+    pelvis.add(place(ball(0.135, 18, 12), 0, -0.01, 0, 0, 0, 0, 1, 0.62, 0.72), C.shorts);
+    pelvis.add(place(cyl(0.128, 0.13, 0.04, 20), 0, 0.04, 0, 0, 0, 0, 1, 1, 0.7), C.shortsDark);
+    for (const s of [-1, 1]) {
+      pelvis.add(place(new THREE.CapsuleGeometry(0.004, 0.05, 2, 6), s * 0.012, 0.0, -0.093, 0, 0, s * 0.2), C.white);
+    }
     mesh(pelvis, this.hips);
 
     this.torso.position.y = 0.06;
     this.hips.add(this.torso);
     const body = builder();
-    // Vest over the T-shirt: a slightly flattened cylinder, light-blue hem, yellow band.
-    body.add(place(cyl(0.165, 0.155, 0.4), 0, 0.2, 0, 0, 0, 0, 1, 1, 0.68), C.vest);
-    body.add(place(cyl(0.162, 0.158, 0.05), 0, 0.02, 0, 0, 0, 0, 1.03, 1, 0.72), C.hem);
-    body.add(place(cyl(0.169, 0.166, 0.07), 0, 0.25, 0, 0, 0, 0, 1.01, 1, 0.7), C.band);
-    // Open collar: white shirt V and light-blue collar points.
-    body.add(place(new THREE.ConeGeometry(0.06, 0.12, 4), 0, 0.34, -0.1, Math.PI, 0, 0, 1, 1, 0.3), C.shirt);
+    // Slim-fit linen shirt: torso turned on a lathe (broad shoulders, narrow waist), worn
+    // untucked (a slightly wider hem), open collar showing the neck and collarbone.
+    body.add(place(torsoBand(0.0, 0.455), 0, 0, 0, 0, 0, 0, 1, 1, 0.66), C.shirt);
+    body.add(place(cyl(0.124, 0.13, 0.04, 24), 0, 0.005, 0, 0, 0, 0, 1, 1, 0.7), C.shirt);
+    const front = (y: number): number => -torsoRadius(y) * 0.66;
+    body.add(place(new THREE.ConeGeometry(0.05, 0.12, 3), 0, 0.38, front(0.38) + 0.004, Math.PI, Math.PI, 0, 1, 1, 0.12), C.skin);
     for (const s of [-1, 1]) {
-      body.add(place(new THREE.ConeGeometry(0.035, 0.09, 4), s * 0.06, 0.4, -0.085, 0.3, 0, -s * 0.5, 1, 1, 0.4), C.hem);
-      // Backpack straps over the shoulders.
-      body.add(place(new THREE.BoxGeometry(0.035, 0.3, 0.02), s * 0.1, 0.25, -0.11, 0.05, 0, 0), C.pack);
+      // Collar points laid open on the chest.
+      body.add(place(new THREE.ConeGeometry(0.02, 0.065, 3), s * 0.042, 0.405, front(0.405) - 0.001, 0.1, Math.PI, -s * 0.55, 1, 1, 0.1), C.shirtDark);
     }
-    // Backpack.
-    body.add(place(new THREE.BoxGeometry(0.28, 0.32, 0.13), 0, 0.22, 0.17), C.pack);
-    body.add(place(new THREE.BoxGeometry(0.22, 0.12, 0.05), 0, 0.12, 0.25), C.packDark);
-    body.add(place(new THREE.BoxGeometry(0.29, 0.04, 0.14), 0, 0.38, 0.17), C.packDark);
-    // Neck.
-    body.add(place(cyl(0.045, 0.05, 0.08, 6), 0, 0.43, 0), C.skin);
+    // Button placket and buttons.
+    body.add(place(new THREE.BoxGeometry(0.018, 0.27, 0.004), 0, 0.17, front(0.17) - 0.001), C.shirtDark);
+    for (const y of [0.08, 0.17, 0.26]) body.add(place(ball(0.006, 8, 6), 0, y, front(y) - 0.004), C.white);
+    // Chest pocket.
+    body.add(place(new THREE.BoxGeometry(0.06, 0.06, 0.004), -0.07, 0.3, front(0.3) + 0.012, 0, 0.35, 0), C.shirtDark);
+    body.add(place(cyl(0.043, 0.048, 0.1, 16), 0, 0.47, 0), C.skin);
     mesh(body, this.torso);
 
     this.head.position.y = 0.57;
-    // A slightly oversized head reads as a cartoon character at game-camera distance.
-    this.head.scale.setScalar(1.2);
+    // A slightly large head keeps the friendly cartoon look at game-camera distance.
+    this.head.scale.setScalar(1.1);
     this.torso.add(this.head);
     const head = builder();
-    head.add(place(ball(0.12, 10, 8), 0, 0, 0, 0, 0, 0, 0.95, 1.05, 1), C.skin);
+    head.add(place(ball(0.12, 24, 18), 0, 0, 0, 0, 0, 0, 0.93, 1.06, 1), C.skin);
     for (const s of [-1, 1]) {
-      head.add(place(ball(0.03, 6, 4), s * 0.115, -0.01, 0.01, 0, 0, 0, 0.5, 1, 1), C.skin);
-      // Big anime eyes with a white highlight.
-      head.add(place(ball(0.026, 8, 6), s * 0.045, 0.005, -0.108, 0, 0, 0, 0.8, 1.35, 0.35), C.eye);
-      head.add(place(ball(0.008, 6, 4), s * 0.045 - 0.008, 0.02, -0.118), C.badge);
-      // Eyebrows.
-      head.add(place(new THREE.BoxGeometry(0.045, 0.01, 0.01), s * 0.047, 0.055, -0.108, 0, 0, s * 0.25), C.hair);
+      head.add(place(ball(0.028, 10, 8), s * 0.112, -0.01, 0.01, 0, 0, 0, 0.5, 1, 1), C.skin);
+      // Bright eyes with a highlight and a soft upper lid line (a smiling look).
+      head.add(place(ball(0.018, 14, 10), s * 0.042, 0.002, -0.108, 0, 0, 0, 0.9, 1.1, 0.35), C.eye);
+      head.add(place(ball(0.0055, 8, 6), s * 0.042 - 0.006, 0.01, -0.116), C.white);
+      head.add(place(new THREE.TorusGeometry(0.02, 0.003, 4, 12, Math.PI), s * 0.042, 0.004, -0.109, 0, 0, 0, 1, 0.8, 1), C.eye);
+      // Straight, neat brows (mostly hidden by the fringe).
+      head.add(place(new THREE.CapsuleGeometry(0.0055, 0.034, 3, 8), s * 0.044, 0.04, -0.11, 0, 0, Math.PI / 2 + s * 0.06), C.hair);
+      // Rosy cheeks.
+      head.add(place(ball(0.02, 10, 8), s * 0.06, -0.035, faceZ(s * 0.06, -0.035) + 0.004, 0, s * 0.5, 0, 1, 0.6, 0.3), C.blush);
     }
-    head.add(place(ball(0.02, 6, 4), 0, -0.065, -0.105, 0, 0, 0, 1.3, 0.7, 0.4), C.mouth);
-    // Spiky hair poking out under the cap, mostly at the sides and back.
-    for (let i = 0; i < 9; i++) {
-      // Around the back (+Z) from one side to the other; outward direction (sin a, cos a).
-      const a = -Math.PI * 0.65 + (i / 8) * Math.PI * 1.3;
-      const len = 0.1 + rng() * 0.05;
-      const g = place(new THREE.ConeGeometry(0.035, len, 4), 0, len / 2, 0);
-      tmpE.set(Math.PI / 2 - 0.35, 0, 0);
-      g.applyMatrix4(tmpM.makeRotationFromEuler(tmpE));
-      g.applyMatrix4(tmpM.makeRotationY(a));
-      g.translate(Math.sin(a) * 0.1, 0.02 + rng() * 0.03, Math.cos(a) * 0.1);
-      head.add(g, C.hair);
-    }
-    // Cap: red crown, dark front panel with a plain white badge (no logo), red brim.
-    head.add(place(new THREE.SphereGeometry(0.128, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2), 0, 0.035, 0, 0, 0, 0, 1, 0.85, 1.02), C.cap);
-    head.add(
-      place(new THREE.SphereGeometry(0.131, 6, 4, Math.PI * 1.25, Math.PI * 0.5, 0.15, Math.PI / 2 - 0.25), 0, 0.035, 0, 0, 0, 0, 1, 0.85, 1.02),
-      C.capFront,
-    );
-    head.add(place(cyl(0.022, 0.022, 0.01, 8), 0, 0.105, -0.105, Math.PI / 2 - 0.55, 0, 0), C.badge);
-    head.add(place(cyl(0.1, 0.1, 0.014, 10), 0, 0.045, -0.13, 0.12, 0, 0, 0.95, 1, 0.75), C.cap);
+    head.add(place(ball(0.013, 10, 8), 0, -0.024, faceZ(0, -0.024) + 0.006, 0, 0, 0, 0.8, 1.15, 0.8), C.skin);
+    // Wide, happy smile: the lower half of a thin ring.
+    head.add(place(new THREE.TorusGeometry(0.023, 0.0045, 6, 16, Math.PI), 0, -0.048, faceZ(0, -0.06) + 0.003, 0, 0, Math.PI, 1, 0.7, 1), C.mouth);
+
+    // Korean-style "two-block" hair: short and close at the sides and back, a smooth full dome
+    // on top lifted toward the front, and a soft fringe whose strands end in tapered tips just
+    // above the brows, swept a little to one side.
+    // Tilted back a lot: its front edge sits high (the fringe covers the forehead), the back
+    // reaches down to the nape.
+    const hairCap = new THREE.SphereGeometry(0.127, 28, 16, 0, Math.PI * 2, 0, 1.4);
+    head.add(place(hairCap, 0, 0.008, 0.004, 0.65, 0, 0, 0.96, 1.02, 1.02), C.hair);
+    head.add(place(ball(0.11, 24, 14), 0, 0.1, -0.02, 0.25, 0, 0.05, 0.98, 0.42, 1.0), C.hair);
+    head.add(place(fringeGeometry(0.131), 0, 0.006, -0.002, 0, 0, 0.1, 0.97, 1.02, 1.03), C.hair);
     mesh(head, this.head);
 
-    // Arms: shoulder → upper arm (short white sleeve), elbow → forearm, wristband, glove.
+    // Arms: slim and toned; short shirt sleeves, a bead bracelet on the right wrist.
     for (const s of [-1, 1]) {
       const shoulder = new THREE.Group();
-      shoulder.position.set(s * 0.205, 0.37, 0);
+      shoulder.position.set(s * 0.19, 0.37, 0);
       this.torso.add(shoulder);
       const upper = builder();
-      upper.add(place(cyl(0.062, 0.058, 0.12, 8), 0, -0.04, 0), C.shirt);
-      upper.add(place(cyl(0.044, 0.041, 0.2), 0, -0.17, 0), C.skin);
+      upper.add(place(ball(0.051, 16, 12), 0, 0, 0), C.shirt);
+      upper.add(place(cyl(0.051, 0.047, 0.13, 16), 0, -0.065, 0), C.shirt);
+      upper.add(place(cyl(0.049, 0.049, 0.014, 16), 0, -0.128, 0), C.shirtDark);
+      upper.add(place(new THREE.CapsuleGeometry(0.037, 0.15, 6, 14), 0, -0.175, 0), C.skin);
       mesh(upper, shoulder);
       const elbow = new THREE.Group();
       elbow.position.y = -0.27;
       shoulder.add(elbow);
       const fore = builder();
-      fore.add(place(cyl(0.041, 0.036, 0.2), 0, -0.1, 0), C.skin);
-      fore.add(place(cyl(0.046, 0.046, 0.045), 0, -0.18, 0), C.wrist);
-      fore.add(place(ball(0.05, 7, 5), 0, -0.25, -0.005, 0, 0, 0, 0.9, 1, 1), C.glove);
-      fore.add(place(new THREE.BoxGeometry(0.07, 0.035, 0.03), 0, -0.27, -0.04), C.skin);
+      fore.add(place(new THREE.CapsuleGeometry(0.034, 0.16, 6, 14), 0, -0.09, 0), C.skin);
+      fore.add(place(ball(0.04, 14, 10), 0, -0.235, -0.005, 0, 0, 0, 0.75, 1.2, 0.95), C.skin);
+      fore.add(place(new THREE.CapsuleGeometry(0.012, 0.03, 4, 8), -s * 0.025, -0.225, -0.02, 0.3, 0, s * 0.5), C.skin);
+      if (s > 0) fore.add(place(new THREE.TorusGeometry(0.036, 0.007, 6, 16), 0, -0.19, 0, Math.PI / 2, 0, 0), C.bracelet);
       mesh(fore, elbow);
       this.shoulders.push(shoulder);
       this.elbows.push(elbow);
     }
 
-    // Legs: hip → thigh (baggy jeans), knee → shin with cargo pocket, sneaker.
+    // Legs: board shorts to the knee (white side stripe), bare slim calves, flip-flops.
     for (const s of [-1, 1]) {
       const hip = new THREE.Group();
-      hip.position.set(s * 0.085, -0.03, 0);
-      // Shorter, baggier legs (and slightly chunkier sneakers) for cartoon proportions.
-      hip.scale.set(1.15, 0.92, 1.12);
+      hip.position.set(s * 0.08, -0.03, 0);
+      hip.scale.set(1, LEG_SCALE, 1);
       this.hips.add(hip);
       const thigh = builder();
-      thigh.add(place(cyl(0.085, 0.078, 0.42), 0, -0.2, 0), C.jeans);
-      thigh.add(place(new THREE.BoxGeometry(0.02, 0.1, 0.08), s * 0.085, -0.22, 0), C.jeansDark);
+      thigh.add(place(ball(0.08, 16, 12), 0, 0, 0), C.shorts);
+      thigh.add(place(cyl(0.08, 0.077, 0.4, 18), 0, -0.2, 0), C.shorts);
+      thigh.add(place(cyl(0.079, 0.079, 0.025, 18), 0, -0.395, 0), C.shortsDark);
+      thigh.add(place(new THREE.BoxGeometry(0.004, 0.36, 0.03), s * 0.079, -0.2, 0), C.white);
       mesh(thigh, hip);
       const knee = new THREE.Group();
       knee.position.y = -0.41;
       hip.add(knee);
       const shin = builder();
-      shin.add(place(cyl(0.078, 0.082, 0.38), 0, -0.19, 0), C.jeans);
-      shin.add(place(cyl(0.083, 0.083, 0.03), 0, -0.36, 0), C.jeansDark);
-      // Sneaker: red body, dark top, white sole; points forward (−Z).
-      shin.add(place(new THREE.BoxGeometry(0.11, 0.05, 0.25), 0, -0.43, -0.04), C.shoe);
-      shin.add(place(new THREE.BoxGeometry(0.1, 0.045, 0.16), 0, -0.39, -0.0), C.shoeTop);
-      shin.add(place(new THREE.BoxGeometry(0.115, 0.02, 0.26), 0, -0.46, -0.04), C.sole);
+      shin.add(place(ball(0.047, 14, 10), 0, 0.005, 0), C.skin);
+      shin.add(place(cyl(0.047, 0.034, 0.37, 16), 0, -0.185, 0), C.skin);
+      shin.add(place(ball(0.036, 12, 10), 0, -0.375, 0), C.skin);
+      // Bare foot on a flip-flop, pointing forward (−Z); sole bottom at about −0.455.
+      shin.add(place(ball(0.04, 14, 10), 0, -0.42, -0.04, 0, 0, 0, 1.0, 0.65, 2.3), C.skin);
+      shin.add(place(cyl(1, 1, 1, 20), 0, -0.448, -0.04, 0, 0, 0, 0.05, 0.014, 0.125), C.sandal);
+      for (const k of [-1, 1]) {
+        shin.add(place(new THREE.CapsuleGeometry(0.005, 0.06, 3, 6), k * 0.022, -0.418, -0.075, 0.9, 0, -k * 0.6), C.strap);
+      }
       mesh(shin, knee);
       this.hipJoints.push(hip);
       this.knees.push(knee);
