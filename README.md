@@ -1,11 +1,13 @@
 # Tropical Soundscape World — Đảo Nhiệt Đới
 
 A local web app for Windows 11 that you leave open while you work: a small stylized tropical
-island with GPU water, weather, day/night and an ambient sound mixer. Fully offline, no backend.
+island with GPU water, weather, day/night and your own ambient sound recordings. Fully offline,
+no backend.
 
-> Status: **Phase 6** (all planned phases built) — island, GPU water with reflections, synthesized
-> sound mixer with presets and optional real recordings, weather that follows the mixer, a
-> day/night cycle with clouds, stars and aurora, walking around the island, and a Pomodoro timer.
+> Status: **Phase 7a** — island, GPU water with reflections, scene presets (weather + sky +
+> time), a library of your own recordings that play with the scenes (synthesized sound as the
+> fallback), a day/night cycle with clouds, stars and aurora, walking around the island, and a
+> Pomodoro timer.
 > See [PLAN.md](PLAN.md) for the roadmap.
 
 ## Run
@@ -54,19 +56,46 @@ then never starts by itself (and is muted if it was playing). The choice is reme
 
 ### Control panel (top right)
 
-- **Âm thanh (sound):** master volume, and for each layer — Sóng biển (waves), Chim hót (birds),
-  Gió lá (wind), Mưa (rain), Tuyết lặng (snow hush) — an on/off switch, a volume slider and a
-  mute button. *Off* stops the layer completely (no CPU); *mute* silences it but keeps it running.
-  A small **tệp** badge next to a layer means it plays your own recordings (see below).
-- **Preset:** pick *Tập trung*, *Bão*, *Tuyết yên tĩnh*, *Bình minh yên ả*, or your own.
-  **Lưu thành preset…** saves the current mix + wave strength under a name (saving with an
-  existing name overwrites it). **Xóa** deletes your own presets. Up to 20 user presets.
-- **Cảnh (scene):** walk button, **Pomodoro (T)** (show/hide the timer), wave strength,
-  quality (Thấp / Vừa / Cao), low power, camera auto-rotate.
-  Anti-aliasing changes between Low and the other presets apply after a page reload.
-- **Tách hình/âm:** by default the weather you *see* follows the sound sliders (Mưa → rain,
-  Tuyết lặng → snow, Gió lá → wind; switching a layer off clears that weather, muting does not).
-  Turn this on to get three separate visual sliders, e.g. to hear rain under a clear sky.
+- **Âm thanh (sound):** master volume and mute, *Chỉ ngắm cảnh*, **Âm tổng hợp khi chưa có
+  file** (the synthesized fallback, see below), and **Âm thanh của tôi**, your recordings.
+- **Cảnh (scene):** pick a scene preset, save the current effects as your own, update or delete
+  your presets; sliders for rain, snow, wind, waves, clouds and gloom, and the rainbow.
+- **Bầu trời (sky):** day length, clock, night options (shooting stars, aurora, stars, fireflies).
+- **Hiển thị (display):** walk, character view, footsteps, **Pomodoro (T)**, quality
+  (Thấp / Vừa / Cao), low power, camera auto-rotate. Anti-aliasing changes between Low and the
+  other qualities apply after a page reload.
+
+## Scene presets and your recordings
+
+A **scene preset** sets the weather and sky effects (rain, snow, wind, waves, clouds, gloom,
+rainbow, stars, shooting stars, aurora, fireflies) and, if saved with one, a time of day.
+Built in: *Ngày nắng*, *Hoàng hôn yên ả*, *Bão nhiệt đới*, *Mưa rừng*, *Đêm lửa trại*,
+*Sáng sương mù*, *Đêm tuyết cực quang*. Your own presets: set the sliders, then
+**Lưu thành preset…** (turn on **Kèm giờ hiện tại** to store the time too; saving under an
+existing name overwrites it). Moving a slider afterwards shows *(đã chỉnh)*; **Cập nhật preset**
+writes the new values into your preset. Up to 30 presets of your own.
+
+**Âm thanh của tôi** holds your recordings (e.g. a one-hour rain MP3 you downloaded):
+
+1. **+ Thêm file** (or drag files onto the list). MP3, OGG, WAV, M4A, FLAC, WebM. The file is
+   **copied into the browser's storage** (IndexedDB), so it is there next time without asking;
+   the original on your PC is not touched. An hour of MP3 at 128 kbps is ~58 MB.
+2. **▶** plays a recording on its own, with its own volume, whatever the scene.
+3. **⚙ → Tự phát khi chọn preset cảnh:** switch on the presets it belongs to, each with its own
+   volume (e.g. "Sóng biển 1h" at 70 % in *Hoàng hôn* and 100 % in *Bão*). Choosing such a
+   preset fades its recordings in over ~3 s and the previous scene's out. Tags under the name
+   show the mapping; the active scene's tag is highlighted.
+4. ⚙ also renames or deletes (deleting removes the browser copy only).
+
+Long files are streamed by an `<audio>` element (a few MB of memory, not the ~1.4 GB an hour
+would take decoded) and routed through the app's audio graph, so master volume, mute, the snow
+muffle and the Pomodoro calm apply to them. A file the browser can't play is marked
+*Không phát được* and skipped.
+
+**Synthesized fallback:** with **Âm tổng hợp khi chưa có file** on (default), the built-in
+synthesized soundscape plays whenever none of your recordings is playing, and it follows the
+scene (rain slider → rain sound, wind → gusts, waves → surf, birds by day). As soon as a
+recording plays it fades out. So a fresh install (the repo ships no audio) is never silent.
 
 ## Pomodoro (`T` or **Pomodoro (T)** in the panel)
 
@@ -87,9 +116,10 @@ the next part, reset, settings (⚙), hide (✕).
   rings on time even though Chrome runs background timers only once a minute.
 - The timer is saved: reloading the page or restarting the browser continues where it was.
 
-## Your own sound files (optional)
+## Sound files in the project folder (advanced, optional)
 
-Every layer is synthesized by default. To use real recordings instead:
+For people building the project: a synthesized layer can also be replaced by files placed in
+`public/audio/` (this changes the *fallback* sound; the in-app library above is usually easier):
 
 1. Put audio files under `public/audio/` (any sub-folders), e.g. `public/audio/waves/beach1.ogg`.
    OGG (Vorbis/Opus), MP3, WAV, M4A, FLAC and WebM work in Chrome/Edge.
@@ -204,7 +234,7 @@ variant); wind bends each species according to its stiffness.
 | Snow | falling flakes; snow settles over ~90 s — first in patches, then everywhere (leaves, roofs, sand) — and melts slowly when it stops |
 | Rain + snow | sleet: fewer particles of each; snow only settles if it outweighs the rain, and melting snow makes things wet |
 
-Everything (mix, presets, panel state, scene settings) is saved in `localStorage`.
+Settings, presets and the panel state are saved in `localStorage`; your recordings in IndexedDB.
 
 ### What the quality presets change
 
@@ -252,8 +282,7 @@ pause was). Sound keeps playing.
 
 ## How the sound works (short version)
 
-All sound is generated in code with the Web Audio API — no audio files are needed (you can add
-your own, see above).
+The fallback sound is generated in code with the Web Audio API — no audio files are needed.
 
 - **Noise colors** (white, pink, brown) are generated once into 8 s looping buffers; each layer
   filters them differently. Loops are made seamless so they never click.
@@ -286,7 +315,8 @@ src/
   water/     Gerstner swell, ripple simulation, refraction capture, caustics, floating objects
   weather/   rain/snow particles, gusts, wetness & snow-cover rules
   audio/     audio engine, synthesized layers, mixer state, presets, scheduler
-    file/      audio config parsing and the recording player (crossfades)
+    file/      public/audio config parsing and the file layer (crossfades)
+    library/   the user's recordings: IndexedDB storage, streaming players, scene mapping
   controls/  orbit camera, walking (first person), collision, water clicks, keyboard shortcuts
   ui/        Vietnamese strings, control panel, Pomodoro (state machine + card), stats overlay, styles
 tests/       unit tests for pure logic

@@ -32,8 +32,8 @@ PLAN.md       approved plan and roadmap (keep updated)
 2. **Water:** GPU heightfield simulation in the style of Evan Wallace's WebGL Water (MIT, credit it in README): ripples on click and from rain, reflection/refraction, caustics, shore foam, adjustable wave strength.
 3. **Camera:** Orbit mode (drag, wheel/pinch, optional auto-rotate) and first-person mode (pointer lock, WASD, Shift run, terrain following, collision, limited wading, Esc to exit). Footsteps vary by surface.
 4. **Day/night:** smooth cycle, adjustable speed, pausable. Stars and lit windows at night.
-5. **Weather reacts to the mixer:** rain (particles, water ripples, wet look), wind (sway of leaves, grass, sea, done in vertex shaders), snow (falling flakes, gradual white cover). Rain and snow blend sensibly.
-6. **Sound mixer (Web Audio):** layers for waves, birds, wind, rain, quiet snow, plus master. Per-layer volume, mute, on/off. Presets (Focus, Storm, Quiet snow) and user-saved presets.
+5. **Weather and scene presets** (changed in Phase 7): rain (particles, water ripples, wet look), wind (sway of leaves, grass, sea, done in vertex shaders), snow (falling flakes, gradual white cover). Rain and snow blend sensibly. Scene presets set these effects and the sky (built-in + user-saved).
+6. **Sound (Web Audio)** (changed in Phase 7): the user's own recordings, copied into IndexedDB and streamed, each played on its own or mapped to scene presets (per-preset volume). Synthesized layers (waves, birds, wind, rain, quiet snow) are the fallback whenever no recording plays, following the scene. Master volume and mute.
    - Default: everything synthesized in code (filtered noise + LFOs; randomized oscillator chirps for birds).
    - Optional realism: `public/audio/config.json` maps each layer to my own mp3/ogg files (gain, loop, random crossfade). Missing or failed file means silent fallback to the synthesized sound, with no errors.
    - Audio starts only after a user gesture (start screen).

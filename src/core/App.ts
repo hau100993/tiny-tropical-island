@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Loop } from './loop';
-import { SettingsStore, safeLocalStorage, type Settings } from './settings';
+import { SettingsStore, safeLocalStorage, type Settings, type SettingsPatch } from './settings';
 import { effectiveProfile, LOW_POWER_FPS, NORMAL_FPS, QUALITY_PROFILES } from './quality';
 import { sharedUniforms } from './uniforms';
 import { EnvState } from './envState';
@@ -16,13 +16,15 @@ import { WalkHint } from '../ui/WalkHint';
 import { Avatar, type AvatarPose } from '../world/avatar';
 import type { ListenerState } from '../audio/spatial';
 import type { FootSurface } from '../audio/synth/footsteps';
+import type { LayerId } from '../audio/types';
 import { DebugOverlay } from '../ui/DebugOverlay';
 import { Panel } from '../ui/Panel';
 import { AudioPrompt } from '../ui/AudioPrompt';
 import { PomodoroOverlay } from '../ui/PomodoroOverlay';
 import { vi } from '../ui/strings.vi';
 import { Mixer } from '../audio/mixer';
-import { PresetStore } from '../audio/presets';
+import { SoundLibrary } from '../audio/library/SoundLibrary';
+import { ScenePresetStore } from './scenePresets';
 import type { WeatherTargets } from '../weather/Weather';
 import { wallSeconds } from '../weather/wind';
 import type { SkyOptions, SkyWeather } from '../world/dayNight';
@@ -56,7 +58,8 @@ export class App {
   private readonly loop: Loop;
   private readonly gpuTimer: GpuTimer;
   private readonly mixer = new Mixer();
-  private readonly presets = new PresetStore();
+  private readonly scenes = new ScenePresetStore();
+  private readonly library = new SoundLibrary();
   private readonly panel: Panel;
   private readonly pomodoro: PomodoroOverlay;
   /** Pomodoro storm calm: target and the eased value the visuals use. */
@@ -128,12 +131,18 @@ export class App {
     const ui = document.createElement('div');
     ui.className = 'ui-layer';
     container.append(ui);
+    this.migrateLinkedWeather();
+    this.library.setActivePreset(this.settings.get().activeScene);
+    this.library.onChange(() => this.updateSynth());
     this.panel = new Panel(ui, {
       mixer: this.mixer,
-      presets: this.presets,
+      library: this.library,
+      scenes: this.scenes,
       settings: this.settings,
       keymap: this.keymap,
       startAudio: () => void this.startAudio(),
+      applyScene: (id) => this.applyScene(id),
+      onSceneDeleted: (id) => this.library.dropPreset(id),
       getHours: () => this.world.dayNight.hours,
       setHours: (h) => this.world.dayNight.setHours(h),
       walk: () => this.cameras.setMode('walk'),
@@ -145,6 +154,7 @@ export class App {
       onCalm: (active) => {
         this.calmTarget = active ? CALM_LEVEL : 1;
         this.mixer.setCalm(this.calmTarget);
+        this.library.setCalm(this.calmTarget);
       },
     });
     this.audioPrompt = new AudioPrompt(ui);
@@ -175,18 +185,60 @@ export class App {
     this.world.weather.snapToTargets();
   }
 
-  /**
-   * Linked (default): each weather effect follows its sound layer — on/off × volume.
-   * Mute only silences the sound; the rain stays visible. Unlinked: separate visual sliders.
-   */
+  /** The scene's effect sliders (eased down during a Pomodoro break with "storm calms"). */
   private weatherTargets(): WeatherTargets {
     const s = this.settings.get();
     const k = this.calmVisual;
-    if (!s.weatherLinked) return { rain: s.visualRain * k, snow: s.visualSnow * k, wind: s.visualWind * k };
-    const l = this.mixer.current.layers;
-    const level = (id: 'rain' | 'snow' | 'wind'): number => (l[id].enabled ? l[id].volume * k : 0);
-    return { rain: level('rain'), snow: level('snow'), wind: level('wind') };
+    return { rain: s.visualRain * k, snow: s.visualSnow * k, wind: s.visualWind * k };
   }
+
+  /**
+   * Before Phase 7 the weather followed the synth mixer. Carry such a setup over once into the
+   * scene sliders, so nothing changes on screen after the update.
+   */
+  private migrateLinkedWeather(): void {
+    const s = this.settings.get();
+    if (!s.weatherLinked) return;
+    const l = this.mixer.current.layers;
+    const level = (id: 'rain' | 'snow' | 'wind'): number => (l[id].enabled ? l[id].volume : 0);
+    this.settings.update({
+      weatherLinked: false,
+      visualRain: level('rain'),
+      visualSnow: level('snow'),
+      visualWind: level('wind'),
+      activeScene: '',
+    });
+  }
+
+  /** Scene preset: its effects, its time of day (if saved with one) and its recordings. */
+  private applyScene(id: string): void {
+    const p = this.scenes.get(id);
+    if (!p) return;
+    const patch: SettingsPatch = { ...p.values, activeScene: id };
+    if (p.hours !== null && this.settings.get().timeMode === 'real') patch.timeMode = 'paused';
+    this.settings.update(patch);
+    if (p.hours !== null) this.world.dayNight.setHours(p.hours);
+  }
+
+  /**
+   * The synthesized soundscape is the fallback: it follows the scene (rain slider → rain sound,
+   * …) and fades out while any recording plays.
+   */
+  private updateSynth(): void {
+    const s = this.settings.get();
+    const on = s.synthFallback && !this.library.audible;
+    const wet = Math.max(s.visualRain, s.visualSnow);
+    this.synthLevels.waves = on ? 0.3 + 0.55 * s.waveStrength : 0;
+    this.synthLevels.birds = on ? 0.32 * (1 - 0.8 * wet) : 0;
+    this.synthLevels.wind = on && s.visualWind > 0.03 ? 0.1 + 0.75 * s.visualWind : 0;
+    this.synthLevels.rain = on ? s.visualRain : 0;
+    this.synthLevels.snow = on ? 0.8 * s.visualSnow : 0;
+    this.mixer.setSceneMix(this.synthLevels);
+    // Falling snow muffles everything, recordings included.
+    this.mixer.setMuffle(0.8 * s.visualSnow);
+  }
+
+  private readonly synthLevels: Record<LayerId, number> = { waves: 0, birds: 0, wind: 0, rain: 0, snow: 0 };
 
   start(): void {
     this.loop.start();
@@ -198,6 +250,9 @@ export class App {
     this.audioStarting = true;
     try {
       await this.mixer.start();
+      const engine = this.mixer.audioEngine;
+      if (engine) this.library.attach(engine);
+      this.updateSynth();
       this.audioPrompt.hide();
       this.pomodoro.refreshSound();
     } catch (e) {
@@ -285,6 +340,8 @@ export class App {
     this.env.waveStrength.target = s.waveStrength;
     if (s.walkView !== this.walker.view) this.walker.setView(s.walkView);
     this.applySceneOnly(s.sceneOnly);
+    this.library.setActivePreset(s.activeScene);
+    this.updateSynth();
     this.overlay.setVisible(s.showDebug);
   }
 

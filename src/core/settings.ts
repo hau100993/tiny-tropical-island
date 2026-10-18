@@ -16,7 +16,10 @@ export interface Settings {
   /** Sea wave strength, 0 (glassy) … 1 (stormy). */
   waveStrength: number;
   panelCollapsed: boolean;
-  /** true: rain/snow/wind visuals follow the sound mixer; false: separate visual sliders. */
+  /**
+   * Phase 2–6 only: visuals followed the synth mixer. Since Phase 7 the scene (visual sliders,
+   * scene presets) leads; kept to migrate old settings once (see App).
+   */
   weatherLinked: boolean;
   visualRain: number;
   visualSnow: number;
@@ -39,6 +42,10 @@ export interface Settings {
   sceneOnly: boolean;
   /** Walk mode view: through the eyes, or behind the character. */
   walkView: WalkView;
+  /** Scene preset last applied ('' = none); its mapped recordings play. */
+  activeScene: string;
+  /** Play the synthesized soundscape while no recording is playing. */
+  synthFallback: boolean;
 }
 
 export type SettingsPatch = Partial<Omit<Settings, 'version'>>;
@@ -52,7 +59,7 @@ export function defaultSettings(): Settings {
     showDebug: false,
     waveStrength: 0.45,
     panelCollapsed: false,
-    weatherLinked: true,
+    weatherLinked: false,
     visualRain: 0,
     visualSnow: 0,
     visualWind: 0.3,
@@ -67,6 +74,8 @@ export function defaultSettings(): Settings {
     footsteps: true,
     walkView: 'third',
     sceneOnly: false,
+    activeScene: 'b-sunny',
+    synthFallback: true,
   };
 }
 
@@ -129,6 +138,8 @@ export function parseSettings(json: string | null): Settings {
     footsteps: bool(raw.footsteps, defaults.footsteps),
     sceneOnly: bool(raw.sceneOnly, defaults.sceneOnly),
     walkView: raw.walkView === 'first' || raw.walkView === 'third' ? raw.walkView : defaults.walkView,
+    activeScene: typeof raw.activeScene === 'string' ? raw.activeScene.slice(0, 64) : defaults.activeScene,
+    synthFallback: bool(raw.synthFallback, defaults.synthFallback),
   };
 }
 

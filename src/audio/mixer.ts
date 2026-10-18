@@ -10,7 +10,7 @@ import { LayerSlot, type LayerSource } from './LayerSlot';
 import { FileLayer } from './file/FileLayer';
 import { loadAudioFileConfig } from './file/config';
 import { scheduleChime, type ChimeKind } from './synth/chime';
-import { cloneMixerState, defaultMixerState, MIXER_KEY, parseMixerState } from './mixerState';
+import { MIXER_KEY, parseMixerState } from './mixerState';
 import { LAYER_IDS, type AudioLayer, type LayerId, type LayerState, type MixerState, type SpatialMix } from './types';
 import { parseJson, readStored, writeStored } from '../core/storage';
 
@@ -35,6 +35,7 @@ export class Mixer {
   private readonly spatialSent = new Map<LayerId, SpatialMix>();
   private readonly spatialTmp: SpatialMix = { gain: 1, pan: 0, occlusion: 0 };
   private calm = 1;
+  private muffle = 0;
 
   constructor() {
     this.state = parseMixerState(parseJson(readStored(MIXER_KEY)));
@@ -111,8 +112,39 @@ export class Mixer {
   setLayer(id: LayerId, patch: Partial<LayerState>): void {
     Object.assign(this.state.layers[id], patch);
     this.applyLayer(id);
-    if (id === 'snow') this.applyMuffle();
     this.changed();
+  }
+
+  /**
+   * Sets the synthesized layers from the scene (0 = off). Used as the fallback soundscape when
+   * no recording plays, so the sound matches what is on screen.
+   */
+  setSceneMix(levels: Readonly<Record<LayerId, number>>): void {
+    let any = false;
+    for (const id of LAYER_IDS) {
+      const v = levels[id];
+      const l = this.state.layers[id];
+      const enabled = v > 0.01;
+      if (l.enabled === enabled && (!enabled || Math.abs(l.volume - v) < 0.005) && !l.muted) continue;
+      l.enabled = enabled;
+      if (enabled) l.volume = v;
+      l.muted = false;
+      this.applyLayer(id);
+      any = true;
+    }
+    if (any) this.changed();
+  }
+
+  /** Falling snow absorbs sound: 0 = clear … 1 = heavily muffled (all layers and recordings). */
+  setMuffle(amount: number): void {
+    if (Math.abs(amount - this.muffle) < 0.005) return;
+    this.muffle = amount;
+    this.applyMuffle();
+  }
+
+  /** Null until sound has started. */
+  get audioEngine(): AudioEngine | null {
+    return this.engine;
   }
 
   setMaster(patch: Partial<MixerState['master']>): void {
@@ -123,17 +155,6 @@ export class Mixer {
 
   toggleMuteAll(): void {
     this.setMaster({ muted: !this.state.master.muted });
-  }
-
-  /** Replaces the whole mix (presets). */
-  load(state: MixerState): void {
-    this.state = cloneMixerState(state);
-    this.applyAll();
-    this.changed();
-  }
-
-  reset(): void {
-    this.load(defaultMixerState());
   }
 
   /** 0 = day … 1 = night: birds fall silent and crickets take over. */
@@ -194,10 +215,8 @@ export class Mixer {
     layer.setEnabled(s.enabled);
   }
 
-  /** Falling snow absorbs sound: the louder the snow-quiet layer, the more muffled the rest. */
   private applyMuffle(): void {
-    const snow = this.state.layers.snow;
-    this.engine?.setMuffle(snow.enabled && !snow.muted ? snow.volume : 0);
+    this.engine?.setMuffle(this.muffle);
   }
 
   private changed(): void {

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { defaultMixerState, parseMixerState } from '../src/audio/mixerState';
-import { BUILT_IN_PRESETS, parseUserPresets, sanitizePresetName, MAX_USER_PRESETS } from '../src/audio/presets';
 import { generateBrown, generateDroplets, generatePink, makeSeamless } from '../src/audio/noiseBuffers';
 import { createRng } from '../src/core/rng';
 
@@ -18,32 +17,6 @@ describe('parseMixerState', () => {
     expect(s.master).toEqual({ volume: 1, muted: true });
     expect(s.layers.rain).toEqual({ volume: 0.3, enabled: true, muted: false });
     expect(s.layers.birds).toEqual(defaultMixerState().layers.birds);
-  });
-});
-
-describe('presets', () => {
-  it('built-ins have unique ids and valid mixes', () => {
-    const ids = new Set(BUILT_IN_PRESETS.map((p) => p.id));
-    expect(ids.size).toBe(BUILT_IN_PRESETS.length);
-    for (const p of BUILT_IN_PRESETS) expect(parseMixerState(p.mixer)).toEqual(p.mixer);
-  });
-
-  it('storm turns rain on and birds off', () => {
-    const storm = BUILT_IN_PRESETS.find((p) => p.id === 'storm');
-    expect(storm?.mixer.layers.rain.enabled).toBe(true);
-    expect(storm?.mixer.layers.birds.enabled).toBe(false);
-  });
-
-  it('sanitizes names', () => {
-    expect(sanitizePresetName('   ')).toBeNull();
-    expect(sanitizePresetName('  Mưa   đêm  ')).toBe('Mưa đêm');
-    expect(sanitizePresetName('x'.repeat(100))?.length).toBe(32);
-  });
-
-  it('drops invalid stored presets and caps the list', () => {
-    const many = Array.from({ length: 30 }, (_, i) => ({ id: `u${i}`, name: `P${i}`, mixer: {}, waveStrength: 0.5 }));
-    expect(parseUserPresets([{ id: 1 }, { id: 'a', name: '' }, ...many]).length).toBe(MAX_USER_PRESETS);
-    expect(parseUserPresets('nope')).toEqual([]);
   });
 });
 
