@@ -76,6 +76,7 @@ behind you, so it works inside the small room too.
 | Mouse | Look around (the browser captures the mouse and briefly says how to release it with Esc) |
 | `W` `A` `S` `D` / arrow keys | Walk |
 | `Shift` (hold) | Run |
+| `W` (keep holding) | After about a second you speed up into a run; let go (or bump into something) to walk again |
 | Click | Splash: a ripple where you look, if that is water |
 | `V` | Switch between the character view and the eyes view |
 | `Esc` | Stop walking and return to the orbit view (also `C`) |

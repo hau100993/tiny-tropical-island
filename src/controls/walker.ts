@@ -8,6 +8,9 @@ export const EYE_HEIGHT = 1.65;
 const RADIUS = 0.3;
 const WALK_SPEED = 1.6;
 const RUN_SPEED = 4.0;
+/** Holding forward this long (s) starts an automatic run, which ramps up over AUTO_RUN_RAMP s. */
+const AUTO_RUN_DELAY = 1.0;
+const AUTO_RUN_RAMP = 0.8;
 /** Deepest water you can wade into (m). */
 export const MAX_WADE = 0.9;
 /** Radians per pixel of mouse movement. */
@@ -42,7 +45,8 @@ const MOVE_KEYS = new Set([
 ]);
 
 /**
- * Walking on the island: pointer-lock mouse look, WASD/arrows, Shift to run. Movement follows
+ * Walking on the island: pointer-lock mouse look, WASD/arrows, Shift to run (or keep holding
+ * forward: after a second you break into a run, like in many games). Movement follows
  * the terrain and the house floor/steps, slides along trunks and walls, wades into shallow
  * water (slower) and stops at chest-deep water. Footfalls are reported every stride.
  *
@@ -65,6 +69,8 @@ export class Walker {
   /** Current horizontal speed (m/s). */
   speed = 0;
   running = false;
+  /** How long forward has been held without stopping (s), for the automatic run. */
+  private forwardTime = 0;
   view: WalkView = 'third';
   /** Footfall counter: +1 per step (drives the avatar's gait). */
   phase = 0;
@@ -169,11 +175,18 @@ export class Walker {
     const k = this.keys;
     const fwd = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
     const side = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
-    const run = k.has('ShiftLeft') || k.has('ShiftRight');
+    // Auto-run: keep holding forward and you speed up into a run. Releasing it, or being
+    // stopped (by a wall, a trunk, deep water), drops back to walking.
+    if (fwd > 0 && (this.forwardTime < 0.3 || this.speed > WALK_SPEED * 0.4)) this.forwardTime += dt;
+    else this.forwardTime = 0;
+    const auto = clamp((this.forwardTime - AUTO_RUN_DELAY) / AUTO_RUN_RAMP, 0, 1);
+    const shift = k.has('ShiftLeft') || k.has('ShiftRight');
+    const runAmount = shift ? 1 : auto;
+    const run = runAmount > 0.5;
     this.running = run;
     // Wading slows you down, the deeper the slower.
     const wade = 1 - 0.55 * clamp(this.depth / MAX_WADE, 0, 1);
-    const max = (run ? RUN_SPEED : WALK_SPEED) * wade;
+    const max = (WALK_SPEED + (RUN_SPEED - WALK_SPEED) * runAmount) * wade;
     const len = Math.hypot(fwd, side) || 1;
     // Forward is −Z rotated by yaw; right is +X rotated by yaw.
     const s = Math.sin(this.yaw);
