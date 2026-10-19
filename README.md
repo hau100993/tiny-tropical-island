@@ -320,7 +320,7 @@ The other sky options are scene effects (*Cảnh → Sửa cảnh / Tạo cảnh
 | Sao & Ngân Hà | Twinkling stars and a faint Milky Way that slowly wheel across the night sky. |
 | Sao băng | How often shooting stars cross the visible sky: thin, star-sized streaks with a fading tail, in random directions, sometimes two or three at once. |
 | Trăng sáng | Moon size and brightness: 30 % is the normal moon; higher gives a bigger, brighter full moon, a wider glow, stronger silver moonlight on the island and a brighter path on the sea. Clouds dim it. |
-| Cực quang | Green-violet aurora curtains: brightest over the sea in front of the desk window (so you see it while working) and toward the north (the overview), a faint glow elsewhere. |
+| Cực quang | Green-violet aurora ribbons with vertical rays: brightest over the sea in front of the desk window (so you see it while working) and toward the north (the overview), a faint glow elsewhere. They move on several rhythms: the ribbon slowly sways into S-curves (~40 s), folds travel along it (~7 s), rays slide and flicker (1–3 s), and now and then a wave of brightness runs along it (~30 s). The sea reflects them at every quality level. With *reduce motion* turned on in Windows, rays and folds almost stand still. |
 | Đom đóm | Fireflies blinking around the garden and forest edge at night. |
 
 **Sky direction per scene.** The desk window faces east, so the real sunset would be behind

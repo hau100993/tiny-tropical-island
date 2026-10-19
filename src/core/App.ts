@@ -136,6 +136,12 @@ export class App {
       const yaw = this.colliders.seaYaw;
       sharedUniforms.uAuroraAz.value = Math.atan2(-Math.sin(yaw), Math.cos(yaw)) + (20 * Math.PI) / 180;
     }
+    // Reduced motion: the aurora's rays and folds nearly stand still (the slow sway stays).
+    const auroraMotion = (): void => {
+      sharedUniforms.uAuroraMotion.value = this.reducedMotion.matches ? 0.08 : 1;
+    };
+    auroraMotion();
+    this.reducedMotion.addEventListener('change', auroraMotion);
     this.deskScreens = new DeskScreens(w.house.screens, this.renderer.capabilities.getMaxAnisotropy(), () => this.screenInfo());
     this.avatar = new Avatar(sharedUniforms);
     this.scene.add(this.avatar.group);

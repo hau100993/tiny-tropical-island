@@ -7,6 +7,7 @@ import waterVert from './shaders/water.vert.glsl?raw';
 import waterFrag from './shaders/water.frag.glsl?raw';
 import skyCommon from '../world/shaders/skyCommon.glsl?raw';
 import clouds from '../world/shaders/clouds.glsl?raw';
+import aurora from '../world/shaders/aurora.glsl?raw';
 
 /**
  * Radial grid centered on the island: ~1.2 m spacing out to 150 m (where waves and foam
@@ -79,6 +80,9 @@ export class WaterSurface {
         uSkyHorizon: shared.uSkyHorizon,
         uMoonDir: shared.uMoonDir,
         uMoonGlow: shared.uMoonGlow,
+        uAurora: shared.uAurora,
+        uAuroraAz: shared.uAuroraAz,
+        uAuroraMotion: shared.uAuroraMotion,
         uNight: shared.uNight,
         uDayLight: shared.uDayLight,
         uLightDir: shared.uLightDir,
@@ -102,7 +106,8 @@ export class WaterSurface {
         uDeepColor: { value: new THREE.Color('#0a4a78') },
       },
       vertexShader: `${waterCommon}\n${swash}\n${clouds}\n${waterVert}`,
-      fragmentShader: `${waterCommon}\n${swash}\n${skyCommon}\n${waterFrag}`,
+      // One aurora ribbon is enough in the reflection (cheaper per water pixel).
+      fragmentShader: `${waterCommon}\n${swash}\n${skyCommon}\n#define AURORA_LAYERS 1\n${aurora}\n${waterFrag}`,
       fog: true,
     });
     this.mesh = new THREE.Mesh(createRadialGrid(), material);

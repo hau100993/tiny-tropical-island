@@ -87,7 +87,8 @@ void main() {
   float fres = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
   vec3 R = reflect(-V, N);
   R.y = abs(R.y);
-  vec3 refl = skyColor(R);
+  // The sky, aurora included: its ribbons shimmer on the waves as green streaks.
+  vec3 refl = skyColor(R) + aurora(R, uTime) * uAurora;
 #ifdef REFLECTION
   // Mirror image of the scene (alpha 0 where only sky would be reflected). Waves bend it; far
   // away the distortion fades with the flattened normal.

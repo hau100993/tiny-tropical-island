@@ -1,9 +1,8 @@
-// Sky dome: gradient + sun/moon, stars and Milky Way, aurora, shooting stars, rainbow, clouds.
+// Sky dome: gradient + sun/moon, stars and Milky Way, aurora (aurora.glsl), shooting stars,
+// rainbow, clouds.
 uniform float uTime;
 uniform float uDayLight;
 uniform float uStars;
-uniform float uAurora;
-uniform float uAuroraAz;
 uniform float uRainbow;
 uniform float uStarRotation;
 uniform float uSkyTurn;
@@ -65,44 +64,6 @@ vec3 stars(vec3 dir) {
   return col;
 }
 
-vec3 aurora(vec3 dir) {
-  if (dir.y < 0.0) return vec3(0.0);
-  // Two bright arcs (a tropical aurora is make-believe anyway): over the sea in front of the
-  // desk window (uAuroraAz) and toward north (−Z), where the overview camera looks; a faint
-  // glow elsewhere. Noise along the horizon is sampled on a circle (cs), so the curtains wrap
-  // all the way round without a seam.
-  float a = atan(dir.x, -dir.z);
-  vec2 cs = vec2(cos(a), sin(a));
-  float az = a - uAuroraAz;
-  az = atan(sin(az), cos(az));
-  float north = 0.15 + 0.85 * max(exp(-az * az * 0.7), 0.85 * exp(-a * a * 0.8));
-  vec3 acc = vec3(0.0);
-  for (int i = 0; i < 3; i++) {
-    float fi = float(i);
-    float t = uTime * (0.012 + 0.006 * fi);
-    // The curtain's lower edge meanders up and down along the horizon.
-    float base = 0.07 + 0.05 * fi + 0.1 * (cNoise(cs * 0.9 + vec2(t * 0.6, fi * 7.3)) - 0.5);
-    float hgt = dir.y - base;
-    // Brightness drifts in slow patches along the curtain, so no even, box-like bands.
-    float patchy = smoothstep(0.2, 0.8, cNoise(cs * 1.4 + vec2(-t * 0.8, fi * 3.1 + t * 0.15)));
-    // Soft folds (gentle sine, not a sharp spike) bent by noise. Whole multiples of the angle
-    // keep the sine seamless too.
-    float fold = 0.5 + 0.5 * sin(a * (4.0 + fi * 2.0) + cNoise(cs * 2.0 + vec2(t, fi)) * 4.0 + t * 2.5);
-    fold = 0.35 + 0.65 * fold * fold;
-    // Faint vertical rays, low contrast.
-    float rays = 0.75 + 0.25 * cNoise(cs * 45.0 + vec2(t * 1.5, fi * 3.0));
-    // Soft lower edge, then a long fade upward (thinner air glows less).
-    float vert = smoothstep(-0.03, 0.04, hgt) * exp(-max(hgt, 0.0) * (5.5 - fi * 1.2));
-    // Green at the bottom → teal → violet at the top.
-    vec3 c = mix(vec3(0.12, 1.0, 0.45), vec3(0.1, 0.75, 0.65), smoothstep(0.0, 0.12, hgt));
-    c = mix(c, vec3(0.55, 0.22, 0.95), smoothstep(0.1, 0.4, hgt));
-    acc += c * patchy * fold * rays * vert * (1.0 - fi * 0.25);
-  }
-  // A diffuse green glow low over the horizon blends the curtains into the sky.
-  acc += vec3(0.06, 0.35, 0.18) * exp(-dir.y * 7.0) * 0.18;
-  return acc * north * 0.75;
-}
-
 vec3 meteors(vec3 dir) {
   vec3 col = vec3(0.0);
   for (int i = 0; i < METEOR_SLOTS; i++) {
@@ -150,7 +111,7 @@ void main() {
 
   float above = smoothstep(-0.02, 0.04, dir.y);
   col += stars(dir) * uStars * uNight * above;
-  col += aurora(dir) * uAurora;
+  col += aurora(dir, uTime) * uAurora;
 
   // Moon disc, faintly visible by day too.
   float md = dot(dir, uMoonDir);
