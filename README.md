@@ -171,11 +171,10 @@ white moth orchid (Phalaenopsis) in bloom on a bamboo stake, and a mug. The lamp
 left end of the desk, the orchid and the mug at the right end; soft contact shadows under the
 monitor feet, keyboard, mouse, mug, pot and lamp set them down on the desk.
 
-**Your own print on the mug (optional, local):** put an image at
-`src/assets/local/mug-logo.png` (or `.jpg`/`.webp`) and restart `npm run dev`. Its white
-background is dropped and the rest is wrapped around the side of the mug that faces the chair.
-The folder is git-ignored, since a company logo is a trademark; without the file the mug is
-plain. Wood has a procedural grain (shader, no textures); cushions, futon, chair and
+**The print on the mug:** the TMA logo, `src/assets/decor/mug-logo.png`. Its white background
+is dropped and the rest is wrapped around the side of the mug that faces the chair. To print
+something else, put your own image at `src/assets/local/mug-logo.png` (or `.jpg`/`.webp`;
+that folder is git-ignored and takes precedence) and restart `npm run dev`. Wood has a procedural grain (shader, no textures); cushions, futon, chair and
 ceramics are rounded and smooth-shaded. Trees are kept out of the view from the glass to the sea.
 
 **Sitting at the desk:** press **B** (or *Góc làm việc* in the panel) from anywhere, or walk in
@@ -470,4 +469,5 @@ audio files in the repo.
 | Gerstner waves | — | technique from *GPU Gems* (2004), ch. 1 |
 | [WebGL Water](https://madebyevan.com/webgl-water/) by Evan Wallace | MIT | the heightfield ripple simulation (drop + update passes) and the caustics-by-area-ratio technique are reimplemented after it in `src/water/` |
 | Planar reflection camera (`src/water/PlanarReflection.ts`) | MIT | mirrored camera and oblique near plane adapted from three.js `examples/jsm/objects/Reflector.js` |
+| `src/assets/decor/mug-logo.png` (TMA logo) | trademark of its owner, not covered by this project's license | added at the repository owner's request, for the desk mug only |
 | `public/audio/library/island-day.mp3`, `island-night.mp3` | redistribution permitted (confirmed by the repository owner) | built-in recordings, 15 min each; source: *TODO, add the original source and exact license* |

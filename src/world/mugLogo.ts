@@ -2,16 +2,15 @@ import * as THREE from 'three';
 import { MUG } from './houseInterior';
 
 /**
- * Optional local image printed on the desk mug: `src/assets/local/mug-logo.png` (or .jpg/.webp).
- * The folder is git-ignored (a company logo is a trademark, not licensed for the repo), and
- * Vite's glob finds nothing when the file is absent, so the mug stays plain and nothing is
- * requested (no 404).
+ * Image printed on the desk mug: `src/assets/decor/mug-logo.png` (committed, the TMA logo), or
+ * a local one in the git-ignored `src/assets/local/` that takes precedence (.png/.jpg/.webp).
+ * Vite's glob finds nothing when a file is absent, so with neither the mug stays plain and
+ * nothing is requested (no 404).
  */
-const found = import.meta.glob<string>('../assets/local/mug-logo.{png,jpg,jpeg,webp}', {
-  eager: true,
-  query: '?url',
-  import: 'default',
-});
+const found = {
+  ...import.meta.glob<string>('../assets/decor/mug-logo.{png,jpg,jpeg,webp}', { eager: true, query: '?url', import: 'default' }),
+  ...import.meta.glob<string>('../assets/local/mug-logo.{png,jpg,jpeg,webp}', { eager: true, query: '?url', import: 'default' }),
+};
 
 /** The mug body's radius at height h (see `mug()` in houseInterior.ts). */
 const radiusAt = (h: number): number => MUG.r0 + ((MUG.r1 - MUG.r0) * h) / MUG.h;
