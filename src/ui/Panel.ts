@@ -10,7 +10,7 @@ import type { Keymap } from '../controls/keymap';
 import { QUALITY_LEVELS, type QualityLevel } from '../core/quality';
 import type { ScenePresetStore } from '../core/scenePresets';
 import { PANEL_SECTIONS, type PanelSection, type Settings, type SettingsStore } from '../core/settings';
-import { formatClock, type TimeMode } from '../world/celestial';
+import { formatClock, formatClockSeconds, TIME_SPEEDS, type TimeSpeed } from '../world/celestial';
 import type { ScreenInfo } from '../world/deskScreens';
 
 /** Where the camera is, as the "Góc nhìn" tiles show it. */
@@ -37,10 +37,11 @@ export interface PanelDeps {
   goTo: (view: ViewId) => void;
   /** Pomodoro: the timer's state for the header button, and showing/hiding its card. */
   pomodoro: () => { remaining: string; running: boolean; visible: boolean } | null;
+  /** Stops or restarts the clock (N). */
+  toggleTimePaused: () => void;
   togglePomodoro: () => void;
 }
 
-const TIME_MODES: readonly TimeMode[] = ['real', 'cycle24', 'cycle6', 'paused'];
 const SECTION_ICONS: Readonly<Record<Exclude<PanelSection, ''>, string>> = {
   scene: icons.scene,
   sound: icons.music,
@@ -87,7 +88,12 @@ export class Panel {
   private readonly thirdPerson: ToggleControl;
   private readonly startAtDesk: ToggleControl;
   private readonly startQuality: QualityLevel;
-  private readonly timeModeBtns = new Map<TimeMode, HTMLButtonElement>();
+  private readonly speedBtns = new Map<TimeSpeed, HTMLButtonElement>();
+  private readonly bigClock: HTMLElement;
+  private readonly clockState: HTMLElement;
+  private readonly pauseBtn: HTMLButtonElement;
+  private readonly realTime: ToggleControl;
+  private readonly speedHint: HTMLElement;
   private readonly viewTiles = new Map<ViewId, HTMLButtonElement>();
   private readonly clock: SliderControl;
   private shownMinute = -1;
@@ -155,20 +161,39 @@ export class Panel {
 
     // --- Thời gian ---
     const time = this.section('time');
-    const speed = el('div', 'seg-group');
-    speed.setAttribute('role', 'group');
-    speed.setAttribute('aria-label', vi.panel.daySpeed);
-    for (const mode of TIME_MODES) {
-      const b = button(vi.panel.timeModes[mode], () => settings.update({ timeMode: mode }), 'seg');
-      this.timeModeBtns.set(mode, b);
-      speed.append(b);
-    }
-    // Dragging the clock in "real time" mode switches to a fixed (paused) time.
+    // A big hh:mm:ss clock with its state, and the stop/run button.
+    const face = el('div', 'clock-face');
+    const faceText = el('div', 'clock-text');
+    this.bigClock = el('div', 'clock-big');
+    this.clockState = el('div', 'hint');
+    faceText.append(this.bigClock, this.clockState);
+    this.pauseBtn = button('', () => deps.toggleTimePaused(), 'btn small clock-pause');
+    this.pauseBtn.title = vi.panel.pauseTitle;
+    face.append(faceText, this.pauseBtn);
+    this.realTime = toggle(vi.panel.realTime, s.timeMode === 'real', (on) =>
+      settings.update(on ? { timeMode: 'real' } : { timeMode: 'free', timePaused: false }),
+    );
+    const realRow = el('div', 'option-list');
+    realRow.append(this.realTime.root);
+    // Dragging the clock: the island clock runs on from the chosen time.
     this.clock = slider(vi.panel.time, deps.getHours(), (h) => {
-      if (settings.get().timeMode === 'real') settings.update({ timeMode: 'paused' });
+      const c = settings.get();
+      if (c.timeMode === 'real' || c.timePaused) settings.update({ timeMode: 'free', timePaused: false });
       deps.setHours(h);
     }, { min: 0, max: 23.99, step: 0.05, format: formatClock });
-    time.body.append(el('div', 'subhead', vi.panel.daySpeed), speed, this.clock.root);
+    this.clock.root.title = vi.panel.timeDragHint;
+    // Speeds: picking one runs the island clock at that speed from the current time.
+    const speed = el('div', 'seg-group five');
+    speed.setAttribute('role', 'group');
+    speed.setAttribute('aria-label', vi.panel.speed);
+    for (const v of TIME_SPEEDS) {
+      const b = button(`×${v}`, () => settings.update({ timeMode: 'free', timeSpeed: v, timePaused: false }), 'seg');
+      b.title = vi.panel.speedHints[v];
+      this.speedBtns.set(v, b);
+      speed.append(b);
+    }
+    this.speedHint = el('div', 'hint');
+    time.body.append(face, realRow, this.clock.root, el('div', 'subhead', vi.panel.speed), speed, this.speedHint);
 
     // --- Góc nhìn ---
     const view = this.section('view');
@@ -249,6 +274,7 @@ export class Panel {
    * a couple of times a second, touching the DOM only when the text changes.
    */
   tick(now: number): void {
+    setText(this.bigClock, formatClockSeconds(this.deps.getHours()));
     const minute = Math.floor(this.deps.getHours() * 60);
     if (minute !== this.shownMinute && document.activeElement !== this.clock.input) {
       this.shownMinute = minute;
@@ -315,7 +341,18 @@ export class Panel {
     this.synthFallback.set(s.synthFallback);
     this.thirdPerson.set(s.walkView === 'third');
     this.startAtDesk.set(s.startAtDesk);
-    for (const [mode, b] of this.timeModeBtns) b.setAttribute('aria-pressed', String(mode === s.timeMode));
+    const real = s.timeMode === 'real';
+    const stopped = !real && s.timePaused;
+    this.realTime.set(real);
+    for (const [v, b] of this.speedBtns) b.setAttribute('aria-pressed', String(!real && v === s.timeSpeed));
+    this.speedHint.textContent = real ? vi.panel.speedHints[1] : vi.panel.speedHints[s.timeSpeed];
+    this.clockState.textContent = real
+      ? vi.panel.clockReal
+      : stopped
+        ? vi.panel.clockPaused
+        : vi.panel.clockFree(`×${s.timeSpeed}`);
+    this.pauseBtn.innerHTML = `${stopped ? icons.play : icons.pause}<span>${stopped ? vi.panel.resume : vi.panel.pause}</span>`;
+    this.pauseBtn.setAttribute('aria-pressed', String(stopped));
     this.syncSynthStatus();
   }
 }

@@ -54,7 +54,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `M` | Mute / unmute everything |
 | `P` | Collapse / expand the control panel |
 | `H` | Hide all UI (clean wallpaper view); press again to show |
-| `N` | Pause / resume the day-night clock |
+| `N` | Stop / run the clock (stopping the real-time clock freezes the island at that moment) |
 | `C` | Walk around the island; press again to go back to the orbit view |
 | `V` | While walking: character view (third person) ↔ eyes view (first person) |
 | `T` | Pomodoro: show the timer and start / pause it |
@@ -77,7 +77,8 @@ time (the open one is remembered); a closed section shows its current value next
   and *Bầu trời đêm* (shooting stars, aurora, stars, fireflies).
 - **Âm thanh:** **Âm thanh của tôi** (your recordings) and **Âm nền tự tạo khi không phát
   file** (the synthesized fallback, see below).
-- **Thời gian:** day speed (Giờ thật · 24 phút · 6 phút · Dừng) and the clock.
+- **Thời gian:** a big hh:mm:ss clock with **Dừng / Chạy**, **Giờ thật (theo máy tính)**, the
+  **Giờ** slider and the speed (×1 · ×10 · ×30 · ×60 · ×240), see *Day, night and sky*.
 - **Góc nhìn:** tiles for **Toàn cảnh**, **Đi bộ**, **Góc làm việc**, **Bồn tắm** (the current
   one is highlighted, each shows its key), and switches: character view (`V`), footsteps,
   camera auto-rotate.
@@ -279,13 +280,25 @@ behind you, so it works inside the small room too.
   falls under the roof, and the floor stays dry.
 - Head bob is off when Windows' "Animation effects" is disabled (`prefers-reduced-motion`).
 
-## Day, night and sky ("Bầu trời" in the panel)
+## Day, night and sky
+
+**The clock** (*Thời gian* in the panel):
+
+- **Giờ thật (theo máy tính):** the island follows your computer's clock, to the second.
+- Otherwise the island has its own clock. Drag **Giờ** to any time and it runs on from there
+  (dragging while stopped, or while on real time, starts it again).
+- **Tốc độ:** ×1 (1 s = 1 s), ×10 (a day ≈ 2.4 h), ×30 (≈ 48 min), ×60 (1 s = 1 min, a day ≈
+  24 min, the default) and ×240 (1 s = 4 min, a day ≈ 6 min). Picking a speed starts the island
+  clock from the current time.
+- **Dừng / Chạy** (or `N`) stops and restarts it. A scene preset saved with a time of day stops
+  the clock at that time.
+
+The other sky options are scene effects (*Cảnh → Tùy chỉnh hiệu ứng*):
 
 | Option | What it does |
 |---|---|
-| Một ngày | Clock speed: real local time, one day = 24 min, one day = 6 min, or paused. Drag **Giờ** to pick a time. |
 | Mây trôi | Cloud cover; clouds drift with the wind, glow at sunset, and cast moving shadows on the island and sea. Rain and snow add more cloud. |
-| Âm u | Grey, gloomy sky without rain. |
+| Trời u ám | Grey, gloomy sky without rain. |
 | Cầu vồng sau mưa | After rain, with a low sun behind you, a rainbow appears at the real 42° angle. |
 | Sao & Ngân Hà | Twinkling stars and a faint Milky Way that slowly wheel across the night sky. |
 | Sao băng | How often shooting stars cross the visible sky: thin, star-sized streaks with a fading tail, in random directions, sometimes two or three at once. |

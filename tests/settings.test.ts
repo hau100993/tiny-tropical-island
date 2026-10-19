@@ -2,6 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { defaultSettings, parseSettings, SETTINGS_VERSION } from '../src/core/settings';
 
 describe('parseSettings', () => {
+  it('maps the old day-cycle modes onto the island clock', () => {
+    const p = (timeMode: string) => {
+      const s = parseSettings(JSON.stringify({ timeMode, timeSpeed: 10 }));
+      return [s.timeMode, s.timeSpeed, s.timePaused];
+    };
+    expect(p('cycle24')).toEqual(['free', 60, false]);
+    expect(p('cycle6')).toEqual(['free', 240, false]);
+    expect(p('paused')).toEqual(['free', 10, true]);
+    expect(p('real')).toEqual(['real', 10, false]);
+    expect(parseSettings(JSON.stringify({ timeSpeed: 7 })).timeSpeed).toBe(60);
+  });
+
   it('returns defaults for missing or corrupt data', () => {
     expect(parseSettings(null)).toEqual(defaultSettings());
     expect(parseSettings('not json')).toEqual(defaultSettings());

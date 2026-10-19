@@ -8,7 +8,7 @@ import {
   paletteFor,
   sunDirection,
   type SkyPalette,
-  type TimeMode,
+  type ClockOptions,
 } from './celestial';
 import type { Lighting } from './lighting';
 import type { HouseInfo } from './house';
@@ -29,7 +29,7 @@ export interface SkyWeather {
 
 /** User sky options (from settings). */
 export interface SkyOptions {
-  mode: TimeMode;
+  clock: ClockOptions;
   clouds: number;
   gloom: number;
   rainbow: boolean;
@@ -85,7 +85,7 @@ export class DayNight {
 
   update(dt: number, opts: SkyOptions, weather: SkyWeather, camera: THREE.PerspectiveCamera): void {
     const u = this.shared;
-    this.hours = advanceTime(this.hours, opts.mode, dt, new Date());
+    this.hours = advanceTime(this.hours, opts.clock, dt, new Date());
     this.saveTimer += dt;
     if (this.saveTimer > 30) {
       this.saveTimer = 0;

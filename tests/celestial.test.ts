@@ -4,6 +4,7 @@ import {
   createPalette,
   dayLight,
   formatClock,
+  formatClockSeconds,
   moonDirection,
   nightness,
   paletteFor,
@@ -53,15 +54,24 @@ describe('palette', () => {
 });
 
 describe('time', () => {
-  it('cycle modes compress a day into 24 or 6 minutes and wrap at midnight', () => {
-    expect(advanceTime(10, 'cycle24', 60, new Date())).toBeCloseTo(11, 5);
-    expect(advanceTime(10, 'cycle6', 15, new Date())).toBeCloseTo(11, 5);
-    expect(advanceTime(23.9, 'cycle24', 60, new Date())).toBeCloseTo(0.9, 5);
-    expect(advanceTime(7.25, 'paused', 100, new Date())).toBe(7.25);
+  const free = (speed: 1 | 10 | 30 | 60 | 240, paused = false) => ({ mode: 'free' as const, speed, paused });
+
+  it('the island clock runs at its speed, wraps at midnight and can stop', () => {
+    expect(advanceTime(10, free(60), 60, new Date())).toBeCloseTo(11, 5);
+    expect(advanceTime(10, free(240), 15, new Date())).toBeCloseTo(11, 5);
+    expect(advanceTime(10, free(1), 3600, new Date())).toBeCloseTo(11, 5);
+    expect(advanceTime(23.9, free(60), 60, new Date())).toBeCloseTo(0.9, 5);
+    expect(advanceTime(7.25, free(60, true), 100, new Date())).toBe(7.25);
   });
 
-  it('real mode follows the clock', () => {
-    expect(advanceTime(0, 'real', 0, new Date(2026, 9, 17, 14, 30, 0))).toBeCloseTo(14.5, 5);
+  it('real mode follows the computer clock, seconds included', () => {
+    const clock = { mode: 'real' as const, speed: 60 as const, paused: true };
+    expect(advanceTime(0, clock, 0, new Date(2026, 9, 17, 14, 30, 36))).toBeCloseTo(14.51, 5);
+  });
+
+  it('formats hh:mm:ss', () => {
+    expect(formatClockSeconds(14.51)).toBe('14:30:36');
+    expect(formatClockSeconds(0)).toBe('00:00:00');
   });
 
   it('formats hours as hh:mm', () => {

@@ -1138,3 +1138,38 @@ kbd.key {
   flex-direction: column;
   gap: 8px;
 }
+
+/* Time section: big clock with the stop/run button. */
+.clock-face {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--control-bg);
+}
+
+.clock-big {
+  font-size: 24px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.clock-pause {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.clock-pause[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+
+.seg-group.five {
+  grid-template-columns: repeat(5, 1fr);
+}

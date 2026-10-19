@@ -1,8 +1,7 @@
 import { QUALITY_LEVELS, type QualityLevel } from './quality';
-import type { TimeMode } from '../world/celestial';
+import { TIME_SPEEDS, type TimeMode, type TimeSpeed } from '../world/celestial';
 import type { WalkView } from '../controls/walker';
 
-const TIME_MODES: readonly TimeMode[] = ['real', 'cycle24', 'cycle6', 'paused'];
 
 export const SETTINGS_KEY = 'tsw.settings';
 export const SETTINGS_VERSION = 1;
@@ -24,7 +23,12 @@ export interface Settings {
   visualSnow: number;
   visualWind: number;
   // Sky (Phase 4)
+  /** The computer's clock, or the island's own clock (set by hand). */
   timeMode: TimeMode;
+  /** Island clock speed (island seconds per real second). */
+  timeSpeed: TimeSpeed;
+  /** Island clock stopped. */
+  timePaused: boolean;
   /** Base cloud cover, 0..1 (rain and snow add more). */
   clouds: number;
   /** Extra gloom ("âm u"): grey sky without rain, 0..1. */
@@ -66,7 +70,9 @@ export function defaultSettings(): Settings {
     visualRain: 0,
     visualSnow: 0,
     visualWind: 0.3,
-    timeMode: 'cycle24',
+    timeMode: 'free',
+    timeSpeed: 60,
+    timePaused: false,
     clouds: 0.35,
     gloom: 0,
     rainbow: true,
@@ -100,6 +106,28 @@ function migrate(raw: Raw): Raw {
 }
 
 /** Parses stored JSON; any missing or invalid field falls back to its default. Never throws. */
+/**
+ * Clock settings. Before 2026-10-19 one `timeMode` held everything ('real', 'cycle24' = a day
+ * in 24 min, 'cycle6' = 6 min, 'paused'); those map to the island clock at ×60, ×240, stopped.
+ */
+function parseClock(raw: Raw, d: Settings): Pick<Settings, 'timeMode' | 'timeSpeed' | 'timePaused'> {
+  const speed = TIME_SPEEDS.includes(raw.timeSpeed as TimeSpeed) ? (raw.timeSpeed as TimeSpeed) : d.timeSpeed;
+  const paused = typeof raw.timePaused === 'boolean' ? raw.timePaused : d.timePaused;
+  switch (raw.timeMode) {
+    case 'real':
+    case 'free':
+      return { timeMode: raw.timeMode, timeSpeed: speed, timePaused: paused };
+    case 'cycle24':
+      return { timeMode: 'free', timeSpeed: 60, timePaused: false };
+    case 'cycle6':
+      return { timeMode: 'free', timeSpeed: 240, timePaused: false };
+    case 'paused':
+      return { timeMode: 'free', timeSpeed: speed, timePaused: true };
+    default:
+      return { timeMode: d.timeMode, timeSpeed: d.timeSpeed, timePaused: d.timePaused };
+  }
+}
+
 export function parseSettings(json: string | null): Settings {
   const defaults = defaultSettings();
   if (!json) return defaults;
@@ -130,7 +158,7 @@ export function parseSettings(json: string | null): Settings {
     visualRain: unit(raw.visualRain, defaults.visualRain),
     visualSnow: unit(raw.visualSnow, defaults.visualSnow),
     visualWind: unit(raw.visualWind, defaults.visualWind),
-    timeMode: TIME_MODES.includes(raw.timeMode as TimeMode) ? (raw.timeMode as TimeMode) : defaults.timeMode,
+    ...parseClock(raw, defaults),
     clouds: unit(raw.clouds, defaults.clouds),
     gloom: unit(raw.gloom, defaults.gloom),
     rainbow: bool(raw.rainbow, defaults.rainbow),

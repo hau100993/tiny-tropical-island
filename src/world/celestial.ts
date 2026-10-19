@@ -96,24 +96,38 @@ export function nightness(elevation: number): number {
   return 1 - smoothstep(-0.22, 0.0, elevation);
 }
 
-export type TimeMode = 'real' | 'cycle24' | 'cycle6' | 'paused';
+/** 'real': the computer's clock. 'free': the island's own clock, set by hand, at any speed. */
+export type TimeMode = 'real' | 'free';
 
-/** Advances the clock. Cycle modes compress a day into 24 or 6 real minutes. */
-export function advanceTime(hours: number, mode: TimeMode, dt: number, now: Date): number {
-  switch (mode) {
-    case 'real':
-      return now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
-    case 'cycle24':
-      return (hours + (dt * 24) / (24 * 60)) % 24;
-    case 'cycle6':
-      return (hours + (dt * 24) / (6 * 60)) % 24;
-    case 'paused':
-      return hours;
+/** Island seconds per real second. ×60: a day in 24 minutes; ×240: a day in 6 minutes. */
+export const TIME_SPEEDS = [1, 10, 30, 60, 240] as const;
+export type TimeSpeed = (typeof TIME_SPEEDS)[number];
+
+export interface ClockOptions {
+  mode: TimeMode;
+  speed: TimeSpeed;
+  paused: boolean;
+}
+
+/** Advances the clock by `dt` real seconds. */
+export function advanceTime(hours: number, clock: Readonly<ClockOptions>, dt: number, now: Date): number {
+  if (clock.mode === 'real') {
+    return now.getHours() + now.getMinutes() / 60 + (now.getSeconds() + now.getMilliseconds() / 1000) / 3600;
   }
+  if (clock.paused) return hours;
+  return (hours + (dt * clock.speed) / 3600) % 24;
 }
 
 export function formatClock(hours: number): string {
   const h = Math.floor(hours) % 24;
   const m = Math.floor((hours - Math.floor(hours)) * 60);
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/** hh:mm:ss */
+export function formatClockSeconds(hours: number): string {
+  // (+1e-6: 14.51 h is 52235.99999… s in floating point, which must still read :36.)
+  const total = Math.floor((((hours % 24) + 24) % 24) * 3600 + 1e-6) % 86400;
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return `${pad(Math.floor(total / 3600))}:${pad(Math.floor(total / 60) % 60)}:${pad(total % 60)}`;
 }

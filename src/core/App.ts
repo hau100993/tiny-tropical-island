@@ -32,7 +32,6 @@ import { ScenePresetStore } from './scenePresets';
 import type { WeatherTargets } from '../weather/Weather';
 import { wallSeconds } from '../weather/wind';
 import type { SkyOptions, SkyWeather } from '../world/dayNight';
-import type { TimeMode } from '../world/celestial';
 
 /** Weather level during a Pomodoro break with "Bão dịu đi khi nghỉ". */
 const CALM_LEVEL = 0.3;
@@ -74,7 +73,6 @@ export class App {
   private calmTarget = 1;
   private calmVisual = 1;
   /** Time mode to return to when N un-pauses the clock. */
-  private resumeMode: TimeMode = 'cycle24';
   private shadowsOn: boolean | null = null;
 
   constructor(private readonly container: HTMLElement) {
@@ -174,6 +172,7 @@ export class App {
         return p ? { remaining: p.remaining, running: p.running, visible: this.pomodoro.isVisible } : null;
       },
       togglePomodoro: () => this.pomodoro.setVisible(!this.pomodoro.isVisible),
+      toggleTimePaused: () => this.toggleTimePaused(),
     });
     this.pomodoro = new PomodoroOverlay(ui, {
       scheduleChime: (atMs, kind) => this.mixer.scheduleChime(atMs, kind),
@@ -249,7 +248,11 @@ export class App {
     const p = this.scenes.get(id);
     if (!p) return;
     const patch: SettingsPatch = { ...p.values, activeScene: id };
-    if (p.hours !== null && this.settings.get().timeMode === 'real') patch.timeMode = 'paused';
+    // A preset saved with a time of day shows that time: the island clock stops there.
+    if (p.hours !== null) {
+      patch.timeMode = 'free';
+      patch.timePaused = true;
+    }
     this.settings.update(patch);
     if (p.hours !== null) this.world.dayNight.setHours(p.hours);
   }
@@ -317,14 +320,7 @@ export class App {
       code: 'KeyN',
       keyLabel: 'N',
       label: vi.shortcuts.pauseTime,
-      action: () => {
-        const mode = this.settings.get().timeMode;
-        if (mode === 'paused') this.settings.update({ timeMode: this.resumeMode });
-        else {
-          this.resumeMode = mode;
-          this.settings.update({ timeMode: 'paused' });
-        }
-      },
+      action: () => this.toggleTimePaused(),
     });
     this.keymap.register({ code: 'KeyT', keyLabel: 'T', label: vi.shortcuts.pomodoro, action: () => this.pomodoro.toggleRunning() });
     this.keymap.register({ code: 'KeyB', keyLabel: 'B', label: vi.shortcuts.desk, action: () => this.toggleSeat('desk') });
@@ -417,6 +413,16 @@ export class App {
       else this.cameras.sit(id, false);
       this.fader.classList.remove('on');
     }, 300);
+  }
+
+  /**
+   * N key / "Dừng" button: stop or restart the clock. Stopping the computer's clock freezes the
+   * island at the current time (the island clock takes over from there).
+   */
+  private toggleTimePaused(): void {
+    const s = this.settings.get();
+    if (s.timeMode === 'real') this.settings.update({ timeMode: 'free', timePaused: true });
+    else this.settings.update({ timePaused: !s.timePaused });
   }
 
   /** "Góc nhìn" tiles: the overview, walking, or one of the seats (the active one does nothing). */
@@ -520,7 +526,7 @@ export class App {
   private readonly drawingBuffer = new THREE.Vector2();
   // Reused every frame (no per-frame allocations).
   private readonly skyOptions: SkyOptions = {
-    mode: 'cycle24', clouds: 0, gloom: 0, rainbow: true, stars: true, meteors: 0, aurora: 0,
+    clock: { mode: 'free', speed: 60, paused: false }, clouds: 0, gloom: 0, rainbow: true, stars: true, meteors: 0, aurora: 0,
   };
   private readonly skyWeather: SkyWeather = { overcast: 0, rain: 0, wetness: 0 };
 
@@ -548,7 +554,9 @@ export class App {
     // Sky after weather: the time-of-day palette is greyed by the weather's overcast.
     const s = this.settings.get();
     const dayNight = this.world.dayNight;
-    this.skyOptions.mode = s.timeMode;
+    this.skyOptions.clock.mode = s.timeMode;
+    this.skyOptions.clock.speed = s.timeSpeed;
+    this.skyOptions.clock.paused = s.timePaused;
     this.skyOptions.clouds = s.clouds;
     this.skyOptions.gloom = s.gloom;
     this.skyOptions.rainbow = s.rainbow;
