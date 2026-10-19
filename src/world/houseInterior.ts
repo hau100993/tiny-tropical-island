@@ -49,13 +49,11 @@ export function furnish(p: InteriorParts, F: number, ceilingY: (z: number) => nu
   wood.box(1.9, 0.04, 0.66, -0.8, F + 0.72, 2.05, OAK);
   for (const lx of [-1.71, 0.11]) plain.box(0.04, 0.7, 0.6, lx, F + 0.35, 2.05, '#2a2a2a');
   solid(-1.75, 0.15, 1.72, 2.38, F, F + 0.76);
-  // Felt desk pad, mechanical keyboard, mouse on the right; mug, desk lamp, a small potted plant.
+  // Felt desk pad, mechanical keyboard, mouse on the right; mug, a washi paper lamp, an orchid.
   workstation(p, F + 0.74);
   soft.add(mug(0.0, F + 0.74, 2.18), CERAMIC);
-  plain.add(cylinder(0.06, 0.015, 16, -1.6, F + 0.748, 2.28), METAL);
-  plain.box(0.015, 0.42, 0.015, -1.6, F + 0.95, 2.28, METAL, 0.25);
-  glow.add(cone(0.06, 0.08, -1.6, F + 1.12, 2.2), '#ffffff');
-  pottedPlant(p, -1.58, F + 0.74, 1.9, 0.35);
+  akariLamp(p, -1.6, F + 0.74, 2.22);
+  orchid(p, -1.56, F + 0.74, 1.86);
 
   // ---- Office chair (rounded cushions) ----
   const cx = DESK.seatX;
@@ -262,19 +260,6 @@ function monstera(p: InteriorParts, x: number, F: number, z: number, scale: numb
 }
 
 /** A small potted plant: a cluster of rounded leaves in a ceramic pot. */
-function pottedPlant(p: InteriorParts, x: number, y: number, z: number, s: number): void {
-  p.soft.add(lathe([[0, 0], [0.11, 0], [0.13, 0.2], [0.135, 0.21], [0, 0.2]].map(([r, h]) => [r * s, h * s]) as Array<[number, number]>, x, y, z), CERAMIC);
-  for (let k = 0; k < 8; k++) {
-    const a = k * 2.4;
-    const leaf = new THREE.SphereGeometry(1, 10, 6);
-    leaf.scale(0.035 * s * 3, 0.006, 0.02 * s * 3);
-    leaf.rotateZ(0.5);
-    leaf.rotateY(-a);
-    leaf.translate(x + Math.cos(a) * 0.04, y + 0.075 + (k % 3) * 0.015, z + Math.sin(a) * 0.04);
-    p.leaf.add(leaf, MONSTERA[k % MONSTERA.length]);
-  }
-}
-
 /**
  * One monstera leaf in the XY plane, base at the origin, pointing +Y: a heart-shaped outline with
  * deep slits on both sides and two rows of small holes, then cupped and drooping.
@@ -408,12 +393,6 @@ function merge(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
 
 export function cylinder(r: number, h: number, seg: number, x: number, y: number, z: number): THREE.BufferGeometry {
   const g = new THREE.CylinderGeometry(r, r, h, seg);
-  g.translate(x, y, z);
-  return g;
-}
-
-function cone(r: number, h: number, x: number, y: number, z: number): THREE.BufferGeometry {
-  const g = new THREE.CylinderGeometry(r * 0.35, r, h, 12, 1, true);
   g.translate(x, y, z);
   return g;
 }
@@ -558,4 +537,227 @@ function workstation(p: InteriorParts, y: number): void {
   wheel.rotateZ(Math.PI / 2);
   wheel.translate(mx, y + 0.0175, mz + 0.03);
   soft.add(wheel, '#6b7078');
+}
+
+/**
+ * Japanese paper lamp in the Akari style: an ovoid globe of washi paper on fine bamboo ribs
+ * (the ribs show as faint rings, darker against the glow at night), a small black cap, three
+ * thin black wire legs on the desk. The paper glows from dusk to dawn (glow material).
+ */
+function akariLamp(p: InteriorParts, x: number, y: number, z: number): void {
+  const R = 0.12;
+  const H = 0.27;
+  const base = y + 0.07;
+  // Full, egg-like profile (rounded shoulders, a little wider below the middle).
+  const radius = (t: number): number => R * Math.pow(Math.sin(Math.PI * t), 0.55) * (1.02 - 0.08 * t);
+  const profile: Array<[number, number]> = [];
+  const n = 18;
+  for (let i = 0; i <= n; i++) profile.push([Math.max(0.012, radius(i / n)), (i / n) * H]);
+  p.glow.add(lathe(profile, x, base, z), '#ffffff');
+  // Ribs: horizontal rings every ~2.5 cm, just outside the paper.
+  for (let i = 1; i < 11; i++) {
+    const t = i / 11;
+    const ring = new THREE.TorusGeometry(radius(t) + 0.0008, 0.0009, 4, 40);
+    ring.rotateX(Math.PI / 2);
+    ring.translate(x, base + t * H, z);
+    p.plain.add(ring, '#cbbd9f');
+  }
+  // Top cap and the wire frame: a ring under the globe on three splayed legs.
+  p.plain.add(cylinder(0.014, 0.012, 12, x, base + H + 0.004, z), METAL);
+  const foot = new THREE.TorusGeometry(0.03, 0.0025, 6, 24);
+  foot.rotateX(Math.PI / 2);
+  foot.translate(x, base + 0.008, z);
+  p.plain.add(foot, METAL);
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI * 2 + 0.4;
+    const leg = new THREE.CylinderGeometry(0.0022, 0.0022, 0.085, 6);
+    leg.rotateZ(0.42);
+    leg.rotateY(-a);
+    leg.translate(x + Math.cos(a) * 0.05, y + 0.036, z + Math.sin(a) * 0.05);
+    p.plain.add(leg, METAL);
+  }
+}
+
+/** Phalaenopsis colors: white petals with a soft blush, magenta lip, yellow throat. */
+const ORCHID = {
+  petal: '#f8f0f4',
+  blush: '#f3dbe7',
+  lip: '#b8236a',
+  throat: '#f2c94c',
+  bud: '#dfe8c8',
+  stem: '#5f7a3a',
+  leaf: '#2f5a2a',
+  leafLight: '#3d6b33',
+} as const;
+
+/**
+ * A long, broad, thick orchid leaf: a grid along its length (width rounded at both ends),
+ * folded a little along the midrib and arching down. Built pointing +Z from the origin.
+ */
+function orchidLeaf(L: number, W: number, droop: number): THREE.BufferGeometry {
+  const rows = 12;
+  const cols = 6;
+  const pos: number[] = [];
+  const index: number[] = [];
+  for (let j = 0; j <= rows; j++) {
+    const t = j / rows;
+    const half = (W / 2) * Math.pow(Math.sin(Math.PI * Math.min(1, 0.12 + t * 0.88)), 0.55);
+    for (let i = 0; i <= cols; i++) {
+      const v = i / cols - 0.5;
+      const fold = Math.abs(v) * half * 0.5;
+      pos.push(v * 2 * half, fold + t * L * 0.35 - droop * t * t * L, t * L);
+    }
+  }
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const a = j * (cols + 1) + i;
+      const b = a + cols + 1;
+      index.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(index);
+  g.computeVertexNormals();
+  return g;
+}
+
+/** One flat, slightly cupped petal (`w` × `h`, base at the origin, pointing +Y). */
+function petal(w: number, h: number, cup: number, round = 0.5): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  const n = 20;
+  for (let i = 0; i <= n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    // Narrow at the base (claw), broad above.
+    const yy = (h / 2) * (1 - Math.cos(a));
+    const k = Math.pow(Math.sin(Math.PI * (yy / h)), round);
+    const xx = (w / 2) * Math.sin(a) * k;
+    if (i === 0) shape.moveTo(xx, yy);
+    else shape.lineTo(xx, yy);
+  }
+  const g = new THREE.ShapeGeometry(shape, 6);
+  const pos = g.getAttribute('position');
+  for (let i = 0; i < pos.count; i++) {
+    const xx = pos.getX(i);
+    const yy = pos.getY(i);
+    // Cup toward the viewer (+Z) at the sides and the tip.
+    pos.setZ(i, cup * ((xx / w) * (xx / w) * 4 + (yy / h) * (yy / h)));
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * One Phalaenopsis flower (~8 cm), facing +Z, built at the origin: dorsal sepal up, two
+ * lateral sepals down-left/right, two broad round petals to the sides, a magenta lip with
+ * side lobes in the middle and a small column with a yellow throat.
+ */
+function orchidFlower(scale: number, tilt: number): Array<[THREE.BufferGeometry, string]> {
+  const out: Array<[THREE.BufferGeometry, string]> = [];
+  const add = (g: THREE.BufferGeometry, angle: number, z: number, color: string): void => {
+    g.rotateZ(angle);
+    g.translate(0, 0, z);
+    g.scale(scale, scale, scale);
+    out.push([g, color]);
+  };
+  add(petal(0.026, 0.04, 0.004), 0, 0, ORCHID.petal);
+  for (const s of [-1, 1]) add(petal(0.024, 0.038, 0.004), s * 2.35, 0, ORCHID.petal);
+  for (const s of [-1, 1]) add(petal(0.042, 0.04, 0.006, 0.4), s * 1.45 + 0.08 * tilt, 0.002, ORCHID.blush);
+  // Lip: a small rounded tongue pointing down, two raised side lobes, then the column.
+  add(petal(0.016, 0.026, 0.008, 0.7), Math.PI, 0.006, ORCHID.lip);
+  for (const s of [-1, 1]) add(petal(0.01, 0.016, 0.006), Math.PI - s * 0.7, 0.009, ORCHID.lip);
+  const col = new THREE.SphereGeometry(0.0055, 8, 6);
+  col.scale(1, 1.3, 0.9);
+  col.translate(0, 0.004, 0.01);
+  col.scale(scale, scale, scale);
+  out.push([col, ORCHID.throat]);
+  return out;
+}
+
+/**
+ * A Phalaenopsis (moth orchid) in a glossy white pot: bark mix on top, four broad arching
+ * leaves, and a flower spike tied to a bamboo stake that arches over toward the chair with
+ * seven open flowers and three buds at its tip.
+ */
+function orchid(p: InteriorParts, x: number, y: number, z: number): void {
+  // Pot: tapered, with a rolled rim; bark chips on top.
+  p.soft.add(lathe([[0, 0], [0.052, 0], [0.062, 0.1], [0.066, 0.104], [0.064, 0.11], [0.058, 0.106], [0.057, 0.09]], x, y, z), CERAMIC);
+  p.plain.add(cylinder(0.058, 0.006, 20, x, y + 0.094, z), '#5a3f27');
+  for (let k = 0; k < 12; k++) {
+    const a = k * 2.399;
+    const r = 0.012 + 0.04 * Math.sqrt((k + 0.5) / 12);
+    const chip = new THREE.SphereGeometry(0.009, 6, 4);
+    chip.scale(1.2, 0.5, 0.8);
+    chip.rotateY(a);
+    chip.translate(x + Math.cos(a) * r, y + 0.1, z + Math.sin(a) * r);
+    p.plain.add(chip, k % 2 ? '#7a5634' : '#5e4129');
+  }
+  // Leaves: two pairs, alternating, arching out and down over the rim.
+  const leaves: Array<[number, number, number, number]> = [
+    [0.2, 0.072, 0.0, 0.62],
+    [0.19, 0.068, Math.PI + 0.25, 0.6],
+    [0.15, 0.06, 1.5, 0.5],
+    [0.13, 0.055, -1.4, 0.45],
+  ];
+  leaves.forEach(([L, W, yaw, droop], i) => {
+    const g = orchidLeaf(L, W, droop);
+    g.rotateX(-0.25);
+    g.rotateY(yaw);
+    g.translate(x, y + 0.105 + i * 0.006, z);
+    p.leaf.add(g, i % 2 ? ORCHID.leafLight : ORCHID.leaf);
+  });
+
+  // Bamboo stake and the spike: up along the stake, then arching toward the chair (−Z) and a
+  // little to the left of the plant (+X), where the flowers hang.
+  const stakeTop = y + 0.4;
+  p.plain.add(cylinder(0.0025, stakeTop - y - 0.05, 6, x + 0.012, (stakeTop + y + 0.05) / 2, z + 0.01), '#c9b27a');
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(x + 0.008, y + 0.1, z + 0.006),
+    new THREE.Vector3(x + 0.01, y + 0.25, z + 0.008),
+    new THREE.Vector3(x + 0.012, y + 0.38, z + 0.004),
+    new THREE.Vector3(x + 0.04, y + 0.45, z - 0.05),
+    new THREE.Vector3(x + 0.08, y + 0.44, z - 0.13),
+    new THREE.Vector3(x + 0.11, y + 0.39, z - 0.2),
+  ]);
+  p.soft.add(new THREE.TubeGeometry(curve, 40, 0.0028, 6, false), ORCHID.stem);
+  // A clip holding the spike to the stake.
+  const clip = new THREE.TorusGeometry(0.006, 0.0018, 4, 10);
+  clip.rotateX(Math.PI / 2);
+  clip.translate(x + 0.011, y + 0.3, z + 0.008);
+  p.plain.add(clip, '#e8e2d4');
+
+  // Flowers along the arch, each on a short pedicel, alternating sides, facing the chair and a
+  // little up; buds at the tip get smaller.
+  const pt = new THREE.Vector3();
+  const at = new THREE.Vector3();
+  const face = new THREE.Vector3();
+  const origin = new THREE.Vector3();
+  const up = new THREE.Vector3(0, 1, 0);
+  const m = new THREE.Matrix4();
+  for (let k = 0; k < 7; k++) {
+    const t = 0.5 + k * 0.065;
+    curve.getPointAt(t, pt);
+    const side = k % 2 ? 1 : -1;
+    at.set(pt.x + side * 0.018, pt.y - 0.022, pt.z);
+    // Matrix4.lookAt aims the local +Z axis away from the target: aim at −face to face it.
+    face.set(0.25 + side * 0.25, 0.15, -1).normalize();
+    m.lookAt(origin, face.clone().negate(), up);
+    m.setPosition(at);
+    for (const [g, c] of orchidFlower(1 - k * 0.04, side)) {
+      g.applyMatrix4(m);
+      p.leaf.add(g, c);
+    }
+    const ped = new THREE.CylinderGeometry(0.0012, 0.0012, 0.026, 4);
+    ped.translate(0, -0.013, 0);
+    ped.rotateZ(side * 0.6);
+    ped.translate(pt.x, pt.y, pt.z);
+    p.soft.add(ped, ORCHID.stem);
+  }
+  for (let k = 0; k < 3; k++) {
+    curve.getPointAt(0.95 + k * 0.02, pt);
+    const bud = new THREE.SphereGeometry(0.009 - k * 0.0022, 8, 6);
+    bud.scale(1, 0.8, 1.2);
+    bud.translate(pt.x, pt.y - 0.01, pt.z);
+    p.soft.add(bud, ORCHID.bud);
+  }
 }

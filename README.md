@@ -136,8 +136,9 @@ monstera with split leaves and a snake plant, and a long oak desk along the glas
 27" thin-bezel monitors** on aluminium stands (their top edge stays below eye level, so the sea
 is in view above them), a felt desk pad, a **tenkeyless mechanical keyboard in the Keychron K8
 style** (87 keys on the real layout, space-gray frame, orange Esc and Enter, an RGB backlight whose
-rainbow drifts across the board, glowing between the keys, soft by day and bright at night) and
-a mouse on the right. Wood has a procedural grain (shader, no textures); cushions, futon, chair and
+rainbow drifts across the board, glowing between the keys, soft by day and bright at night),
+a mouse on the right, a round Akari-style washi paper lamp on wire legs (glows at night) and a
+white moth orchid (Phalaenopsis) in bloom on a bamboo stake. Wood has a procedural grain (shader, no textures); cushions, futon, chair and
 ceramics are rounded and smooth-shaded. Trees are kept out of the view from the glass to the sea.
 
 **Sitting at the desk:** press **B** (or *Góc làm việc* in the panel) from anywhere, or walk in
