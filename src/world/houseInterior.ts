@@ -47,13 +47,8 @@ export function furnish(p: InteriorParts, F: number, ceilingY: (z: number) => nu
   wood.box(1.9, 0.04, 0.66, -0.8, F + 0.72, 2.05, OAK);
   for (const lx of [-1.71, 0.11]) plain.box(0.04, 0.7, 0.6, lx, F + 0.35, 2.05, '#2a2a2a');
   solid(-1.75, 0.15, 1.72, 2.38, F, F + 0.76);
-  // Keyboard and mouse (rounded), mug with handle, desk lamp, a small potted plant.
-  soft.add(rounded(0.44, 0.022, 0.14, 0.008, -0.8, F + 0.752, 1.9), '#2b2d31');
-  soft.add(rounded(0.41, 0.006, 0.115, 0.002, -0.8, F + 0.765, 1.9), '#55585e');
-  const mouse = new THREE.SphereGeometry(1, 14, 10);
-  mouse.scale(0.032, 0.016, 0.055);
-  mouse.translate(-0.42, F + 0.752, 1.9);
-  soft.add(mouse, '#2b2d31');
+  // Felt desk pad, mechanical keyboard, mouse on the right; mug, desk lamp, a small potted plant.
+  workstation(p, F + 0.74);
   soft.add(mug(0.0, F + 0.74, 2.18), CERAMIC);
   plain.add(cylinder(0.06, 0.015, 16, -1.6, F + 0.748, 2.28), METAL);
   plain.box(0.015, 0.42, 0.015, -1.6, F + 0.95, 2.28, METAL, 0.25);
@@ -468,4 +463,91 @@ function fern(p: InteriorParts, x: number, y: number, z: number): void {
     frond.translate(x, y, z);
     p.leaf.add(frond, k % 2 ? '#4f8a3e' : '#3f7a34');
   }
+}
+
+/** Keychron K8 colors: space-gray frame, dark alphas, lighter modifiers, orange Esc. */
+const K8 = { frame: '#3c3f44', alpha: '#2e3034', mod: '#5b5f66', accent: '#e8742c', pad: '#4b535d' } as const;
+/** One key unit (19.05 mm). */
+const U = 0.01905;
+
+/**
+ * The work spot on the desk top at height `y` (seated facing +Z, so the user's right is −X):
+ * a felt desk pad, a tenkeyless (87-key) mechanical keyboard in the Keychron K8 style, every
+ * key a rounded cap on its real layout, the case tilted up at the back, and an ergonomic mouse
+ * on the right with a scroll wheel.
+ */
+function workstation(p: InteriorParts, y: number): void {
+  const { soft, plain } = p;
+  const kx = -0.8;
+  const kz = 1.9;
+  soft.add(rounded(0.74, 0.003, 0.32, 0.0015, -0.92, y + 0.0015, 1.93), K8.pad);
+
+  // Keyboard, built around its own center then tilted (back up ~5°) and moved onto the pad.
+  const parts: THREE.BufferGeometry[] = [];
+  const colors: string[] = [];
+  const put = (g: THREE.BufferGeometry, c: string): void => {
+    parts.push(g);
+    colors.push(c);
+  };
+  const width = 18.25 * U + 0.012;
+  const depth = 6.25 * U + 0.012;
+  put(rounded(width, 0.022, depth, 0.004, 0, 0.011, 0), K8.frame);
+  // Rows from the back (function row, with its gap) to the front (space bar row).
+  const rowZ = [2.75, 1.5, 0.5, -0.5, -1.5, -2.5].map((r) => r * U - 0.06 * U);
+  // [start, width, color] in key units from the left edge.
+  type Key = readonly [number, number, string];
+  const a = K8.alpha;
+  const m = K8.mod;
+  const row = (start: number, n: number, c: string): Key[] => Array.from({ length: n }, (_, i) => [start + i, 1, c] as const);
+  const nav = (n: number, c = m): Key[] => row(15.25, n, c);
+  const rows: Key[][] = [
+    [[0, 1, K8.accent], ...row(2, 4, m), ...row(6.5, 4, a), ...row(11, 4, m), ...nav(3)],
+    [...row(0, 13, a), [13, 2, m], ...nav(3)],
+    [[0, 1.5, m], ...row(1.5, 12, a), [13.5, 1.5, m], ...nav(3)],
+    [[0, 1.75, m], ...row(1.75, 11, a), [12.75, 2.25, K8.accent]],
+    [[0, 2.25, m], ...row(2.25, 10, a), [12.25, 2.75, m], [16.25, 1, m]],
+    [[0, 1.25, m], [1.25, 1.25, m], [2.5, 1.25, m], [3.75, 6.25, a], [10, 1.25, m], [11.25, 1.25, m], [12.5, 1.25, m], [13.75, 1.25, m], ...nav(3)],
+  ];
+  rows.forEach((keys, r) => {
+    for (const [start, w, c] of keys) {
+      // Left edge of the board is the user's left (+X); keys run toward −X.
+      const lx = 9.125 * U - (start + w / 2) * U;
+      const cap = new RoundedBoxGeometry(w * U - 0.0028, 0.0095, U - 0.0028, 1, 0.0022);
+      // Sculpted rows: the caps lean a little toward the typist the further back they are.
+      cap.rotateX(-0.05 * (r - 3));
+      cap.translate(lx, 0.022 + 0.0062, rowZ[r]);
+      put(cap, c);
+    }
+  });
+  // Merge, tilt and place (soft material: smooth rounded caps).
+  const tilt = new THREE.Matrix4().makeRotationX(-0.085).setPosition(kx, y + 0.004, kz);
+  parts.forEach((g, i) => {
+    g.applyMatrix4(tilt);
+    soft.add(g, colors[i]);
+  });
+  // Rubber feet lifting the back.
+  for (const sx of [-1, 1]) plain.box(0.03, 0.01, 0.012, kx + sx * 0.15, y + 0.005, kz + depth / 2 - 0.01, '#1b1c1e');
+
+  // Ergonomic mouse on the right (−X): flat base, a hump toward the back, split buttons in
+  // front, a scroll wheel.
+  const mx = -1.09;
+  const mz = 1.93;
+  const mouse = new THREE.SphereGeometry(1, 24, 16);
+  const pos = mouse.getAttribute('position');
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const yy = pos.getY(i);
+    const z = pos.getZ(i);
+    // z < 0 is the back (toward the user): taller and wider there, slimmer at the buttons.
+    const back = 0.5 - 0.5 * z;
+    pos.setXYZ(i, x * (0.029 + 0.006 * back), yy < 0 ? yy * 0.004 : yy * (0.022 + 0.012 * back * (1 - back) * 2.2), z * 0.058);
+  }
+  mouse.computeVertexNormals();
+  mouse.translate(mx, y + 0.004, mz);
+  soft.add(mouse, '#3a3d42');
+  // Scroll wheel in the slot between the buttons, just proud of the shell.
+  const wheel = new THREE.CylinderGeometry(0.0075, 0.0075, 0.006, 16);
+  wheel.rotateZ(Math.PI / 2);
+  wheel.translate(mx, y + 0.0175, mz + 0.03);
+  soft.add(wheel, '#6b7078');
 }

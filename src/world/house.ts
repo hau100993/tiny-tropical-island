@@ -376,26 +376,38 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
   // Wall light by the door, outside.
   glow.box(0.12, 0.22, 0.06, 3.38, F + 2.15, ZF + 0.12, '#ffffff');
 
-  // Monitors: two screens on the desk, angled toward the chair.
+  // Monitors: two 27" screens with thin bezels (7 mm sides and top, a slim chin) on aluminium
+  // stands, angled toward the chair. Their top edge stays below eye level, so the sea is in
+  // view above them.
   const screens: HouseInfo['screens'] = [];
-  // 24" screens sit low on short stands, so the sea stays in view above them.
   const seatX = DESK.seatX;
   const seatZ = DESK.seatZ;
+  const SW = 0.597;
+  const SH = 0.336;
   // Seated facing the sea (local +Z), local −X is on your right: list the left screen first.
-  for (const [mx, theta] of [[-0.51, 0.17], [-1.09, -0.17]] as const) {
-    const my = F + 0.94;
-    const mz = 2.16;
-    const bezel = new RoundedBoxGeometry(0.555, 0.325, 0.022, 2, 0.008);
-    bezel.rotateY(theta);
-    bezel.translate(mx, my, mz);
-    parts.soft.add(bezel, '#121314');
-    b.box(0.05, 0.16, 0.03, mx - Math.sin(theta) * 0.04, F + 0.82, mz + Math.cos(theta) * 0.04, '#2a2c2f', 0, theta);
-    b.box(0.22, 0.012, 0.16, mx - Math.sin(theta) * 0.04, F + 0.746, mz + Math.cos(theta) * 0.05, '#2a2c2f', 0, theta);
+  for (const [mx, theta] of [[-0.485, 0.2], [-1.115, -0.2]] as const) {
+    const my = F + 1.0;
+    const mz = 2.17;
+    const c = Math.cos(theta);
+    const sn = Math.sin(theta);
+    // Offset (u along the screen, v up, w toward the back) → house coordinates.
+    const at = (g: THREE.BufferGeometry, u: number, v: number, w: number): THREE.BufferGeometry => {
+      g.rotateY(theta);
+      g.translate(mx + u * c + w * sn, my + v, mz - u * sn + w * c);
+      return g;
+    };
+    // Panel: thin front with the glass, a slimmer chin, and a rounded back housing.
+    parts.soft.add(at(new RoundedBoxGeometry(SW + 0.014, SH + 0.021, 0.008, 2, 0.003), 0, -0.0035, 0.004), '#0d0e10');
+    parts.soft.add(at(new RoundedBoxGeometry(SW + 0.01, SH + 0.016, 0.01, 2, 0.004), 0, -0.004, 0.012), '#26282c');
+    parts.soft.add(at(new RoundedBoxGeometry(0.36, 0.22, 0.03, 2, 0.012), 0, -0.02, 0.03), '#2c2f34');
+    // Stand: a flat aluminium neck behind and a thin rectangular base.
+    parts.plain.add(at(new RoundedBoxGeometry(0.055, 0.25, 0.012, 1, 0.004), 0, -0.16, 0.055), '#7f858c');
+    parts.plain.add(at(new RoundedBoxGeometry(0.2, 0.007, 0.13, 1, 0.003), 0, F + 0.744 - my, 0.055), '#7f858c');
     const mat = new THREE.MeshBasicMaterial({ color: '#000000', toneMapped: false });
-    const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.53, 0.3), mat);
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(SW, SH), mat);
     // The plane faces +Z by default; turn it to face the chair (local −Z, angled by theta).
     screen.rotation.y = Math.PI + theta;
-    screen.position.set(mx + Math.sin(theta) * 0.012, my, mz - Math.cos(theta) * 0.012);
+    screen.position.set(mx - 0.0005 * sn, my, mz - 0.0005 * c);
     screen.name = 'monitor';
     screens.push(screen);
   }
