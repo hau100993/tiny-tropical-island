@@ -72,6 +72,7 @@ export class SoundLibrary {
     let changed = this.tracks.length !== before;
     for (const b of list) {
       const t = this.get(b.id);
+      if (t?.custom) continue;
       if (t) {
         changed ||= t.src !== b.src || t.size !== b.size;
         t.src = b.src;
@@ -127,9 +128,7 @@ export class SoundLibrary {
 
   /** Copies a file from the PC into browser storage. */
   async add(file: File): Promise<AddResult> {
-    if (file.type && !file.type.startsWith('audio/') && file.type !== 'video/webm' && file.type !== 'video/mp4') {
-      return 'unsupported';
-    }
+    if (!isAudioFile(file)) return 'unsupported';
     const id = `t-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
     try {
       await putBlob(id, file);
@@ -143,11 +142,61 @@ export class SoundLibrary {
     return 'ok';
   }
 
-  async remove(id: string): Promise<void> {
-    this.tracks = this.tracks.filter((t) => t.id !== id);
+  /**
+   * Replaces the audio of a recording with another file from the PC, keeping its name, volume
+   * and scene mappings. On a shipped recording the new file is stored in the browser and used
+   * instead of the shipped one (until "use the original file" again).
+   */
+  async replace(id: string, file: File): Promise<AddResult> {
+    const t = this.get(id);
+    if (!t) return 'error';
+    if (!isAudioFile(file)) return 'unsupported';
+    try {
+      await putBlob(id, file);
+    } catch (e) {
+      console.info('[audio] Could not store the recording', e);
+      return isQuotaError(e) ? 'quota' : 'error';
+    }
+    void requestPersistence();
+    t.size = file.size;
+    if (this.isBundled(id)) {
+      t.custom = true;
+      delete t.src;
+    }
+    this.resetPlayer(id);
+    this.changed(true);
+    return 'ok';
+  }
+
+  /** A shipped recording the user replaced: go back to the shipped file. */
+  async useOriginal(id: string): Promise<void> {
+    const t = this.get(id);
+    const b = this.bundled.find((x) => x.id === id);
+    if (!t || !b || !t.custom) return;
+    delete t.custom;
+    t.src = b.src;
+    t.size = b.size;
+    this.resetPlayer(id);
+    this.changed(true);
+    try {
+      await deleteBlob(id);
+    } catch (e) {
+      console.info('[audio] Could not delete the stored recording', e);
+    }
+  }
+
+  /** Drops a track's player, so the next play loads the (new) audio. */
+  private resetPlayer(id: string): void {
     this.players.get(id)?.dispose();
     this.players.delete(id);
+  }
+
+  async remove(id: string): Promise<void> {
+    const custom = this.get(id)?.custom === true;
+    this.tracks = this.tracks.filter((t) => t.id !== id);
+    this.resetPlayer(id);
     if (this.isBundled(id)) {
+      if (custom) await deleteBlob(id).catch((e: unknown) => console.info('[audio] Could not delete the stored recording', e));
       if (!this.hidden.includes(id)) this.hidden.push(id);
       writeStored(HIDDEN_KEY, this.hidden);
       this.changed(true);
@@ -254,4 +303,9 @@ export class SoundLibrary {
   private emit(): void {
     for (const l of this.listeners) l();
   }
+}
+
+/** Accepts audio types (and WebM/MP4 containers); a file with no type is tried anyway. */
+function isAudioFile(file: File): boolean {
+  return !file.type || file.type.startsWith('audio/') || file.type === 'video/webm' || file.type === 'video/mp4';
 }

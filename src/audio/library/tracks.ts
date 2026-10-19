@@ -26,6 +26,9 @@ export interface TrackMeta {
   mappings: TrackMapping[];
   /** Shipped with the app: streamed from this URL instead of browser storage. */
   src?: string;
+  /** A shipped recording whose audio the user replaced with a file of their own (stored in
+   * IndexedDB under the same id, like any other recording). */
+  custom?: boolean;
 }
 
 /** Trims and shortens a user-typed name; null if nothing usable is left. */
@@ -64,6 +67,7 @@ export function parseTracks(raw: unknown): TrackMeta[] {
       playing: bool(t.playing, false),
       mappings,
       ...(typeof t.src === 'string' ? { src: t.src } : {}),
+      ...(t.custom === true ? { custom: true } : {}),
     });
   }
   return out;

@@ -10,7 +10,6 @@ export const SETTINGS_VERSION = 1;
 export interface Settings {
   version: number;
   quality: QualityLevel;
-  lowPower: boolean;
   autoRotate: boolean;
   showDebug: boolean;
   /** Sea wave strength, 0 (glassy) … 1 (stormy). */
@@ -38,8 +37,6 @@ export interface Settings {
   fireflies: boolean;
   // Walking (Phase 5)
   footsteps: boolean;
-  /** "Chỉ ngắm cảnh": no sound (it does not start by itself, and is muted if running). */
-  sceneOnly: boolean;
   /** Walk mode view: through the eyes, or behind the character. */
   walkView: WalkView;
   /** Scene preset last applied ('' = none); its mapped recordings play. */
@@ -56,7 +53,6 @@ export function defaultSettings(): Settings {
   return {
     version: SETTINGS_VERSION,
     quality: 'medium',
-    lowPower: false,
     autoRotate: false,
     showDebug: false,
     waveStrength: 0.45,
@@ -75,7 +71,6 @@ export function defaultSettings(): Settings {
     fireflies: true,
     footsteps: true,
     walkView: 'third',
-    sceneOnly: false,
     activeScene: 'b-sunny',
     synthFallback: true,
     startAtDesk: false,
@@ -121,7 +116,6 @@ export function parseSettings(json: string | null): Settings {
   return {
     version: SETTINGS_VERSION,
     quality,
-    lowPower: bool(raw.lowPower, defaults.lowPower),
     autoRotate: bool(raw.autoRotate, defaults.autoRotate),
     showDebug: bool(raw.showDebug, defaults.showDebug),
     waveStrength: unit(raw.waveStrength, defaults.waveStrength),
@@ -139,7 +133,6 @@ export function parseSettings(json: string | null): Settings {
     aurora: unit(raw.aurora, defaults.aurora),
     fireflies: bool(raw.fireflies, defaults.fireflies),
     footsteps: bool(raw.footsteps, defaults.footsteps),
-    sceneOnly: bool(raw.sceneOnly, defaults.sceneOnly),
     walkView: raw.walkView === 'first' || raw.walkView === 'third' ? raw.walkView : defaults.walkView,
     activeScene: typeof raw.activeScene === 'string' ? raw.activeScene.slice(0, 64) : defaults.activeScene,
     synthFallback: bool(raw.synthFallback, defaults.synthFallback),

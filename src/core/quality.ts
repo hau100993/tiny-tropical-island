@@ -46,12 +46,4 @@ export const QUALITY_PROFILES: Record<QualityLevel, QualityProfile> = {
 /** Grass blades generated once; presets draw a prefix of them. */
 export const GRASS_MAX = 40000;
 
-/** Low-power mode clamps the chosen preset down to Low-level costs. */
-export function effectiveProfile(level: QualityLevel, lowPower: boolean): QualityProfile {
-  const base = QUALITY_PROFILES[level];
-  if (!lowPower) return base;
-  return { ...base, ...QUALITY_PROFILES.low, msaa: base.msaa };
-}
-
 export const NORMAL_FPS = 60;
-export const LOW_POWER_FPS = 30;

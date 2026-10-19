@@ -43,12 +43,10 @@ export class Panel {
   private readonly enableAudioBtn: HTMLButtonElement;
   private readonly masterVolume: SliderControl;
   private readonly masterMute: HTMLButtonElement;
-  private readonly sceneOnly: ToggleControl;
   private readonly synthFallback: ToggleControl;
   private readonly synthStatus: HTMLElement;
   private readonly qualityBtns = new Map<QualityLevel, HTMLButtonElement>();
   private readonly qualityNote: HTMLElement;
-  private readonly lowPower: ToggleControl;
   private readonly autoRotate: ToggleControl;
   private readonly footsteps: ToggleControl;
   private readonly thirdPerson: ToggleControl;
@@ -82,10 +80,9 @@ export class Panel {
     this.masterVolume = slider(vi.panel.master, mixer.current.master.volume, (v) => mixer.setMaster({ volume: v }));
     this.masterMute = button('', () => mixer.toggleMuteAll(), 'icon-btn');
     masterRow.append(this.masterVolume.root, this.masterMute);
-    this.sceneOnly = toggle(vi.panel.sceneOnly, s.sceneOnly, (on) => settings.update({ sceneOnly: on }));
     this.synthFallback = toggle(vi.panel.synthFallback, s.synthFallback, (on) => settings.update({ synthFallback: on }));
     const toggles = el('div', 'button-row');
-    toggles.append(this.sceneOnly.root, this.synthFallback.root);
+    toggles.append(this.synthFallback.root);
     this.synthStatus = el('div', 'hint');
     const library = new LibraryView({
       library: deps.library,
@@ -130,9 +127,8 @@ export class Panel {
     }
     this.qualityNote = el('div', 'note');
     const displayToggles = el('div', 'button-row');
-    this.lowPower = toggle(vi.panel.lowPower, s.lowPower, (on) => settings.update({ lowPower: on }));
     this.autoRotate = toggle(vi.panel.autoRotate, s.autoRotate, (on) => settings.update({ autoRotate: on }));
-    displayToggles.append(this.lowPower.root, this.autoRotate.root);
+    displayToggles.append(this.autoRotate.root);
     display.body.append(deskRow, walkRow, pomoRow, qualityRow, this.qualityNote, displayToggles);
 
     // --- Shortcuts ---
@@ -192,7 +188,7 @@ export class Panel {
   }
 
   private syncMixer(state: Readonly<MixerState>): void {
-    this.enableAudioBtn.hidden = this.deps.mixer.started || this.deps.settings.get().sceneOnly;
+    this.enableAudioBtn.hidden = this.deps.mixer.started;
     this.masterVolume.set(state.master.volume);
     setMuteIcon(this.masterMute, state.master.muted);
     this.syncSynthStatus();
@@ -200,7 +196,7 @@ export class Panel {
 
   private syncSynthStatus(): void {
     const s = this.deps.settings.get();
-    const started = this.deps.mixer.started && !s.sceneOnly;
+    const started = this.deps.mixer.started;
     this.synthStatus.hidden = !started || !s.synthFallback;
     this.synthStatus.textContent = this.deps.library.audible ? vi.panel.synthIdle : vi.panel.synthPlaying;
   }
@@ -215,12 +211,10 @@ export class Panel {
     for (const [level, b] of this.qualityBtns) b.setAttribute('aria-pressed', String(level === s.quality));
     const msaaChanged = (s.quality === 'low') !== (this.startQuality === 'low');
     this.qualityNote.textContent = msaaChanged ? vi.panel.msaaReload : '';
-    this.lowPower.set(s.lowPower);
     this.autoRotate.set(s.autoRotate);
     this.footsteps.set(s.footsteps);
-    this.sceneOnly.set(s.sceneOnly);
     this.synthFallback.set(s.synthFallback);
-    this.enableAudioBtn.hidden = this.deps.mixer.started || s.sceneOnly;
+    this.enableAudioBtn.hidden = this.deps.mixer.started;
     this.thirdPerson.set(s.walkView === 'third');
     this.startAtDesk.set(s.startAtDesk);
     for (const [mode, b] of this.timeModeBtns) b.setAttribute('aria-pressed', String(mode === s.timeMode));

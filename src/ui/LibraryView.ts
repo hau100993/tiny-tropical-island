@@ -28,6 +28,9 @@ export class LibraryView {
   private readonly list: HTMLElement;
   private readonly msg: HTMLElement;
   private readonly input: HTMLInputElement;
+  /** Picker for "Thay file…" (one file, for the track in `replacing`). */
+  private readonly replaceInput: HTMLInputElement;
+  private replacing = '';
   /** Track whose details are open. */
   private open = '';
   /** Rebuilding the list while a slider is dragged would drop the drag. */
@@ -51,7 +54,16 @@ export class LibraryView {
       deps.startAudio();
       this.input.click();
     }, 'btn small primary');
-    head.append(addBtn, this.input);
+    this.replaceInput = el('input');
+    this.replaceInput.type = 'file';
+    this.replaceInput.accept = ACCEPT;
+    this.replaceInput.hidden = true;
+    this.replaceInput.addEventListener('change', () => {
+      const file = this.replaceInput.files?.[0];
+      this.replaceInput.value = '';
+      if (file && this.replacing) void this.replaceFile(this.replacing, file);
+    });
+    head.append(addBtn, this.input, this.replaceInput);
     this.list = el('div', 'track-list');
     this.msg = el('div', 'hint');
     this.root.append(head, this.list, this.msg);
@@ -90,6 +102,12 @@ export class LibraryView {
       if (r !== 'ok') problems.push(`${f.name}: ${vi.library.errors[r]}`);
     }
     this.msg.textContent = problems.length > 0 ? problems.join(' · ') : '';
+  }
+
+  private async replaceFile(id: string, file: File): Promise<void> {
+    this.msg.textContent = vi.library.copying;
+    const r = await this.deps.library.replace(id, file);
+    this.msg.textContent = r === 'ok' ? vi.library.replaced : `${file.name}: ${vi.library.errors[r]}`;
   }
 
   private render(): void {
@@ -210,13 +228,25 @@ export class LibraryView {
       box.append(r);
     }
 
+    // Replace the audio (keeps name, volume, mappings); a shipped one can go back to its file.
+    const actions = el('div', 'button-row');
+    const replace = button(vi.library.replace, () => {
+      this.deps.startAudio();
+      this.replacing = t.id;
+      this.replaceInput.click();
+    }, 'btn small');
+    replace.title = vi.library.replaceTitle;
+    actions.append(replace);
+    if (t.custom) actions.append(button(vi.library.original, () => void library.useOriginal(t.id), 'btn small'));
     // Bundled recordings ship with the app: they can only be hidden from the list.
     const bundled = library.isBundled(t.id);
     const del = button(bundled ? vi.library.hide : vi.library.delete, () => {
       const ask = bundled ? vi.library.confirmHide(t.name) : vi.library.confirmDelete(t.name);
       if (window.confirm(ask)) void library.remove(t.id);
     }, 'btn small');
-    box.append(el('div', 'hint', `${formatSize(t.size)}${bundled ? ` · ${vi.library.bundled}` : ''}`), del);
+    actions.append(del);
+    const origin = bundled ? ` · ${t.custom ? vi.library.custom : vi.library.bundled}` : '';
+    box.append(el('div', 'hint', `${formatSize(t.size)}${origin}`), actions);
     return box;
   }
 

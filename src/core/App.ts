@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Loop } from './loop';
 import { SettingsStore, safeLocalStorage, type Settings, type SettingsPatch } from './settings';
-import { effectiveProfile, LOW_POWER_FPS, NORMAL_FPS, QUALITY_PROFILES } from './quality';
+import { NORMAL_FPS, QUALITY_PROFILES } from './quality';
 import { sharedUniforms } from './uniforms';
 import { EnvState } from './envState';
 import { GpuTimer } from './gpuTimer';
@@ -172,7 +172,7 @@ export class App {
     });
     this.pomodoro = new PomodoroOverlay(ui, {
       scheduleChime: (atMs, kind) => this.mixer.scheduleChime(atMs, kind),
-      soundOn: () => this.mixer.started && !this.settings.get().sceneOnly,
+      soundOn: () => this.mixer.started,
       onCalm: (active) => {
         this.calmTarget = active ? CALM_LEVEL : 1;
         this.mixer.setCalm(this.calmTarget);
@@ -181,11 +181,11 @@ export class App {
     });
     this.audioPrompt = new AudioPrompt(ui);
     // No start screen: sound starts with the first click or key press anywhere (browsers
-    // don't allow audio before that), unless "Chỉ ngắm cảnh" is on.
+    // don't allow audio before that).
     for (const type of ['pointerdown', 'keydown'] as const) {
       window.addEventListener(type, () => this.onFirstGesture(), { capture: true });
     }
-    if (!s.sceneOnly) this.audioPrompt.show();
+    this.audioPrompt.show();
     this.walkHint = new WalkHint(ui);
     this.fader = document.createElement('div');
     this.fader.className = 'fader';
@@ -294,11 +294,11 @@ export class App {
 
   /** Any click or key press counts as the gesture that may start the sound. */
   private onFirstGesture(): void {
-    if (!this.mixer.started && !this.settings.get().sceneOnly) void this.startAudio();
+    if (!this.mixer.started) void this.startAudio();
   }
 
   private registerShortcuts(): void {
-    const toggleSetting = (key: 'showDebug' | 'lowPower' | 'panelCollapsed') => () =>
+    const toggleSetting = (key: 'showDebug' | 'panelCollapsed') => () =>
       this.settings.update({ [key]: !this.settings.get()[key] });
     this.keymap.register({ code: 'KeyM', keyLabel: 'M', label: vi.shortcuts.muteAll, action: () => this.mixer.toggleMuteAll() });
     this.keymap.register({ code: 'KeyP', keyLabel: 'P', label: vi.shortcuts.panel, action: toggleSetting('panelCollapsed') });
@@ -351,12 +351,11 @@ export class App {
       label: vi.shortcuts.view,
       action: () => this.settings.update({ walkView: this.settings.get().walkView === 'third' ? 'first' : 'third' }),
     });
-    this.keymap.register({ code: 'KeyL', keyLabel: 'L', label: vi.shortcuts.lowPower, action: toggleSetting('lowPower') });
     this.keymap.register({ code: 'Backquote', keyLabel: '`', label: vi.shortcuts.debug, action: toggleSetting('showDebug') });
   }
 
   private applySettings(s: Readonly<Settings>): void {
-    const profile = effectiveProfile(s.quality, s.lowPower);
+    const profile = QUALITY_PROFILES[s.quality];
     const pixelRatio = Math.min(window.devicePixelRatio, profile.pixelRatioCap);
     if (pixelRatio !== this.renderer.getPixelRatio()) {
       // Resizing the canvas clears it, so only do it when the ratio really changes.
@@ -381,7 +380,7 @@ export class App {
     // Reduced motion: never auto-rotate, regardless of the stored setting.
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.orbit.setAutoRotate(s.autoRotate && !reducedMotion);
-    const fps = s.lowPower ? LOW_POWER_FPS : NORMAL_FPS;
+    const fps = NORMAL_FPS;
     this.loop.targetFps = fps;
     this.world.water.applyProfile(profile);
     this.world.water.setStepRate(fps);
@@ -390,7 +389,6 @@ export class App {
     this.world.flowers.setCount(profile.flowerCount);
     this.env.waveStrength.target = s.waveStrength;
     if (s.walkView !== this.walker.view) this.walker.setView(s.walkView);
-    this.applySceneOnly(s.sceneOnly);
     this.library.setActivePreset(s.activeScene);
     this.updateSynth();
     this.overlay.setVisible(s.showDebug);
@@ -436,7 +434,7 @@ export class App {
     const weather = [`Mưa ${pct(s.visualRain)}`, `Gió ${pct(s.visualWind)}`, `Sóng ${pct(s.waveStrength)}`];
     if (s.visualSnow > 0.01) weather.push(`Tuyết ${pct(s.visualSnow)}`);
     const names = this.library.playingNames();
-    const soundOn = this.mixer.started && !s.sceneOnly;
+    const soundOn = this.mixer.started;
     return {
       pomodoro: this.pomodoro.snapshot(),
       scene: this.scenes.get(s.activeScene)?.name ?? '',
@@ -501,29 +499,6 @@ export class App {
     l.trees = this.colliders.treesNear(x, z, 12);
     l.shelter = atDesk ? 'room' : this.walker.shelter;
     this.mixer.setListener(l);
-  }
-
-  private sceneOnlyApplied: boolean | null = null;
-
-  /**
-   * "Chỉ ngắm cảnh" on: mute (if sound is running) and don't auto-start. Off again: unmute, or
-   * start right away (the toggle click itself is a valid gesture).
-   */
-  private applySceneOnly(on: boolean): void {
-    if (on === this.sceneOnlyApplied) return;
-    const first = this.sceneOnlyApplied === null;
-    this.sceneOnlyApplied = on;
-    if (first) return;
-    this.pomodoro.refreshSound();
-    if (on) {
-      this.audioPrompt.hide();
-      if (this.mixer.started) this.mixer.setMaster({ muted: true });
-    } else if (this.mixer.started) {
-      this.mixer.setMaster({ muted: false });
-    } else {
-      this.audioPrompt.show();
-      void this.startAudio();
-    }
   }
 
   private readonly drawingBuffer = new THREE.Vector2();
