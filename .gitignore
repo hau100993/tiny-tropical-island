@@ -6,6 +6,9 @@ dist/
 # Local reference image (third-party character art, not licensed for the repo)
 avatar.png
 
+# Local decor images (e.g. a company logo on the desk mug): trademarks, not licensed for the repo.
+src/assets/local/
+
 # Your own recordings stay local by default (licenses vary); remove these lines to commit CC0 files.
 public/audio/**/*.ogg
 public/audio/**/*.oga

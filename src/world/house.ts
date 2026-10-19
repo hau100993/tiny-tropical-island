@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { GeoBuilder } from './geoBuilder';
 import { sharedUniforms } from '../core/uniforms';
-import { cylinder, DESK, furnish, type InteriorParts } from './houseInterior';
+import { cylinder, DESK, furnish, MUG, type InteriorParts } from './houseInterior';
+import { createMugLogo } from './mugLogo';
 import type { Heightmap } from './heightmap';
 import type { Placement } from './layout';
 import { createRng } from '../core/rng';
@@ -460,6 +461,9 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
   const rgbMesh = new THREE.Mesh(parts.rgb.build(), keyboardBacklight());
   rgbMesh.name = 'keyboard-rgb';
   group.add(...meshes, glassMesh, glowMesh, rgbMesh, lamp, roomLamp, fillLight, ...screens);
+  // Optional local print on the mug (see mugLogo.ts).
+  const mugLogo = createMugLogo(MUG.x, F + 0.74, MUG.z, MUG.face);
+  if (mugLogo) group.add(mugLogo);
   group.position.set(placement.x, 0, placement.z);
   group.rotation.y = placement.rotY;
 

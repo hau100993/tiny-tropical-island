@@ -138,7 +138,13 @@ is in view above them), a felt desk pad, a **tenkeyless mechanical keyboard in t
 style** (87 keys on the real layout, space-gray frame, orange Esc and Enter, an RGB backlight whose
 rainbow drifts across the board, glowing between the keys, soft by day and bright at night),
 a mouse on the right, a round Akari-style washi paper lamp on wire legs (glows at night) and a
-white moth orchid (Phalaenopsis) in bloom on a bamboo stake. Wood has a procedural grain (shader, no textures); cushions, futon, chair and
+white moth orchid (Phalaenopsis) in bloom on a bamboo stake, and a mug next to the lamp.
+
+**Your own print on the mug (optional, local):** put an image at
+`src/assets/local/mug-logo.png` (or `.jpg`/`.webp`) and restart `npm run dev`. Its white
+background is dropped and the rest is wrapped around the side of the mug that faces the chair.
+The folder is git-ignored, since a company logo is a trademark; without the file the mug is
+plain. Wood has a procedural grain (shader, no textures); cushions, futon, chair and
 ceramics are rounded and smooth-shaded. Trees are kept out of the view from the glass to the sea.
 
 **Sitting at the desk:** press **B** (or *Góc làm việc* in the panel) from anywhere, or walk in

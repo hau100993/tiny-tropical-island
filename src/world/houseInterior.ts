@@ -35,6 +35,16 @@ const MONSTERA = ['#2b5a2c', '#336a33', '#2f6230', '#3b7538'];
 
 /** Monitors and chair position (shared with house.ts, which places the screens). */
 export const DESK = { seatX: -0.8, seatZ: 1.1 } as const;
+/** The mug next to the paper lamp (desk top), and the yaw its printed side faces: the chair. */
+export const MUG = {
+  x: -1.36,
+  z: 1.99,
+  face: Math.atan2(DESK.seatX - -1.36, DESK.seatZ - 1.99),
+  /** Body radius at the foot and at the rim, and height (a large 450 ml mug). */
+  r0: 0.041,
+  r1: 0.046,
+  h: 0.105,
+} as const;
 
 /**
  * Japanese-minimal interior: desk and chair at the glass, a tea corner with a low chabudai and
@@ -51,7 +61,8 @@ export function furnish(p: InteriorParts, F: number, ceilingY: (z: number) => nu
   solid(-1.75, 0.15, 1.72, 2.38, F, F + 0.76);
   // Felt desk pad, mechanical keyboard, mouse on the right; mug, a washi paper lamp, an orchid.
   workstation(p, F + 0.74);
-  soft.add(mug(0.0, F + 0.74, 2.18), CERAMIC);
+  // The handle sits a quarter turn round from the printed side, toward the user's right.
+  soft.add(mug(MUG.x, F + 0.74, MUG.z, MUG.face + Math.PI / 2), CERAMIC);
   akariLamp(p, -1.6, F + 0.74, 2.22);
   orchid(p, -1.56, F + 0.74, 1.86);
 
@@ -337,11 +348,15 @@ function bladeGeometry(width: number, height: number, lean: number): THREE.Buffe
   return g;
 }
 
-function mug(x: number, y: number, z: number): THREE.BufferGeometry {
-  const body = lathe([[0, 0], [0.035, 0], [0.04, 0.09], [0.036, 0.09], [0.031, 0.01], [0, 0.01]], x, y, z);
-  const handle = new THREE.TorusGeometry(0.022, 0.006, 6, 12, Math.PI);
+/** A mug; `handleYaw` is the direction of the handle (0 = +Z, π/2 = +X). */
+function mug(x: number, y: number, z: number, handleYaw = Math.PI / 2): THREE.BufferGeometry {
+  const { r0, r1, h } = MUG;
+  const body = lathe([[0, 0], [r0, 0], [r1, h], [r1 - 0.004, h], [r0 - 0.004, 0.01], [0, 0.01]], x, y, z);
+  const handle = new THREE.TorusGeometry(0.026, 0.007, 8, 14, Math.PI);
   handle.rotateZ(-Math.PI / 2);
-  handle.translate(x + 0.04, y + 0.045, z);
+  handle.translate(r1 - 0.002, 0, 0);
+  handle.rotateY(handleYaw - Math.PI / 2);
+  handle.translate(x, y + h * 0.5, z);
   return merge([body, handle]);
 }
 
