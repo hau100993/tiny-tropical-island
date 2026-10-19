@@ -16,16 +16,18 @@ export interface SceneViewDeps {
 
 /** Icon per built-in preset; the user's own presets get a bookmark. */
 const PRESET_ICONS: Readonly<Record<string, string>> = {
+  'b-dawn': icons.sunrise,
   'b-sunny': icons.sun,
   'b-sunset': icons.sunset,
   'b-storm': icons.storm,
   'b-jungle-rain': icons.rain,
   'b-campfire': icons.flame,
+  'b-full-moon': icons.moon,
   'b-misty': icons.fog,
   'b-aurora': icons.aurora,
 };
 
-type EffectKey = 'visualRain' | 'visualSnow' | 'visualWind' | 'waveStrength' | 'clouds' | 'gloom' | 'meteors' | 'aurora';
+type EffectKey = 'visualRain' | 'visualSnow' | 'visualWind' | 'waveStrength' | 'clouds' | 'gloom' | 'meteors' | 'aurora' | 'moonlight';
 type FlagKey = 'rainbow' | 'stars' | 'fireflies';
 
 /**
@@ -110,6 +112,7 @@ export class SceneView {
       weatherFlags,
       el('div', 'subhead', vi.panel.nightSky),
       add('meteors', vi.panel.meteors),
+      add('moonlight', vi.panel.moonlight),
       add('aurora', vi.panel.aurora),
       nightFlags,
     );

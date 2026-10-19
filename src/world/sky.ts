@@ -21,6 +21,7 @@ export function createSky(shared: SharedUniforms): Sky {
       uSkyTop: u.uSkyTop,
       uSkyHorizon: u.uSkyHorizon,
       uMoonDir: u.uMoonDir,
+      uMoonGlow: u.uMoonGlow,
       uNight: u.uNight,
       uDayLight: u.uDayLight,
       uStars: u.uStars,

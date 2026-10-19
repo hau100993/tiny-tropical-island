@@ -6,6 +6,7 @@ uniform vec3 uSkyTop;
 uniform vec3 uSkyHorizon;
 uniform vec3 uMoonDir;
 uniform float uNight;
+uniform float uMoonGlow;
 
 vec3 skyColor(vec3 dir) {
   float h = max(dir.y, 0.0);
@@ -22,9 +23,11 @@ vec3 skyColor(vec3 dir) {
   float twilight = 1.0 - smoothstep(0.0, 0.25, abs(uSunDir.y));
   col += uSunColor * 0.35 * twilight * pow(max(dot(hd, sh), 0.0), 3.0) * exp(-h * 6.0);
 
-  // Moon halo at night.
+  // Moon halo at night; a bright full moon (uMoonGlow) adds a wide soft glow, which the
+  // sea's sky reflection turns into a silver path toward the moon.
   float md = max(dot(dir, uMoonDir), 0.0);
-  col += vec3(0.55, 0.62, 0.85) * (0.05 * pow(md, 10.0) + 0.3 * pow(md, 300.0)) * uNight * step(0.0, uMoonDir.y);
+  float halo = (0.4 + 2.0 * uMoonGlow) * (0.05 * pow(md, 10.0) + 0.3 * pow(md, 300.0)) + 0.12 * uMoonGlow * pow(md, 3.0);
+  col += vec3(0.55, 0.62, 0.85) * halo * uNight * step(0.0, uMoonDir.y);
 
   // Below the horizon: fade to a slightly darker horizon color.
   col = mix(col, uSkyHorizon * 0.85, 1.0 - smoothstep(-0.15, 0.0, dir.y));

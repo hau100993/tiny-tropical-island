@@ -25,6 +25,8 @@ export const icons = {
   keyboard: svg('<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>'),
   // Scene presets.
   sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+  sunrise: svg('<path d="M17 18a5 5 0 0 0-10 0"/><path d="M2 18h20M5 22h14"/><path d="M12 8V2M4.2 10.2l1.4 1.4M19.8 10.2l-1.4 1.4M9 5l3-3 3 3"/>'),
+  moon: svg('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/><path d="M17 3v2M16 4h2" />'),
   sunset: svg('<path d="M17 18a5 5 0 0 0-10 0"/><path d="M2 18h20M5 22h14"/><path d="M12 2v6M4.2 10.2l1.4 1.4M19.8 10.2l-1.4 1.4M9 5l3 3 3-3"/>'),
   storm: svg('<path d="M18 16a4 4 0 0 0-1-7.9A6 6 0 0 0 5.3 10 3.5 3.5 0 0 0 6 17"/><path d="m13 12-3 5h4l-3 5"/>'),
   rain: svg('<path d="M18 15a4 4 0 0 0-1-7.9A6 6 0 0 0 5.3 9 3.5 3.5 0 0 0 6 16"/><path d="M8 19l-1 2M12 18l-1 3M16 19l-1 2"/>'),

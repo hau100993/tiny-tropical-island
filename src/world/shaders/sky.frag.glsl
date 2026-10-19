@@ -137,10 +137,13 @@ void main() {
 
   // Moon disc, faintly visible by day too.
   float md = dot(dir, uMoonDir);
-  float moonDisc = smoothstep(0.99955, 0.99968, md) * smoothstep(-0.03, 0.03, uMoonDir.y);
-  float craters = cNoise((dir.xz - uMoonDir.xz) * 900.0 + 3.0);
+  // A full moon (uMoonGlow > 0.3) grows up to ~1.5x wider and brighter. cos thresholds: the
+  // disc edge is where dot(dir, moon) crosses them.
+  float grow = smoothstep(0.3, 1.0, uMoonGlow);
+  float moonDisc = smoothstep(mix(0.99955, 0.99895, grow), mix(0.99968, 0.99925, grow), md) * smoothstep(-0.03, 0.03, uMoonDir.y);
+  float craters = cNoise((dir.xz - uMoonDir.xz) * mix(900.0, 600.0, grow) + 3.0);
   vec3 moonCol = vec3(0.95, 0.96, 1.0) * (0.8 + 0.2 * craters);
-  col = mix(col, moonCol * mix(1.6, 0.9, uDayLight), moonDisc * mix(1.0, 0.35, uDayLight));
+  col = mix(col, moonCol * mix(1.6 + 0.6 * grow, 0.9, uDayLight), moonDisc * mix(1.0, 0.35, uDayLight));
 
   // Sun disc with a soft edge.
   col += uSunColor * smoothstep(0.9994, 0.9998, dot(dir, uSunDir)) * 6.0 * step(-0.02, uSunDir.y);

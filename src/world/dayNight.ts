@@ -36,6 +36,8 @@ export interface SkyOptions {
   stars: boolean;
   meteors: number;
   aurora: number;
+  /** 0.3 = normal moon, 1 = big bright full moon. */
+  moonlight: number;
 }
 
 /**
@@ -114,14 +116,18 @@ export class DayNight {
     // Main light: the sun by day, the moon by night, crossfading while both are near zero.
     const sunUp = smoothstep(-0.04, 0.02, e);
     const sunI = p.sunIntensity * (1 - 0.65 * oc);
-    const moonI = 0.35 * (1 - sunUp) * smoothstep(0.0, 0.15, this.moon.y) * (1 - 0.6 * oc);
+    // Moonlight: ×1 at the normal setting (0.3), up to ×2 for a bright full moon.
+    const moonBoost = 0.55 + 1.5 * opts.moonlight;
+    const moonI = 0.35 * moonBoost * (1 - sunUp) * smoothstep(0.0, 0.15, this.moon.y) * (1 - 0.6 * oc);
     const useSun = sunUp > 0.5;
     const dir = useSun ? this.sun : this.moon;
     this.tmp.copy(useSun ? u.uSunColor.value : MOON_COLOR);
     this.lighting.setMain(dir, this.tmp, useSun ? sunI * sunUp : moonI);
     u.uLightDir.value.copy(dir);
     u.uLightColor.value.copy(this.tmp).multiplyScalar(useSun ? Math.min(1, sunI / 2.6) : moonI * 2.2);
-    this.lighting.setHemi(p.hemiSky, p.hemiGround, p.hemiIntensity * (1 - 0.25 * oc));
+    // A bright moon also lifts the night ambient a little (silvery island, readable shadows).
+    const moonAmbient = 1 + 0.6 * Math.max(0, opts.moonlight - 0.3) * u.uNight.value * (1 - oc);
+    this.lighting.setHemi(p.hemiSky, p.hemiGround, p.hemiIntensity * (1 - 0.25 * oc) * moonAmbient);
 
     // House: lamp shades and the wall light glow from dusk to dawn; by day a soft bounce
     // light keeps the room readable next to the bright sea outside the glass.
@@ -140,6 +146,8 @@ export class DayNight {
     const clearNight = u.uNight.value * (1 - u.uCloudCover.value * 0.9);
     u.uStars.value = opts.stars ? 1 : 0;
     u.uAurora.value = opts.aurora * clearNight;
+    // Clouds hide the extra glow, back toward the normal moon.
+    u.uMoonGlow.value = 0.3 + (opts.moonlight - 0.3) * (1 - u.uCloudCover.value * 0.8) * (1 - oc);
     // A rainbow needs sun behind you, rain just passed (wet air) and not raining hard any more.
     const lowSun = smoothstep(0.02, 0.1, e) * (1 - smoothstep(0.45, 0.65, e));
     u.uRainbow.value = opts.rainbow ? lowSun * smoothstep(0.15, 0.5, weather.wetness) * (1 - smoothstep(0.1, 0.4, weather.rain)) * (1 - oc * 0.5) : 0;

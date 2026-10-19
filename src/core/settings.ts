@@ -38,6 +38,8 @@ export interface Settings {
   /** Shooting-star frequency, 0..1. */
   meteors: number;
   aurora: number;
+  /** Moon brightness and size (0.3 = the normal moon, 1 = a big bright full moon). */
+  moonlight: number;
   fireflies: boolean;
   // Walking (Phase 5)
   footsteps: boolean;
@@ -79,6 +81,7 @@ export function defaultSettings(): Settings {
     stars: true,
     meteors: 0.4,
     aurora: 0.5,
+    moonlight: 0.3,
     fireflies: true,
     footsteps: true,
     walkView: 'third',
@@ -165,6 +168,7 @@ export function parseSettings(json: string | null): Settings {
     stars: bool(raw.stars, defaults.stars),
     meteors: unit(raw.meteors, defaults.meteors),
     aurora: unit(raw.aurora, defaults.aurora),
+    moonlight: unit(raw.moonlight, defaults.moonlight),
     fireflies: bool(raw.fireflies, defaults.fireflies),
     footsteps: bool(raw.footsteps, defaults.footsteps),
     walkView: raw.walkView === 'first' || raw.walkView === 'third' ? raw.walkView : defaults.walkView,

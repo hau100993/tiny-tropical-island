@@ -19,6 +19,7 @@ export const SCENE_KEYS = [
   'stars',
   'meteors',
   'aurora',
+  'moonlight',
   'fireflies',
 ] as const;
 
@@ -52,6 +53,7 @@ export const DEFAULT_SCENE: Readonly<SceneValues> = {
   stars: true,
   meteors: 0.4,
   aurora: 0.5,
+  moonlight: 0.3,
   fireflies: true,
 };
 
@@ -60,6 +62,9 @@ function builtIn(id: string, name: string, hours: number | null, v: Partial<Scen
 }
 
 export const BUILT_IN_SCENES: readonly ScenePreset[] = [
+  builtIn('b-dawn', 'Bình minh ơi', 6.05, {
+    visualWind: 0.12, waveStrength: 0.2, clouds: 0.45, gloom: 0, meteors: 0, aurora: 0, fireflies: false,
+  }),
   builtIn('b-sunny', 'Ngày nắng', 10, { visualWind: 0.25, waveStrength: 0.4, clouds: 0.25 }),
   builtIn('b-sunset', 'Hoàng hôn yên ả', 17.7, { visualWind: 0.15, waveStrength: 0.25, clouds: 0.4 }),
   builtIn('b-storm', 'Bão nhiệt đới', null, {
@@ -68,6 +73,9 @@ export const BUILT_IN_SCENES: readonly ScenePreset[] = [
   builtIn('b-jungle-rain', 'Mưa rừng', null, { visualRain: 0.55, visualWind: 0.3, waveStrength: 0.35, clouds: 0.8, gloom: 0.3 }),
   builtIn('b-campfire', 'Đêm lửa trại', 21, {
     visualWind: 0.15, waveStrength: 0.25, clouds: 0.15, meteors: 0.6, aurora: 0, fireflies: true,
+  }),
+  builtIn('b-full-moon', 'Đêm trăng tròn', 20.6, {
+    visualWind: 0.1, waveStrength: 0.18, clouds: 0.2, meteors: 0.15, aurora: 0, moonlight: 1, fireflies: true,
   }),
   builtIn('b-misty', 'Sáng sương mù', 6.4, { visualWind: 0.05, waveStrength: 0.15, clouds: 0.6, gloom: 0.4 }),
   builtIn('b-aurora', 'Đêm tuyết cực quang', 22.5, {

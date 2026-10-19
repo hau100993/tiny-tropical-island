@@ -70,11 +70,11 @@ runs; click to show or hide the timer card), collapse, a **status line** (scene 
 playing · island time) and **Âm lượng chung** with mute. Below, five sections, one open at a
 time (the open one is remembered); a closed section shows its current value next to its title:
 
-- **Cảnh:** scene presets as cards with an icon (sun, sunset, storm, rain, campfire, mist,
-  aurora; your own presets get a bookmark). The active card is highlighted; an orange dot means
+- **Cảnh:** scene presets as cards with an icon (sunrise, sun, sunset, storm, rain, campfire,
+  moon, mist, aurora; your own presets get a bookmark). The active card is highlighted; an orange dot means
   you changed its effects. Save / update / restore / delete below the cards. **Tùy chỉnh hiệu
   ứng** (folded) holds the effects: *Thời tiết* (rain, snow, wind, waves, clouds, gloom, rainbow)
-  and *Bầu trời đêm* (shooting stars, aurora, stars, fireflies).
+  and *Bầu trời đêm* (moonlight, shooting stars, aurora, stars, fireflies).
 - **Âm thanh:** **Âm thanh của tôi** (your recordings) and **Âm nền tự tạo khi không phát
   file** (the synthesized fallback, see below).
 - **Thời gian:** a big hh:mm:ss clock with **Dừng / Chạy**, **Giờ thật (theo máy tính)**, the
@@ -90,9 +90,10 @@ On/off options are switches; buttons only do things.
 ## Scene presets and your recordings
 
 A **scene preset** sets the weather and sky effects (rain, snow, wind, waves, clouds, gloom,
-rainbow, stars, shooting stars, aurora, fireflies) and, if saved with one, a time of day.
-Built in: *Ngày nắng*, *Hoàng hôn yên ả*, *Bão nhiệt đới*, *Mưa rừng*, *Đêm lửa trại*,
-*Sáng sương mù*, *Đêm tuyết cực quang*. Your own presets: set the sliders, then
+rainbow, moonlight, stars, shooting stars, aurora, fireflies) and, if saved with one, a time of day.
+Built in: *Bình minh ơi* (sunrise at 06:03), *Ngày nắng*, *Hoàng hôn yên ả*, *Bão nhiệt đới*,
+*Mưa rừng*, *Đêm lửa trại*, *Đêm trăng tròn* (20:36, a big bright moon rising in the east: turn
+the camera east to see it and its path on the sea), *Sáng sương mù*, *Đêm tuyết cực quang*. Your own presets: set the sliders, then
 **Lưu thành preset…** (turn on **Kèm giờ hiện tại** to store the time too; saving under an
 existing name overwrites it). Moving a slider afterwards shows *(đã chỉnh)*; **Cập nhật preset**
 writes the new values into the selected preset, built-in ones included. An edited built-in
@@ -303,6 +304,7 @@ The other sky options are scene effects (*Cảnh → Tùy chỉnh hiệu ứng*)
 | Cầu vồng sau mưa | After rain, with a low sun behind you, a rainbow appears at the real 42° angle. |
 | Sao & Ngân Hà | Twinkling stars and a faint Milky Way that slowly wheel across the night sky. |
 | Sao băng | How often shooting stars cross the visible sky: thin, star-sized streaks with a fading tail, in random directions, sometimes two or three at once. |
+| Trăng sáng | Moon size and brightness: 30 % is the normal moon; higher gives a bigger, brighter full moon, a wider glow, stronger silver moonlight on the island and a brighter path on the sea. Clouds dim it. |
 | Cực quang | Green-violet aurora curtains toward the north. |
 | Đom đóm | Fireflies blinking around the garden and forest edge at night. |
 

@@ -49,6 +49,7 @@ export const vi = {
     stars: 'Sao & Ngân Hà',
     meteors: 'Sao băng',
     aurora: 'Cực quang',
+    moonlight: 'Trăng sáng',
     fireflies: 'Đom đóm',
     walk: 'Đi bộ trên đảo (C)',
     sections: { scene: 'Cảnh', sound: 'Âm thanh', time: 'Thời gian', view: 'Góc nhìn', settings: 'Cài đặt' },

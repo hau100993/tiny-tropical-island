@@ -78,6 +78,7 @@ export class WaterSurface {
         uSkyTop: shared.uSkyTop,
         uSkyHorizon: shared.uSkyHorizon,
         uMoonDir: shared.uMoonDir,
+        uMoonGlow: shared.uMoonGlow,
         uNight: shared.uNight,
         uDayLight: shared.uDayLight,
         uLightDir: shared.uLightDir,
