@@ -26,6 +26,8 @@ export class TrackPlayer {
     private readonly id: string,
     destination: AudioNode,
     private readonly onError: () => void,
+    /** Bundled recording: stream it from this URL (otherwise it comes from IndexedDB). */
+    private readonly src?: string,
   ) {
     this.gain = engine.ctx.createGain();
     this.gain.gain.value = 0;
@@ -76,14 +78,18 @@ export class TrackPlayer {
 
   private async load(): Promise<boolean> {
     try {
-      const blob = await getBlob(this.id);
-      if (!blob || this.disposed) throw new Error('recording not found in storage');
-      this.url = URL.createObjectURL(blob);
+      let src = this.src;
+      if (!src) {
+        const blob = await getBlob(this.id);
+        if (!blob || this.disposed) throw new Error('recording not found in storage');
+        this.url = URL.createObjectURL(blob);
+        src = this.url;
+      }
       const el = new Audio();
       el.loop = true;
       el.preload = 'auto';
       el.addEventListener('error', () => this.fail(el.error?.message ?? 'cannot play this file'));
-      el.src = this.url;
+      el.src = src;
       this.engine.ctx.createMediaElementSource(el).connect(this.gain);
       this.el = el;
       return true;

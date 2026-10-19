@@ -24,6 +24,8 @@ export interface TrackMeta {
   playing: boolean;
   /** Plays automatically while one of these scene presets is active. */
   mappings: TrackMapping[];
+  /** Shipped with the app: streamed from this URL instead of browser storage. */
+  src?: string;
 }
 
 /** Trims and shortens a user-typed name; null if nothing usable is left. */
@@ -61,6 +63,7 @@ export function parseTracks(raw: unknown): TrackMeta[] {
       volume: clamp01(t.volume, 0.7),
       playing: bool(t.playing, false),
       mappings,
+      ...(typeof t.src === 'string' ? { src: t.src } : {}),
     });
   }
   return out;

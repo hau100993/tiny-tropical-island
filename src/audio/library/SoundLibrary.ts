@@ -1,6 +1,7 @@
 import type { AudioEngine } from '../AudioEngine';
 import { readStored, parseJson, writeStored } from '../../core/storage';
 import { deleteBlob, isQuotaError, putBlob, requestPersistence } from './blobStore';
+import { BUNDLED_PREFIX, HIDDEN_KEY, loadBundled, type BundledTrack } from './bundled';
 import { TrackPlayer } from './TrackPlayer';
 import { nameFromFile, parseTracks, sanitizeTrackName, trackLevel, TRACKS_KEY, type TrackMeta } from './tracks';
 
@@ -19,6 +20,11 @@ type Listener = () => void;
  * The user's recordings ("Âm thanh của tôi"): metadata in localStorage, audio in IndexedDB,
  * one streaming player per track once sound has started. Tracks mapped to the active scene
  * preset play automatically; any track can also be switched on by itself.
+ *
+ * Recordings shipped with the app (`public/audio/library/library.json`) join the list on
+ * startup with their default scene mappings; they stream from the server, and the user's
+ * changes to them (volume, mappings, name) are kept like any other track. Removing one only
+ * hides it.
  */
 export class SoundLibrary {
   private tracks: TrackMeta[];
@@ -28,9 +34,62 @@ export class SoundLibrary {
   private readonly players = new Map<string, TrackPlayer>();
   private readonly listeners: Listener[] = [];
   private saveTimer = 0;
+  private bundled: BundledTrack[] = [];
+  private hidden: string[];
 
   constructor() {
     this.tracks = parseTracks(parseJson(readStored(TRACKS_KEY)));
+    const h = parseJson(readStored(HIDDEN_KEY));
+    this.hidden = Array.isArray(h) ? h.filter((x): x is string => typeof x === 'string') : [];
+    void loadBundled().then((b) => this.mergeBundled(b));
+  }
+
+  /** Shipped with the app (streamed, can be hidden but not deleted). */
+  isBundled(id: string): boolean {
+    return id.startsWith(BUNDLED_PREFIX);
+  }
+
+  /** How many bundled recordings the user has hidden. */
+  get hiddenCount(): number {
+    return this.bundled.filter((b) => this.hidden.includes(b.id)).length;
+  }
+
+  /** Shows the hidden bundled recordings again, with their default settings. */
+  restoreBundled(): void {
+    this.hidden = [];
+    writeStored(HIDDEN_KEY, this.hidden);
+    this.mergeBundled(this.bundled);
+  }
+
+  /**
+   * Adds the bundled recordings that aren't in the list yet (unless hidden), refreshes the URL
+   * and size of those that are, and drops stored ones whose file is no longer shipped.
+   */
+  private mergeBundled(list: BundledTrack[]): void {
+    this.bundled = list;
+    const before = this.tracks.length;
+    this.tracks = this.tracks.filter((t) => !this.isBundled(t.id) || list.some((b) => b.id === t.id));
+    let changed = this.tracks.length !== before;
+    for (const b of list) {
+      const t = this.get(b.id);
+      if (t) {
+        changed ||= t.src !== b.src || t.size !== b.size;
+        t.src = b.src;
+        t.size = b.size;
+      } else if (!this.hidden.includes(b.id)) {
+        this.tracks.push({
+          id: b.id,
+          name: b.name,
+          size: b.size,
+          volume: 0.7,
+          playing: false,
+          mappings: b.mappings.map((m) => ({ ...m })),
+          src: b.src,
+        });
+        changed = true;
+      }
+    }
+    if (changed) this.changed(true);
   }
 
   list(): readonly TrackMeta[] {
@@ -88,6 +147,12 @@ export class SoundLibrary {
     this.tracks = this.tracks.filter((t) => t.id !== id);
     this.players.get(id)?.dispose();
     this.players.delete(id);
+    if (this.isBundled(id)) {
+      if (!this.hidden.includes(id)) this.hidden.push(id);
+      writeStored(HIDDEN_KEY, this.hidden);
+      this.changed(true);
+      return;
+    }
     this.changed(true);
     try {
       await deleteBlob(id);
@@ -179,7 +244,7 @@ export class SoundLibrary {
       let p = this.players.get(t.id);
       if (!p && level === 0) continue;
       if (!p) {
-        p = new TrackPlayer(engine, t.id, engine.ambience, () => this.emit());
+        p = new TrackPlayer(engine, t.id, engine.ambience, () => this.emit(), t.src);
         this.players.set(t.id, p);
       }
       p.setLevel(level, timeConstant);

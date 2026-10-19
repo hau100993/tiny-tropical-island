@@ -9,22 +9,36 @@ const MANIFEST = 'audio-manifest.json';
 export interface AudioManifest {
   /** Audio files under the audio folder, as forward-slash paths relative to it. */
   files: string[];
+  /** Size in bytes of each listed file. */
+  sizes: Record<string, number>;
   /** Whether `audio/config.json` exists (so the app never requests a missing file). */
   config: boolean;
+  /** Whether `audio/library/library.json` (recordings shipped with the app) exists. */
+  library: boolean;
 }
 
 function scan(audioDir: string): AudioManifest {
   const files: string[] = [];
+  const sizes: Record<string, number> = {};
   const walk = (dir: string): void => {
     for (const name of readdirSync(dir)) {
       const full = join(dir, name);
       if (statSync(full).isDirectory()) walk(full);
-      else if (AUDIO_EXT.test(name)) files.push(relative(audioDir, full).split('\\').join('/'));
+      else if (AUDIO_EXT.test(name)) {
+        const rel = relative(audioDir, full).split('\\').join('/');
+        files.push(rel);
+        sizes[rel] = statSync(full).size;
+      }
     }
   };
   if (existsSync(audioDir)) walk(audioDir);
   files.sort();
-  return { files, config: existsSync(join(audioDir, 'config.json')) };
+  return {
+    files,
+    sizes,
+    config: existsSync(join(audioDir, 'config.json')),
+    library: existsSync(join(audioDir, 'library', 'library.json')),
+  };
 }
 
 /**

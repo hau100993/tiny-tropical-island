@@ -16,3 +16,8 @@ public/audio/**/*.m4a
 public/audio/**/*.aac
 public/audio/**/*.flac
 public/audio/**/*.webm
+# ...except the recordings shipped with the app (licensed for redistribution, see README).
+!public/audio/library/*.mp3
+!public/audio/library/*.ogg
+!public/audio/library/*.opus
+!public/audio/library/*.m4a

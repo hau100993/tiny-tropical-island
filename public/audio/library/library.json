@@ -1,0 +1,17 @@
+{
+  "_help": "Recordings shipped with the app. Each one joins 'Âm thanh của tôi' on startup and plays with the listed scene presets. A file listed here but missing from this folder is skipped. Record each file's source and license in README.md.",
+  "tracks": [
+    {
+      "id": "island-day",
+      "name": "Ban ngày trên đảo",
+      "file": "library/island-day.mp3",
+      "mappings": [{ "presetId": "b-sunny", "volume": 0.7 }]
+    },
+    {
+      "id": "island-night",
+      "name": "Ban đêm trên đảo",
+      "file": "library/island-night.mp3",
+      "mappings": [{ "presetId": "b-campfire", "volume": 0.7 }]
+    }
+  ]
+}

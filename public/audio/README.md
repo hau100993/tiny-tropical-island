@@ -1,5 +1,9 @@
 # Your own sound files
 
+> `library/` is different: recordings **shipped with the app** (listed in
+> `library/library.json`, committed to the repo, shown in *Âm thanh của tôi* as *có sẵn*).
+> Only put files there that may be redistributed, and credit them in the main README.
+
 Optional. Without any files every layer is synthesized in code.
 
 1. Put audio files in this folder (sub-folders are fine), e.g. `waves/beach1.ogg`.

@@ -104,6 +104,14 @@ deleted). Up to 30 presets of your own.
    show the mapping; the active scene's tag is highlighted.
 4. ⚙ also renames or deletes (deleting removes the browser copy only).
 
+**Built-in recordings.** Two 15-minute recordings ship with the app and appear in the list
+marked *có sẵn*: **Ban ngày trên đảo** (plays with *Ngày nắng*) and **Ban đêm trên đảo** (plays
+with *Đêm lửa trại*). They stream from the site instead of being copied into the browser, and
+you can change their volume, mappings and name like your own. ⚙ → **Ẩn khỏi danh sách** hides
+one; **Hiện âm thanh có sẵn** brings it back. To ship more, put files in
+`public/audio/library/` and list them in `library.json` there (`id`, `name`, `file`, `mappings`
+with preset ids such as `b-sunny`, `b-campfire`); a listed file that is missing is skipped.
+
 Long files are streamed by an `<audio>` element (a few MB of memory, not the ~1.4 GB an hour
 would take decoded) and routed through the app's audio graph, so master volume, mute, the snow
 muffle and the Pomodoro calm apply to them. A file the browser can't play is marked
@@ -112,7 +120,7 @@ muffle and the Pomodoro calm apply to them. A file the browser can't play is mar
 **Synthesized fallback:** with **Âm tổng hợp khi chưa có file** on (default), the built-in
 synthesized soundscape plays whenever none of your recordings is playing, and it follows the
 scene (rain slider → rain sound, wind → gusts, waves → surf, birds by day). As soon as a
-recording plays it fades out. So a fresh install (the repo ships no audio) is never silent.
+recording plays it fades out. So a scene with no recording is never silent.
 
 ## The house and the work desk
 
@@ -390,3 +398,4 @@ audio files in the repo.
 | Gerstner waves | — | technique from *GPU Gems* (2004), ch. 1 |
 | [WebGL Water](https://madebyevan.com/webgl-water/) by Evan Wallace | MIT | the heightfield ripple simulation (drop + update passes) and the caustics-by-area-ratio technique are reimplemented after it in `src/water/` |
 | Planar reflection camera (`src/water/PlanarReflection.ts`) | MIT | mirrored camera and oblique near plane adapted from three.js `examples/jsm/objects/Reflector.js` |
+| `public/audio/library/island-day.mp3`, `island-night.mp3` | redistribution permitted (confirmed by the repository owner) | built-in recordings, 15 min each; source: *TODO, add the original source and exact license* |

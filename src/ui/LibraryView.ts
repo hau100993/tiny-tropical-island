@@ -100,13 +100,14 @@ export class LibraryView {
       return;
     }
     this.pending = false;
-    const tracks = this.deps.library.list();
+    const { library } = this.deps;
+    const tracks = library.list();
     this.list.replaceChildren();
-    if (tracks.length === 0) {
-      this.list.append(el('div', 'hint', vi.library.empty));
-      return;
-    }
+    if (tracks.length === 0) this.list.append(el('div', 'hint', vi.library.empty));
     for (const t of tracks) this.list.append(this.row(t));
+    if (library.hiddenCount > 0) {
+      this.list.append(button(vi.library.restore(library.hiddenCount), () => library.restoreBundled(), 'btn small'));
+    }
   }
 
   private row(t: Readonly<TrackMeta>): HTMLElement {
@@ -143,8 +144,9 @@ export class LibraryView {
         : vi.library.play;
     play.title = playLabel;
     play.setAttribute('aria-label', `${playLabel}: ${t.name}`);
+    const bundled = library.isBundled(t.id);
     const name = el('span', 'track-name', t.name);
-    name.title = `${t.name} · ${formatSize(t.size)}`;
+    name.title = `${t.name} · ${formatSize(t.size)}${bundled ? ` · ${vi.library.bundled}` : ''}`;
     const vol = slider('', t.volume, (v) => library.setVolume(t.id, v));
     vol.root.classList.add('compact');
     vol.input.setAttribute('aria-label', `${vi.library.volume}: ${t.name}`);
@@ -208,10 +210,13 @@ export class LibraryView {
       box.append(r);
     }
 
-    const del = button(vi.library.delete, () => {
-      if (window.confirm(vi.library.confirmDelete(t.name))) void library.remove(t.id);
+    // Bundled recordings ship with the app: they can only be hidden from the list.
+    const bundled = library.isBundled(t.id);
+    const del = button(bundled ? vi.library.hide : vi.library.delete, () => {
+      const ask = bundled ? vi.library.confirmHide(t.name) : vi.library.confirmDelete(t.name);
+      if (window.confirm(ask)) void library.remove(t.id);
     }, 'btn small');
-    box.append(el('div', 'hint', `${formatSize(t.size)}`), del);
+    box.append(el('div', 'hint', `${formatSize(t.size)}${bundled ? ` · ${vi.library.bundled}` : ''}`), del);
     return box;
   }
 

@@ -87,6 +87,10 @@ export const vi = {
     mapHint: 'Tự phát khi chọn preset cảnh (mỗi preset một mức âm lượng):',
     delete: 'Xóa file',
     confirmDelete: (name: string) => `Xóa "${name}" khỏi trình duyệt? File gốc trên máy vẫn còn.`,
+    bundled: 'có sẵn',
+    hide: 'Ẩn khỏi danh sách',
+    confirmHide: (name: string) => `Ẩn "${name}"? Có thể hiện lại bằng nút "Hiện âm thanh có sẵn".`,
+    restore: (n: number) => `Hiện âm thanh có sẵn (${n})`,
     failed: 'Không phát được file này.',
     errors: {
       quota: 'không đủ dung lượng trình duyệt',
