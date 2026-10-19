@@ -42,6 +42,8 @@ export const sharedUniforms = {
   uCloudOffset: { value: new THREE.Vector2() },
   uStars: { value: 1 },
   uAurora: { value: 0 },
+  /** Where the aurora is brightest: azimuth atan(x, −z), radians (0 = −Z). Set from the desk. */
+  uAuroraAz: { value: 0 },
   /** Moon glow (0.3 = normal, 1 = big bright full moon), faded by clouds. */
   uMoonGlow: { value: 0.3 },
   uRainbow: { value: 0 },

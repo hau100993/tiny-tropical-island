@@ -130,6 +130,12 @@ export class App {
       desk: spot(w.house.desk),
       bath: spot(w.house.bath),
     });
+    // The aurora hangs over the sea seen from the desk, a little right of the window's center
+    // (scene skies put the moon a little left of it). Shader azimuth: atan(x, −z).
+    {
+      const yaw = this.colliders.seaYaw;
+      sharedUniforms.uAuroraAz.value = Math.atan2(-Math.sin(yaw), Math.cos(yaw)) + (20 * Math.PI) / 180;
+    }
     this.deskScreens = new DeskScreens(w.house.screens, this.renderer.capabilities.getMaxAnisotropy(), () => this.screenInfo());
     this.avatar = new Avatar(sharedUniforms);
     this.scene.add(this.avatar.group);
