@@ -65,7 +65,7 @@ export interface HouseInfo {
   /** Lamp shades and the wall light: glow from dusk to dawn. */
   windowMaterial: THREE.MeshStandardMaterial;
   /** Window glass (see-through, no weather effects). */
-  glassMaterial: THREE.MeshLambertMaterial;
+  glassMaterial: THREE.MeshBasicMaterial;
   /** All wooden parts (gets the procedural wood grain). */
   woodMaterial: THREE.MeshStandardMaterial;
   /** Wall light by the door (off by day). */
@@ -429,12 +429,13 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
     emissive: new THREE.Color('#ffc46b'),
     emissiveIntensity: 0,
   });
-  // Lambert: no specular highlight. A glossy pane showed the room lamp / fill light as a pale
-  // "second moon" floating in the sky seen through the glass.
-  const glassMaterial = new THREE.MeshLambertMaterial({
-    color: '#a9c6d2',
+  // Unlit, dark and faint: real window glass only dims and slightly tints what is behind it.
+  // A lit pane either showed the room lamp as a pale "second moon" (glossy) or, facing the
+  // low sun, spread a milky haze over the whole view (matte).
+  const glassMaterial = new THREE.MeshBasicMaterial({
+    color: '#0b1a1e',
     transparent: true,
-    opacity: 0.14,
+    opacity: 0.1,
     depthWrite: false,
   });
 

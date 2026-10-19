@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {
   advanceTime,
   createPalette,
+  dawnDuskShift,
   dayLight,
   moonDirection,
   nightness,
@@ -131,7 +132,10 @@ export class DayNight {
 
     // Base palette for this time, then grey it toward overcast (luminance-preserving, so a
     // cloudy night is dark grey, a cloudy noon light grey).
-    const p = paletteFor(e, this.palette);
+    // Mornings cooler and misty, evenings warmer (see dawnDuskShift).
+    const morning = this.hours < 12 ? 1 : 0;
+    u.uDawn.value = morning;
+    const p = dawnDuskShift(paletteFor(e, this.palette), e, morning);
     const oc = Math.min(1, Math.max(weather.overcast, opts.gloom));
     greyOut(u.uSkyTop.value.copy(p.top), oc * 0.85, this.grey);
     greyOut(u.uSkyHorizon.value.copy(p.horizon), oc * 0.85, this.grey);

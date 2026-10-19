@@ -1,7 +1,6 @@
 // Sky dome: gradient + sun/moon, stars and Milky Way, aurora (aurora.glsl), shooting stars,
 // rainbow, clouds.
 uniform float uTime;
-uniform float uDayLight;
 uniform float uStars;
 uniform float uRainbow;
 uniform float uStarRotation;
@@ -190,8 +189,29 @@ void main() {
     col = mix(col, moonCol * mix(1.45 + 0.4 * grow, 0.9, uDayLight), moonDisc * mix(1.0, 0.35, uDayLight));
   }
 
-  // Sun disc with a soft edge.
-  col += uSunColor * smoothstep(0.9994, 0.9998, dot(dir, uSunDir)) * 6.0 * step(-0.02, uSunDir.y);
+  // Sun disc. High up: yellow-white and blinding. Near the horizon: orange-red, dim enough to
+  // look at, squashed vertically by refraction (up to ~18 %), slightly darker at the rim, and
+  // cut by the sea horizon as it sets or rises.
+  float se = uSunDir.y;
+  float sunR = 0.0265; // radians
+  vec3 sR = normalize(cross(uSunDir, vec3(0.0, 1.0, 0.0)) + vec3(1e-5, 0.0, 0.0));
+  vec3 sU = cross(sR, uSunDir);
+  vec2 spp = vec2(dot(dir, sR), dot(dir, sU)) / sunR;
+  spp.y /= mix(0.82, 1.0, smoothstep(0.0, 0.08, se));
+  float sr = length(spp);
+  if (sr < 1.2 && dot(dir, uSunDir) > 0.0) {
+    float disc = (1.0 - smoothstep(0.9, 1.0, sr)) * smoothstep(-0.0015, 0.0015, dir.y);
+    float limb = 0.72 + 0.28 * sqrt(max(1.0 - sr * sr, 0.0));
+    // Kept under the tone mapper's white while low, or the orange would bleach to cream.
+    float high = smoothstep(0.0, 0.35, se);
+    vec3 discCol = mix(vec3(1.0, 0.36, 0.12), vec3(1.0, 0.95, 0.86), high) * mix(1.25, 6.0, high * high);
+    // Green flash: as the last sliver of the sun slips under the sea (or the first one
+    // appears), the very top of the disc can flash green for a moment, with a clear horizon.
+    float sliver = abs(se + sunR - 0.002);
+    float flash = (1.0 - smoothstep(0.0, 0.004, sliver)) * smoothstep(0.4, 0.9, spp.y) * (1.0 - uCloudCover);
+    discCol = mix(discCol, vec3(0.35, 1.6, 0.55), flash);
+    col = mix(col, discCol * limb, disc * step(-0.06, se));
+  }
 
   col += meteors(dir) * uStars;
   col += rainbow(dir) * uRainbow * 0.35;
@@ -202,9 +222,33 @@ void main() {
     float dens = cloudDensity(cp) * smoothstep(0.0, 0.15, dir.y);
     float selfShadow = cloudDensity(cp + uSunDir.xz * 0.12);
     vec3 lit = mix(vec3(0.05, 0.06, 0.09), mix(vec3(1.0), uSunColor, 0.35), uDayLight) * (1.0 - 0.4 * uCloudCover);
+    // Around sunset/sunrise the cloud bodies themselves are in shade (lilac-grey); the colour
+    // comes from the low sun lighting them (glow, below), not a white daytime base.
+    float lowGlow = (1.0 - smoothstep(0.12, 0.3, uSunDir.y)) * smoothstep(-0.18, -0.06, uSunDir.y);
+    lit = mix(lit, vec3(0.24, 0.22, 0.32) * (0.35 + 0.65 * uDayLight), lowGlow * 0.8);
     vec3 shade = lit * mix(1.0, 0.55, selfShadow);
     // Silver lining where the sun shines through thin edges; moonlit rims at night.
     shade += uSunColor * pow(max(dot(dir, uSunDir), 0.0), 8.0) * (1.0 - dens) * 0.8 * uDayLight;
+    // With the sun right behind a cloud, its medium-thin edges blaze.
+    float sunDot = max(dot(dir, uSunDir), 0.0);
+    float edge = smoothstep(0.1, 0.45, dens) * (1.0 - smoothstep(0.5, 0.95, dens));
+    shade += uSunColor * pow(sunDot, 30.0) * edge * 1.6 * smoothstep(-0.04, 0.02, uSunDir.y);
+    // The sun burns through thin cloud: a bright core and glow that thick cloud swallows.
+    float sunAureole = pow(sunDot, 3000.0) * 2.5 + pow(sunDot, 250.0) * 0.6;
+    shade += uSunColor * sunAureole * (1.0 - 0.85 * dens) * smoothstep(-0.02, 0.02, uSunDir.y);
+    // Sunset and sunrise light the clouds from below: gold while the sun is up a little, then
+    // orange, red-pink as it touches the sea, and magenta-violet afterwards, when the clouds
+    // still glow above a darkening sea (until the sun is ~10° down). Brighter toward the sun.
+    float sk = clamp((0.15 - uSunDir.y) / 0.27, 0.0, 1.0);
+    vec3 glowCol = mix(vec3(1.0, 0.78, 0.48), vec3(1.0, 0.5, 0.24), smoothstep(0.0, 0.4, sk));
+    glowCol = mix(glowCol, vec3(0.98, 0.38, 0.42), smoothstep(0.35, 0.65, sk));
+    glowCol = mix(glowCol, vec3(0.62, 0.3, 0.62), smoothstep(0.65, 1.0, sk));
+    float glowOn = (1.0 - smoothstep(0.12, 0.3, uSunDir.y)) * smoothstep(-0.18, -0.06, uSunDir.y);
+    vec2 hdc = normalize(dir.xz + 1e-4);
+    vec2 shc = normalize(uSunDir.xz + 1e-4);
+    float side = 0.25 + 0.75 * pow(max(dot(hdc, shc), 0.0), 2.0);
+    // Thick cores stay darker (the light only reaches their undersides and edges).
+    shade += glowCol * glowOn * side * mix(1.0, 0.45, selfShadow) * (1.0 - 0.6 * uCloudCover) * 0.9;
     shade += vec3(0.2, 0.24, 0.38) * pow(max(dot(dir, uMoonDir), 0.0), 4.0) * uNight * 0.35;
     // The moon behind cloud: thin cloud near it glows (light scattered forward through the
     // droplets), most right around the disc; medium-thick edges get a silver rim; thick cloud
@@ -215,6 +259,25 @@ void main() {
     shade += moonTint() * moonUp * (aureole * (0.5 + uMoonGlow) * (1.0 - 0.8 * dens) + rim * 0.5);
     col = mix(col, shade, dens * 0.93);
   }
+
+  // Sunbeams (crepuscular rays), drawn over the clouds (the shafts are in the air between
+  // you and them), with a low sun and clouds about: looking from a point of the
+  // sky toward the sun, gaps in the clouds let light through and cloud blocks it, so bright
+  // and dark shafts fan out from the sun. A few cloud samples along the way.
+  float lowSun = (1.0 - smoothstep(0.12, 0.3, se)) * smoothstep(-0.06, 0.0, se);
+  float toSun = dot(dir, uSunDir);
+  if (lowSun > 0.0 && uCloudCover > 0.05 && toSun > 0.5 && dir.y > 0.0) {
+    float lit = 0.0;
+    for (int k = 1; k <= 5; k++) {
+      vec3 q = normalize(mix(dir, uSunDir, float(k) / 6.0));
+      vec2 qp = q.xz / (max(q.y, 0.0) + 0.06) * 0.6 + uCloudOffset;
+      lit += 1.0 - cloudDensity(qp);
+    }
+    lit /= 5.0;
+    float fan = smoothstep(0.5, 0.95, toSun) * smoothstep(0.0, 0.05, dir.y);
+    col += uSunColor * (lit - 0.5) * 0.55 * fan * lowSun * smoothstep(0.05, 0.3, uCloudCover);
+  }
+
 
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>

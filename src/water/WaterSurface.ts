@@ -84,6 +84,7 @@ export class WaterSurface {
         uAuroraAz: shared.uAuroraAz,
         uAuroraMotion: shared.uAuroraMotion,
         uNight: shared.uNight,
+        uDawn: shared.uDawn,
         uDayLight: shared.uDayLight,
         uLightDir: shared.uLightDir,
         uLightColor: shared.uLightColor,

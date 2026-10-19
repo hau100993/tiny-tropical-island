@@ -73,7 +73,7 @@ export const BUILT_IN_SCENES: readonly ScenePreset[] = [
     visualWind: 0.12, waveStrength: 0.2, clouds: 0.45, gloom: 0, meteors: 0, aurora: 0, fireflies: false,
   }, 15),
   builtIn('b-sunny', 'Ngày nắng', 10, { visualWind: 0.25, waveStrength: 0.4, clouds: 0.25 }),
-  builtIn('b-sunset', 'Hoàng hôn yên ả', 17.7, { visualWind: 0.15, waveStrength: 0.25, clouds: 0.4 }, -150),
+  builtIn('b-sunset', 'Hoàng hôn yên ả', 17.7, { visualWind: 0.15, waveStrength: 0.25, clouds: 0.3 }, -150),
   builtIn('b-storm', 'Bão nhiệt đới', null, {
     visualRain: 0.9, visualWind: 0.85, waveStrength: 0.95, clouds: 1, gloom: 0.6, fireflies: false,
   }),

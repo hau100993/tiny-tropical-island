@@ -329,6 +329,18 @@ the monitors; the sky swings there smoothly when you pick the scene. Any other s
 of day turns it back to the real direction (scenes without a time keep the current one). In the
 scene editor, **Mặt trời / trăng hiện ở cửa sổ bàn làm việc** does the same for any time.
 
+**Sunrise and sunset.** Low over the sea the sun turns orange-red, dims enough to look at,
+squashes a little (refraction) and sinks behind the horizon; high up it is yellow-white. The sky
+depends on where you look: toward the sun a warm glow fans out over the horizon; opposite it,
+around sunset, Earth's shadow rises as a dark blue band under the pink *Belt of Venus*. The
+palette has a golden hour (warm light, cool bluish shadows) and a blue hour (deep blue with a
+lilac horizon). Clouds are lit from below: gold, then orange, red-pink as the sun touches the
+sea, and magenta-violet after it has set, while the sea darkens; their edges blaze with the sun
+behind them, and with gaps near a low sun faint sunbeams fan out. A haze lies over the horizon
+(warm toward the sun, grey-blue away from it). Mornings are cooler and paler, with a thin mist
+over the sea; evenings warmer and more saturated. With a clear horizon, the last sliver of the
+setting sun (or the first of the rising one) can flash green for a moment.
+
 **The moon.** It shows the real near side's dark "seas" (maria) and bright Tycho with its rays.
 Low over the horizon it is orange and dimmer, and so is its light on the island; high up it is
 silver-white. It lays a road of glints on the sea: single wave facets flash, and more waves

@@ -22,6 +22,8 @@ export const sharedUniforms = {
   uDayLight: { value: 1 },
   /** 0 = day … 1 = dark night (stars, aurora, fireflies). */
   uNight: { value: 0 },
+  /** 1 before noon, 0 after: sunrise is cooler and misty, sunset warmer (sky shaders). */
+  uDawn: { value: 0 },
   uWaveStrength: { value: 0.45 },
   // Weather (Phase 3). All 0..1 unless noted.
   /** Wind strength from the slider (smoothed). */

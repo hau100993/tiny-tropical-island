@@ -72,14 +72,38 @@ const key = (e: number, top: string, horizon: string, sun: string, sunIntensity:
   hemiIntensity,
 });
 
-/** Night → twilight → sunrise/sunset → golden hour → day, keyed by sun elevation. */
+/**
+ * Night → blue hour → sunset/sunrise → golden hour → day, keyed by sun elevation (sin of its
+ * altitude; 0.1 ≈ 6°). Blue hour: the sun 4–10° below, deep blue sky with a lilac-pink horizon.
+ * Golden hour: the sun low, warm light and long shadows; the sky light (hemi) stays bluish, so
+ * shadows turn cool against the warm sunlit side.
+ */
 const KEYS: Key[] = [
   key(-0.3, '#040917', '#0b1730', '#7d8fd0', 0, '#1d2c50', '#0a0d12', 0.35),
-  key(-0.1, '#0f1a3f', '#3a3561', '#ff8a5c', 0, '#3c4370', '#14141a', 0.45),
-  key(0.0, '#2a3d78', '#f08a5d', '#ff8a4c', 0.5, '#7a6f8f', '#3a2f2a', 0.6),
-  key(0.1, '#4479bf', '#ffc08a', '#ffbe7a', 1.7, '#b9c3d8', '#8a7a60', 0.85),
+  key(-0.16, '#0b1640', '#2b2f5e', '#ff7a6a', 0, '#2a3360', '#101118', 0.4),
+  key(-0.07, '#1c2e6a', '#6f5a8c', '#ff6a4a', 0, '#4a5288', '#1a1820', 0.5),
+  key(0.0, '#2c4686', '#ff8650', '#ff6a30', 0.6, '#8a7a9a', '#4a3428', 0.62),
+  key(0.04, '#36599e', '#ffa060', '#ff8a40', 1.1, '#9da6c8', '#6a5038', 0.72),
+  key(0.12, '#4479bf', '#ffcf96', '#ffc27a', 1.9, '#a9b8dc', '#8a7a60', 0.88),
   key(0.3, '#2f7fd6', '#bfe2f5', '#fff0d4', 2.6, '#cfe8ff', '#c9b68a', 1.1),
 ];
+
+const DAWN_SUN = new THREE.Color('#ffc9a0');
+const DAWN_HORIZON = new THREE.Color('#f2b6a8');
+const DUSK_HORIZON = new THREE.Color('#ff7436');
+
+/**
+ * Sunrise and sunset differ: mornings are cooler and paler (cool air, mist over the sea),
+ * evenings warmer and more saturated (dust and haze from the day). Shifts the palette while
+ * the sun is near the horizon; `morning` is 1 before noon, 0 after.
+ */
+export function dawnDuskShift(p: SkyPalette, elevation: number, morning: number): SkyPalette {
+  const tw = 1 - smoothstep(0.0, 0.25, Math.abs(elevation));
+  p.sun.lerp(DAWN_SUN, 0.35 * tw * morning);
+  p.horizon.lerp(DAWN_HORIZON, 0.3 * tw * morning);
+  p.horizon.lerp(DUSK_HORIZON, 0.2 * tw * (1 - morning));
+  return p;
+}
 
 /** Interpolated palette for a sun elevation (smooth between keys). */
 export function paletteFor(elevation: number, out: SkyPalette): SkyPalette {

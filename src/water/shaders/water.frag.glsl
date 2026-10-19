@@ -4,7 +4,6 @@
 uniform float uTime;
 uniform float uWaveStrength;
 uniform float uRain;
-uniform float uDayLight;
 uniform vec3 uLightDir;
 uniform vec3 uLightColor;
 uniform vec3 uShallowColor;
