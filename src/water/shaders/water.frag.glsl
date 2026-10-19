@@ -141,6 +141,15 @@ void main() {
   // distance like a rougher surface. No glint under a cloud.
   vec3 H = normalize(V + uLightDir);
   float spec = pow(max(dot(N, H), 0.0), mix(350.0, 120.0, far)) * mix(3.0, 0.5, far) * step(0.0, uLightDir.y);
+  // Glitter path: in a wider cone around the mirror direction, single wave facets catch the
+  // light and flash (a moving sparkle pattern), so the moon or sun lays a road of glints on the
+  // sea. More waves give a wider, more broken road. Far away the sparkles would be smaller
+  // than a pixel and flicker, so they blend into their average there.
+  float lobe = pow(max(dot(N, H), 0.0), mix(45.0, 18.0, far)) * step(0.0, uLightDir.y);
+  vec2 gp = xz * 2.3;
+  float sp = valueNoise(gp + vec2(t * 1.9, -t * 1.4)) * valueNoise(gp * 1.7 - vec2(t * 1.2, t * 2.1));
+  float sparkle = mix(smoothstep(0.4, 0.75, sp) * 3.0, 0.35, smoothstep(30.0, 140.0, dist));
+  spec += lobe * sparkle * (0.35 + 0.9 * uWaveStrength) * mix(1.4, 0.3, uDayLight);
   spec *= 1.0 - vCloudShadow;
 
 #ifdef REFRACTION

@@ -8,6 +8,12 @@ uniform vec3 uMoonDir;
 uniform float uNight;
 uniform float uMoonGlow;
 
+// The moon's color by its height: low over the horizon its light crosses much more air and
+// turns orange (like a sunset), high up it is silver-white.
+vec3 moonTint() {
+  return mix(vec3(1.0, 0.55, 0.26), vec3(1.0), smoothstep(0.03, 0.38, uMoonDir.y));
+}
+
 vec3 skyColor(vec3 dir) {
   float h = max(dir.y, 0.0);
   vec3 col = mix(uSkyHorizon, uSkyTop, pow(h, 0.55));
@@ -27,7 +33,7 @@ vec3 skyColor(vec3 dir) {
   // sea's sky reflection turns into a silver path toward the moon.
   float md = max(dot(dir, uMoonDir), 0.0);
   float halo = (0.4 + 2.0 * uMoonGlow) * (0.05 * pow(md, 10.0) + 0.3 * pow(md, 300.0)) + 0.12 * uMoonGlow * pow(md, 3.0);
-  col += vec3(0.55, 0.62, 0.85) * halo * uNight * step(0.0, uMoonDir.y);
+  col += vec3(0.55, 0.62, 0.85) * moonTint() * halo * uNight * step(0.0, uMoonDir.y);
 
   // Below the horizon: fade to a slightly darker horizon color.
   col = mix(col, uSkyHorizon * 0.85, 1.0 - smoothstep(-0.15, 0.0, dir.y));

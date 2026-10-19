@@ -21,6 +21,7 @@ const SKY_TURN_KEY = 'tsw.skyTurn';
 /** Seconds (time constant) for the sky to swing to a new scene's direction. */
 const TURN_EASE = 1.2;
 const MOON_COLOR = new THREE.Color('#9fb4ff');
+const MOON_LOW_COLOR = new THREE.Color('#ffb27a');
 
 /** What the weather contributes to the sky this frame. */
 export interface SkyWeather {
@@ -144,7 +145,9 @@ export class DayNight {
     const moonI = 0.35 * moonBoost * (1 - sunUp) * smoothstep(0.0, 0.15, this.moon.y) * (1 - 0.6 * oc);
     const useSun = sunUp > 0.5;
     const dir = useSun ? this.sun : this.moon;
-    this.tmp.copy(useSun ? u.uSunColor.value : MOON_COLOR);
+    // Moonlight is orange while the moon is low (like the disc, see moonTint in skyCommon.glsl).
+    if (useSun) this.tmp.copy(u.uSunColor.value);
+    else this.tmp.copy(MOON_LOW_COLOR).lerp(MOON_COLOR, smoothstep(0.02, 0.35, this.moon.y));
     this.lighting.setMain(dir, this.tmp, useSun ? sunI * sunUp : moonI);
     u.uLightDir.value.copy(dir);
     u.uLightColor.value.copy(this.tmp).multiplyScalar(useSun ? Math.min(1, sunI / 2.6) : moonI * 2.2);

@@ -133,6 +133,7 @@ uniform float uSnowCover;
 uniform float uPorosity;
 uniform vec3 uSunDir;
 uniform float uDayLight;
+uniform float uNight;
 uniform vec4 uShelter;
 uniform vec4 uShelterSize;
 #ifdef WORLD_GROUND
@@ -348,6 +349,20 @@ function defines(f: WorldMaterialFeatures): string[] {
   return d;
 }
 
+/**
+ * Night vision (the Purkinje shift): in dim light the eye sees with rods, which see no color
+ * and are most sensitive to blue-green. So at night, dark surfaces lose their color and lean
+ * toward a cool blue-grey of the same brightness; bright things (lamps, lit windows) keep
+ * theirs. Runs on the final linear color, before tone mapping.
+ */
+const NIGHT_VISION_GLSL = /* glsl */ `
+{
+  float lum = dot(gl_FragColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+  float rods = uNight * (1.0 - smoothstep(0.02, 0.2, lum)) * 0.65;
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.78, 0.92, 1.18) * lum, rods);
+}
+`;
+
 function header(d: string[]): string {
   return d.map((x) => `#define ${x}`).join('\n') + '\n';
 }
@@ -368,6 +383,7 @@ export function patchWorldMaterial(
     uSnowCover: shared.uSnowCover,
     uSunDir: shared.uSunDir,
     uDayLight: shared.uDayLight,
+    uNight: shared.uNight,
     uCloudCover: shared.uCloudCover,
     uCloudOffset: shared.uCloudOffset,
     uShelter: shared.uShelter,
@@ -403,7 +419,8 @@ export function patchWorldMaterial(
       shader.fragmentShader
         .replace('void main() {', `${FRAG_PARS}\n${GROUND_FRAG_FNS}\n${STONE_FRAG_FNS}\nvoid main() {`)
         .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\n${SURFACE_GLSL}`)
-        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${CAUSTICS_GLSL}`);
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${CAUSTICS_GLSL}`)
+        .replace('#include <tonemapping_fragment>', `${NIGHT_VISION_GLSL}\n#include <tonemapping_fragment>`);
   };
   material.customProgramCacheKey = () => `world:${d.join(',')}`;
 }

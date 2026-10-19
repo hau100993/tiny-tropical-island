@@ -330,6 +330,15 @@ the monitors; the sky swings there smoothly when you pick the scene. Any other s
 of day turns it back to the real direction (scenes without a time keep the current one). In the
 scene editor, **Mặt trời / trăng hiện ở cửa sổ bàn làm việc** does the same for any time.
 
+**The moon.** It shows the real near side's dark "seas" (maria) and bright Tycho with its rays.
+Low over the horizon it is orange and dimmer, and so is its light on the island; high up it is
+silver-white. It lays a road of glints on the sea: single wave facets flash, and more waves
+make the road wider and more broken (the sun does the same, more softly). Thin cloud passing
+in front glows around it and gets silver edges; thick cloud hides it. Now and then, with a thin
+veil of cloud (cover roughly 15–60 %), a faint 22° halo ring appears around it for a few
+minutes. At night, dark surfaces lose their color toward a cool blue-grey (as the eye sees in
+dim light) while lamps and lit windows keep theirs.
+
 The sun rises in the east and sets in the west (with the real sky direction); dawn and dusk paint the horizon. At night the
 moon lights the scene in silver and leaves a glittering path on the sea, the house windows and
 porch lantern light up, birds fall silent and crickets start (needs the *Chim hót* layer on).

@@ -59,9 +59,53 @@ vec3 stars(vec3 dir) {
   vec3 v = cross(n, u);
   float lat = dot(d, n);
   float band = exp(-lat * lat * 22.0);
-  float dust = cFbm(vec2(dot(d, u), dot(d, v)) * 3.0 + lat * vec2(4.0, -5.0));
+  // Polar noise coordinates: the angle round the band and the distance across it map to
+  // perpendicular directions everywhere (angle → around a circle, latitude → its radius), at
+  // about the same rate (≈6 per radian). With a fixed offset for latitude instead, both ran the
+  // same way in some stretches of the band and the mottling turned into streaks (like rays).
+  vec2 around = normalize(vec2(dot(d, u), dot(d, v)) + 1e-5);
+  float dust = cFbm(around * (6.0 + lat * 6.0) + 10.0);
   col += vec3(0.55, 0.6, 0.85) * band * smoothstep(0.35, 0.8, dust) * 0.22;
   return col;
+}
+
+// ---- The moon's face -------------------------------------------------------------------
+// Disc coordinates: p in the unit disc, +x right and +y up as you look at the moon. The dark
+// "seas" (maria) sit roughly where they are on the real near side, so it reads as our moon.
+
+float moonBlob(vec2 p, vec2 c, vec2 r) {
+  return 1.0 - smoothstep(0.45, 1.05, length((p - c) / r));
+}
+
+float moonAlbedo(vec2 p) {
+  // Wobbly shores, so the maria aren't perfect ellipses.
+  vec2 w = p + (vec2(cNoise(p * 6.0 + 11.0), cNoise(p * 6.0 + 29.0)) - 0.5) * 0.12;
+  float m = 0.0;
+  m = max(m, moonBlob(w, vec2(-0.55, 0.05), vec2(0.28, 0.50))); // Oceanus Procellarum
+  m = max(m, moonBlob(w, vec2(-0.28, 0.42), vec2(0.25, 0.20))); // Mare Imbrium
+  m = max(m, moonBlob(w, vec2(0.00, 0.72), vec2(0.45, 0.07)));  // Mare Frigoris
+  m = max(m, moonBlob(w, vec2(0.17, 0.40), vec2(0.14, 0.13)));  // Mare Serenitatis
+  m = max(m, moonBlob(w, vec2(0.33, 0.13), vec2(0.18, 0.15)));  // Mare Tranquillitatis
+  m = max(m, moonBlob(w, vec2(-0.05, 0.18), vec2(0.11, 0.08))); // Mare Vaporum / Insularum
+  m = max(m, moonBlob(w, vec2(0.70, 0.30), vec2(0.10, 0.09)));  // Mare Crisium
+  m = max(m, moonBlob(w, vec2(0.58, -0.12), vec2(0.12, 0.16))); // Mare Fecunditatis
+  m = max(m, moonBlob(w, vec2(0.38, -0.30), vec2(0.08, 0.08))); // Mare Nectaris
+  m = max(m, moonBlob(w, vec2(-0.17, -0.35), vec2(0.17, 0.13))); // Mare Nubium
+  m = max(m, moonBlob(w, vec2(-0.45, -0.38), vec2(0.09, 0.09))); // Mare Humorum
+  // Bright, crater-pocked highlands; the maria are darker and smoother.
+  float highland = 0.8 + 0.12 * cNoise(p * 18.0) + 0.08 * cNoise(p * 47.0);
+  float mare = 0.48 + 0.06 * cNoise(p * 12.0 + 5.0);
+  float alb = mix(highland, mare, m * 0.92);
+  // Tycho: a small bright crater in the south with long rays across the disc.
+  vec2 ty = p - vec2(-0.13, -0.68);
+  float r = length(ty);
+  float a = atan(ty.y, ty.x);
+  float rays = pow(0.5 + 0.5 * sin(a * 11.0 + cNoise(vec2(a * 2.0, 3.0)) * 4.0), 8.0);
+  alb += exp(-r * r * 1500.0) * 0.35 + rays * exp(-r * 2.2) * smoothstep(0.04, 0.1, r) * 0.12;
+  // Copernicus and Kepler: smaller bright spots in the west.
+  alb += exp(-dot(p - vec2(-0.3, 0.2), p - vec2(-0.3, 0.2)) * 2500.0) * 0.2;
+  alb += exp(-dot(p - vec2(-0.55, 0.17), p - vec2(-0.55, 0.17)) * 3500.0) * 0.15;
+  return alb;
 }
 
 vec3 meteors(vec3 dir) {
@@ -113,15 +157,38 @@ void main() {
   col += stars(dir) * uStars * uNight * above;
   col += aurora(dir, uTime) * uAurora;
 
-  // Moon disc, faintly visible by day too.
-  float md = dot(dir, uMoonDir);
-  // A full moon (uMoonGlow > 0.3) grows up to ~1.5x wider and brighter. cos thresholds: the
-  // disc edge is where dot(dir, moon) crosses them.
+  // 22° halo: ice crystals in a thin, high veil of cloud bend moonlight into a large faint
+  // ring, with a sharp reddish inner edge and a soft outer one. It comes and goes over a few
+  // minutes, and needs some (not much) cloud.
+  float moonUp = smoothstep(-0.03, 0.05, uMoonDir.y) * uNight;
+  if (moonUp > 0.0 && dir.y > 0.0) {
+    float ang = degrees(acos(clamp(dot(dir, uMoonDir), -1.0, 1.0)));
+    float x = ang - 22.0;
+    float ring = exp(-x * x / (x < 0.0 ? 0.25 : 2.6));
+    vec3 ringCol = mix(vec3(1.0, 0.72, 0.5), vec3(0.85, 0.9, 1.0), smoothstep(21.6, 23.5, ang));
+    float veil = smoothstep(0.12, 0.28, uCloudCover) * (1.0 - smoothstep(0.55, 0.8, uCloudCover));
+    float sometimes = smoothstep(0.45, 0.75, cNoise(vec2(uTime / 150.0, 4.2)));
+    col += ringCol * moonTint() * ring * veil * sometimes * moonUp * (0.03 + 0.05 * uMoonGlow) * smoothstep(0.0, 0.08, dir.y);
+  }
+
+  // Moon disc (faintly visible by day too), with the real near side's light and dark areas.
+  // A full moon (uMoonGlow > 0.3) grows up to ~1.5x wider and brighter.
   float grow = smoothstep(0.3, 1.0, uMoonGlow);
-  float moonDisc = smoothstep(mix(0.99955, 0.99895, grow), mix(0.99968, 0.99925, grow), md) * smoothstep(-0.03, 0.03, uMoonDir.y);
-  float craters = cNoise((dir.xz - uMoonDir.xz) * mix(900.0, 600.0, grow) + 3.0);
-  vec3 moonCol = vec3(0.95, 0.96, 1.0) * (0.8 + 0.2 * craters);
-  col = mix(col, moonCol * mix(1.6 + 0.6 * grow, 0.9, uDayLight), moonDisc * mix(1.0, 0.35, uDayLight));
+  float moonRadius = mix(0.0277, 0.0424, grow); // radians
+  vec3 mR = normalize(cross(uMoonDir, vec3(0.0, 1.0, 0.0)) + vec3(1e-5, 0.0, 0.0));
+  vec3 mU = cross(mR, uMoonDir);
+  vec2 mp = vec2(dot(dir, mR), dot(dir, mU)) / moonRadius;
+  float mr = length(mp);
+  if (mr < 1.1 && dot(dir, uMoonDir) > 0.0) {
+    float moonDisc = (1.0 - smoothstep(0.93, 1.0, mr)) * smoothstep(-0.03, 0.03, uMoonDir.y);
+    // A sphere: slightly dimmer toward the rim.
+    float limb = 0.86 + 0.14 * sqrt(max(1.0 - mr * mr, 0.0));
+    // Low over the horizon the moon is dimmer as well as more orange.
+    float lowDim = mix(0.4, 1.0, smoothstep(0.0, 0.32, uMoonDir.y));
+    vec3 moonCol = vec3(0.95, 0.96, 1.0) * moonTint() * moonAlbedo(mp) * limb * lowDim;
+    // Kept below the tone mapper's white point so the maria stay visible.
+    col = mix(col, moonCol * mix(1.45 + 0.4 * grow, 0.9, uDayLight), moonDisc * mix(1.0, 0.35, uDayLight));
+  }
 
   // Sun disc with a soft edge.
   col += uSunColor * smoothstep(0.9994, 0.9998, dot(dir, uSunDir)) * 6.0 * step(-0.02, uSunDir.y);
@@ -139,6 +206,13 @@ void main() {
     // Silver lining where the sun shines through thin edges; moonlit rims at night.
     shade += uSunColor * pow(max(dot(dir, uSunDir), 0.0), 8.0) * (1.0 - dens) * 0.8 * uDayLight;
     shade += vec3(0.2, 0.24, 0.38) * pow(max(dot(dir, uMoonDir), 0.0), 4.0) * uNight * 0.35;
+    // The moon behind cloud: thin cloud near it glows (light scattered forward through the
+    // droplets), most right around the disc; medium-thick edges get a silver rim; thick cloud
+    // swallows it.
+    float mdot = max(dot(dir, uMoonDir), 0.0);
+    float aureole = pow(mdot, 2000.0) * 1.4 + pow(mdot, 150.0) * 0.45 + pow(mdot, 20.0) * 0.08;
+    float rim = smoothstep(0.05, 0.45, dens) * (1.0 - smoothstep(0.5, 0.95, dens)) * pow(mdot, 40.0);
+    shade += moonTint() * moonUp * (aureole * (0.5 + uMoonGlow) * (1.0 - 0.8 * dens) + rim * 0.5);
     col = mix(col, shade, dens * 0.93);
   }
 
