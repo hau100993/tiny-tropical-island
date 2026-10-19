@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { GeoBuilder } from './geoBuilder';
+import { sharedUniforms } from '../core/uniforms';
 import { cylinder, DESK, furnish, type InteriorParts } from './houseInterior';
 import type { Heightmap } from './heightmap';
 import type { Placement } from './layout';
@@ -146,6 +147,7 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
     soft: new GeoBuilder(rng, 0.03),
     leaf: new GeoBuilder(rng, 0.08),
     glow: new GeoBuilder(rng, 0),
+    rgb: new GeoBuilder(rng, 0),
   };
   const b = new Router(parts.wood, parts.plain);
   // Inside lining and ceiling: big, evenly coloured panels (grain only, no per-board tint).
@@ -455,7 +457,9 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
   roomLamp.position.set(-2.6, F + 1.25, 1.4);
   const fillLight = new THREE.PointLight('#fff4e6', 0, 9, 1.5);
   fillLight.position.set(-0.5, F + 2.2, 0.6);
-  group.add(...meshes, glassMesh, glowMesh, lamp, roomLamp, fillLight, ...screens);
+  const rgbMesh = new THREE.Mesh(parts.rgb.build(), keyboardBacklight());
+  rgbMesh.name = 'keyboard-rgb';
+  group.add(...meshes, glassMesh, glowMesh, rgbMesh, lamp, roomLamp, fillLight, ...screens);
   group.position.set(placement.x, 0, placement.z);
   group.rotation.y = placement.rotY;
 
@@ -545,4 +549,34 @@ function cladWall(
       }
     }
   }
+}
+
+/**
+ * Keyboard RGB backlight: a rainbow that drifts slowly across the board (hue from the
+ * position along the keyboard minus time), computed per pixel in the shader, so animating it
+ * costs nothing on the CPU. Unlit and not tone-mapped, so it reads as light; dimmer by day,
+ * full strength at night.
+ */
+function keyboardBacklight(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: { uTime: sharedUniforms.uTime, uDayLight: sharedUniforms.uDayLight },
+    vertexShader: /* glsl */ `
+      varying vec3 vPos;
+      void main() {
+        vPos = position;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uTime;
+      uniform float uDayLight;
+      varying vec3 vPos;
+      void main() {
+        // House-local: the typist's left is +X, the back of the board +Z.
+        float hue = fract(-vPos.x * 2.2 + vPos.z * 1.5 - uTime * 0.18);
+        vec3 rgb = clamp(abs(mod(hue * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+        float strength = mix(1.25, 0.45, clamp(uDayLight, 0.0, 1.0));
+        gl_FragColor = vec4(rgb * strength, 1.0);
+      }`,
+    toneMapped: false,
+  });
 }

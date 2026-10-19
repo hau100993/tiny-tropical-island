@@ -15,6 +15,8 @@ export interface InteriorParts {
   leaf: GeoBuilder;
   /** Lamp shades: glow at night. */
   glow: GeoBuilder;
+  /** Keyboard backlight (an animated RGB shader). */
+  rgb: GeoBuilder;
 }
 
 export type SolidFn = (x0: number, x1: number, z0: number, z1: number, y0: number, y1: number) => void;
@@ -525,6 +527,12 @@ function workstation(p: InteriorParts, y: number): void {
     g.applyMatrix4(tilt);
     soft.add(g, colors[i]);
   });
+  // RGB backlight: a lit plate just above the case top, under the keycaps; it shows in the
+  // gaps between the keys like a real backlit board.
+  const plate = new THREE.BoxGeometry(18.25 * U, 0.001, 6.25 * U);
+  plate.translate(0, 0.0226, 0);
+  plate.applyMatrix4(tilt);
+  p.rgb.add(plate, '#ffffff');
   // Rubber feet lifting the back.
   for (const sx of [-1, 1]) plain.box(0.03, 0.01, 0.012, kx + sx * 0.15, y + 0.005, kz + depth / 2 - 0.01, '#1b1c1e');
 
