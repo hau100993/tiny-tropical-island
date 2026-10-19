@@ -133,7 +133,10 @@ left window (low chabudai table on tatami, zabuton cushions, a cast-iron teapot 
 a futon on tatami with a paper lantern, a low bookshelf, an open bath corner (no partitions: a
 hinoki tub under a big window onto the forest behind the house, a rain shower, slate floor), a
 monstera with split leaves and a snake plant, and a long oak desk along the glass with **two
-monitors**. Wood has a procedural grain (shader, no textures); cushions, futon, chair and
+27" thin-bezel monitors** on aluminium stands (their top edge stays below eye level, so the sea
+is in view above them), a felt desk pad, a **tenkeyless mechanical keyboard in the Keychron K8
+style** (87 keys on the real layout, space-gray frame, orange Esc and Enter) and a mouse on the
+right. Wood has a procedural grain (shader, no textures); cushions, futon, chair and
 ceramics are rounded and smooth-shaded. Trees are kept out of the view from the glass to the sea.
 
 **Sitting at the desk:** press **B** (or *Góc làm việc* in the panel) from anywhere, or walk in
