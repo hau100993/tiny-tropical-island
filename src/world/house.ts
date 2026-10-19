@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { GeoBuilder } from './geoBuilder';
 import { sharedUniforms } from '../core/uniforms';
-import { cylinder, DESK, furnish, MUG, type InteriorParts } from './houseInterior';
+import { cylinder, DESK, furnish, LAMP, MUG, ORCHID, type InteriorParts } from './houseInterior';
+import { createContactShadows, type ShadowSpot } from './contactShadows';
 import { createMugLogo } from './mugLogo';
 import type { Heightmap } from './heightmap';
 import type { Placement } from './layout';
@@ -388,6 +389,7 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
   const SW = 0.597;
   const SH = 0.336;
   // Seated facing the sea (local +Z), local −X is on your right: list the left screen first.
+  const monitorFeet: Array<[number, number, number]> = [];
   for (const [mx, theta] of [[-0.485, 0.2], [-1.115, -0.2]] as const) {
     const my = F + 1.0;
     const mz = 2.17;
@@ -406,6 +408,7 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
     // Stand: a flat aluminium neck behind and a thin rectangular base.
     parts.plain.add(at(new RoundedBoxGeometry(0.055, 0.25, 0.012, 1, 0.004), 0, -0.16, 0.055), '#7f858c');
     parts.plain.add(at(new RoundedBoxGeometry(0.2, 0.007, 0.13, 1, 0.003), 0, F + 0.744 - my, 0.055), '#7f858c');
+    monitorFeet.push([mx + 0.055 * sn, mz + 0.055 * c, theta]);
     const mat = new THREE.MeshBasicMaterial({ color: '#000000', toneMapped: false });
     const screen = new THREE.Mesh(new THREE.PlaneGeometry(SW, SH), mat);
     // The plane faces +Z by default; turn it to face the chair (local −Z, angled by theta).
@@ -464,6 +467,22 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
   // Optional local print on the mug (see mugLogo.ts).
   const mugLogo = createMugLogo(MUG.x, F + 0.74, MUG.z, MUG.face);
   if (mugLogo) group.add(mugLogo);
+  // Soft contact shadows under everything standing on the desk.
+  const deskSpots: ShadowSpot[] = [
+    { x: -0.8, z: 1.91, w: 0.37, d: 0.135, strength: 0.55 },
+    { x: -1.09, z: 1.93, w: 0.065, d: 0.12, strength: 0.6 },
+    { x: MUG.x, z: MUG.z, w: 0.1, d: 0.1, strength: 0.6 },
+    { x: ORCHID.x, z: ORCHID.z, w: 0.13, d: 0.13, strength: 0.6 },
+    // The lamp: its own foot ring, plus a wide, faint shade under the globe.
+    { x: LAMP.x, z: LAMP.z, w: 0.13, d: 0.13, strength: 0.45 },
+    { x: LAMP.x, z: LAMP.z, w: 0.26, d: 0.26, strength: 0.18 },
+    // Monitor feet, and a faint shade under each panel.
+    ...monitorFeet.flatMap(([x, z, yaw]): ShadowSpot[] => [
+      { x, z, w: 0.21, d: 0.14, yaw, strength: 0.55 },
+      { x, z: z - 0.02, w: 0.6, d: 0.2, yaw, strength: 0.16 },
+    ]),
+  ];
+  group.add(createContactShadows(deskSpots, F + 0.7405));
   group.position.set(placement.x, 0, placement.z);
   group.rotation.y = placement.rotY;
 

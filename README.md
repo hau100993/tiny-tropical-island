@@ -138,7 +138,9 @@ is in view above them), a felt desk pad, a **tenkeyless mechanical keyboard in t
 style** (87 keys on the real layout, space-gray frame, orange Esc and Enter, an RGB backlight whose
 rainbow drifts across the board, glowing between the keys, soft by day and bright at night),
 a mouse on the right, a round Akari-style washi paper lamp on wire legs (glows at night) and a
-white moth orchid (Phalaenopsis) in bloom on a bamboo stake, and a mug next to the lamp.
+white moth orchid (Phalaenopsis) in bloom on a bamboo stake, and a mug. The lamp stands at the
+left end of the desk, the orchid and the mug at the right end; soft contact shadows under the
+monitor feet, keyboard, mouse, mug, pot and lamp set them down on the desk.
 
 **Your own print on the mug (optional, local):** put an image at
 `src/assets/local/mug-logo.png` (or `.jpg`/`.webp`) and restart `npm run dev`. Its white

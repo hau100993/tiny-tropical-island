@@ -35,11 +35,17 @@ const MONSTERA = ['#2b5a2c', '#336a33', '#2f6230', '#3b7538'];
 
 /** Monitors and chair position (shared with house.ts, which places the screens). */
 export const DESK = { seatX: -0.8, seatZ: 1.1 } as const;
-/** The mug next to the paper lamp (desk top), and the yaw its printed side faces: the chair. */
+/**
+ * Things on the desk top (house-local x, z). Seated, the user's right is −X: the paper lamp at
+ * the left end balances the orchid and the mug at the right end.
+ */
+export const LAMP = { x: -0.02, z: 2.2 } as const;
+export const ORCHID = { x: -1.6, z: 1.86 } as const;
+/** The mug (by the orchid), and the yaw its printed side faces: the chair. */
 export const MUG = {
-  x: -1.36,
-  z: 1.99,
-  face: Math.atan2(DESK.seatX - -1.36, DESK.seatZ - 1.99),
+  x: -1.47,
+  z: 2.16,
+  face: Math.atan2(DESK.seatX - -1.47, DESK.seatZ - 2.16),
   /** Body radius at the foot and at the rim, and height (a large 450 ml mug). */
   r0: 0.041,
   r1: 0.046,
@@ -63,8 +69,8 @@ export function furnish(p: InteriorParts, F: number, ceilingY: (z: number) => nu
   workstation(p, F + 0.74);
   // The handle sits a quarter turn round from the printed side, toward the user's right.
   soft.add(mug(MUG.x, F + 0.74, MUG.z, MUG.face + Math.PI / 2), CERAMIC);
-  akariLamp(p, -1.6, F + 0.74, 2.22);
-  orchid(p, -1.56, F + 0.74, 1.86);
+  akariLamp(p, LAMP.x, F + 0.74, LAMP.z);
+  orchid(p, ORCHID.x, F + 0.74, ORCHID.z);
 
   // ---- Office chair (rounded cushions) ----
   const cx = DESK.seatX;
@@ -594,7 +600,7 @@ function akariLamp(p: InteriorParts, x: number, y: number, z: number): void {
 }
 
 /** Phalaenopsis colors: white petals with a soft blush, magenta lip, yellow throat. */
-const ORCHID = {
+const OC = {
   petal: '#f8f0f4',
   blush: '#f3dbe7',
   lip: '#b8236a',
@@ -675,17 +681,17 @@ function orchidFlower(scale: number, tilt: number): Array<[THREE.BufferGeometry,
     g.scale(scale, scale, scale);
     out.push([g, color]);
   };
-  add(petal(0.026, 0.04, 0.004), 0, 0, ORCHID.petal);
-  for (const s of [-1, 1]) add(petal(0.024, 0.038, 0.004), s * 2.35, 0, ORCHID.petal);
-  for (const s of [-1, 1]) add(petal(0.042, 0.04, 0.006, 0.4), s * 1.45 + 0.08 * tilt, 0.002, ORCHID.blush);
+  add(petal(0.026, 0.04, 0.004), 0, 0, OC.petal);
+  for (const s of [-1, 1]) add(petal(0.024, 0.038, 0.004), s * 2.35, 0, OC.petal);
+  for (const s of [-1, 1]) add(petal(0.042, 0.04, 0.006, 0.4), s * 1.45 + 0.08 * tilt, 0.002, OC.blush);
   // Lip: a small rounded tongue pointing down, two raised side lobes, then the column.
-  add(petal(0.016, 0.026, 0.008, 0.7), Math.PI, 0.006, ORCHID.lip);
-  for (const s of [-1, 1]) add(petal(0.01, 0.016, 0.006), Math.PI - s * 0.7, 0.009, ORCHID.lip);
+  add(petal(0.016, 0.026, 0.008, 0.7), Math.PI, 0.006, OC.lip);
+  for (const s of [-1, 1]) add(petal(0.01, 0.016, 0.006), Math.PI - s * 0.7, 0.009, OC.lip);
   const col = new THREE.SphereGeometry(0.0055, 8, 6);
   col.scale(1, 1.3, 0.9);
   col.translate(0, 0.004, 0.01);
   col.scale(scale, scale, scale);
-  out.push([col, ORCHID.throat]);
+  out.push([col, OC.throat]);
   return out;
 }
 
@@ -719,7 +725,7 @@ function orchid(p: InteriorParts, x: number, y: number, z: number): void {
     g.rotateX(-0.25);
     g.rotateY(yaw);
     g.translate(x, y + 0.105 + i * 0.006, z);
-    p.leaf.add(g, i % 2 ? ORCHID.leafLight : ORCHID.leaf);
+    p.leaf.add(g, i % 2 ? OC.leafLight : OC.leaf);
   });
 
   // Bamboo stake and the spike: up along the stake, then arching toward the chair (−Z) and a
@@ -734,7 +740,7 @@ function orchid(p: InteriorParts, x: number, y: number, z: number): void {
     new THREE.Vector3(x + 0.08, y + 0.44, z - 0.13),
     new THREE.Vector3(x + 0.11, y + 0.39, z - 0.2),
   ]);
-  p.soft.add(new THREE.TubeGeometry(curve, 40, 0.0028, 6, false), ORCHID.stem);
+  p.soft.add(new THREE.TubeGeometry(curve, 40, 0.0028, 6, false), OC.stem);
   // A clip holding the spike to the stake.
   const clip = new THREE.TorusGeometry(0.006, 0.0018, 4, 10);
   clip.rotateX(Math.PI / 2);
@@ -766,13 +772,13 @@ function orchid(p: InteriorParts, x: number, y: number, z: number): void {
     ped.translate(0, -0.013, 0);
     ped.rotateZ(side * 0.6);
     ped.translate(pt.x, pt.y, pt.z);
-    p.soft.add(ped, ORCHID.stem);
+    p.soft.add(ped, OC.stem);
   }
   for (let k = 0; k < 3; k++) {
     curve.getPointAt(0.95 + k * 0.02, pt);
     const bud = new THREE.SphereGeometry(0.009 - k * 0.0022, 8, 6);
     bud.scale(1, 0.8, 1.2);
     bud.translate(pt.x, pt.y - 0.01, pt.z);
-    p.soft.add(bud, ORCHID.bud);
+    p.soft.add(bud, OC.bud);
   }
 }
