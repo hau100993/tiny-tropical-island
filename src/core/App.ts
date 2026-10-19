@@ -22,7 +22,7 @@ import type { ListenerState } from '../audio/spatial';
 import type { FootSurface } from '../audio/synth/footsteps';
 import type { LayerId } from '../audio/types';
 import { DebugOverlay } from '../ui/DebugOverlay';
-import { Panel } from '../ui/Panel';
+import { Panel, type ViewId } from '../ui/Panel';
 import { AudioPrompt } from '../ui/AudioPrompt';
 import { PomodoroOverlay } from '../ui/PomodoroOverlay';
 import { vi } from '../ui/strings.vi';
@@ -165,10 +165,15 @@ export class App {
       onSceneDeleted: (id) => this.library.dropPreset(id),
       getHours: () => this.world.dayNight.hours,
       setHours: (h) => this.world.dayNight.setHours(h),
-      walk: () => this.cameras.setMode('walk'),
+      status: () => this.screenInfo(),
+      view: () => (this.cameras.mode === 'seat' ? this.cameras.seat : this.cameras.mode),
+      onViewChange: (fn) => this.cameras.onChange(fn),
+      goTo: (view) => this.goTo(view),
+      pomodoro: () => {
+        const p = this.pomodoro.snapshot();
+        return p ? { remaining: p.remaining, running: p.running, visible: this.pomodoro.isVisible } : null;
+      },
       togglePomodoro: () => this.pomodoro.setVisible(!this.pomodoro.isVisible),
-      toggleDesk: () => this.toggleSeat('desk'),
-      toggleBath: () => this.toggleSeat('bath'),
     });
     this.pomodoro = new PomodoroOverlay(ui, {
       scheduleChime: (atMs, kind) => this.mixer.scheduleChime(atMs, kind),
@@ -414,6 +419,17 @@ export class App {
     }, 300);
   }
 
+  /** "Góc nhìn" tiles: the overview, walking, or one of the seats (the active one does nothing). */
+  private goTo(view: ViewId): void {
+    const c = this.cameras;
+    if (view === 'orbit' || view === 'walk') {
+      if (c.mode === 'seat' && view === 'walk') c.getUp();
+      else c.setMode(view);
+    } else if (!(c.mode === 'seat' && c.seat === view)) {
+      this.toggleSeat(view);
+    }
+  }
+
   /** The seat you are standing next to in the room (walk mode), if any. */
   private nearSeat(): SeatId | null {
     if (this.cameras.mode !== 'walk' || this.walker.shelter !== 'room') return null;
@@ -546,7 +562,7 @@ export class App {
     const night = dayNight.night;
     this.world.fireflies.update(s.fireflies ? night * (1 - weather.rainAmount) * (1 - sharedUniforms.uSnow.value) : 0);
     this.mixer.setNight(night);
-    this.panel.setClock(dayNight.hours);
+    this.panel.tick(performance.now());
     // Wind roughens the sea on top of the wave slider; the surf sound follows the same value.
     const sea = Math.min(1, this.env.waveStrength.value + weather.seaBoost);
     sharedUniforms.uWaveStrength.value = sea;

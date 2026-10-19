@@ -45,7 +45,12 @@ export interface Settings {
   synthFallback: boolean;
   /** Open the app sitting at the desk in the house. */
   startAtDesk: boolean;
+  /** Control panel: the accordion section that is open ('' = all closed). */
+  panelSection: PanelSection;
 }
+
+export const PANEL_SECTIONS = ['scene', 'sound', 'time', 'view', 'settings'] as const;
+export type PanelSection = (typeof PANEL_SECTIONS)[number] | '';
 
 export type SettingsPatch = Partial<Omit<Settings, 'version'>>;
 
@@ -74,6 +79,7 @@ export function defaultSettings(): Settings {
     activeScene: 'b-sunny',
     synthFallback: true,
     startAtDesk: false,
+    panelSection: 'scene',
   };
 }
 
@@ -135,6 +141,10 @@ export function parseSettings(json: string | null): Settings {
     footsteps: bool(raw.footsteps, defaults.footsteps),
     walkView: raw.walkView === 'first' || raw.walkView === 'third' ? raw.walkView : defaults.walkView,
     activeScene: typeof raw.activeScene === 'string' ? raw.activeScene.slice(0, 64) : defaults.activeScene,
+    panelSection:
+      raw.panelSection === '' || PANEL_SECTIONS.includes(raw.panelSection as (typeof PANEL_SECTIONS)[number])
+        ? (raw.panelSection as PanelSection)
+        : defaults.panelSection,
     synthFallback: bool(raw.synthFallback, defaults.synthFallback),
     startAtDesk: bool(raw.startAtDesk, defaults.startAtDesk),
   };

@@ -65,15 +65,26 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 
 ### Control panel (top right)
 
-- **Âm thanh (sound):** master volume and mute, **Âm tổng hợp khi chưa có
-  file** (the synthesized fallback, see below), and **Âm thanh của tôi**, your recordings.
-- **Cảnh (scene):** pick a scene preset, save the current effects as your own, update or delete
-  your presets; sliders for rain, snow, wind, waves, clouds and gloom, and the rainbow.
-- **Bầu trời (sky):** day length, clock, night options (shooting stars, aurora, stars, fireflies).
-- **Hiển thị (display):** **Góc làm việc (B)**, **Mở app ở góc làm việc** (start the app
-  sitting at the desk), walk, character view, footsteps, **Pomodoro (T)**, quality
-  (Thấp / Vừa / Cao), camera auto-rotate. Anti-aliasing changes between Low and the
-  other qualities apply after a page reload.
+Always visible at the top: the **Pomodoro clock** button (shows the time left while a session
+runs; click to show or hide the timer card), collapse, a **status line** (scene · what is
+playing · island time) and **Âm lượng chung** with mute. Below, five sections, one open at a
+time (the open one is remembered); a closed section shows its current value next to its title:
+
+- **Cảnh:** scene presets as cards with an icon (sun, sunset, storm, rain, campfire, mist,
+  aurora; your own presets get a bookmark). The active card is highlighted; an orange dot means
+  you changed its effects. Save / update / restore / delete below the cards. **Tùy chỉnh hiệu
+  ứng** (folded) holds the effects: *Thời tiết* (rain, snow, wind, waves, clouds, gloom, rainbow)
+  and *Bầu trời đêm* (shooting stars, aurora, stars, fireflies).
+- **Âm thanh:** **Âm thanh của tôi** (your recordings) and **Âm nền tự tạo khi không phát
+  file** (the synthesized fallback, see below).
+- **Thời gian:** day speed (Giờ thật · 24 phút · 6 phút · Dừng) and the clock.
+- **Góc nhìn:** tiles for **Toàn cảnh**, **Đi bộ**, **Góc làm việc**, **Bồn tắm** (the current
+  one is highlighted, each shows its key), and switches: character view (`V`), footsteps,
+  camera auto-rotate.
+- **Cài đặt:** quality (Thấp / Vừa / Cao; anti-aliasing changes between Low and the others
+  apply after a reload), **Mở app ở góc làm việc**, and the keyboard shortcuts.
+
+On/off options are switches; buttons only do things.
 
 ## Scene presets and your recordings
 
