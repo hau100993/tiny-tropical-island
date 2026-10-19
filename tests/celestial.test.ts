@@ -9,6 +9,7 @@ import {
   nightness,
   paletteFor,
   sunDirection,
+  windowSkyTurn,
 } from '../src/world/celestial';
 
 describe('sun and moon', () => {
@@ -32,6 +33,16 @@ describe('sun and moon', () => {
     const m = moonDirection(19, undefined, -1);
     expect(m.y).toBeCloseTo(moonDirection(19).y, 6);
     expect(m.length()).toBeCloseTo(1, 6);
+  });
+
+  it('aims the sun, or at night the moon, at a view direction', () => {
+    const view = 0.7;
+    const at = (v: { x: number; z: number }) => Math.atan2(v.z, v.x);
+    const near = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))) < 0.01;
+    const dusk = windowSkyTurn(17.7, view, 0);
+    expect(near(at(sunDirection(17.7, undefined, (dusk * Math.PI) / 180)), view)).toBe(true);
+    const night = windowSkyTurn(21, view, 0);
+    expect(near(at(moonDirection(21, undefined, (night * Math.PI) / 180)), view)).toBe(true);
   });
 
   it('the moon is up at midnight and down at noon', () => {

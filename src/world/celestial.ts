@@ -27,6 +27,17 @@ export function moonDirection(hours: number, out = new THREE.Vector3(), turn = 0
   return turnSky(out, turn);
 }
 
+/**
+ * The sky turn (degrees) that puts the sun, or at night the moon, at azimuth `viewAz` +
+ * `offset` (radians; atan2(z, x)) for this time: e.g. into the desk window. 0 when neither is up.
+ */
+export function windowSkyTurn(hours: number, viewAz: number, offset = (-15 * Math.PI) / 180): number {
+  const v = new THREE.Vector3();
+  if (sunDirection(hours, v).y < -0.03 && moonDirection(hours, v).y < -0.03) return 0;
+  const a = viewAz + offset - Math.atan2(v.z, v.x);
+  return Math.round((Math.atan2(Math.sin(a), Math.cos(a)) * 180) / Math.PI);
+}
+
 /** Rotates a sky direction around +Y so its azimuth atan2(z, x) grows by `turn`. */
 export function turnSky(v: THREE.Vector3, turn: number): THREE.Vector3 {
   if (turn === 0) return v;
@@ -133,8 +144,10 @@ export function advanceTime(hours: number, clock: Readonly<ClockOptions>, dt: nu
 }
 
 export function formatClock(hours: number): string {
-  const h = Math.floor(hours) % 24;
-  const m = Math.floor((hours - Math.floor(hours)) * 60);
+  // Whole minutes, with a little slack so 17.7 h reads 17:42, not 17:41 (17.7 × 60 = 1061.99…).
+  const total = Math.floor((((hours % 24) + 24) % 24) * 60 + 1e-6);
+  const h = Math.floor(total / 60) % 24;
+  const m = total % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 

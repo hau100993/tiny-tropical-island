@@ -70,11 +70,10 @@ runs; click to show or hide the timer card), collapse, a **status line** (scene 
 playing · island time) and **Âm lượng chung** with mute. Below, five sections, one open at a
 time (the open one is remembered); a closed section shows its current value next to its title:
 
-- **Cảnh:** scene presets as cards with an icon (sunrise, sun, sunset, storm, rain, campfire,
-  moon, mist, aurora; your own presets get a bookmark). The active card is highlighted; an orange dot means
-  you changed its effects. Save / update / restore / delete below the cards. **Tùy chỉnh hiệu
-  ứng** (folded) holds the effects: *Thời tiết* (rain, snow, wind, waves, clouds, gloom, rainbow)
-  and *Bầu trời đêm* (moonlight, shooting stars, aurora, stars, fireflies).
+- **Cảnh:** scenes as cards: icon, name, and a second line with the scene's time (or *Giữ
+  giờ*) and ♪ when it plays recordings of its own. Clicking a card switches to the scene and
+  its sound. Below: **+ Tạo cảnh**, **Sửa cảnh**, **Khôi phục gốc** (edited built-ins) and
+  **Xóa** (your scenes); see *Scenes and your recordings*.
 - **Âm thanh:** **Âm thanh của tôi** (your recordings) and **Âm nền tự tạo khi không phát
   file** (the synthesized fallback, see below).
 - **Thời gian:** a big hh:mm:ss clock with **Dừng / Chạy**, **Giờ thật (theo máy tính)**, the
@@ -87,39 +86,55 @@ time (the open one is remembered); a closed section shows its current value next
 
 On/off options are switches; buttons only do things.
 
-## Scene presets and your recordings
+## Scenes and your recordings
 
-A **scene preset** sets the weather and sky effects (rain, snow, wind, waves, clouds, gloom,
-rainbow, moonlight, stars, shooting stars, aurora, fireflies) and, if saved with one, a time of day.
+A **scene** sets the weather and sky effects (rain, snow, wind, waves, clouds, gloom, rainbow,
+moonlight, stars, shooting stars, aurora, fireflies), optionally a time of day, and its sound:
+the recordings chosen for it, or, with none chosen, the synthesized ambience that follows its
+effects (rain sound with rain, and so on). Recordings and the synthesized ambience don't mix:
+to layer sounds, choose several recordings.
 Built in: *Bình minh ơi* (sunrise, 06:12), *Ngày nắng*, *Hoàng hôn yên ả* (sunset, 17:42),
 *Bão nhiệt đới*, *Mưa rừng*, *Đêm lửa trại*, *Đêm trăng tròn* (19:15, a big bright full moon and
-its path on the sea), *Sáng sương mù*, *Đêm tuyết cực quang*. Your own presets: set the sliders, then
-**Lưu thành preset…** (turn on **Kèm giờ hiện tại** to store the time too; saving under an
-existing name overwrites it). Moving a slider afterwards shows *(đã chỉnh)*; **Cập nhật preset**
-writes the new values into the selected preset, built-in ones included. An edited built-in
-preset gets a **Khôi phục gốc** button that restores its original values (built-ins can't be
-deleted). Up to 30 presets of your own.
+its path on the sea), *Sáng sương mù*, *Đêm tuyết cực quang*.
+
+**+ Tạo cảnh** and **Sửa cảnh** (the selected scene) open the scene editor in place of the
+cards. Everything you change shows on the island right away; **Hủy** (or ‹) puts the island
+back as it was, **Lưu cảnh** stores the scene and plays it. The editor has four parts:
+
+1. **Tên cảnh** (a built-in keeps its name; names must be unique).
+2. **Thời gian:** *Không đặt giờ* (picking the scene keeps the island's clock) or *Đặt giờ*:
+   the **Giờ** slider (5-minute steps), **Dùng giờ lúc mở**, and **Mặt trời / trăng hiện ở cửa
+   sổ bàn làm việc** (on by default), which turns the sky so that hour's sun, or at night the
+   moon, sits in the desk window. Picking a scene with a time jumps there and stops the clock.
+3. **Hiệu ứng:** the weather and night-sky sliders and switches.
+4. **Âm thanh:** switch on the recordings that play with the scene, each with its volume, or
+   **+ Thêm file từ máy…** (the new file is switched on). None on: the synthesized ambience.
+
+Built-ins can be edited too (effects, time, sound); **Khôi phục gốc** restores their original
+effects and time. **Xóa** and **Khôi phục gốc** ask for a second click. Up to 30 scenes of
+your own.
 
 **Âm thanh của tôi** holds your recordings (e.g. a one-hour rain MP3 you downloaded):
 
 1. **+ Thêm file** (or drag files onto the list). MP3, OGG, WAV, M4A, FLAC, WebM. The file is
    **copied into the browser's storage** (IndexedDB), so it is there next time without asking;
    the original on your PC is not touched. An hour of MP3 at 128 kbps is ~58 MB.
-2. **▶** on a recording that is mapped to scene presets (step 3) switches to its scene: the
-   first preset it is mapped to, unless the active one is among them. **⏸** then leaves the
+2. **▶** on a recording that is mapped to scenes (step 3) switches to its scene: the
+   first scene it is mapped to, unless the active one is among them. **⏸** then leaves the
    scene (its recordings fade out; the effects stay). On a recording without mappings, **▶**
    plays it on its own, with its own volume, whatever the scene.
-3. **⚙ → Tự phát khi chọn preset cảnh:** switch on the presets it belongs to, each with its own
-   volume (e.g. "Sóng biển 1h" at 70 % in *Hoàng hôn* and 100 % in *Bão*). Choosing such a
-   preset fades its recordings in over ~3 s and the previous scene's out. Tags under the name
+3. **⚙ → Tự phát khi chọn cảnh:** switch on the scenes it belongs to, each with its own
+   volume (e.g. "Sóng biển 1h" at 70 % in *Hoàng hôn* and 100 % in *Bão*); the same as the
+   *Âm thanh* part of the scene editor. Choosing such a scene fades its recordings in over ~3 s and the previous scene's out. Tags under the name
    show the mapping; the active scene's tag is highlighted.
 4. ⚙ also renames, **Thay file…** (replace the audio with another file from your PC, keeping
    the name, volume and scene mappings), or deletes (click **Xóa file**, then again to confirm; deleting removes the browser copy
    only).
 
 **Built-in recordings.** Two 15-minute recordings ship with the app and appear in the list
-marked *có sẵn*: **Ban ngày trên đảo** (plays with *Ngày nắng*) and **Ban đêm trên đảo** (plays
-with *Đêm lửa trại*). They stream from the site instead of being copied into the browser, and
+marked *có sẵn*: **Ban ngày trên đảo** (plays with *Bình minh ơi* and *Ngày nắng*) and **Ban
+đêm trên đảo** (plays with *Đêm trăng tròn* and *Đêm lửa trại*). A default mapping added to
+`library.json` later is given once to lists saved before it; one you removed stays removed. They stream from the site instead of being copied into the browser, and
 you can change their volume, mappings and name like your own, or **Thay file…** with a file of
 your own (**Dùng lại file gốc** switches back). ⚙ → **Ẩn khỏi danh sách** hides
 one; **Hiện âm thanh có sẵn** brings it back. To ship more, put files in
@@ -292,10 +307,10 @@ behind you, so it works inside the small room too.
 - **Tốc độ:** ×1 (1 s = 1 s), ×10 (a day ≈ 2.4 h), ×30 (≈ 48 min), ×60 (1 s = 1 min, a day ≈
   24 min, the default) and ×240 (1 s = 4 min, a day ≈ 6 min). Picking a speed starts the island
   clock from the current time.
-- **Dừng / Chạy** (or `N`) stops and restarts it. A scene preset saved with a time of day stops
+- **Dừng / Chạy** (or `N`) stops and restarts it. A scene with a time of day stops
   the clock at that time.
 
-The other sky options are scene effects (*Cảnh → Tùy chỉnh hiệu ứng*):
+The other sky options are scene effects (*Cảnh → Sửa cảnh / Tạo cảnh → Hiệu ứng*):
 
 | Option | What it does |
 |---|---|
@@ -312,8 +327,8 @@ The other sky options are scene effects (*Cảnh → Tùy chỉnh hiệu ứng*)
 you. *Bình minh ơi*, *Hoàng hôn yên ả* and *Đêm trăng tròn* therefore turn the whole sky (sun,
 moon, stars) around the vertical so their sun or moon sits in the desk window, a little left of
 the monitors; the sky swings there smoothly when you pick the scene. Any other scene with a time
-of day turns it back to the real direction (scenes without a time keep the current one). Your own
-presets saved with **Kèm giờ hiện tại** keep the sky direction too.
+of day turns it back to the real direction (scenes without a time keep the current one). In the
+scene editor, **Mặt trời / trăng hiện ở cửa sổ bàn làm việc** does the same for any time.
 
 The sun rises in the east and sets in the west (with the real sky direction); dawn and dusk paint the horizon. At night the
 moon lights the scene in silver and leaves a glittering path on the sea, the house windows and

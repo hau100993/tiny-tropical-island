@@ -15,7 +15,7 @@ import { CameraManager, type SeatId, type SeatSpot } from '../controls/CameraMan
 import type { HouseSeat } from '../world/house';
 import { DeskView } from '../controls/deskView';
 import { DeskScreens, type ScreenInfo } from '../world/deskScreens';
-import { formatClock } from '../world/celestial';
+import { formatClock, windowSkyTurn } from '../world/celestial';
 import { WalkHint } from '../ui/WalkHint';
 import { Avatar, type AvatarPose } from '../world/avatar';
 import type { ListenerState } from '../audio/spatial';
@@ -163,6 +163,15 @@ export class App {
       onSceneDeleted: (id) => this.library.dropPreset(id),
       getHours: () => this.world.dayNight.hours,
       getSkyTurn: () => this.world.dayNight.skyTurn,
+      setSky: (h, turn) => {
+        this.world.dayNight.setHours(h);
+        this.world.dayNight.setSkyTurn(turn);
+      },
+      windowTurn: (h) => {
+        // Desk view azimuth: forward is −Z turned by the seat's yaw.
+        const yaw = this.colliders.seaYaw;
+        return windowSkyTurn(h, Math.atan2(-Math.cos(yaw), -Math.sin(yaw)));
+      },
       setHours: (h) => this.world.dayNight.setHours(h),
       status: () => this.screenInfo(),
       view: () => (this.cameras.mode === 'seat' ? this.cameras.seat : this.cameras.mode),

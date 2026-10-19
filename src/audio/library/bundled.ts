@@ -5,6 +5,13 @@ import { sanitizeTrackName, type TrackMapping } from './tracks';
 export const BUNDLED_PREFIX = 'b:';
 /** Bundled tracks the user removed from the list (they stay hidden until restored). */
 export const HIDDEN_KEY = 'tsw.tracksHidden';
+/**
+ * Default scene mappings already offered to the user ("trackId>presetId"). A mapping added to
+ * library.json later is given once to tracks already in the list; one the user removed stays
+ * removed. Lists stored before this key existed had the first two defaults.
+ */
+export const OFFERED_KEY = 'tsw.tracksOffered';
+export const FIRST_DEFAULTS: readonly string[] = ['b:island-day>b-sunny', 'b:island-night>b-campfire'];
 
 /** A recording shipped with the app in `public/audio/library/`, listed in `library.json`. */
 export interface BundledTrack {

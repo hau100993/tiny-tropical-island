@@ -1,21 +1,28 @@
-import { button, el, slider, toggle, type SliderControl, type ToggleControl } from './components';
+import { button, el } from './components';
 import { icons } from './icons';
 import { vi } from './strings.vi';
+import { SceneEditor } from './SceneEditor';
 import type { Settings, SettingsStore } from '../core/settings';
-import { sceneValuesOf, SCENE_KEYS, type ScenePreset, type ScenePresetStore } from '../core/scenePresets';
+import type { ScenePreset, ScenePresetStore } from '../core/scenePresets';
+import type { SoundLibrary } from '../audio/library/SoundLibrary';
+import { formatClock } from '../world/celestial';
 
 export interface SceneViewDeps {
   settings: SettingsStore;
   scenes: ScenePresetStore;
-  /** Applies a preset (values, time of day, its recordings). */
+  library: SoundLibrary;
+  /** Applies a scene (values, time of day, its recordings). */
   applyScene: (id: string) => void;
-  /** A user preset was deleted (its recording mappings go too). */
+  /** A user scene was deleted (its recording mappings go too). */
   onDeleted: (id: string) => void;
+  startAudio: () => void;
   getHours: () => number;
   getSkyTurn: () => number;
+  setSky: (hours: number, skyTurn: number) => void;
+  windowTurn: (hours: number) => number;
 }
 
-/** Icon per built-in preset; the user's own presets get a bookmark. */
+/** Icon per built-in scene; the user's own get one from their weather and time. */
 const PRESET_ICONS: Readonly<Record<string, string>> = {
   'b-dawn': icons.sunrise,
   'b-sunny': icons.sun,
@@ -28,186 +35,176 @@ const PRESET_ICONS: Readonly<Record<string, string>> = {
   'b-aurora': icons.aurora,
 };
 
-type EffectKey = 'visualRain' | 'visualSnow' | 'visualWind' | 'waveStrength' | 'clouds' | 'gloom' | 'meteors' | 'aurora' | 'moonlight';
-type FlagKey = 'rainbow' | 'stars' | 'fireflies';
+function sceneIcon(p: ScenePreset): string {
+  const fixed = PRESET_ICONS[p.id];
+  if (fixed) return fixed;
+  const v = p.values;
+  if (v.visualRain > 0.6 && v.visualWind > 0.5) return icons.storm;
+  if (v.visualRain > 0.15) return icons.rain;
+  if (v.visualSnow > 0.15) return icons.snow;
+  if (v.gloom > 0.3) return icons.fog;
+  const h = p.hours;
+  if (h === null) return icons.bookmark;
+  if (h >= 5 && h < 7.5) return icons.sunrise;
+  if (h >= 7.5 && h < 16.5) return icons.sun;
+  if (h >= 16.5 && h < 19) return icons.sunset;
+  return icons.moon;
+}
 
 /**
- * "Cảnh" section body: scene presets as a grid of cards (icon + name; the active one is
- * highlighted, a dot marks it as edited), the preset actions, and the effect controls folded
- * into "Tùy chỉnh hiệu ứng" (weather, night sky). Moving a slider keeps the preset active (its
- * recordings keep playing) and marks it as edited.
+ * "Cảnh" section body: scenes as a grid of cards (icon, name, its time and a note when it has
+ * its own recordings; the active one is highlighted) and the actions Tạo cảnh / Sửa cảnh /
+ * Khôi phục gốc / Xóa. Creating or editing opens the SceneEditor in place of the grid.
  */
 export class SceneView {
   readonly root: HTMLElement;
+  private readonly home: HTMLElement;
   private readonly grid: HTMLElement;
-  private readonly cards = new Map<string, HTMLButtonElement>();
-  private readonly updateBtn: HTMLButtonElement;
+  private readonly cards = new Map<string, { card: HTMLButtonElement; meta: HTMLElement }>();
+  private readonly editBtn: HTMLButtonElement;
   private readonly deleteBtn: HTMLButtonElement;
   private readonly resetBtn: HTMLButtonElement;
-  private readonly saveForm: HTMLFormElement;
-  private readonly saveInput: HTMLInputElement;
-  private readonly withTime: ToggleControl;
   private readonly msg: HTMLElement;
-  private readonly sliders: Array<[EffectKey, SliderControl]> = [];
-  private readonly flags: Array<[FlagKey, ToggleControl]> = [];
+  private editor: SceneEditor | null = null;
+  /** Delete / reset wait for a second click (a browser confirm() can be blocked). */
+  private armed: 'delete' | 'reset' | '' = '';
+  private armTimer = 0;
 
   constructor(private readonly deps: SceneViewDeps) {
     const { settings } = deps;
-    const s = settings.get();
     this.root = el('div', 'scene-view');
+    this.home = el('div', 'editor-stack');
     this.grid = el('div', 'preset-grid');
     this.grid.setAttribute('role', 'radiogroup');
     this.grid.setAttribute('aria-label', vi.scene.preset);
 
-    const actions = el('div', 'button-row');
-    const saveAs = button(vi.scene.saveAs, () => this.showSaveForm(true), 'btn small');
-    this.updateBtn = button(vi.scene.update, () => this.updatePreset(), 'btn small');
-    this.updateBtn.title = vi.scene.updateTitle;
-    this.deleteBtn = button(vi.scene.delete, () => this.deletePreset(), 'btn small');
-    this.resetBtn = button(vi.scene.reset, () => this.resetPreset(), 'btn small');
+    const actions = el('div', 'button-row scene-actions');
+    const create = button(vi.scene.create, () => this.openEditor(null), 'btn small primary');
+    this.editBtn = button(vi.scene.edit, () => this.openEditor(deps.scenes.get(settings.get().activeScene) ?? null), 'btn small');
+    this.editBtn.title = vi.scene.editHint;
+    this.resetBtn = button(vi.scene.reset, () => this.arm('reset'), 'btn small');
     this.resetBtn.title = vi.scene.resetTitle;
-    actions.append(saveAs, this.updateBtn, this.resetBtn, this.deleteBtn);
-
-    this.saveForm = el('form', 'save-form wrap');
-    this.saveForm.hidden = true;
-    this.saveInput = el('input', 'text-input');
-    this.saveInput.placeholder = vi.scene.name;
-    this.saveInput.maxLength = 32;
-    this.withTime = toggle(vi.scene.withTime, false, (on) => this.withTime.set(on));
-    const ok = el('button', 'btn small primary', vi.scene.save);
-    ok.type = 'submit';
-    const cancel = button(vi.scene.cancel, () => this.showSaveForm(false), 'btn small');
-    this.saveForm.append(this.saveInput, this.withTime.root, ok, cancel);
-    this.saveForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      this.savePreset();
-    });
+    this.deleteBtn = button(vi.scene.delete, () => this.arm('delete'), 'btn small');
+    actions.append(create, this.editBtn, this.resetBtn, this.deleteBtn);
     this.msg = el('div', 'note');
 
-    // Effects, folded: weather, then the night sky.
-    const custom = el('details', 'subsection');
-    const summary = el('summary', 'subsection-title', vi.panel.customize);
-    const body = el('div', 'section-body');
-    const add = (key: EffectKey, label: string): HTMLElement => {
-      const c = slider(label, s[key], (v) => settings.update({ [key]: v }));
-      this.sliders.push([key, c]);
-      return c.root;
-    };
-    const flag = (key: FlagKey, label: string): HTMLElement => {
-      const t = toggle(label, s[key], (on) => settings.update({ [key]: on }));
-      this.flags.push([key, t]);
-      return t.root;
-    };
-    const weatherFlags = el('div', 'button-row');
-    weatherFlags.append(flag('rainbow', vi.scene.rainbow));
-    const nightFlags = el('div', 'button-row');
-    nightFlags.append(flag('stars', vi.panel.stars), flag('fireflies', vi.panel.fireflies));
-    body.append(
-      el('div', 'subhead', vi.panel.weather),
-      add('visualRain', vi.scene.rain),
-      add('visualSnow', vi.scene.snow),
-      add('visualWind', vi.scene.wind),
-      add('waveStrength', vi.scene.waves),
-      add('clouds', vi.scene.clouds),
-      add('gloom', vi.scene.gloom),
-      weatherFlags,
-      el('div', 'subhead', vi.panel.nightSky),
-      add('meteors', vi.panel.meteors),
-      add('moonlight', vi.panel.moonlight),
-      add('aurora', vi.panel.aurora),
-      nightFlags,
-    );
-    custom.append(summary, body);
-
-    this.root.append(this.grid, actions, this.saveForm, this.msg, custom);
+    this.home.append(this.grid, actions, this.msg);
+    this.root.append(this.home);
     deps.scenes.onChange(() => this.refresh());
     settings.onChange((next) => this.sync(next));
+    // Badges only (no rebuild: the library emits often, and rebuilding mid-click loses clicks).
+    deps.library.onChange(() => this.updateMeta());
     this.refresh();
   }
 
-  /** Rebuilds the cards (presets were added, renamed or removed). */
+  /** Rebuilds the cards (scenes were added, edited or removed). */
   private refresh(): void {
     this.grid.replaceChildren();
     this.cards.clear();
     for (const p of this.deps.scenes.all()) this.grid.append(this.card(p));
+    this.updateMeta();
     this.sync(this.deps.settings.get());
   }
 
   private card(p: ScenePreset): HTMLButtonElement {
-    const b = button('', () => this.deps.applyScene(p.id), 'preset-card');
+    const b = button('', () => {
+      this.deps.startAudio();
+      this.deps.applyScene(p.id);
+    }, 'preset-card');
     b.setAttribute('role', 'radio');
     const icon = el('span', 'preset-icon');
-    icon.innerHTML = PRESET_ICONS[p.id] ?? icons.bookmark;
-    const name = el('span', 'preset-name', p.name);
-    const dot = el('span', 'preset-dot');
-    dot.title = vi.scene.edited;
-    b.append(icon, name, dot);
+    icon.innerHTML = sceneIcon(p);
+    const text = el('span', 'preset-text');
+    const meta = el('span', 'preset-meta');
+    text.append(el('span', 'preset-name', p.name), meta);
+    b.append(icon, text);
     b.title = p.name;
-    this.cards.set(p.id, b);
+    this.cards.set(p.id, { card: b, meta });
     return b;
+  }
+
+  /** Each card's second line: its time (or none) and ♪ when it plays its own recordings. */
+  private updateMeta(): void {
+    for (const p of this.deps.scenes.all()) {
+      const c = this.cards.get(p.id);
+      if (!c) continue;
+      const sounds = this.deps.library.sceneSounds(p.id).size;
+      const time = p.hours === null ? vi.scene.keepTime : formatClock(p.hours);
+      const html = `<span>${time}</span>${sounds > 0 ? `<span class="preset-note" title="${vi.scene.hasSound}">♪</span>` : ''}`;
+      if (c.meta.innerHTML !== html) c.meta.innerHTML = html;
+    }
   }
 
   private sync(s: Readonly<Settings>): void {
     const p = this.deps.scenes.get(s.activeScene);
-    const values = sceneValuesOf(s);
-    const edited = !!p && SCENE_KEYS.some((k) => {
-      const a = values[k];
-      const b = p.values[k];
-      return typeof a === 'number' && typeof b === 'number' ? Math.abs(a - b) > 0.005 : a !== b;
-    });
-    for (const [id, c] of this.cards) {
-      const on = id === s.activeScene;
-      c.setAttribute('aria-checked', String(on));
-      c.classList.toggle('edited', on && edited);
-    }
-    this.updateBtn.disabled = !p || !edited;
+    for (const [id, c] of this.cards) c.card.setAttribute('aria-checked', String(id === s.activeScene));
+    this.editBtn.disabled = !p;
     // Built-ins can't be deleted, but edits to them can be undone.
     this.deleteBtn.hidden = !p || p.builtIn;
     this.resetBtn.hidden = !p || !p.builtIn || !this.deps.scenes.isModified(p.id);
-    for (const [key, c] of this.sliders) c.set(s[key]);
-    for (const [key, t] of this.flags) t.set(s[key]);
+    this.deleteBtn.textContent = this.armed === 'delete' ? vi.scene.confirmDeleteBtn : vi.scene.delete;
+    this.resetBtn.textContent = this.armed === 'reset' ? vi.scene.confirmResetBtn : vi.scene.reset;
+    this.deleteBtn.classList.toggle('danger', this.armed === 'delete');
+    this.resetBtn.classList.toggle('danger', this.armed === 'reset');
   }
 
-  private showSaveForm(show: boolean): void {
-    this.saveForm.hidden = !show;
+  private openEditor(p: ScenePreset | null): void {
     this.msg.textContent = '';
-    if (show) {
-      this.saveInput.value = '';
-      this.withTime.set(false);
-      this.saveInput.focus();
-    }
+    this.disarm();
+    const editor = new SceneEditor(
+      {
+        ...this.deps,
+        onClose: (savedId) => this.closeEditor(savedId),
+      },
+      p,
+    );
+    this.editor = editor;
+    this.home.hidden = true;
+    this.root.append(editor.root);
+    editor.root.scrollIntoView({ block: 'start' });
+    editor.focus();
   }
 
-  private savePreset(): void {
-    const { scenes, settings } = this.deps;
-    const hours = this.withTime.root.getAttribute('aria-pressed') === 'true' ? this.deps.getHours() : null;
-    const saved = scenes.save(this.saveInput.value, sceneValuesOf(settings.get()), hours, this.deps.getSkyTurn());
-    if (!saved) {
-      this.msg.textContent = vi.scene.saveFailed;
+  private closeEditor(savedId: string | null): void {
+    this.editor?.root.remove();
+    this.editor = null;
+    this.home.hidden = false;
+    this.msg.textContent = savedId ? vi.scene.saved : '';
+  }
+
+  /** First click arms delete/reset on the button itself; a second one within 4 s does it. */
+  private arm(what: 'delete' | 'reset'): void {
+    window.clearTimeout(this.armTimer);
+    if (this.armed === what) {
+      this.armed = '';
+      if (what === 'delete') this.deleteScene();
+      else this.resetScene();
+      this.sync(this.deps.settings.get());
       return;
     }
-    this.saveForm.hidden = true;
-    this.deps.applyScene(saved.id);
-    this.msg.textContent = vi.scene.saved;
+    this.armed = what;
+    this.armTimer = window.setTimeout(() => this.disarm(), 4000);
+    this.sync(this.deps.settings.get());
   }
 
-  private updatePreset(): void {
-    const { scenes, settings } = this.deps;
-    if (scenes.update(settings.get().activeScene, sceneValuesOf(settings.get()))) this.msg.textContent = vi.scene.saved;
+  private disarm(): void {
+    window.clearTimeout(this.armTimer);
+    this.armed = '';
+    this.sync(this.deps.settings.get());
   }
 
-  private resetPreset(): void {
+  private resetScene(): void {
     const { scenes, settings } = this.deps;
     const p = scenes.get(settings.get().activeScene);
-    if (!p || !p.builtIn || !window.confirm(vi.scene.confirmReset(p.name))) return;
+    if (!p || !p.builtIn) return;
     scenes.resetBuiltIn(p.id);
     this.deps.applyScene(p.id);
   }
 
-  private deletePreset(): void {
+  private deleteScene(): void {
     const { scenes, settings } = this.deps;
     const p = scenes.get(settings.get().activeScene);
-    if (!p || p.builtIn || !window.confirm(vi.scene.confirmDelete(p.name))) return;
+    if (!p || p.builtIn) return;
     scenes.remove(p.id);
     this.deps.onDeleted(p.id);
     settings.update({ activeScene: '' });

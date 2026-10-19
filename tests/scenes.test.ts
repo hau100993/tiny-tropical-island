@@ -56,9 +56,22 @@ describe('built-in overrides', () => {
   it('keeps only known built-ins and repairs their values', () => {
     const o = parseOverrides({ 'b-storm': { visualRain: 0.3, stars: 1 }, 'nope': { visualRain: 1 }, 'b-sunny': 'x' });
     expect(Object.keys(o)).toEqual(['b-storm']);
-    expect(o['b-storm'].visualRain).toBe(0.3);
-    expect(o['b-storm'].stars).toBe(DEFAULT_SCENE.stars);
+    expect(o['b-storm'].values.visualRain).toBe(0.3);
+    expect(o['b-storm'].values.stars).toBe(DEFAULT_SCENE.stars);
     expect(parseOverrides(null)).toEqual({});
+  });
+
+  it('reads old (values only) and new (values + time) edits', () => {
+    const sunset = BUILT_IN_SCENES.find((p) => p.id === 'b-sunset');
+    const old = parseOverrides({ 'b-sunset': { clouds: 0.9 } })['b-sunset'];
+    expect(old).toMatchObject({ hours: sunset?.hours, skyTurn: sunset?.skyTurn });
+    expect(old.values.clouds).toBe(0.9);
+    const edited = parseOverrides({
+      'b-sunset': { values: { clouds: 0.2 }, hours: 18.5, skyTurn: 400 },
+      'b-dawn': { values: {}, hours: null, skyTurn: 30 },
+    });
+    expect(edited['b-sunset']).toMatchObject({ hours: 18.5, skyTurn: 40 });
+    expect(edited['b-dawn']).toMatchObject({ hours: null, skyTurn: 0 });
   });
 });
 

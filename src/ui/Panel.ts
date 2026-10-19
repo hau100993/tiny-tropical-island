@@ -27,8 +27,12 @@ export interface PanelDeps {
   applyScene: (id: string) => void;
   onSceneDeleted: (id: string) => void;
   getHours: () => number;
-  /** Current sky direction (degrees), stored with presets saved with the time. */
+  /** Current sky direction (degrees). */
   getSkyTurn: () => number;
+  /** Scene editor preview: show this time and sky turn (degrees). */
+  setSky: (hours: number, skyTurn: number) => void;
+  /** Sky turn (degrees) that brings this hour's sun or moon into the desk window. */
+  windowTurn: (hours: number) => number;
   setHours: (hours: number) => void;
   /** Scene, what is playing and the island time (the status line). */
   status: () => ScreenInfo;
@@ -140,10 +144,14 @@ export class Panel {
       new SceneView({
         settings,
         scenes: deps.scenes,
+        library: deps.library,
         applyScene: deps.applyScene,
         onDeleted: deps.onSceneDeleted,
+        startAudio: deps.startAudio,
         getHours: deps.getHours,
         getSkyTurn: deps.getSkyTurn,
+        setSky: deps.setSky,
+        windowTurn: deps.windowTurn,
       }).root,
     );
 

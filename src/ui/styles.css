@@ -1180,3 +1180,136 @@ kbd.key {
   color: #ffffff;
   font-weight: 600;
 }
+
+/* Scene cards: name with a second line (time, ♪ when the scene has its own recordings). */
+.preset-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.preset-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--panel-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.preset-note {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.scene-actions {
+  flex-wrap: wrap;
+}
+
+/* Scene editor ("Tạo cảnh" / "Sửa cảnh"), shown in place of the cards. */
+.editor-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.scene-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.editor-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.editor-title {
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px 10px;
+  border-radius: 10px;
+  background: var(--control-bg);
+}
+
+.editor-group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.editor-group-icon {
+  display: inline-grid;
+  place-items: center;
+  color: var(--accent);
+}
+
+.editor-group-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.editor-name {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 13px;
+  background: var(--panel-bg);
+}
+
+.editor-name:disabled {
+  opacity: 0.7;
+}
+
+.seg-group.two {
+  grid-template-columns: 1fr 1fr;
+}
+
+.editor-sounds {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.editor-sounds .map-row {
+  grid-template-columns: minmax(0, 150px) 1fr;
+}
+
+/* Hủy / Lưu stay at the bottom of the panel while the editor scrolls. */
+.editor-foot {
+  position: sticky;
+  bottom: -6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 -12px;
+  padding: 8px 12px 8px;
+  background: var(--panel-bg);
+  backdrop-filter: blur(14px);
+  border-top: 1px solid var(--panel-border);
+}
+
+.editor-actions {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 6px;
+}
+
+.editor-actions .btn {
+  padding: 7px 10px;
+  font-size: 12.5px;
+}

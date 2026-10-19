@@ -1,7 +1,7 @@
 import type { AudioEngine } from '../AudioEngine';
 import { readStored, parseJson, writeStored } from '../../core/storage';
 import { deleteBlob, isQuotaError, putBlob, requestPersistence } from './blobStore';
-import { BUNDLED_PREFIX, HIDDEN_KEY, loadBundled, type BundledTrack } from './bundled';
+import { BUNDLED_PREFIX, FIRST_DEFAULTS, HIDDEN_KEY, loadBundled, OFFERED_KEY, type BundledTrack } from './bundled';
 import { TrackPlayer } from './TrackPlayer';
 import { nameFromFile, parseTracks, sanitizeTrackName, trackLevel, TRACKS_KEY, type TrackMeta } from './tracks';
 
@@ -36,11 +36,15 @@ export class SoundLibrary {
   private saveTimer = 0;
   private bundled: BundledTrack[] = [];
   private hidden: string[];
+  /** Default mappings already given to the user (see OFFERED_KEY). */
+  private offered: string[];
 
   constructor() {
     this.tracks = parseTracks(parseJson(readStored(TRACKS_KEY)));
     const h = parseJson(readStored(HIDDEN_KEY));
     this.hidden = Array.isArray(h) ? h.filter((x): x is string => typeof x === 'string') : [];
+    const o = parseJson(readStored(OFFERED_KEY));
+    this.offered = Array.isArray(o) ? o.filter((x): x is string => typeof x === 'string') : [...FIRST_DEFAULTS];
     void loadBundled().then((b) => this.mergeBundled(b));
   }
 
@@ -72,6 +76,12 @@ export class SoundLibrary {
     let changed = this.tracks.length !== before;
     for (const b of list) {
       const t = this.get(b.id);
+      // Default mappings added since this track joined the list (even if its file was replaced).
+      for (const m of t ? b.mappings : []) {
+        if (this.offered.includes(`${b.id}>${m.presetId}`) || t?.mappings.some((x) => x.presetId === m.presetId)) continue;
+        t?.mappings.push({ ...m });
+        changed = true;
+      }
       if (t?.custom) continue;
       if (t) {
         changed ||= t.src !== b.src || t.size !== b.size;
@@ -89,6 +99,11 @@ export class SoundLibrary {
         });
         changed = true;
       }
+    }
+    const offered = list.flatMap((b) => b.mappings.map((m) => `${b.id}>${m.presetId}`));
+    if (offered.some((k) => !this.offered.includes(k))) {
+      this.offered = [...new Set([...this.offered, ...offered])];
+      writeStored(OFFERED_KEY, this.offered);
     }
     if (changed) this.changed(true);
   }
@@ -245,6 +260,32 @@ export class SoundLibrary {
       t.mappings.push({ presetId, volume });
     }
     this.changed(false);
+  }
+
+  /** The recordings that play with a scene, and their volumes there. */
+  sceneSounds(presetId: string): Map<string, number> {
+    const out = new Map<string, number>();
+    for (const t of this.tracks) {
+      const m = t.mappings.find((x) => x.presetId === presetId);
+      if (m) out.set(t.id, m.volume);
+    }
+    return out;
+  }
+
+  /** Makes exactly these recordings (track id → volume) play with a scene. */
+  setSceneSounds(presetId: string, sounds: ReadonlyMap<string, number>): void {
+    for (const t of this.tracks) {
+      const v = sounds.get(t.id);
+      const i = t.mappings.findIndex((m) => m.presetId === presetId);
+      if (v === undefined) {
+        if (i >= 0) t.mappings.splice(i, 1);
+      } else if (i >= 0) {
+        t.mappings[i].volume = v;
+      } else {
+        t.mappings.push({ presetId, volume: v });
+      }
+    }
+    this.changed(true);
   }
 
   /** A preset was deleted: forget every mapping to it. */

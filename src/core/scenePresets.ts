@@ -141,22 +141,50 @@ export function parseUserScenes(raw: unknown): ScenePreset[] {
   return out;
 }
 
-/** Validates stored built-in overrides; unknown ids are dropped. */
-export function parseOverrides(raw: unknown): Record<string, SceneValues> {
-  const out: Record<string, SceneValues> = {};
+/** The user's edit of a built-in scene: its effects and its time (name and id stay). */
+export interface BuiltInEdit {
+  values: SceneValues;
+  hours: number | null;
+  skyTurn: number;
+}
+
+/**
+ * Validates stored built-in edits; unknown ids are dropped. Before 2026-10-20 only the effect
+ * values were stored ({ [id]: SceneValues }); those keep the built-in's time.
+ */
+export function parseOverrides(raw: unknown): Record<string, BuiltInEdit> {
+  const out: Record<string, BuiltInEdit> = {};
   if (!isRecord(raw)) return out;
   for (const p of BUILT_IN_SCENES) {
-    if (isRecord(raw[p.id])) out[p.id] = parseSceneValues(raw[p.id]);
+    const r = raw[p.id];
+    if (!isRecord(r)) continue;
+    if (isRecord(r.values)) {
+      const hours = 'hours' in r ? parseHours(r.hours) : p.hours;
+      out[p.id] = { values: parseSceneValues(r.values), hours, skyTurn: hours === null ? 0 : parseSkyTurn(r.skyTurn) };
+    } else {
+      out[p.id] = { values: parseSceneValues(r), hours: p.hours, skyTurn: p.skyTurn };
+    }
   }
   return out;
 }
 
+/** What the scene editor saves. */
+export interface SceneDraft {
+  name: string;
+  values: SceneValues;
+  hours: number | null;
+  /** Degrees; ignored without a time of day. */
+  skyTurn: number;
+}
+
+export type SaveError = 'empty' | 'taken' | 'full';
+
 type Listener = () => void;
 
-/** Built-in scenes plus the user's own (localStorage). Saving under an existing name overwrites it. */
+/** Built-in scenes plus the user's own (localStorage). */
 export class ScenePresetStore {
   private user: ScenePreset[];
-  private overrides: Record<string, SceneValues>;
+  private overrides: Record<string, BuiltInEdit>;
   private readonly listeners: Listener[] = [];
 
   constructor() {
@@ -164,18 +192,21 @@ export class ScenePresetStore {
     this.overrides = parseOverrides(parseJson(readStored(SCENE_OVERRIDES_KEY)));
   }
 
-  /** Built-ins (with the user's edits applied) followed by the user's own presets. */
+  /** Built-ins (with the user's edits applied) followed by the user's own scenes. */
   all(): ScenePreset[] {
-    const builtIns = BUILT_IN_SCENES.map((p) => (this.overrides[p.id] ? { ...p, values: { ...this.overrides[p.id] } } : p));
+    const builtIns = BUILT_IN_SCENES.map((p) => {
+      const o = this.overrides[p.id];
+      return o ? { ...p, values: { ...o.values }, hours: o.hours, skyTurn: o.skyTurn } : p;
+    });
     return [...builtIns, ...this.user];
   }
 
-  /** A built-in preset whose values the user has changed. */
+  /** A built-in scene the user has changed. */
   isModified(id: string): boolean {
     return id in this.overrides;
   }
 
-  /** Restores a built-in preset's original values. */
+  /** Restores a built-in scene's original effects and time. */
   resetBuiltIn(id: string): void {
     if (!(id in this.overrides)) return;
     delete this.overrides[id];
@@ -186,38 +217,44 @@ export class ScenePresetStore {
     return this.all().find((p) => p.id === id);
   }
 
-  /** Returns the saved preset, or null if the name is empty or the list is full. */
-  save(name: string, values: SceneValues, hours: number | null, skyTurn = 0): ScenePreset | null {
-    const clean = sanitizePresetName(name);
-    if (!clean) return null;
-    const i = this.user.findIndex((p) => p.name.toLowerCase() === clean.toLowerCase());
-    if (i < 0 && this.user.length >= MAX_USER_PRESETS) return null;
+  /** A new scene of the user's, or why it can't be saved. */
+  create(draft: SceneDraft): ScenePreset | SaveError {
+    const name = sanitizePresetName(draft.name);
+    if (!name) return 'empty';
+    if (this.nameTaken(name, '')) return 'taken';
+    if (this.user.length >= MAX_USER_PRESETS) return 'full';
     const preset: ScenePreset = {
-      id: i >= 0 ? this.user[i].id : `u-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
-      name: clean,
+      id: `u-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
+      name,
       builtIn: false,
-      values: { ...values },
-      hours,
-      skyTurn: hours === null ? 0 : parseSkyTurn(skyTurn),
+      values: { ...draft.values },
+      hours: draft.hours,
+      skyTurn: draft.hours === null ? 0 : parseSkyTurn(draft.skyTurn),
     };
-    if (i >= 0) this.user[i] = preset;
-    else this.user.push(preset);
+    this.user.push(preset);
     this.persist();
     return preset;
   }
 
-  /** Overwrites a preset's values (keeps its name and time). Built-ins keep their original for reset. */
-  update(id: string, values: SceneValues): boolean {
+  /**
+   * Saves an edited scene: effects and time, and the name for the user's own (a built-in keeps
+   * its name, and its original stays available for "Khôi phục gốc").
+   */
+  edit(id: string, draft: SceneDraft): ScenePreset | SaveError {
+    const hours = draft.hours;
+    const skyTurn = hours === null ? 0 : parseSkyTurn(draft.skyTurn);
     if (BUILT_IN_SCENES.some((b) => b.id === id)) {
-      this.overrides[id] = { ...values };
+      this.overrides[id] = { values: { ...draft.values }, hours, skyTurn };
       this.persist();
-      return true;
+      return this.get(id) ?? 'empty';
     }
     const p = this.user.find((x) => x.id === id);
-    if (!p) return false;
-    p.values = { ...values };
+    const name = sanitizePresetName(draft.name);
+    if (!p || !name) return 'empty';
+    if (this.nameTaken(name, id)) return 'taken';
+    Object.assign(p, { name, values: { ...draft.values }, hours, skyTurn });
     this.persist();
-    return true;
+    return p;
   }
 
   remove(id: string): void {
@@ -227,6 +264,11 @@ export class ScenePresetStore {
 
   onChange(listener: Listener): void {
     this.listeners.push(listener);
+  }
+
+  private nameTaken(name: string, exceptId: string): boolean {
+    const n = name.toLowerCase();
+    return this.all().some((p) => p.id !== exceptId && p.name.toLowerCase() === n);
   }
 
   private persist(): void {
