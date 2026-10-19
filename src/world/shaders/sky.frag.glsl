@@ -50,9 +50,16 @@ vec3 stars(vec3 dir) {
       col += tint * s * bright * twinkle;
     }
   }
-  // Milky Way: a faint, mottled band across the sky.
-  float band = exp(-pow(dot(d, normalize(vec3(0.35, 0.25, 0.9))), 2.0) * 22.0);
-  float dust = cFbm(vec2(atan(d.x, d.z) * 3.0, d.y * 6.0));
+  // Milky Way: a faint, mottled band across the sky (the great circle around pole n). The
+  // dust noise is sampled in the band's own frame: (u, v) go round the band, so there is no
+  // seam, and the only pinch point is the pole n, where the band is invisible. (An atan()
+  // angle around the star frame's Y axis pinched at the band's edge into a burst of rays.)
+  vec3 n = normalize(vec3(0.35, 0.25, 0.9));
+  vec3 u = normalize(cross(n, vec3(0.0, 1.0, 0.0)));
+  vec3 v = cross(n, u);
+  float lat = dot(d, n);
+  float band = exp(-lat * lat * 22.0);
+  float dust = cFbm(vec2(dot(d, u), dot(d, v)) * 3.0 + lat * vec2(4.0, -5.0));
   col += vec3(0.55, 0.6, 0.85) * band * smoothstep(0.35, 0.8, dust) * 0.22;
   return col;
 }
