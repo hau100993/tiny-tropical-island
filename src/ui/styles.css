@@ -1173,3 +1173,10 @@ kbd.key {
 .seg-group.five {
   grid-template-columns: repeat(5, 1fr);
 }
+
+.btn.danger {
+  background: #c2410c;
+  border-color: #c2410c;
+  color: #ffffff;
+  font-weight: 600;
+}

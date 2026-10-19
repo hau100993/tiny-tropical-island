@@ -113,7 +113,8 @@ deleted). Up to 30 presets of your own.
    preset fades its recordings in over ~3 s and the previous scene's out. Tags under the name
    show the mapping; the active scene's tag is highlighted.
 4. ⚙ also renames, **Thay file…** (replace the audio with another file from your PC, keeping
-   the name, volume and scene mappings), or deletes (deleting removes the browser copy only).
+   the name, volume and scene mappings), or deletes (click **Xóa file**, then again to confirm; deleting removes the browser copy
+   only).
 
 **Built-in recordings.** Two 15-minute recordings ship with the app and appear in the list
 marked *có sẵn*: **Ban ngày trên đảo** (plays with *Ngày nắng*) and **Ban đêm trên đảo** (plays

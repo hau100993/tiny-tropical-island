@@ -111,6 +111,7 @@ export const vi = {
     confirmDelete: (name: string) => `Xóa "${name}" khỏi trình duyệt? File gốc trên máy vẫn còn.`,
     bundled: 'có sẵn',
     hide: 'Ẩn khỏi danh sách',
+    confirmAgain: 'Bấm lần nữa để xác nhận',
     confirmHide: (name: string) => `Ẩn "${name}"? Có thể hiện lại bằng nút "Hiện âm thanh có sẵn".`,
     restore: (n: number) => `Hiện âm thanh có sẵn (${n})`,
     replace: 'Thay file…',

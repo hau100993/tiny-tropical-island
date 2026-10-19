@@ -33,9 +33,18 @@ export class LibraryView {
   private replacing = '';
   /** Track whose details are open. */
   private open = '';
-  /** Rebuilding the list while a slider is dragged would drop the drag. */
+  /**
+   * Rebuilding the list replaces its buttons and sliders. Doing that while a slider is dragged
+   * drops the drag, and doing it between a button's press and release swallows the click. So
+   * while the mouse is down in the panel, a slider is dragged or one has focus, a rebuild waits
+   * (`pending`) and runs once the click has been handled.
+   */
   private dragging = false;
+  private pressing = false;
   private pending = false;
+  /** Delete button armed by a first click (a second one within a few seconds deletes). */
+  private armed = '';
+  private armTimer = 0;
 
   constructor(private readonly deps: LibraryViewDeps) {
     this.root = el('div', 'library');
@@ -80,13 +89,17 @@ export class LibraryView {
       deps.startAudio();
       void this.addFiles(Array.from(e.dataTransfer?.files ?? []));
     });
-    this.list.addEventListener('focusout', () => {
-      window.setTimeout(() => this.pending && this.render(), 0);
-    });
-    this.root.addEventListener('pointerup', () => {
-      this.dragging = false;
-      if (this.pending) this.render();
-    });
+    this.root.addEventListener('pointerdown', () => (this.pressing = true), true);
+    // Released anywhere (even outside the panel): the click event comes first, then rebuild.
+    window.addEventListener('pointerup', () => {
+      if (!this.pressing && !this.dragging) return;
+      window.setTimeout(() => {
+        this.pressing = false;
+        this.dragging = false;
+        this.flush();
+      }, 0);
+    }, true);
+    this.list.addEventListener('focusout', () => window.setTimeout(() => this.flush(), 0));
 
     deps.library.onChange(() => this.render());
     deps.scenes.onChange(() => this.render());
@@ -110,10 +123,15 @@ export class LibraryView {
     this.msg.textContent = r === 'ok' ? vi.library.replaced : `${file.name}: ${vi.library.errors[r]}`;
   }
 
+  /** Runs a rebuild that was held back, if nothing holds it any more. */
+  private flush(): void {
+    if (this.pending) this.render();
+  }
+
   private render(): void {
     const focused = document.activeElement;
     const usingSlider = focused instanceof HTMLInputElement && focused.type === 'range' && this.list.contains(focused);
-    if (this.dragging || usingSlider) {
+    if (this.dragging || this.pressing || usingSlider) {
       this.pending = true;
       return;
     }
@@ -240,10 +258,24 @@ export class LibraryView {
     if (t.custom) actions.append(button(vi.library.original, () => void library.useOriginal(t.id), 'btn small'));
     // Bundled recordings ship with the app: they can only be hidden from the list.
     const bundled = library.isBundled(t.id);
-    const del = button(bundled ? vi.library.hide : vi.library.delete, () => {
-      const ask = bundled ? vi.library.confirmHide(t.name) : vi.library.confirmDelete(t.name);
-      if (window.confirm(ask)) void library.remove(t.id);
-    }, 'btn small');
+    // Two-step delete on the button itself (a browser confirm() can be blocked for the page):
+    // the first click arms it, a second click within a few seconds deletes.
+    const armed = this.armed === t.id;
+    const del = button(armed ? vi.library.confirmAgain : bundled ? vi.library.hide : vi.library.delete, () => {
+      window.clearTimeout(this.armTimer);
+      if (this.armed === t.id) {
+        this.armed = '';
+        void library.remove(t.id);
+        return;
+      }
+      this.armed = t.id;
+      this.armTimer = window.setTimeout(() => {
+        this.armed = '';
+        this.render();
+      }, 4000);
+      this.render();
+    }, armed ? 'btn small danger' : 'btn small');
+    del.title = bundled ? vi.library.confirmHide(t.name) : vi.library.confirmDelete(t.name);
     actions.append(del);
     const origin = bundled ? ` · ${t.custom ? vi.library.custom : vi.library.bundled}` : '';
     box.append(el('div', 'hint', `${formatSize(t.size)}${origin}`), actions);
@@ -252,9 +284,5 @@ export class LibraryView {
 
   private trackDrag(input: HTMLInputElement): void {
     input.addEventListener('pointerdown', () => (this.dragging = true));
-    input.addEventListener('change', () => {
-      this.dragging = false;
-      if (this.pending) this.render();
-    });
   }
 }
