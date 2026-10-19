@@ -39,7 +39,7 @@ PLAN.md       approved plan and roadmap (keep updated)
    - Audio starts only after a user gesture (start screen).
    - Spatial touch in first-person: louder waves near shore, louder birds near forest, muffled rain inside the house.
 7. **Pomodoro:** small overlay, 25/5 default and configurable, gentle chime, optional "storm calms down during breaks".
-8. **Quality:** Low/Medium/High presets (water resolution, particles, shadows, pixel ratio). "Low power" mode: 30 fps, light effects, and stop rendering when the tab is hidden. Hide-UI key for a clean wallpaper view. Respect `prefers-reduced-motion`.
+8. **Quality:** Low/Medium/High presets (water resolution, particles, shadows, pixel ratio). Stop rendering when the tab is hidden. ("Low power" mode was removed on request, 2026-10-19.) Hide-UI key for a clean wallpaper view. Respect `prefers-reduced-motion`.
 
 ## Working rules
 - Work in phases from `PLAN.md`. After each phase tell me exactly how to run it and what to test, then wait for my feedback before continuing.

@@ -41,8 +41,7 @@ The island shows right away, no start screen. Browsers only allow sound after yo
 with the page, so the sound starts with your **first click or key press anywhere** (a small
 note at the bottom of the screen says so until then).
 
-Want it silent? Turn on **Chỉ ngắm cảnh (không âm thanh)** in the *Âm thanh* section: the sound
-then never starts by itself (and is muted if it was playing). The choice is remembered.
+Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mute is remembered).
 
 ## Controls
 
@@ -62,19 +61,18 @@ then never starts by itself (and is muted if it was playing). The choice is reme
 | `B` | Work desk: sit down at the desk in the house (from anywhere) / get up |
 | `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up |
 | `Esc` | Seated (desk or bathtub): get up |
-| `L` | Toggle low-power mode (30 fps, Low-level water, no shadows) |
 | `` ` `` (backquote) | Show/hide the stats overlay (FPS, CPU/GPU ms, draw calls) |
 
 ### Control panel (top right)
 
-- **Âm thanh (sound):** master volume and mute, *Chỉ ngắm cảnh*, **Âm tổng hợp khi chưa có
+- **Âm thanh (sound):** master volume and mute, **Âm tổng hợp khi chưa có
   file** (the synthesized fallback, see below), and **Âm thanh của tôi**, your recordings.
 - **Cảnh (scene):** pick a scene preset, save the current effects as your own, update or delete
   your presets; sliders for rain, snow, wind, waves, clouds and gloom, and the rainbow.
 - **Bầu trời (sky):** day length, clock, night options (shooting stars, aurora, stars, fireflies).
 - **Hiển thị (display):** **Góc làm việc (B)**, **Mở app ở góc làm việc** (start the app
   sitting at the desk), walk, character view, footsteps, **Pomodoro (T)**, quality
-  (Thấp / Vừa / Cao), low power, camera auto-rotate. Anti-aliasing changes between Low and the
+  (Thấp / Vừa / Cao), camera auto-rotate. Anti-aliasing changes between Low and the
   other qualities apply after a page reload.
 
 ## Scene presets and your recordings
@@ -102,12 +100,14 @@ deleted). Up to 30 presets of your own.
    volume (e.g. "Sóng biển 1h" at 70 % in *Hoàng hôn* and 100 % in *Bão*). Choosing such a
    preset fades its recordings in over ~3 s and the previous scene's out. Tags under the name
    show the mapping; the active scene's tag is highlighted.
-4. ⚙ also renames or deletes (deleting removes the browser copy only).
+4. ⚙ also renames, **Thay file…** (replace the audio with another file from your PC, keeping
+   the name, volume and scene mappings), or deletes (deleting removes the browser copy only).
 
 **Built-in recordings.** Two 15-minute recordings ship with the app and appear in the list
 marked *có sẵn*: **Ban ngày trên đảo** (plays with *Ngày nắng*) and **Ban đêm trên đảo** (plays
 with *Đêm lửa trại*). They stream from the site instead of being copied into the browser, and
-you can change their volume, mappings and name like your own. ⚙ → **Ẩn khỏi danh sách** hides
+you can change their volume, mappings and name like your own, or **Thay file…** with a file of
+your own (**Dùng lại file gốc** switches back). ⚙ → **Ẩn khỏi danh sách** hides
 one; **Hiện âm thanh có sẵn** brings it back. To ship more, put files in
 `public/audio/library/` and list them in `library.json` there (`id`, `name`, `file`, `mappings`
 with preset ids such as `b-sunny`, `b-campfire`); a listed file that is missing is skipped.
@@ -176,7 +176,7 @@ the next part, reset, settings (⚙), hide (✕).
   sessions (0 = never), and three switches:
   - **Tự chạy tiếp** — the next part starts by itself (otherwise the timer waits for you).
   - **Chuông báo** — a soft bell when a part ends (falling notes into a break, rising back to
-    focus). It rings even when the soundscape is muted with `M`, but not in *Chỉ ngắm cảnh*.
+    focus). It rings even when the soundscape is muted with `M`.
   - **Bão dịu đi khi nghỉ** — during breaks rain, wind and snow (sound *and* visuals) ease down to
     30 % over ~20 s, and come back when focus starts.
 - The browser tab title shows the countdown (e.g. `18:42 · Tập trung`), so you can see it on the
