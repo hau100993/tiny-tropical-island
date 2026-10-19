@@ -162,6 +162,7 @@ export class App {
       applyScene: (id) => this.applyScene(id),
       onSceneDeleted: (id) => this.library.dropPreset(id),
       getHours: () => this.world.dayNight.hours,
+      getSkyTurn: () => this.world.dayNight.skyTurn,
       setHours: (h) => this.world.dayNight.setHours(h),
       status: () => this.screenInfo(),
       view: () => (this.cameras.mode === 'seat' ? this.cameras.seat : this.cameras.mode),
@@ -254,7 +255,10 @@ export class App {
       patch.timePaused = true;
     }
     this.settings.update(patch);
-    if (p.hours !== null) this.world.dayNight.setHours(p.hours);
+    if (p.hours !== null) {
+      this.world.dayNight.setHours(p.hours);
+      this.world.dayNight.setSkyTurn(p.skyTurn);
+    }
   }
 
   /**

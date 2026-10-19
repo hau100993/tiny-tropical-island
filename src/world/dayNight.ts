@@ -17,6 +17,9 @@ import { parseJson, readStored, writeStored } from '../core/storage';
 import { METEOR_SLOTS, type SharedUniforms } from '../core/uniforms';
 
 const CLOCK_KEY = 'tsw.clock';
+const SKY_TURN_KEY = 'tsw.skyTurn';
+/** Seconds (time constant) for the sky to swing to a new scene's direction. */
+const TURN_EASE = 1.2;
 const MOON_COLOR = new THREE.Color('#9fb4ff');
 
 /** What the weather contributes to the sky this frame. */
@@ -59,6 +62,9 @@ export class DayNight {
   private readonly meteorSide = new THREE.Vector3();
   private readonly meteorUp = new THREE.Vector3();
   private elevation = 0;
+  /** Sky turn (radians): current, eased toward the target. */
+  private turn = 0;
+  private turnTarget = 0;
 
   constructor(
     private readonly shared: SharedUniforms,
@@ -67,6 +73,8 @@ export class DayNight {
   ) {
     const stored = parseJson(readStored(CLOCK_KEY));
     this.hours = typeof stored === 'number' && stored >= 0 && stored < 24 ? stored : 9.5;
+    const turn = parseJson(readStored(SKY_TURN_KEY));
+    this.turn = this.turnTarget = typeof turn === 'number' && Number.isFinite(turn) ? wrapAngle(turn) : 0;
     window.addEventListener('pagehide', () => this.save());
     document.addEventListener('visibilitychange', () => this.save());
   }
@@ -79,6 +87,17 @@ export class DayNight {
   setHours(h: number): void {
     this.hours = ((h % 24) + 24) % 24;
     this.save();
+  }
+
+  /** Sky direction for a scene, in degrees (0 = the real east-west arc). Swings there smoothly. */
+  setSkyTurn(degrees: number): void {
+    this.turnTarget = wrapAngle((degrees * Math.PI) / 180);
+    writeStored(SKY_TURN_KEY, this.turnTarget);
+  }
+
+  /** The sky direction being turned to, in degrees. */
+  get skyTurn(): number {
+    return Math.round((this.turnTarget * 180) / Math.PI);
   }
 
   private save(): void {
@@ -94,8 +113,12 @@ export class DayNight {
       this.save();
     }
 
-    sunDirection(this.hours, this.sun);
-    moonDirection(this.hours, this.moon);
+    // Shortest way round to the target direction.
+    this.turn += wrapAngle(this.turnTarget - this.turn) * (1 - Math.exp(-dt / TURN_EASE));
+    if (Math.abs(wrapAngle(this.turnTarget - this.turn)) < 1e-4) this.turn = this.turnTarget;
+    u.uSkyTurn.value = this.turn;
+    sunDirection(this.hours, this.sun, this.turn);
+    moonDirection(this.hours, this.moon, this.turn);
     const e = this.sun.y;
     this.elevation = e;
     u.uSunDir.value.copy(this.sun);
@@ -230,6 +253,11 @@ export class DayNight {
   get sunElevation(): number {
     return this.elevation;
   }
+}
+
+/** Wraps an angle to (−π, π]. */
+function wrapAngle(a: number): number {
+  return Math.atan2(Math.sin(a), Math.cos(a));
 }
 
 /** Blends a color toward its own grey (luminance) — overcast without changing brightness much. */

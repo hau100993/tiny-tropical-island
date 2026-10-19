@@ -41,6 +41,13 @@ describe('scene presets', () => {
     expect(list[0]).toMatchObject({ id: 'u0', name: 'dup', builtIn: false, hours: null });
     expect(list[1]).toMatchObject({ id: 'u1', hours: 1 });
     expect(parseUserScenes([{ id: 'a', name: 'A', hours: 'x' }])[0].hours).toBeNull();
+    // Sky turn: kept (wrapped) with a time of day, 0 without one or when missing.
+    const turned = parseUserScenes([
+      { id: 'a', name: 'A', hours: 18, skyTurn: 200 },
+      { id: 'b', name: 'B', hours: 18 },
+      { id: 'c', name: 'C', hours: null, skyTurn: 90 },
+    ]);
+    expect(turned.map((p) => p.skyTurn)).toEqual([-160, 0, 0]);
     expect(sanitizePresetName('  Mưa   đêm ')).toBe('Mưa đêm');
   });
 });

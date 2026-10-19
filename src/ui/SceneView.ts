@@ -12,6 +12,7 @@ export interface SceneViewDeps {
   /** A user preset was deleted (its recording mappings go too). */
   onDeleted: (id: string) => void;
   getHours: () => number;
+  getSkyTurn: () => number;
 }
 
 /** Icon per built-in preset; the user's own presets get a bookmark. */
@@ -180,7 +181,7 @@ export class SceneView {
   private savePreset(): void {
     const { scenes, settings } = this.deps;
     const hours = this.withTime.root.getAttribute('aria-pressed') === 'true' ? this.deps.getHours() : null;
-    const saved = scenes.save(this.saveInput.value, sceneValuesOf(settings.get()), hours);
+    const saved = scenes.save(this.saveInput.value, sceneValuesOf(settings.get()), hours, this.deps.getSkyTurn());
     if (!saved) {
       this.msg.textContent = vi.scene.saveFailed;
       return;

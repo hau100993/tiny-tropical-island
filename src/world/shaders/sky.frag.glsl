@@ -5,6 +5,7 @@ uniform float uStars;
 uniform float uAurora;
 uniform float uRainbow;
 uniform float uStarRotation;
+uniform float uSkyTurn;
 // Size must match METEOR_SLOTS in core/uniforms.ts.
 #define METEOR_SLOTS 8
 uniform vec4 uMeteorA[METEOR_SLOTS];
@@ -26,8 +27,10 @@ vec3 rotateAxis(vec3 v, vec3 k, float a) {
 }
 
 vec3 stars(vec3 dir) {
-  // The star field turns around the same axis as the sun's daily arc.
-  vec3 d = rotateAxis(dir, normalize(vec3(0.0, -0.343, 0.939)), -uStarRotation);
+  // The star field turns around the same axis as the sun's daily arc, and with the scene's
+  // sky turn (undone first: rotating around +Y by +a lowers the azimuth by a).
+  vec3 d = rotateAxis(dir, vec3(0.0, 1.0, 0.0), uSkyTurn);
+  d = rotateAxis(d, normalize(vec3(0.0, -0.343, 0.939)), -uStarRotation);
   vec3 col = vec3(0.0);
   // Two layers: many faint stars and a few bright ones.
   for (int layer = 0; layer < 2; layer++) {

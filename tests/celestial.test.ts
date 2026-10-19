@@ -23,6 +23,17 @@ describe('sun and moon', () => {
     expect(sunDirection(0).y).toBeLessThan(-0.9);
   });
 
+  it('a sky turn rotates sun and moon around the vertical only', () => {
+    const a = sunDirection(17.7);
+    const b = sunDirection(17.7, undefined, Math.PI / 2);
+    expect(b.y).toBeCloseTo(a.y, 6);
+    const d = Math.atan2(b.z, b.x) - Math.atan2(a.z, a.x);
+    expect(Math.atan2(Math.sin(d), Math.cos(d))).toBeCloseTo(Math.PI / 2, 6);
+    const m = moonDirection(19, undefined, -1);
+    expect(m.y).toBeCloseTo(moonDirection(19).y, 6);
+    expect(m.length()).toBeCloseTo(1, 6);
+  });
+
   it('the moon is up at midnight and down at noon', () => {
     expect(moonDirection(0).y).toBeGreaterThan(0.8);
     expect(moonDirection(12).y).toBeLessThan(-0.8);

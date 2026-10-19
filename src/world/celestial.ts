@@ -9,16 +9,30 @@ import { smoothstep } from '../core/math';
 /** Tilt of the sun's daily arc toward +Z (radians): noon sun is high but not overhead. */
 const ARC_TILT = 0.35;
 
-/** Sun rises in the east (+X) at 06:00, culminates at 12:00, sets in the west (−X) at 18:00. */
-export function sunDirection(hours: number, out = new THREE.Vector3()): THREE.Vector3 {
+/**
+ * Sun rises in the east (+X) at 06:00, culminates at 12:00, sets in the west (−X) at 18:00.
+ * `turn` (radians) rotates the whole sky around the vertical: a scene can bring its sunrise,
+ * sunset or moon into the desk window (see ScenePreset.skyTurn).
+ */
+export function sunDirection(hours: number, out = new THREE.Vector3(), turn = 0): THREE.Vector3 {
   const theta = ((hours - 6) / 24) * Math.PI * 2;
-  return out.set(Math.cos(theta), Math.sin(theta) * Math.cos(ARC_TILT), Math.sin(theta) * Math.sin(ARC_TILT)).normalize();
+  out.set(Math.cos(theta), Math.sin(theta) * Math.cos(ARC_TILT), Math.sin(theta) * Math.sin(ARC_TILT)).normalize();
+  return turnSky(out, turn);
 }
 
 /** Moon opposite the sun in height, mirrored in Z so it isn't exactly antipodal. */
-export function moonDirection(hours: number, out = new THREE.Vector3()): THREE.Vector3 {
+export function moonDirection(hours: number, out = new THREE.Vector3(), turn = 0): THREE.Vector3 {
   sunDirection(hours, out);
-  return out.set(-out.x, -out.y, out.z * 0.6 + 0.25).normalize();
+  out.set(-out.x, -out.y, out.z * 0.6 + 0.25).normalize();
+  return turnSky(out, turn);
+}
+
+/** Rotates a sky direction around +Y so its azimuth atan2(z, x) grows by `turn`. */
+export function turnSky(v: THREE.Vector3, turn: number): THREE.Vector3 {
+  if (turn === 0) return v;
+  const c = Math.cos(turn);
+  const s = Math.sin(turn);
+  return v.set(v.x * c - v.z * s, v.y, v.x * s + v.z * c);
 }
 
 export interface SkyPalette {

@@ -37,6 +37,11 @@ export interface ScenePreset {
   values: SceneValues;
   /** Time of day to jump to (hours), or null to keep the current time. */
   hours: number | null;
+  /**
+   * With a time of day: turns the sky around the vertical (degrees) so the sun or moon of that
+   * moment is in the desk window. 0 = the real arc (sun rises east, sets west, behind the desk).
+   */
+  skyTurn: number;
 }
 
 const BOOL_KEYS: ReadonlySet<SceneKey> = new Set(['rainbow', 'stars', 'fireflies']);
@@ -57,16 +62,18 @@ export const DEFAULT_SCENE: Readonly<SceneValues> = {
   fireflies: true,
 };
 
-function builtIn(id: string, name: string, hours: number | null, v: Partial<SceneValues>): ScenePreset {
-  return { id, name, builtIn: true, values: { ...DEFAULT_SCENE, ...v }, hours };
+function builtIn(id: string, name: string, hours: number | null, v: Partial<SceneValues>, skyTurn = 0): ScenePreset {
+  return { id, name, builtIn: true, values: { ...DEFAULT_SCENE, ...v }, hours, skyTurn };
 }
 
 export const BUILT_IN_SCENES: readonly ScenePreset[] = [
-  builtIn('b-dawn', 'Bình minh ơi', 6.05, {
+  // Sky turns put the sun/moon in the desk window, a little left of center (the panel covers
+  // the right): sunrise ~25° left, sunset ~12° left, the full moon ~15° left and 17° up.
+  builtIn('b-dawn', 'Bình minh ơi', 6.2, {
     visualWind: 0.12, waveStrength: 0.2, clouds: 0.45, gloom: 0, meteors: 0, aurora: 0, fireflies: false,
-  }),
+  }, 15),
   builtIn('b-sunny', 'Ngày nắng', 10, { visualWind: 0.25, waveStrength: 0.4, clouds: 0.25 }),
-  builtIn('b-sunset', 'Hoàng hôn yên ả', 17.7, { visualWind: 0.15, waveStrength: 0.25, clouds: 0.4 }),
+  builtIn('b-sunset', 'Hoàng hôn yên ả', 17.7, { visualWind: 0.15, waveStrength: 0.25, clouds: 0.4 }, -150),
   builtIn('b-storm', 'Bão nhiệt đới', null, {
     visualRain: 0.9, visualWind: 0.85, waveStrength: 0.95, clouds: 1, gloom: 0.6, fireflies: false,
   }),
@@ -74,9 +81,9 @@ export const BUILT_IN_SCENES: readonly ScenePreset[] = [
   builtIn('b-campfire', 'Đêm lửa trại', 21, {
     visualWind: 0.15, waveStrength: 0.25, clouds: 0.15, meteors: 0.6, aurora: 0, fireflies: true,
   }),
-  builtIn('b-full-moon', 'Đêm trăng tròn', 20.6, {
+  builtIn('b-full-moon', 'Đêm trăng tròn', 19.25, {
     visualWind: 0.1, waveStrength: 0.18, clouds: 0.2, meteors: 0.15, aurora: 0, moonlight: 1, fireflies: true,
-  }),
+  }, 15),
   builtIn('b-misty', 'Sáng sương mù', 6.4, { visualWind: 0.05, waveStrength: 0.15, clouds: 0.6, gloom: 0.4 }),
   builtIn('b-aurora', 'Đêm tuyết cực quang', 22.5, {
     visualSnow: 0.6, visualWind: 0.2, waveStrength: 0.2, clouds: 0.1, aurora: 1, meteors: 0.5, fireflies: false,
@@ -111,6 +118,11 @@ function parseHours(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? ((v % 24) + 24) % 24 : null;
 }
 
+/** Degrees, wrapped to [−180, 180); 0 when missing (presets saved before sky turns). */
+export function parseSkyTurn(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) ? ((((v + 180) % 360) + 360) % 360) - 180 : 0;
+}
+
 /** Validates the stored user presets; invalid entries are dropped, the list is capped. */
 export function parseUserScenes(raw: unknown): ScenePreset[] {
   if (!Array.isArray(raw)) return [];
@@ -121,7 +133,9 @@ export function parseUserScenes(raw: unknown): ScenePreset[] {
     const name = sanitizePresetName(item.name);
     if (!name) continue;
     ids.add(item.id);
-    out.push({ id: item.id, name, builtIn: false, values: parseSceneValues(item.values), hours: parseHours(item.hours) });
+    const hours = parseHours(item.hours);
+    const skyTurn = hours === null ? 0 : parseSkyTurn(item.skyTurn);
+    out.push({ id: item.id, name, builtIn: false, values: parseSceneValues(item.values), hours, skyTurn });
     if (out.length >= MAX_USER_PRESETS) break;
   }
   return out;
@@ -173,7 +187,7 @@ export class ScenePresetStore {
   }
 
   /** Returns the saved preset, or null if the name is empty or the list is full. */
-  save(name: string, values: SceneValues, hours: number | null): ScenePreset | null {
+  save(name: string, values: SceneValues, hours: number | null, skyTurn = 0): ScenePreset | null {
     const clean = sanitizePresetName(name);
     if (!clean) return null;
     const i = this.user.findIndex((p) => p.name.toLowerCase() === clean.toLowerCase());
@@ -184,6 +198,7 @@ export class ScenePresetStore {
       builtIn: false,
       values: { ...values },
       hours,
+      skyTurn: hours === null ? 0 : parseSkyTurn(skyTurn),
     };
     if (i >= 0) this.user[i] = preset;
     else this.user.push(preset);

@@ -27,6 +27,8 @@ export interface PanelDeps {
   applyScene: (id: string) => void;
   onSceneDeleted: (id: string) => void;
   getHours: () => number;
+  /** Current sky direction (degrees), stored with presets saved with the time. */
+  getSkyTurn: () => number;
   setHours: (hours: number) => void;
   /** Scene, what is playing and the island time (the status line). */
   status: () => ScreenInfo;
@@ -141,6 +143,7 @@ export class Panel {
         applyScene: deps.applyScene,
         onDeleted: deps.onSceneDeleted,
         getHours: deps.getHours,
+        getSkyTurn: deps.getSkyTurn,
       }).root,
     );
 

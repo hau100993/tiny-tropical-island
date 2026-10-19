@@ -91,9 +91,9 @@ On/off options are switches; buttons only do things.
 
 A **scene preset** sets the weather and sky effects (rain, snow, wind, waves, clouds, gloom,
 rainbow, moonlight, stars, shooting stars, aurora, fireflies) and, if saved with one, a time of day.
-Built in: *Bình minh ơi* (sunrise at 06:03), *Ngày nắng*, *Hoàng hôn yên ả*, *Bão nhiệt đới*,
-*Mưa rừng*, *Đêm lửa trại*, *Đêm trăng tròn* (20:36, a big bright moon rising in the east: turn
-the camera east to see it and its path on the sea), *Sáng sương mù*, *Đêm tuyết cực quang*. Your own presets: set the sliders, then
+Built in: *Bình minh ơi* (sunrise, 06:12), *Ngày nắng*, *Hoàng hôn yên ả* (sunset, 17:42),
+*Bão nhiệt đới*, *Mưa rừng*, *Đêm lửa trại*, *Đêm trăng tròn* (19:15, a big bright full moon and
+its path on the sea), *Sáng sương mù*, *Đêm tuyết cực quang*. Your own presets: set the sliders, then
 **Lưu thành preset…** (turn on **Kèm giờ hiện tại** to store the time too; saving under an
 existing name overwrites it). Moving a slider afterwards shows *(đã chỉnh)*; **Cập nhật preset**
 writes the new values into the selected preset, built-in ones included. An edited built-in
@@ -308,7 +308,14 @@ The other sky options are scene effects (*Cảnh → Tùy chỉnh hiệu ứng*)
 | Cực quang | Green-violet aurora curtains toward the north. |
 | Đom đóm | Fireflies blinking around the garden and forest edge at night. |
 
-The sun rises in the east and sets in the west; dawn and dusk paint the horizon. At night the
+**Sky direction per scene.** The desk window faces east, so the real sunset would be behind
+you. *Bình minh ơi*, *Hoàng hôn yên ả* and *Đêm trăng tròn* therefore turn the whole sky (sun,
+moon, stars) around the vertical so their sun or moon sits in the desk window, a little left of
+the monitors; the sky swings there smoothly when you pick the scene. Any other scene with a time
+of day turns it back to the real direction (scenes without a time keep the current one). Your own
+presets saved with **Kèm giờ hiện tại** keep the sky direction too.
+
+The sun rises in the east and sets in the west (with the real sky direction); dawn and dusk paint the horizon. At night the
 moon lights the scene in silver and leaves a glittering path on the sea, the house windows and
 porch lantern light up, birds fall silent and crickets start (needs the *Chim hót* layer on).
 The chosen time is remembered between sessions.

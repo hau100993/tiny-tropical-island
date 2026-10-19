@@ -28,6 +28,7 @@ export function createSky(shared: SharedUniforms): Sky {
       uAurora: u.uAurora,
       uRainbow: u.uRainbow,
       uStarRotation: u.uStarRotation,
+      uSkyTurn: u.uSkyTurn,
       uMeteorA: u.uMeteorA,
       uMeteorB: u.uMeteorB,
       uCloudCover: u.uCloudCover,
