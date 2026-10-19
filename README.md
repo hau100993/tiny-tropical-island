@@ -27,6 +27,14 @@ Other scripts:
 | `npm run preview` | Serve the built `dist/` locally (works offline) |
 | `npm test` | Unit tests (Vitest) |
 
+### Public demo (GitHub Pages)
+
+Live at **https://hau100993.github.io/tiny-tropical-island/**. Every push to `main` rebuilds it
+via [.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml) (one-time setup:
+repo **Settings → Pages → Source: GitHub Actions**). The public site has no audio files (they are
+git-ignored), so visitors hear the synthesized sounds; recordings a visitor adds stay in their
+own browser.
+
 ## First start
 
 The island shows right away, no start screen. Browsers only allow sound after you interact
