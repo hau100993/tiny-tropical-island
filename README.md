@@ -153,7 +153,8 @@ ceramics are rounded and smooth-shaded. Trees are kept out of the view from the 
 and press **E** next to the chair. At the desk:
 
 - **drag** with the mouse to look around (screens, the sea, the room); **scroll** to lean in and
-  read the screens; **E**, **Esc** or **B** to get up. The mouse stays free, so the panel and the
+  read the screens; **E**, **Esc** or **B** to get up: you stand next to the chair, in the room
+  (even if you sat down from the orbit view; **C** then takes you back to it). The mouse stays free, so the panel and the
   Pomodoro card work as usual.
 - **Left monitor:** a code editor that slowly types code (a few files of this project).
   **Right monitor:** the clock and date, the Pomodoro timer, the scene preset and its effects,

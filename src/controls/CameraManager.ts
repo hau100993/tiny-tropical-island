@@ -26,8 +26,6 @@ export class CameraManager {
   mode: CameraMode = 'orbit';
   /** Which seat, while mode is 'seat'. */
   seat: SeatId = 'desk';
-  /** Where getting up goes back to. */
-  private seatReturn: 'orbit' | 'walk' = 'orbit';
   private readonly savedPos = new THREE.Vector3();
   private readonly savedTarget = new THREE.Vector3();
   private readonly listeners: Array<(mode: CameraMode) => void> = [];
@@ -62,9 +60,12 @@ export class CameraManager {
     this.setMode('seat', animate);
   }
 
-  /** Stand up again: back to walking next to the seat, or to the orbit view. */
+  /**
+   * Stand up: always on your feet next to the seat, in the room, however you sat down (from the
+   * orbit view too; `C` then goes back to that view, kept as it was).
+   */
   getUp(): void {
-    if (this.mode === 'seat') this.setMode(this.seatReturn);
+    if (this.mode === 'seat') this.setMode('walk');
   }
 
   setMode(mode: CameraMode, animate = false): void {
@@ -83,7 +84,6 @@ export class CameraManager {
     }
     // Enter the new one.
     if (mode === 'seat') {
-      this.seatReturn = from === 'walk' ? 'walk' : 'orbit';
       this.sitter.enter(this.seats[this.seat].seat, animate);
     } else if (mode === 'walk') {
       if (from === 'seat') {
