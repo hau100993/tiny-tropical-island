@@ -46,6 +46,23 @@ export function inHouseView(house: Placement, x: number, z: number): boolean {
   return lz > 2 && lz < 90 && Math.abs(lx) < 5 + lz;
 }
 
+/** The deck's steps (house-local x of their center line, half their width). */
+export const STAIRS = { x: 2.5, halfWidth: 0.72 } as const;
+
+/**
+ * True on the steps or the way out from them (house-local: a strip a little wider than the
+ * flight, from the deck edge to ~3 m past its foot). Bushes and flowers stay out of it.
+ */
+export function inStairsPath(house: Placement, x: number, z: number): boolean {
+  const dx = x - house.x;
+  const dz = z - house.z;
+  const c = Math.cos(house.rotY);
+  const s = Math.sin(house.rotY);
+  const lx = dx * c - dz * s;
+  const lz = dx * s + dz * c;
+  return Math.abs(lx - STAIRS.x) < STAIRS.halfWidth + 1.3 && lz > 4.2 && lz < 4.6 + 2.6 + 3.2;
+}
+
 /** Compass direction (radians, in the x-z plane) the house faces. */
 const HOUSE_ANGLE = 0.7;
 

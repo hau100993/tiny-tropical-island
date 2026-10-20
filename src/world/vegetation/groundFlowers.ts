@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PlantBuilder } from './plantBuilder';
 import type { Heightmap } from '../heightmap';
-import type { Placement } from '../layout';
+import { inStairsPath, type Placement } from '../layout';
 import { patchWorldMaterial } from '../patchMaterial';
 import { fbm2, type Noise2D } from '../../core/noise';
 import { createRng, randRange, type Rng } from '../../core/rng';
@@ -42,7 +42,7 @@ export class GroundFlowers {
         const x = randRange(rng, -extent, extent);
         const z = randRange(rng, -extent, extent);
         if (hm.surfaceAt(x, z) !== 'grass') continue;
-        if (Math.hypot(x - house.x, z - house.z) < 5.5) continue;
+        if (Math.hypot(x - house.x, z - house.z) < 5.5 || inStairsPath(house, x, z)) continue;
         // Each color has its own patch pattern, so meadows are mixed but not uniform.
         const patch = 0.5 + 0.5 * fbm2(noise, x * 0.06 + ci * 37, z * 0.06 - ci * 19, 2);
         if (rng() > Math.pow(Math.max(0, (patch - 0.45) / 0.55), 1.5)) continue;

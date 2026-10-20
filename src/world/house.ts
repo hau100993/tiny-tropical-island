@@ -6,13 +6,13 @@ import { cylinder, DESK, furnish, LAMP, MUG, ORCHID, type InteriorParts } from '
 import { createContactShadows, type ShadowSpot } from './contactShadows';
 import { createMugLogo } from './mugLogo';
 import type { Heightmap } from './heightmap';
-import type { Placement } from './layout';
+import { STAIRS, type Placement } from './layout';
 import { createRng } from '../core/rng';
 
 /**
  * Modern minimalist wooden house on stilts: one room (x ∈ [-3.5, 3.5], z ∈ [-2.5, 2.5] in local
  * space) with a floor-to-ceiling glass wall toward the sea (local +Z), a deck in front
- * (z ∈ [2.5, 4.6]) with steps down at its right end, and a mono-pitch roof rising toward the sea
+ * (z ∈ [2.5, 4.6]) with wide steps down at its right end (bougainvillea climbing the handrails), and a mono-pitch roof rising toward the sea
  * with solar panels and a Starlink dish. Inside, Japanese-style and sparse: a desk with two
  * monitors facing the glass, a futon on tatami, a sofa, a wooden bathtub behind shoji screens.
  */
@@ -315,8 +315,8 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
 
   // ---- Deck: glass railing with a wooden cap, open at the steps ----
   const railH = 1.0;
-  const stairsX = 2.8;
-  const stairsHalf = 0.5;
+  const stairsX = STAIRS.x;
+  const stairsHalf = STAIRS.halfWidth;
   const edge = D.deckFront - 0.05;
   const railSegs: Array<[number, number, number, number]> = [
     [-3.55, edge, stairsX - stairsHalf - 0.05, edge],
@@ -360,9 +360,11 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
     b.box(0.05, 0.95, 0.05, x, yTopPost + 0.475, D.deckFront + 0.05, FRAME);
     b.box(0.05, 0.95, 0.05, x, yFoot + 0.475, D.deckFront + run - 0.1, FRAME);
     b.box(0.045, 0.045, stringerLen - 0.1, x, (yTopPost + yFoot) / 2 + 0.93, D.deckFront + run / 2 - 0.02, OAK, slant);
+    // Own random stream, so the rest of the house keeps its exact look.
+    climbingFlowers(parts.leaf, createRng(seed + 101 + sx), x, sx, { y: yTopPost, z: D.deckFront + 0.05 }, { y: yFoot, z: D.deckFront + run - 0.1 });
   }
   // Stone pad at the foot.
-  b.box(1.4, 0.12, 0.7, stairsX, stepGround + 0.02, D.deckFront + run + 0.25, '#8f8d86');
+  b.box(stairsHalf * 2 + 0.4, 0.12, 0.7, stairsX, stepGround + 0.02, D.deckFront + run + 0.25, '#8f8d86');
   const stairsLen = Math.max(0, count - 1) * STEP_DEPTH;
   // Lower half of the flight for the camera (the upper treads are under the floor box).
   cameraSolids.push({
@@ -603,4 +605,80 @@ function keyboardBacklight(): THREE.ShaderMaterial {
       }`,
     toneMapped: false,
   });
+}
+
+const VINE_LEAVES = ['#2f6b2a', '#3b7d32', '#285a24', '#4a8a3a'] as const;
+const BRACTS = ['#d81b78', '#e0458f', '#c2185b', '#ea6aa6'] as const;
+
+/**
+ * Bougainvillea climbing a stair handrail: a leafy vine up the foot post, spiralling along the
+ * rail with a few strands hanging below it, and clusters of magenta bracts (thickest toward the
+ * foot, where the plant is rooted). `top` and `foot` are the two posts (base y, house-local z);
+ * the rail runs 0.93 m above the line between them.
+ */
+function climbingFlowers(
+  leaf: GeoBuilder,
+  rng: () => number,
+  x: number,
+  side: number,
+  top: { y: number; z: number },
+  foot: { y: number; z: number },
+): void {
+  const leafGeo = (): THREE.BufferGeometry => new THREE.OctahedronGeometry(1, 0);
+  const put = (px: number, py: number, pz: number, sx: number, sy: number, sz: number, color: string): void => {
+    const g = leafGeo();
+    g.scale(sx, sy, sz);
+    g.rotateX(rng() * Math.PI);
+    g.rotateY(rng() * Math.PI * 2);
+    g.rotateZ((rng() - 0.5) * 1.2);
+    g.translate(px, py, pz);
+    leaf.add(g, color);
+  };
+  const pick = <T,>(list: readonly T[]): T => list[Math.floor(rng() * list.length)];
+  const leafAt = (px: number, py: number, pz: number): void =>
+    put(px, py, pz, 0.045 + rng() * 0.025, 0.008, 0.028 + rng() * 0.012, pick(VINE_LEAVES));
+  const bracts = (px: number, py: number, pz: number): void => {
+    const n = 6 + Math.floor(rng() * 5);
+    for (let i = 0; i < n; i++) {
+      put(
+        px + (rng() - 0.5) * 0.1,
+        py + (rng() - 0.5) * 0.07,
+        pz + (rng() - 0.5) * 0.1,
+        0.024 + rng() * 0.01,
+        0.005,
+        0.02 + rng() * 0.008,
+        pick(BRACTS),
+      );
+    }
+  };
+  // Up the foot post, wrapping around it.
+  for (let y = foot.y + 0.02; y < foot.y + 0.95; y += 0.018) {
+    const a = y * 14 + rng() * 2;
+    const r = 0.05 + rng() * 0.03;
+    leafAt(x + Math.cos(a) * r, y, foot.z + Math.sin(a) * r);
+    if (rng() < 0.12) bracts(x + side * 0.07, y, foot.z + (rng() - 0.5) * 0.08);
+  }
+  // Along the rail, from the foot (t = 0) up toward the deck, thinning out near the top.
+  const dz = top.z - foot.z;
+  const dy = top.y - foot.y;
+  const len = Math.hypot(dz, dy);
+  for (let d = 0; d < len; d += 0.012) {
+    const t = d / len;
+    if (rng() > 1 - 0.5 * t * t) continue;
+    const ry = foot.y + 0.93 + dy * t;
+    const rz = foot.z + dz * t;
+    const a = d * 11 + rng() * 1.2;
+    const r = 0.05 + rng() * 0.045;
+    leafAt(x + Math.cos(a) * r, ry + Math.sin(a) * r, rz + (rng() - 0.5) * 0.03);
+    // Bract clusters sit on top and on the outer side, where the sun reaches.
+    if (rng() < 0.11 * (1 - 0.5 * t)) bracts(x + side * (0.03 + rng() * 0.05), ry + 0.05 + rng() * 0.04, rz);
+    // Now and then a strand hangs below the rail.
+    if (rng() < 0.03 * (1 - t)) {
+      const hang = 0.1 + rng() * 0.3;
+      for (let h = 0.04; h < hang; h += 0.025) {
+        leafAt(x + side * 0.03 + (rng() - 0.5) * 0.03, ry - h, rz + (rng() - 0.5) * 0.03);
+      }
+      if (rng() < 0.6) bracts(x + side * 0.03, ry - hang, rz);
+    }
+  }
 }

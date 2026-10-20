@@ -174,7 +174,8 @@ recording plays it fades out. So a scene with no recording is never silent.
 A modern, minimal wooden house on stilts, a few steps up from the beach: dark vertical board
 cladding, a mono-pitch roof with **8 solar panels** and a **Starlink** dish (battery and inverter
 under the floor), and a **floor-to-ceiling glass wall** facing the sea with a deck in front
-(glass railing, open wooden stairs with handrails at its right end, the sliding glass door is
+(glass railing, wide open wooden stairs (1.45 m) at its right end, with bougainvillea
+climbing the handrails and a clear way out from their foot, the sliding glass door is
 the way in). Inside, Japanese-style and sparse, under exposed timber beams: a tea corner by the
 left window (low chabudai table on tatami, zabuton cushions, a cast-iron teapot and cups, a book),
 a futon on tatami with a paper lantern, a low bookshelf, an open bath corner (no partitions: a

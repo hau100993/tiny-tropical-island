@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { SPECIES, type Site, type Species } from './species';
 import type { Heightmap } from '../heightmap';
-import { inHouseView, type Circle, type Placement } from '../layout';
+import { inHouseView, inStairsPath, type Circle, type Placement } from '../layout';
 import { createSwayDepthMaterial, patchWorldMaterial } from '../patchMaterial';
 import { fbm2, type Noise2D } from '../../core/noise';
 import { createRng, randRange } from '../../core/rng';
@@ -79,6 +79,8 @@ export function createForest(
       if (site.house < (sp.layer === 'tree' ? 9 + sp.radius * 0.5 : 6)) continue;
       if (sp.layer === 'tree' && clearings.some((c) => Math.hypot(c.x - x, c.z - z) < c.r)) continue;
       if (sp.layer === 'tree' && inHouseView(house, x, z)) continue;
+      // Keep the steps and the way out from them clear (the plant grows somewhere else).
+      if (inStairsPath(house, x, z)) continue;
       if (rng() > sp.habitat(site)) continue;
       const s = randRange(rng, sp.scale[0], sp.scale[1]);
       if (!grid.free(x, z, sp, s)) continue;
