@@ -24,6 +24,9 @@ import { KayakActivity } from '../activities/KayakActivity';
 import { createKayakEnv } from '../activities/kayakEnv';
 import type { BladeEvent, WaterSample } from '../activities/kayakPhysics';
 import { SwimEffects } from '../activities/swimEffects';
+import { Journal } from '../activities/journal';
+import { GoalTracker, createGoalFrame } from '../activities/goalTracker';
+import { JournalView } from '../ui/JournalView';
 import { Avatar, type AvatarPose, type SwimPose } from '../world/avatar';
 import type { ListenerState } from '../audio/spatial';
 import type { FootSurface } from '../audio/synth/footsteps';
@@ -71,6 +74,11 @@ export class App {
   /** Snow's muffle (0..1); diving muffles everything a lot more. */
   private snowMuffle = 0;
   private readonly activityMenu: ActivityMenu;
+  /** "Nhật ký": the sea goals, ticked by the tracker as you play. */
+  private readonly journal = new Journal(safeLocalStorage());
+  private readonly goals = new GoalTracker((id) => this.journal.complete(id));
+  private readonly goalFrame = createGoalFrame();
+  private readonly journalView: JournalView;
   private readonly cameras: CameraManager;
   private readonly deskView: DeskView;
   private readonly deskScreens: DeskScreens;
@@ -271,6 +279,7 @@ export class App {
     this.walkHint = new WalkHint(ui);
     this.activityMenu = new ActivityMenu(ui);
     this.breathMeter = new BreathMeter(ui);
+    this.journalView = new JournalView(ui, this.journal);
     this.fader = document.createElement('div');
     this.fader.className = 'fader';
     container.append(this.fader);
@@ -451,6 +460,7 @@ export class App {
         else if (this.cameras.mode === 'walk' && this.nearSea()) this.boardKayak();
       },
     });
+    this.keymap.register({ code: 'KeyJ', keyLabel: 'J', label: vi.shortcuts.journal, action: () => this.journalView.toggle() });
     this.keymap.register({
       code: 'KeyV',
       keyLabel: 'V',
@@ -683,6 +693,7 @@ export class App {
     const spot = this.tmpSpot;
     this.kayak.besideSpot(spot);
     this.reboardArmed = false;
+    this.journal.complete('swimJump');
     const { x, z, yaw } = spot;
     this.fadeThrough(() => {
       this.walker.placeAt(x, z, yaw);
@@ -702,11 +713,40 @@ export class App {
     if (d > REBOARD_ARM) this.reboardArmed = true;
     if (this.reboardArmed && d < REBOARD_NEAR && this.world.heightmap.heightAt(this.kayak.body.x, this.kayak.body.z) < -0.3) {
       this.reboardArmed = false;
+      this.journal.complete('swimReboard');
       this.fadeThrough(() => this.cameras.setMode('kayak'));
     }
   }
 
   private reboardArmed = true;
+
+  /** The journal's goals look at where you are and what you do, every frame. */
+  private updateGoals(dt: number): void {
+    const f = this.goalFrame;
+    const mode = this.cameras.mode;
+    const k = this.kayak.body;
+    const w = this.walker;
+    f.kayak = mode === 'kayak';
+    f.kx = k.x;
+    f.kz = k.z;
+    const boat = this.world.layout.boat;
+    f.rowboat = Math.hypot(k.x - boat.x, k.z - boat.z);
+    const fishing = this.world.fishingTrip.object.position;
+    f.fishing = Math.hypot(k.x - fishing.x, k.z - fishing.z);
+    f.swimming = mode === 'walk' && w.swimming;
+    f.diving = f.swimming && w.diving;
+    f.crawl = w.crawl;
+    f.speed = w.speed;
+    f.depth = f.diving ? w.surfaceY - w.bodyY : 0;
+    // Close above a reef rock (the reef's floor stands up from the seabed there).
+    if (f.diving) {
+      const floor = this.world.reef.floorAt(w.x, w.z);
+      f.overReef = floor - this.world.heightmap.heightAt(w.x, w.z) > 0.3 && w.bodyY - floor < 4;
+    } else {
+      f.overReef = false;
+    }
+    this.goals.update(dt, f);
+  }
 
   private fadeThrough(then: () => void): void {
     window.clearTimeout(this.faderTimer);
@@ -917,6 +957,7 @@ export class App {
 
     this.cameras.update(dt);
     this.updateListener(dt);
+    this.updateGoals(dt);
     this.updateAvatar(dt);
     this.world.update(dt, elapsed, this.camera, sea);
     this.deskScreens.update(dt, this.camera);
