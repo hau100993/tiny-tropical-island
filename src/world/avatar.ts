@@ -48,8 +48,6 @@ const C = {
   stripe: '#eeece4',
   bead: '#6b4a32',
   beadLight: '#a8835e',
-  sole: '#2b2f36',
-  strap: '#3f6f8f',
 } as const;
 
 /** Legs are scaled along their length; with it the soles (0.03 + (0.41 + 0.455) × scale below
@@ -508,8 +506,9 @@ function buildHand(skin: GeoBuilder, s: number): void {
     const z = -0.027 + k * 0.018;
     const r = 0.0082 - k * 0.0006;
     const L = lengths[k];
-    const a1 = 0.25;
-    const a2 = 0.85;
+    // A relaxed hand: fingers only a little curled (more looked like claws, swimming).
+    const a1 = 0.16;
+    const a2 = 0.45;
     const x1 = -s * Math.sin(a1) * L * 0.5;
     const y1 = -0.082 - Math.cos(a1) * L * 0.5;
     const x2 = x1 - s * Math.sin(a2) * L * 0.55;
@@ -522,45 +521,28 @@ function buildHand(skin: GeoBuilder, s: number): void {
   skin.add(capsule(0.0088, -s * 0.016, -0.062, -0.05, -s * 0.022, -0.084, -0.046), C.skin);
 }
 
-/** Bare foot on a flip-flop, pointing forward (−Z), hanging from the ankle; sole at −0.08. */
-function buildFoot(skin: GeoBuilder, cloth: GeoBuilder, s: number): void {
+/** Bare foot, pointing forward (−Z), hanging from the ankle; the sole at −0.08. */
+function buildFoot(skin: GeoBuilder, s: number): void {
   skin.add(
     place(
       sculpt(20, 14, (v) => {
         const front = smoothstep(0.3, -1, v.z);
         v.x *= 0.033 + 0.013 * front;
-        v.y *= v.y < 0 ? 0.022 : 0.04 * (1 - 0.6 * front);
+        // A fuller sole, flat underneath (heel and ball on the ground).
+        v.y *= v.y < 0 ? 0.026 : 0.04 * (1 - 0.6 * front);
         v.z *= 0.11;
       }),
       -s * 0.004,
-      -0.045,
+      -0.054,
       -0.052,
     ),
     C.skin,
   );
-  // Toes, big toe on the inside (−s).
+  // Toes, big toe on the inside (−s), resting on the ground.
   for (let k = 0; k < 5; k++) {
     const r = 0.0095 - k * 0.0011;
-    skin.add(place(ball(r, 8, 6), -s * 0.02 + s * k * 0.0105, -0.058, -0.155 + k * 0.008, 0, 0, 0, 1, 0.75, 1.3), C.skin);
+    skin.add(place(ball(r, 8, 6), -s * 0.02 + s * k * 0.0105, -0.072 + r * 0.4, -0.155 + k * 0.008, 0, 0, 0, 1, 0.75, 1.3), C.skin);
   }
-  // Sole, wider at the toes, and the Y strap from between the first toes to both sides.
-  cloth.add(
-    place(
-      sculpt(24, 6, (v) => {
-        const front = smoothstep(0.4, -1, v.z);
-        v.x *= 0.04 + 0.012 * front;
-        v.y *= 0.008;
-        v.z *= 0.128;
-      }),
-      -s * 0.004,
-      -0.072,
-      -0.06,
-    ),
-    C.sole,
-  );
-  const tx = -s * 0.012;
-  cloth.add(capsule(0.0045, tx, -0.068, -0.14, tx, -0.05, -0.12), C.strap);
-  for (const k of [-1, 1]) cloth.add(capsule(0.0045, tx, -0.05, -0.12, k * 0.037 - s * 0.004, -0.064, -0.055), C.strap);
 }
 
 /** Influences on one vertex: up to four (bone, weight) pairs. */
@@ -756,8 +738,6 @@ const swimAngles = (): SwimAngles => ({
 
 const frac = (x: number): number => x - Math.floor(x);
 const bump = (x: number, a: number, b: number): number => (x <= a || x >= b ? 0 : Math.sin((Math.PI * (x - a)) / (b - a)));
-/** Angle a → b by `t`, the short way round (for arm circles). */
-const lerpAngle = (a: number, b: number, t: number): number => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
 
 /**
  * Front crawl at cycle position `s`: each arm turns a full circle (entry overhead, pull under
@@ -775,9 +755,10 @@ function crawlAngles(s: number, out: SwimAngles): void {
     out.shZ[i] = side * (0.12 + 0.35 * rec);
     out.el[i] = 0.1 + 0.4 * pull + 1.5 * rec;
     const k = 6 * Math.PI * s + i * Math.PI;
-    out.hipX[i] = 0.22 * Math.sin(k);
+    // A narrow kick from the hips: the feet stay just under the surface.
+    out.hipX[i] = 0.13 * Math.sin(k);
     out.hipZ[i] = side * 0.05;
-    out.knee[i] = 0.2 + 0.35 * Math.max(0, Math.sin(k + 1.2));
+    out.knee[i] = 0.1 + 0.22 * Math.max(0, Math.sin(k + 1.2));
     out.ankle[i] = -1.25;
   }
   out.roll = 0.5 * Math.sin(2 * Math.PI * s);
@@ -824,6 +805,72 @@ function treadAngles(t: number, out: SwimAngles): void {
   out.roll = 0;
   out.headX = 0;
   out.headY = 0;
+}
+
+/**
+ * Hand paths for the strokes, in the torso's frame (+Y toward the head, −Z the chest, +X the
+ * right; the right hand, mirrored in X for the left): keyframes [cycle position, x, y, z], and
+ * where the palm faces [x, y, z]. A two-bone arm IK (elbow pole up and out, toward the back)
+ * reaches them, so the elbows bend by themselves: a high elbow in the crawl's pull, elbows out
+ * in the breaststroke, a relaxed recovery over the water.
+ */
+type HandKey = readonly [number, number, number, number, number, number, number];
+
+/** Front crawl, one arm (0 = entering the water in front of the shoulder). */
+const CRAWL_HAND: readonly HandKey[] = [
+  // t, position, palm
+  [0.0, 0.17, 0.86, -0.1, 0.2, -0.2, -1],
+  [0.12, 0.2, 0.74, -0.3, 0.1, -0.6, -0.8],
+  [0.26, 0.09, 0.36, -0.4, 0, -1, -0.3],
+  [0.4, 0.17, -0.04, -0.27, 0, -1, 0.2],
+  [0.5, 0.24, -0.26, -0.06, 0.4, -0.6, 0.6],
+  [0.62, 0.36, -0.06, 0.12, 1, 0, 0.4],
+  [0.76, 0.36, 0.34, 0.16, 0.7, 0.2, -0.6],
+  [0.9, 0.26, 0.7, 0.06, 0.3, 0, -1],
+];
+/** Breaststroke, both hands (0 = the glide, arms out in front). */
+const BREAST_HAND: readonly HandKey[] = [
+  [0.0, 0.07, 0.9, -0.13, 0.2, 0, -1],
+  [0.16, 0.4, 0.76, -0.15, 1, -0.3, -0.4],
+  [0.28, 0.32, 0.46, -0.33, 0.6, -1, -0.2],
+  [0.38, 0.08, 0.32, -0.24, -0.6, -0.5, -0.4],
+  [0.46, 0.05, 0.42, -0.16, -0.7, 0, -0.6],
+  [0.6, 0.06, 0.84, -0.12, 0, 0, -1],
+];
+/** Lying on the surfboard, one arm paddling (0 = reaching in ahead, past the rail). */
+const BOARD_HAND: readonly HandKey[] = [
+  [0.0, 0.36, 0.72, -0.22, 0.1, -0.4, -0.8],
+  [0.15, 0.4, 0.52, -0.46, 0, -1, -0.3],
+  [0.35, 0.38, 0.12, -0.42, 0, -1, 0.1],
+  [0.5, 0.36, -0.16, -0.2, 0.4, -0.5, 0.6],
+  [0.68, 0.42, 0.08, 0.04, 0.8, 0, 0.3],
+  [0.85, 0.4, 0.5, 0.0, 0.4, 0, -0.8],
+];
+
+/** Point (and palm) on a looped hand path at cycle position `t` (Catmull-Rom between keys). */
+function handOnPath(keys: readonly HandKey[], t: number, pos: THREE.Vector3, palm: THREE.Vector3): void {
+  const n = keys.length;
+  const f = frac(t);
+  let i = n - 1;
+  for (let k = 0; k < n; k++) if (keys[k][0] <= f) i = k;
+  const k1 = keys[i];
+  const k2 = keys[(i + 1) % n];
+  const t1 = k1[0];
+  const t2 = i + 1 < n ? k2[0] : 1 + keys[0][0];
+  const u = (f - t1) / Math.max(1e-6, t2 - t1);
+  const k0 = keys[(i - 1 + n) % n];
+  const k3 = keys[(i + 2) % n];
+  const cr = (a: number, b: number, c: number, d: number): number =>
+    0.5 * (2 * b + (c - a) * u + (2 * a - 5 * b + 4 * c - d) * u * u + (3 * b - a - 3 * c + d) * u * u * u);
+  pos.set(cr(k0[1], k1[1], k2[1], k3[1]), cr(k0[2], k1[2], k2[2], k3[2]), cr(k0[3], k1[3], k2[3], k3[3]));
+  palm.set(k1[4] + (k2[4] - k1[4]) * u, k1[5] + (k2[5] - k1[5]) * u, k1[6] + (k2[6] - k1[6]) * u).normalize();
+}
+
+/** Treading water: hands sculling out to the sides at chest height, palms down. */
+function treadHand(time: number, i: number, pos: THREE.Vector3, palm: THREE.Vector3): void {
+  const w = Math.sin(time * 3 + i * Math.PI);
+  pos.set(0.42 + 0.1 * w, 0.18, -0.2 + 0.04 * w);
+  palm.set(0.3 * w, -0.2, -1).normalize();
 }
 
 /** One leg's joint angles (rad) at gait cycle position `s` (0 = heel strike). */
@@ -933,6 +980,13 @@ const tmpBasis = new THREE.Matrix4();
 const swimA = swimAngles();
 const swimB = swimAngles();
 const swimC = swimAngles();
+const handA = new THREE.Vector3();
+const handB = new THREE.Vector3();
+const palmA = new THREE.Vector3();
+const palmB = new THREE.Vector3();
+/** Elbow pole for swimming (torso frame, right arm): out to the side and up toward the back. */
+const SWIM_POLE = new THREE.Vector3(0.75, 0.05, 0.65).normalize();
+const poleTmp = new THREE.Vector3();
 
 export class Avatar {
   readonly group = new THREE.Group();
@@ -1177,10 +1231,8 @@ export class Avatar {
         legW,
       );
       const footSkin = new GeoBuilder(rng, 0);
-      const footCloth = new GeoBuilder(rng, 0);
-      buildFoot(footSkin, footCloth, s);
+      buildFoot(footSkin, s);
       skin.add(scaleL(footSkin.build()), null, an);
-      cloth.add(scaleL(footCloth.build()), null, an);
     }
 
     // One skinned mesh per material, all sharing the skeleton: the GPU bends each vertex by
@@ -1383,7 +1435,7 @@ export class Avatar {
    * out, down and back. The shoulder gets a full orientation (basis matrix), the elbow a hinge
    * angle (law of cosines); the forearm twists so the palm wraps over the shaft.
    */
-  private reachArm(i: number, target: THREE.Vector3): void {
+  private reachArm(i: number, target: THREE.Vector3, poleTorso: THREE.Vector3 | null = null, palmWorld: THREE.Vector3 | null = null): void {
     const side = i === 0 ? -1 : 1;
     const sh = this.shoulders[i];
     tmpInv.copy(this.torso.matrixWorld).invert();
@@ -1393,7 +1445,8 @@ export class Avatar {
     const b = FOREARM;
     const len = clamp(d.length(), Math.abs(a - b) + 1e-3, a + b - 1e-3);
     d.normalize();
-    const pole = tmpC.set(side * 0.55, -0.55, 0.5).normalize();
+    // Where the elbow points (torso frame): given, or out, down and back (holding a paddle).
+    const pole = poleTorso ? tmpC.copy(poleTorso) : tmpC.set(side * 0.55, -0.55, 0.5).normalize();
     const perp = tmpD.copy(pole).addScaledVector(d, -pole.dot(d)).normalize();
     const cosA = clamp((a * a + len * len - b * b) / (2 * a * len), -1, 1);
     // Upper arm direction, rotated from the shoulder→palm line toward the pole.
@@ -1410,7 +1463,8 @@ export class Avatar {
     // paddler and down, about the forearm's axis.
     this.elbows[i].updateMatrixWorld(true);
     tmpInv.copy(this.elbows[i].matrixWorld).invert();
-    const want = tmpA.set(0, -0.8, 0.6).applyQuaternion(this.group.quaternion).add(this.elbows[i].getWorldPosition(tmpB)).applyMatrix4(tmpInv);
+    const dir = palmWorld ? tmpA.copy(palmWorld) : tmpA.set(0, -0.8, 0.6).applyQuaternion(this.group.quaternion);
+    const want = dir.add(this.elbows[i].getWorldPosition(tmpB)).applyMatrix4(tmpInv);
     this.wrists[i].rotation.set(0, Math.atan2(side * want.z, -side * want.x), 0);
   }
 
@@ -1462,10 +1516,6 @@ export class Avatar {
       return t + (stroke - t) * mv;
     };
     for (let i = 0; i < 2; i++) {
-      const arm = lerpAngle(swimB.shX[i], swimA.shX[i], cr);
-      this.shoulders[i].rotation.set(lerpAngle(swimC.shX[i], arm, mv), 0, mix(swimB.shZ[i], swimA.shZ[i], swimC.shZ[i]));
-      this.elbows[i].rotation.set(mix(swimB.el[i], swimA.el[i], swimC.el[i]), 0, 0);
-      this.wrists[i].rotation.set(0, 0, 0);
       this.hipJoints[i].rotation.set(mix(swimB.hipX[i], swimA.hipX[i], swimC.hipX[i]), 0, mix(swimB.hipZ[i], swimA.hipZ[i], swimC.hipZ[i]));
       this.knees[i].rotation.set(-mix(swimB.knee[i], swimA.knee[i], swimC.knee[i]), 0, 0);
       this.ankles[i].rotation.set(mix(swimB.ankle[i], swimA.ankle[i], swimC.ankle[i]), 0, 0);
@@ -1478,8 +1528,8 @@ export class Avatar {
     this.head.rotation.set(mix(swimB.headX, swimA.headX, swimC.headX), mix(swimB.headY, swimA.headY, swimC.headY), 0);
     this.head.scale.setScalar(p.firstPerson ? 0.001 : 1);
     // Lying along the water: tilted up from flat by `lift` (crawl flattest, treading upright),
-    // the breaststroke rising a little on each pull.
-    const strokeLift = 0.08 + 0.22 * (1 - cr) + 0.12 * (1 - cr) * bump(s, 0, 0.4);
+    // the breaststroke rising a little on each pull (to breathe).
+    const strokeLift = 0.06 + 0.08 * (1 - cr) + 0.14 * (1 - cr) * bump(s, 0.15, 0.45);
     let lift = 1.35 + (strokeLift - 1.35) * mv;
     if (!Number.isNaN(p.lift)) lift = p.lift;
     // Turning to dive or rise takes a moment.
@@ -1499,7 +1549,32 @@ export class Avatar {
       p.z - chest * sp * Math.cos(this.yaw),
     );
     root.updateMatrixWorld(true);
+    // Arms: the hands follow the stroke's path (blended: breaststroke → crawl, treading → stroke).
+    for (let i = 0; i < 2; i++) {
+      const side = i === 0 ? -1 : 1;
+      handOnPath(CRAWL_HAND, s + i * 0.5, handA, palmA);
+      handOnPath(BREAST_HAND, s, handB, palmB);
+      handB.lerp(handA, cr);
+      palmB.lerp(palmA, cr);
+      treadHand(this.time, i, handA, palmA);
+      handA.lerp(handB, mv);
+      palmA.lerp(palmB, mv);
+      this.armTo(i, side, handA, palmA, SWIM_POLE);
+    }
     this.blinkEyes(dt);
+  }
+
+  /**
+   * Arm IK to a hand position given in the torso's frame for the right arm (mirrored for the
+   * left), with the palm facing `palm` (same frame) and the elbow toward `pole`.
+   */
+  private armTo(i: number, side: number, hand: THREE.Vector3, palm: THREE.Vector3, pole: THREE.Vector3): void {
+    hand.x *= side;
+    palm.x *= side;
+    hand.applyMatrix4(this.torso.matrixWorld);
+    palm.transformDirection(this.torso.matrixWorld);
+    poleTmp.set(pole.x * side, pole.y, pole.z);
+    this.reachArm(i, hand, poleTmp, palm);
   }
 
   /**
@@ -1522,10 +1597,6 @@ export class Avatar {
       const k = p.paddling;
       for (let i = 0; i < 2; i++) {
         const side = i === 0 ? -1 : 1;
-        // Resting: hands by the shoulders on the rails; paddling: the full arm circle.
-        this.shoulders[i].rotation.set(lerpAngle(0.9, swimA.shX[i], k), 0, side * (0.35 + 0.2 * k) + swimA.shZ[i] * 0.5 * k);
-        this.elbows[i].rotation.set(1.3 + (swimA.el[i] - 1.3) * k, 0, 0);
-        this.wrists[i].rotation.set(0, 0, 0);
         this.hipJoints[i].rotation.set(0.02, 0, side * 0.05);
         this.knees[i].rotation.set(-0.06 - 0.12 * Math.max(0, Math.sin(this.time * 1.3 + i * 2)), 0, 0);
         this.ankles[i].rotation.set(-1.2, 0, 0);
@@ -1541,6 +1612,17 @@ export class Avatar {
       tmpP.set(0, 0.11, 1.12).applyMatrix4(p.board);
       root.position.copy(tmpP);
       root.updateMatrixWorld(true);
+      // Arms: paddling, each hand reaching in past the rail ahead and pulling back to the hip,
+      // half a stroke apart; resting, hands on the rails beside the chest.
+      for (let i = 0; i < 2; i++) {
+        const side = i === 0 ? -1 : 1;
+        handOnPath(BOARD_HAND, p.stroke + i * 0.5, handA, palmA);
+        handB.set(0.3, 0.3, -0.16);
+        palmB.set(0.6, 0, -1).normalize();
+        handB.lerp(handA, k);
+        palmB.lerp(palmA, k);
+        this.armTo(i, side, handB, palmB, SWIM_POLE);
+      }
       this.blinkEyes(dt);
       return;
     }
