@@ -8,7 +8,7 @@ import type { SharedUniforms } from '../core/uniforms';
 
 /**
  * The walker's body for the third-person view: a young man dressed for the beach (Korean
- * "two-block" hair with a soft fringe, slim-fit pale linen shirt with an open collar, board
+ * curtain hair: a middle part with two swept bangs framing the forehead, slim-fit pale linen shirt with an open collar, board
  * shorts, flip-flops, a bead bracelet), about 1.7 m tall, fair skin and a friendly face.
  * Original design built in code.
  *
@@ -197,10 +197,10 @@ function headPoint(dx: number, dy: number, dz: number, out: THREE.Vector3): THRE
   return out.set(x * HEAD.w, y * HEAD.h, z * HEAD.d);
 }
 
-/** Hairline height (unit-sphere y) by angle around the head: forehead, temples, over the
- * ears, down to the nape. */
+/** Hairline height (unit-sphere y) by angle around the head: forehead (high in the middle,
+ * where the curtain bangs part), temples, over the ears, down to the nape. */
 const HAIRLINE: ReadonlyArray<readonly [number, number]> = [
-  [0, 0.42], [0.7, 0.38], [1.2, 0.3], [1.5, 0.24], [1.8, 0.24], [2.3, -0.1], [2.8, -0.32], [Math.PI, -0.36],
+  [0, 0.6], [0.3, 0.52], [0.6, 0.4], [0.85, 0.36], [1.2, 0.3], [1.5, 0.24], [1.8, 0.24], [2.3, -0.1], [2.8, -0.32], [Math.PI, -0.36],
 ];
 
 function hairline(x: number, z: number): number {
@@ -215,13 +215,16 @@ function hairline(x: number, z: number): number {
 
 /**
  * Hair shell radius factor in a unit direction: below the hairline it sinks under the skin
- * (so the edge fades out instead of a rim); short at the sides and back, fuller on top and
- * lifted toward the front (the "two-block" cut).
+ * (so the edge fades out instead of a rim); short at the sides and back, full and lifted on
+ * top toward the front, with a shallow groove along the middle part (the curtain cut).
  */
 function hairScale(x: number, y: number, z: number): number {
   const t = smoothstep(hairline(x, z) - 0.16, hairline(x, z) + 0.04, y);
   const top = smoothstep(0.15, 0.85, y);
-  return 0.955 + t * (0.075 + 0.05 * top + 0.03 * Math.max(0, -z) * top);
+  const front = Math.max(0, -z);
+  // The part runs from the crown to the front hairline; the hair rises on both sides of it.
+  const part = Math.exp(-((x / 0.07) ** 2)) * smoothstep(0.15, -0.25, z) * top;
+  return 0.955 + t * (0.075 + 0.08 * top + 0.08 * front * top - 0.05 * part);
 }
 
 /**
@@ -246,7 +249,8 @@ function lock(
     const b = 2 * t * (1 - t);
     const d = t * t;
     dir.set(a * d0.x + b * c.x + d * d1.x, a * d0.y + b * c.y + d * d1.y, a * d0.z + b * c.z + d * d1.z).normalize();
-    const s = Math.max(hairScale(dir.x, dir.y, dir.z), 1.04);
+    // Just above the shell, so the strands are never buried in it.
+    const s = Math.max(hairScale(dir.x, dir.y, dir.z) + 0.012, 1.04);
     centers.push(headPoint(dir.x, dir.y, dir.z, new THREE.Vector3()).multiplyScalar(s));
   }
   const pos: number[] = [];
@@ -306,24 +310,32 @@ function lock(
 
 const v3 = (x: number, y: number, z: number): THREE.Vector3 => new THREE.Vector3(x, y, z);
 
-/** All the locks: fringe swept a little to one side, top flowing forward, back and sides down. */
+/**
+ * All the locks. Curtain bangs: from a middle part the hair lifts and sweeps out to each side,
+ * the front locks arching over the forehead down to the temples (forehead open in the middle,
+ * tips at the outer ends of the brows); top locks comb from the part down over the sides.
+ */
 function hairLocks(hair: GeoBuilder, rng: Rng): void {
   const jit = (a: number): number => (rng() - 0.5) * 2 * a;
-  // Fringe: from the front of the crown down over the forehead, tips just above the brows.
-  for (let i = 0; i <= 11; i++) {
-    const u = i / 11 - 0.5;
-    const d0 = v3(u * 0.8, 0.86, -0.45);
-    const c = v3(u * 0.9 + 0.08, 0.7, -1);
-    const d1 = v3(u * 1.05 + 0.16 + jit(0.03), 0.27 + jit(0.05) + Math.abs(u) * 0.2, -1);
-    hair.add(lock(d0, c, d1, 0.012 + rng() * 0.004, 0.006), C.hair);
-  }
-  // Top: from the crown, fanning forward and out to the sides.
-  for (let i = 0; i < 18; i++) {
-    const a = -1.9 + (3.8 * i) / 17 + jit(0.08);
-    const d0 = v3(jit(0.12), 1, 0.3 + jit(0.1));
-    const d1 = v3(Math.sin(a) * 0.9, 0.62 + jit(0.06), -Math.cos(a) * 0.9);
-    const c = v3((d0.x + d1.x) / 2, 1.05, (d0.z + d1.z) / 2);
-    hair.add(lock(d0, c, d1, 0.013 + rng() * 0.004, 0.007), C.hair);
+  const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
+  for (const s of [-1, 1]) {
+    // Curtain: roots along the front half of the part; the front ones arch over the forehead.
+    for (let i = 0; i <= 9; i++) {
+      const t = i / 9;
+      const d0 = v3(s * (0.03 + jit(0.01)), lerp(0.97, 0.66, t), lerp(-0.15, -0.74, t));
+      const d1 = v3(s * lerp(0.92, 0.66 + jit(0.03), t), lerp(0.48, 0.2, t) + jit(0.03), lerp(-0.2, -0.78, t));
+      // Lifted at the root, bulging forward and out, so the bangs have body.
+      const c = v3(s * lerp(0.55, 0.3, t), lerp(1.0, 0.72, t), lerp(-0.4, -1.05, t));
+      hair.add(lock(d0, c, d1, 0.013 + rng() * 0.004, 0.007), C.hair);
+    }
+    // Top: from the back half of the part, combed down over the side of the head.
+    for (let i = 0; i < 7; i++) {
+      const z = 0.05 + i * 0.08 + jit(0.03);
+      const d0 = v3(s * 0.03, 0.99, z);
+      const d1 = v3(s * 0.95, 0.45 + jit(0.05), z * 0.9);
+      const c = v3(s * 0.65, 1.0, z);
+      hair.add(lock(d0, c, d1, 0.014 + rng() * 0.004, 0.006), C.hair);
+    }
   }
   // Back: from the crown down toward the nape.
   for (let i = 0; i < 10; i++) {
