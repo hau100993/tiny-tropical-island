@@ -41,7 +41,7 @@ export interface WorldMaterialFeatures {
   /**
    * Terrain: blends the per-vertex sand and land colors with ragged, noise-driven edges, adds
    * sand grain/ripples and mottled grass, and a wet band that follows the surf up the beach.
-   * Needs the `aSandColor` and `aGrass` attributes (see terrain.ts).
+   * Needs the `aSandColor`, `aGrass` and `aTrail` attributes (see terrain.ts).
    */
   ground?: boolean;
   /** Rocks: triplanar grain, cracks, lichen and a wet band above the sea (no textures). */
@@ -115,8 +115,10 @@ const GROUND_VERT_PARS = /* glsl */ `
 #ifdef WORLD_GROUND
 attribute vec3 aSandColor;
 attribute float aGrass;
+attribute float aTrail;
 varying vec3 vSandColor;
 varying float vGrass;
+varying float vTrail;
 #endif
 `;
 
@@ -124,6 +126,7 @@ const GROUND_VERT = /* glsl */ `
 #ifdef WORLD_GROUND
   vSandColor = aSandColor;
   vGrass = aGrass;
+  vTrail = aTrail;
 #endif
 `;
 
@@ -141,6 +144,7 @@ uniform float uTime;
 uniform float uWaveStrength;
 varying vec3 vSandColor;
 varying float vGrass;
+varying float vTrail;
 #endif
 varying vec3 vWorldPosW;
 varying vec3 vWorldNormalW;
@@ -230,6 +234,15 @@ const SURFACE_GLSL = /* glsl */ `
     land *= 1.0 + (blades - 0.5) * 0.35 * fine;
     float soil;
     land *= 1.0 - 0.3 * speck(gp * 7.0 + 31.0, 0.94, soil) * fine;
+    // Footpath: trodden earth with leaf litter, its edges eaten by noise so it comes and goes
+    // between tufts and moss instead of reading as a ribbon.
+    float worn = smoothstep(0.5, 0.85, vTrail + (n1 - 0.5) * 0.8 + (n2 - 0.5) * 0.5 + (n3 - 0.5) * 0.2);
+    vec3 earth = vec3(0.27, 0.21, 0.13) * (0.8 + 0.35 * n3);
+    float leaf;
+    float litter = speck(gp * 5.0 - 13.0, 0.5, leaf);
+    earth = mix(earth, vec3(0.38, 0.29, 0.15) * (0.75 + 0.4 * leaf), litter * 0.6);
+    // Moss and grass creep back in over most of it: only the trodden middle is fully bare.
+    land = mix(land, earth, worn * (0.45 + 0.25 * smoothstep(0.3, 0.7, n2)));
     diffuseColor.rgb = mix(sand, land, g);
 
     // Wet sand from the swash (same function as the water surface): dark up to where the last

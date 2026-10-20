@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { PlantBuilder } from './plantBuilder';
 import type { Heightmap } from '../heightmap';
 import { inStairsPath, type Placement } from '../layout';
+import type { Trail } from '../trail';
 import { patchWorldMaterial } from '../patchMaterial';
 import { fbm2, type Noise2D } from '../../core/noise';
 import { createRng, randRange, type Rng } from '../../core/rng';
@@ -21,7 +22,7 @@ export class GroundFlowers {
   private readonly meshes: THREE.InstancedMesh[] = [];
   private readonly placed: number[] = [];
 
-  constructor(hm: Heightmap, noise: Noise2D, house: Placement, seed: number, shared: SharedUniforms) {
+  constructor(hm: Heightmap, noise: Noise2D, house: Placement, trail: Trail, seed: number, shared: SharedUniforms) {
     const rng = createRng(seed);
     this.group.name = 'ground-flowers';
     const material = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.7 });
@@ -38,6 +39,26 @@ export class GroundFlowers {
       const mesh = new THREE.InstancedMesh(clumpGeometry(rng, new THREE.Color(hex)), material, perColor);
       mesh.receiveShadow = true;
       let n = 0;
+      // First (so every quality level draws them): flowers along both edges of the footpath.
+      const pts = trail.points;
+      for (let k = 0; k < 160; k++) {
+        const i = Math.floor(rng() * (pts.length - 1));
+        const a = pts[i];
+        const b = pts[i + 1];
+        const f = rng();
+        const dx = b.x - a.x;
+        const dz = b.z - a.z;
+        const len = Math.hypot(dx, dz) || 1;
+        const side = (rng() < 0.5 ? -1 : 1) * randRange(rng, 0.8, 2.6);
+        const x = a.x + dx * f - (dz / len) * side;
+        const z = a.z + dz * f + (dx / len) * side;
+        if (hm.surfaceAt(x, z) !== 'grass' || trail.distance(x, z) < 0.7) continue;
+        p.set(x, hm.heightAt(x, z) - 0.02, z);
+        q.setFromAxisAngle(up, rng() * Math.PI * 2);
+        const sc = randRange(rng, 0.8, 1.4);
+        s.set(sc, sc, sc);
+        mesh.setMatrixAt(n++, m.compose(p, q, s));
+      }
       for (let attempt = 0; attempt < perColor * 40 && n < perColor; attempt++) {
         const x = randRange(rng, -extent, extent);
         const z = randRange(rng, -extent, extent);

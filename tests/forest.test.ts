@@ -11,7 +11,7 @@ const SEED = 20261017;
 const noise = createNoise2D(createRng(SEED));
 const hm = new Heightmap(ISLAND_CONFIG, noise);
 const layout = createLayout(hm, createRng(SEED + 1));
-const forest = createForest(hm, noise, layout.house, layout.clearings, SEED + 2, sharedUniforms);
+const forest = createForest(hm, noise, layout.house, layout.clearings, SEED + 2, sharedUniforms, layout.trail);
 
 describe('forest', () => {
   it('every species finds room to grow', () => {
@@ -27,6 +27,17 @@ describe('forest', () => {
     for (const id of ['banana', 'papaya', 'mango', 'emergent', 'canopy', 'frangipani', 'hibiscus', 'heliconia']) {
       expect(forest.counts[id], id).toBeGreaterThan(0);
     }
+  });
+
+  it('no trunk stands on the footpath', () => {
+    for (const t of forest.trunks) expect(layout.trail.distance(t.x, t.z)).toBeGreaterThan(1.5);
+  });
+
+  it('the footpath runs from the beach through the forest to the beach', () => {
+    const p = layout.trail.points;
+    for (const end of [p[0], p[p.length - 1]]) expect(hm.surfaceAt(end.x, end.z)).toBe('sand');
+    const mid = p[Math.floor(p.length / 2)];
+    expect(hm.inlandAt(mid.x, mid.z)).toBeGreaterThan(0.45);
   });
 
   it('no tree grows on the house', () => {

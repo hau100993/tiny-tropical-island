@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Heightmap } from './heightmap';
 import type { Placement } from './layout';
+import type { Trail } from './trail';
 import { patchWorldMaterial } from './patchMaterial';
 import { fbm2, type Noise2D } from '../core/noise';
 import { createRng, randRange } from '../core/rng';
@@ -18,7 +19,7 @@ export class Grass {
   readonly mesh: THREE.InstancedMesh;
   private readonly maxCount: number;
 
-  constructor(hm: Heightmap, noise: Noise2D, house: Placement, seed: number, shared: SharedUniforms) {
+  constructor(hm: Heightmap, noise: Noise2D, house: Placement, trail: Trail, seed: number, shared: SharedUniforms) {
     const rng = createRng(seed);
     const material = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.9 });
     patchWorldMaterial(material, { sway: 'grass', wet: true, porosity: 0.5, snow: true, twoSided: true }, shared);
@@ -39,6 +40,9 @@ export class Grass {
       const z = randRange(rng, -extent, extent);
       if (hm.surfaceAt(x, z) !== 'grass') continue;
       if (Math.hypot(x - house.x, z - house.z) < 5.5) continue;
+      // Fewer blades on the trodden footpath (a quarter in the middle), thinning in toward it.
+      const toTrail = trail.distance(x, z);
+      if (toTrail < 1.3 && rng() > 0.25 + (0.75 * toTrail) / 1.3) continue;
       // Clumps: more blades where the noise is high.
       const clump = 0.5 + 0.5 * fbm2(noise, x * 0.08 - 11, z * 0.08 + 5, 2);
       if (rng() > 0.25 + 0.75 * clump) continue;

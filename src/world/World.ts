@@ -7,6 +7,7 @@ import { GroundFlowers } from './vegetation/groundFlowers';
 import { createHouse, type HouseInfo } from './house';
 import { createRocks, createBeachSet, createBoat, type Rocks } from './props';
 import { createFishingBoat, FishingTrip } from './fishingBoat';
+import { createLightShafts } from './lightShafts';
 import { DESK } from './houseInterior';
 import { createSky, type Sky } from './sky';
 import { createLighting, type Lighting } from './lighting';
@@ -86,16 +87,19 @@ export function createWorld(
 
   const lighting = createLighting(scene);
 
-  const terrain = createTerrainMesh(heightmap, noise);
+  const terrain = createTerrainMesh(heightmap, noise, layout.trail);
   scene.add(terrain);
 
-  const forest = createForest(heightmap, noise, layout.house, layout.clearings, WORLD_SEED + 2, shared);
+  const forest = createForest(heightmap, noise, layout.house, layout.clearings, WORLD_SEED + 2, shared, layout.trail);
   scene.add(forest.group);
 
-  const grass = new Grass(heightmap, noise, layout.house, WORLD_SEED + 7, shared);
+  const grass = new Grass(heightmap, noise, layout.house, layout.trail, WORLD_SEED + 7, shared);
   scene.add(grass.mesh);
-  const flowers = new GroundFlowers(heightmap, noise, layout.house, WORLD_SEED + 8, shared);
+  const flowers = new GroundFlowers(heightmap, noise, layout.house, layout.trail, WORLD_SEED + 8, shared);
   scene.add(flowers.group);
+  // Sunbeams through the canopy over the footpath.
+  const shafts = createLightShafts(heightmap, layout.trail, WORLD_SEED + 11, shared);
+  scene.add(shafts);
 
   const house = createHouse(heightmap, layout.house, WORLD_SEED + 3);
   scene.add(house.group);
@@ -141,9 +145,9 @@ export function createWorld(
   scene.add(fireflies.points);
   // The refraction capture only needs what lies under the water. Sky and particles would show
   // up twice; vegetation is all on land, so skipping it saves most of the capture's cost.
-  water.setCaptureHidden([sky.mesh, ...weather.particleMeshes, forest.group, grass.mesh, flowers.group, fireflies.points]);
+  water.setCaptureHidden([sky.mesh, ...weather.particleMeshes, forest.group, grass.mesh, flowers.group, fireflies.points, shafts]);
   // Reflections keep the trees (that's what you want to see mirrored) but skip small stuff.
-  water.setReflectionHidden([sky.mesh, ...weather.particleMeshes, grass.mesh, flowers.group, fireflies.points]);
+  water.setReflectionHidden([sky.mesh, ...weather.particleMeshes, grass.mesh, flowers.group, fireflies.points, shafts]);
 
   return {
     heightmap,

@@ -25,7 +25,7 @@ Other scripts:
 |---|---|
 | `npm run build` | Type-check + production build into `dist/` |
 | `npm run preview` | Serve the built `dist/` locally (works offline) |
-| `npm test` | Unit tests (Vitest) |
+| `npm test` | Unit tests (Vitest; run through `scripts/test.mjs`, which works around a Vitest bug on Windows when the folder is opened as `d:\…` with a lower-case drive letter) |
 
 ### Public demo (GitHub Pages)
 
@@ -402,6 +402,15 @@ The island is zoned like a real tropical island, from the coast inward:
 | Garden around the house | banana clumps (with fruit bunch and purple bud), papaya, mango and breadfruit trees with fruit, frangipani (white or pink blossoms), hibiscus bushes (red, yellow, pink) |
 | Rainforest (inland, up the hill) | canopy trees in varied greens (one variant flowers crimson-orange like a flame tree), emergent giants with buttress roots, tree ferns; a dark mossy floor with leaf litter |
 | Understory and floor | shrubs, ground ferns, heliconia ("lobster claw" flowers), wildflower meadows in four colors on the grass |
+
+**The forest trail:** a faint footpath starts on the beach a little to the left of the house (seen
+from the sea), winds through the heart of the rainforest and comes out on the beach on the far
+side (~160 m). It is only half there: trodden earth and leaf litter in the middle, moss and grass
+creeping back over it, ferns and shrubs crowding its edges and wildflowers along both sides;
+the big trunks stand back so it stays walkable and their crowns meet overhead. On sunny days,
+shafts of sunlight slant down through the canopy onto the path (they follow the sun, fade with
+clouds and rain, and slowly breathe as the leaves move). Walk it with `C`; look up to see the
+sky through the leaves.
 
 All plants are generated in code and drawn with one shared material (one draw call per plant
 variant); wind bends each species according to its stiffness.

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Heightmap } from './heightmap';
 import type { Noise2D } from '../core/noise';
+import type { Trail } from './trail';
 import { smoothstep } from '../core/math';
 
 const DEEP_SAND = new THREE.Color('#9c8a66');
@@ -19,13 +20,15 @@ const LEAF_LITTER = new THREE.Color('#5f5230');
  *
  * - `color`: the land color (grass, forest floor, rock),
  * - `aSandColor`: the beach color (dry, wet, under water),
- * - `aGrass`: 0 = sand … 1 = land, a soft ramp around the sand line.
+ * - `aGrass`: 0 = sand … 1 = land, a soft ramp around the sand line,
+ * - `aTrail`: 1 on the footpath's centerline, fading out ~2 m to the sides (the shader adds
+ *   noise and sharpens it into a worn, broken strip of earth).
  *
  * The fragment shader (patchMaterial, WORLD_GROUND) adds world-space noise to `aGrass` and
  * sharpens it, so the sand/grass edge is ragged and crisp at any distance instead of following
  * the 1.5 m grid, and it adds the fine detail (sand grain and ripples, mottled grass).
  */
-export function createTerrainMesh(hm: Heightmap, noise: Noise2D): THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial> {
+export function createTerrainMesh(hm: Heightmap, noise: Noise2D, trail: Trail): THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial> {
   const seg = hm.config.segments;
   const res = hm.res;
   const count = res * res;
@@ -33,6 +36,7 @@ export function createTerrainMesh(hm: Heightmap, noise: Noise2D): THREE.Mesh<THR
   const land = new Float32Array(count * 3);
   const sand = new Float32Array(count * 3);
   const grass = new Float32Array(count);
+  const path = new Float32Array(count);
   const color = new THREE.Color();
   const tmp = new THREE.Color();
 
@@ -50,6 +54,7 @@ export function createTerrainMesh(hm: Heightmap, noise: Noise2D): THREE.Mesh<THR
       sand.set([color.r, color.g, color.b], v * 3);
       const line = hm.sandLineAt(x, z);
       grass[v] = h < 0.3 ? 0 : smoothstep(line - 0.25, line + 0.25, h);
+      path[v] = 1 - smoothstep(0.2, 1.9, trail.distance(x, z));
     }
   }
 
@@ -72,6 +77,7 @@ export function createTerrainMesh(hm: Heightmap, noise: Noise2D): THREE.Mesh<THR
   geometry.setAttribute('color', new THREE.BufferAttribute(land, 3));
   geometry.setAttribute('aSandColor', new THREE.BufferAttribute(sand, 3));
   geometry.setAttribute('aGrass', new THREE.BufferAttribute(grass, 1));
+  geometry.setAttribute('aTrail', new THREE.BufferAttribute(path, 1));
   geometry.setIndex(new THREE.BufferAttribute(index, 1));
   geometry.computeVertexNormals();
   geometry.computeBoundingSphere();

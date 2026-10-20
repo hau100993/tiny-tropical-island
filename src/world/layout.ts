@@ -1,5 +1,6 @@
 import type { Heightmap } from './heightmap';
 import type { Rng } from '../core/rng';
+import { Trail } from './trail';
 
 export interface Circle {
   x: number;
@@ -30,6 +31,8 @@ export interface IslandLayout {
   rocks: RockPlacement[];
   /** Areas kept free of palms. */
   clearings: Circle[];
+  /** The footpath through the forest. */
+  trail: Trail;
 }
 
 /**
@@ -118,5 +121,5 @@ export function createLayout(hm: Heightmap, rng: Rng): IslandLayout {
   // A few lone rocks a bit further out in the water.
   for (let k = 0; k < 5; k++) addRock(rng() * Math.PI * 2, -1.8 - rng() * 1.5, 0.9 + rng() * 1.0);
 
-  return { house, umbrella, boat, rocks, clearings };
+  return { house, umbrella, boat, rocks, clearings, trail: new Trail(hm, house) };
 }

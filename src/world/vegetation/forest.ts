@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { SPECIES, type Site, type Species } from './species';
 import type { Heightmap } from '../heightmap';
 import { inHouseView, inStairsPath, type Circle, type Placement } from '../layout';
+import type { Trail } from '../trail';
 import { createSwayDepthMaterial, patchWorldMaterial } from '../patchMaterial';
 import { fbm2, type Noise2D } from '../../core/noise';
 import { createRng, randRange } from '../../core/rng';
@@ -40,6 +41,7 @@ export function createForest(
   clearings: Circle[],
   seed: number,
   shared: SharedUniforms,
+  trail: Trail,
 ): Forest {
   const rng = createRng(seed);
 
@@ -81,7 +83,13 @@ export function createForest(
       if (sp.layer === 'tree' && inHouseView(house, x, z)) continue;
       // Keep the steps and the way out from them clear (the plant grows somewhere else).
       if (inStairsPath(house, x, z)) continue;
-      if (rng() > sp.habitat(site)) continue;
+      // The footpath: trunks stand back from it (it stays walkable, the crowns still meet
+      // overhead); undergrowth crowds right up to its edges.
+      const toTrail = trail.distance(x, z);
+      if (toTrail < (sp.layer === 'tree' ? 2.0 + sp.radius * 0.3 : 0.75)) continue;
+      let habitat = sp.habitat(site);
+      if (sp.layer === 'under' && toTrail < 3.5 && site.inland > 0.2) habitat = Math.min(1, habitat * 1.8 + 0.2);
+      if (rng() > habitat) continue;
       const s = randRange(rng, sp.scale[0], sp.scale[1]);
       if (!grid.free(x, z, sp, s)) continue;
       grid.add({ x, z, r: sp.radius * s, layer: sp.layer });
