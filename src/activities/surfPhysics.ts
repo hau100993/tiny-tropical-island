@@ -262,7 +262,11 @@ export class SurfBody {
     this.z = this.tmp.z;
 
     if (!ctl) return 'none';
-    if (this.depth < BEACH_DEPTH) return 'beach';
+    if (this.depth < BEACH_DEPTH) {
+      // Reported once: the rider steps off, the board lies there.
+      this.state = 'idle';
+      return 'beach';
+    }
     if (!ride) return 'none';
     // Leaning into the carve; too far and the rail lets go.
     const target = Math.atan2(this.speed * this.w, G);

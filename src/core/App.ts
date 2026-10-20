@@ -835,6 +835,8 @@ export class App {
   private reboardArmed = true;
 
   private fadeThrough(then: () => void): void {
+    // One at a time: a request every frame would restart the fade forever (a black screen).
+    if (this.fader.classList.contains('on')) return;
     window.clearTimeout(this.faderTimer);
     this.fader.classList.add('on');
     this.faderTimer = window.setTimeout(() => {

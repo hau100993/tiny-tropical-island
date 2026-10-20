@@ -131,17 +131,20 @@ export class SurfActivity {
     return this.body.depth > 0.3;
   }
 
-  /** Puts the board in the break's shallows (~0.8 m deep), nose out to sea. */
+  /**
+   * Puts the board in the water on the shoulder of the break (the side the peel reaches last),
+   * out past the close-out (≥ 22 m, ≥ 2.5 m deep): the waves lift it there instead of
+   * washing it straight onto the sand.
+   */
   launch(): void {
     const f = this.frame;
-    // Walk out from the waterline until the water is deep enough to lie on the board.
-    let d = 4;
-    while (d < 40 && this.env.ground(f.ox - f.ux * d, f.oz - f.uz * d) > -0.8) d += 0.5;
-    // A little to the side of the middle, where the peel will come from the left.
     const sx = -f.uz;
     const sz = f.ux;
-    const x = f.ox - f.ux * d + sx * 8;
-    const z = f.oz - f.uz * d + sz * 8;
+    const l = 25;
+    let d = 22;
+    while (d < 60 && this.env.ground(f.ox - f.ux * d + sx * l, f.oz - f.uz * d + sz * l) > -2.5) d += 0.5;
+    const x = f.ox - f.ux * d + sx * l;
+    const z = f.oz - f.uz * d + sz * l;
     // Nose out to sea: forward (−sin yaw, −cos yaw) = −u.
     this.body.place(x, z, Math.atan2(f.ux, f.uz));
   }
