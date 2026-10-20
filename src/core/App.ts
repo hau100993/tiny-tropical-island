@@ -36,6 +36,7 @@ import { DebugOverlay } from '../ui/DebugOverlay';
 import { Panel, type ViewId } from '../ui/Panel';
 import { AudioPrompt } from '../ui/AudioPrompt';
 import { PomodoroOverlay } from '../ui/PomodoroOverlay';
+import { Fullscreen } from '../ui/fullscreen';
 import { vi } from '../ui/strings.vi';
 import { Mixer } from '../audio/mixer';
 import { SoundLibrary } from '../audio/library/SoundLibrary';
@@ -113,6 +114,7 @@ export class App {
   private readonly scenes = new ScenePresetStore();
   private readonly library = new SoundLibrary();
   private readonly panel: Panel;
+  private readonly fullscreen = new Fullscreen();
   private readonly pomodoro: PomodoroOverlay;
   /** Pomodoro storm calm: target and the eased value the visuals use. */
   private calmTarget = 1;
@@ -300,6 +302,7 @@ export class App {
       },
       togglePomodoro: () => this.pomodoro.setVisible(!this.pomodoro.isVisible),
       toggleTimePaused: () => this.toggleTimePaused(),
+      fullscreen: this.fullscreen,
     });
     this.pomodoro = new PomodoroOverlay(ui, {
       scheduleChime: (atMs, kind) => this.mixer.scheduleChime(atMs, kind),
@@ -512,6 +515,7 @@ export class App {
       label: vi.shortcuts.hideUI,
       action: () => document.body.classList.toggle('ui-hidden'),
     });
+    this.keymap.register({ code: 'KeyF', keyLabel: 'F', label: vi.shortcuts.fullscreen, action: () => this.fullscreen.toggle() });
     this.keymap.register({
       code: 'KeyN',
       keyLabel: 'N',

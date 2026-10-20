@@ -56,6 +56,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `P` | Collapse / expand the control panel (or click its title) |
 | `1` – `9` | Pick a scene, in the order of the panel's cards (the key shows on each card) |
 | `H` | Hide all UI (clean wallpaper view); press again to show |
+| `F` | Full screen on / off (also the ⛶ button in the panel header; `Esc` leaves it too). In full screen the mouse cursor hides over the scene after 3 s without moving. `F11` (the browser's own full screen) works as well. |
 | `N` | Stop / run the clock (stopping the real-time clock freezes the island at that moment) |
 | `C` | Walk around the island; press again to go back to the orbit view |
 | `V` | While walking: character view (third person) ↔ eyes view (first person) |
@@ -70,7 +71,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 ### Control panel (top right)
 
 Always visible at the top: the **Pomodoro clock** button (shows the time left while a session
-runs; click to show or hide the timer card), collapse (or click the title **Đảo Nhiệt Đới**), a
+runs; click to show or hide the timer card), full screen (`F`), collapse (or click the title **Đảo Nhiệt Đới**), a
 **status line** (scene · what is playing · island time) and **Âm lượng chung** with mute. Below,
 five sections that each open and close on their own (remembered; on first launch **Cảnh**, with
 *Ngày nắng* selected, and **Góc nhìn** are open); a closed section shows its current value next

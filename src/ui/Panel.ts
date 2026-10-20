@@ -12,6 +12,7 @@ import type { ScenePresetStore } from '../core/scenePresets';
 import { PANEL_SECTIONS, type PanelSection, type Settings, type SettingsStore } from '../core/settings';
 import { formatClock, formatClockSeconds } from '../world/celestial';
 import { nextSpeed } from './timeSpeed';
+import type { Fullscreen } from './fullscreen';
 import type { ScreenInfo } from '../world/deskScreens';
 
 /** Where the camera is, as the "Góc nhìn" tiles show it. */
@@ -47,6 +48,8 @@ export interface PanelDeps {
   /** Stops or restarts the clock (N). */
   toggleTimePaused: () => void;
   togglePomodoro: () => void;
+  /** Full screen (F): the header button toggles it and shows its state. */
+  fullscreen: Fullscreen;
 }
 
 const SECTION_ICONS: Readonly<Record<PanelSection, string>> = {
@@ -135,11 +138,20 @@ export class Panel {
     pomoIcon.innerHTML = icons.clock;
     this.pomoText = el('span', 'pomo-text');
     this.pomoBtn.append(pomoIcon, this.pomoText);
+    const fsBtn = button('', () => deps.fullscreen.toggle(), 'icon-btn fs-btn');
+    const syncFs = (on: boolean): void => {
+      fsBtn.innerHTML = on ? icons.minimize : icons.maximize;
+      const label = on ? vi.panel.fullscreenOff : vi.panel.fullscreenOn;
+      fsBtn.title = label;
+      fsBtn.setAttribute('aria-label', label);
+    };
+    syncFs(deps.fullscreen.active);
+    deps.fullscreen.onChange(syncFs);
     this.collapseBtn = button('', () => this.toggleCollapsed(), 'icon-btn');
     this.headerScene = el('span', 'header-scene');
     this.headerMute = button('', () => mixer.toggleMuteAll(), 'icon-btn header-mute');
     const headerTools = el('div', 'header-tools');
-    headerTools.append(this.headerMute, this.pomoBtn, this.collapseBtn);
+    headerTools.append(this.headerMute, this.pomoBtn, fsBtn, this.collapseBtn);
     header.append(title, this.headerScene, headerTools);
 
     const top = el('div', 'panel-top');

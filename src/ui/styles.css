@@ -1800,3 +1800,8 @@ kbd.key {
   padding: 7px 10px;
   font-size: 12.5px;
 }
+
+/* Full screen: the cursor hides over the 3D scene after a few still seconds (ui/fullscreen.ts). */
+body.cursor-idle canvas {
+  cursor: none;
+}
