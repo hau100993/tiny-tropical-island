@@ -3,6 +3,8 @@ import { GeoBuilder } from './geoBuilder';
 import { createRng, type Rng } from '../core/rng';
 import { sampleWaves, waveAttenuation, type WaveSample } from '../water/gerstner';
 import type { Placement } from './layout';
+import { BoatLights, type BoatLamp } from './boatLights';
+import type { SharedUniforms } from '../core/uniforms';
 
 /**
  * A Vietnamese wooden fishing boat (after the user's photo): blue hull with a red bottom and a
@@ -125,19 +127,79 @@ function flag(b: GeoBuilder, x: number, y: number, z: number, h: number): void {
   }
 }
 
+/** Cabin (lower deckhouse) and wheelhouse centres along the boat. */
+const CABIN_X = -L / 2 + 4.6;
+const WHEEL_X = CABIN_X + 0.8;
+const BOW_MAST_X = L / 2 - 4.2;
+/** Squid-fishing lamps: two lines of bulbs over the foredeck, hung under white pipe rails. */
+const LAMP_RAIL = { x0: -1.2, x1: 6.2, z: 1.15, y: 4.25, bulbs: 8 } as const;
+/** Lamp colours: metal-halide fishing lamps, navigation lights, warm cabin light. */
+const LIGHT = { squid: '#eafff4', mast: '#fff1d6', port: '#ff2a1c', starboard: '#22ff66', cabin: '#ffbf6e' } as const;
+
+/**
+ * The boat's lamps (boat-local; bow at +X, starboard = +Z): two lines of squid-fishing bulbs, a
+ * white masthead light, red (port) and green (starboard) sidelights on the wheelhouse, a white
+ * stern light.
+ */
+function boatLamps(): BoatLamp[] {
+  const lamps: BoatLamp[] = [];
+  const r = LAMP_RAIL;
+  for (const z of [-r.z, r.z]) {
+    for (let i = 0; i < r.bulbs; i++) {
+      const x = r.x0 + ((i + 0.5) / r.bulbs) * (r.x1 - r.x0);
+      // Every other bulb throws a reflection (they overlap anyway): fewer, brighter streaks.
+      // Halo smaller than the bulb spacing (~0.9 m), so each bulb still reads as its own light.
+      lamps.push({ x, y: r.y - 0.28, z, color: LIGHT.squid, halo: 0.55, streak: i % 2 === 0 ? 0.6 : 0 });
+    }
+  }
+  lamps.push({ x: BOW_MAST_X, y: 9.1, z: 0, color: LIGHT.mast, halo: 0.9, streak: 0.5 });
+  lamps.push({ x: WHEEL_X + 0.6, y: 5.45, z: -1.68, color: LIGHT.port, halo: 0.75, streak: 0.6 });
+  lamps.push({ x: WHEEL_X + 0.6, y: 5.45, z: 1.68, color: LIGHT.starboard, halo: 0.75, streak: 0.6 });
+  lamps.push({ x: -L / 2 + 0.3, y: 2.9, z: 0, color: LIGHT.mast, halo: 0.6, streak: 0.35 });
+  return lamps;
+}
+
+/** Glowing panes laid just outside the cabin and wheelhouse windows (lit colour). */
+function windowGlow(rng: Rng): THREE.BufferGeometry {
+  const b = new GeoBuilder(rng, 0.12);
+  const cx = CABIN_X;
+  for (const z of [-2.03, 2.03]) {
+    for (const wx of [-0.3, 1.0, 2.3]) b.box(0.86, 0.5, 0.01, cx + wx, 2.9, z, LIGHT.cabin);
+  }
+  b.box(0.01, 0.56, 2.56, WHEEL_X + 1.83, 5.15, 0, LIGHT.cabin);
+  for (const z of [-1.63, 1.63]) b.box(2.56, 0.5, 0.01, WHEEL_X, 5.15, z, LIGHT.cabin);
+  return b.build();
+}
+
 function buildParts(rng: Rng): { solid: THREE.BufferGeometry; cloth: THREE.BufferGeometry } {
   const b = new GeoBuilder(rng, 0.03);
   const cloth = new GeoBuilder(rng, 0.02);
   // Deck (mostly hidden behind the bulwarks).
   b.box(L * 0.82, 0.1, BEAM * 1.7, -0.6, 1.45, 0, C.deck);
   // Cabin, aft: lower deckhouse, an upper deck with railings, the wheelhouse on top.
-  const cx = -L / 2 + 4.6;
+  const cx = CABIN_X;
   b.box(6.4, 2.2, 4.0, cx, 2.6, 0, C.white);
   b.box(6.5, 0.35, 4.1, cx, 1.65, 0, C.cabinBlue);
   for (const z of [-2.01, 2.01]) {
     for (const wx of [-0.3, 1.0, 2.3]) b.box(0.9, 0.55, 0.03, cx + wx, 2.9, z, C.window);
     b.box(0.7, 1.5, 0.03, cx - 2.0, 2.45, z * 1.001, C.window); // door
   }
+  // Lamp rails over the foredeck: a white pipe on three posts each side, bulbs hang under it.
+  const r = LAMP_RAIL;
+  for (const z of [-r.z, r.z]) {
+    b.box(r.x1 - r.x0 + 0.3, 0.07, 0.07, (r.x0 + r.x1) / 2, r.y, z, C.mast);
+    for (const px of [r.x0, (r.x0 + r.x1) / 2, r.x1]) {
+      const base = sheer((px + L / 2) / L) - 0.15;
+      b.box(0.07, r.y - base, 0.07, px, (r.y + base) / 2, z, C.mast);
+    }
+    for (let i = 0; i < r.bulbs; i++) {
+      // Short drop from the rail to each bulb's socket.
+      const x = r.x0 + ((i + 0.5) / r.bulbs) * (r.x1 - r.x0);
+      b.box(0.03, 0.18, 0.03, x, r.y - 0.12, z, '#3a3a3a');
+    }
+  }
+  // Side and stern light housings.
+  for (const z of [-1.66, 1.66]) b.box(0.25, 0.25, 0.08, WHEEL_X + 0.6, 5.45, z, '#2a2a2a');
   b.box(7.0, 0.18, 4.4, cx, 3.78, 0, C.cabinBlue); // upper deck slab
   // Railings round the upper deck.
   for (const z of [-2.15, 2.15]) {
@@ -146,7 +208,7 @@ function buildParts(rng: Rng): { solid: THREE.BufferGeometry; cloth: THREE.Buffe
     for (let k = 0; k <= 8; k++) b.box(0.05, 0.85, 0.05, cx - 3.45 + (k * 6.9) / 8, 4.25, z, C.white);
   }
   // Wheelhouse with a band of windows and a blue roof.
-  const wx = cx + 0.8;
+  const wx = WHEEL_X;
   b.box(3.6, 1.9, 3.2, wx, 4.82, 0, C.white);
   b.box(0.03, 0.6, 2.6, wx + 1.81, 5.15, 0, C.window);
   for (const z of [-1.61, 1.61]) b.box(2.6, 0.55, 0.03, wx, 5.15, z, C.window);
@@ -156,7 +218,7 @@ function buildParts(rng: Rng): { solid: THREE.BufferGeometry; cloth: THREE.Buffe
   for (const z of [-0.6, 0.6]) b.box(0.08, aftMast.top - 5.9, 0.08, aftMast.x, (aftMast.top + 5.9) / 2, z, C.mast, z * 0.18);
   b.box(0.08, 0.08, 1.6, aftMast.x, 7.4, 0, C.mast);
   // Bow mast: a tall white pole leaning slightly forward.
-  const bowMast = { x: L / 2 - 4.2, base: sheer(0.79) - 0.2, top: 10.5 };
+  const bowMast = { x: BOW_MAST_X, base: sheer(0.79) - 0.2, top: 10.5 };
   const mastH = bowMast.top - bowMast.base;
   b.add(cylinder(0.11, 0.07, mastH, bowMast.x, bowMast.base + mastH / 2, 0), C.mast);
   b.box(0.5, 0.12, 0.12, bowMast.x, bowMast.base + mastH * 0.62, 0, C.mast);
@@ -213,7 +275,8 @@ function foamGeometry(): THREE.BufferGeometry {
   return g;
 }
 
-export function createFishingBoat(seed: number): THREE.Group {
+/** The boat, and its night lights (a child of the boat; see BoatLights). */
+export function createFishingBoat(seed: number, shared: SharedUniforms): { group: THREE.Group; lights: BoatLights } {
   const rng = createRng(seed);
   const group = new THREE.Group();
   group.name = 'fishing-boat';
@@ -230,7 +293,16 @@ export function createFishingBoat(seed: number): THREE.Group {
   foam.renderOrder = 2;
   for (const m of [hull, body, flags]) m.castShadow = true;
   group.add(hull, body, flags, foam);
-  return group;
+  // Own RNG stream, so adding the lights doesn't change the boat's other parts.
+  const lights = new BoatLights(
+    boatLamps(),
+    windowGlow(createRng(seed + 101)),
+    // The pool under the fishing lamps, toward the bow.
+    { x: (LAMP_RAIL.x0 + LAMP_RAIL.x1) / 2, z: 0, radius: 13, color: '#bff5e6' },
+    shared,
+  );
+  group.add(lights.group);
+  return { group, lights };
 }
 
 const UP = new THREE.Vector3(0, 1, 0);

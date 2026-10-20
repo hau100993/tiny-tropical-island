@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { hideFor, restore } from './SceneCapture';
 
 /**
  * Mirror image of the scene in the sea plane (High quality): palms, house and rocks reflected in
@@ -24,6 +25,7 @@ export class PlanarReflection {
   private readonly lookAt = new THREE.Vector3();
   private readonly rotation = new THREE.Matrix4();
   private readonly clearColor = new THREE.Color();
+  private readonly wasVisible: boolean[] = [];
 
   constructor(private readonly renderer: THREE.WebGLRenderer) {}
 
@@ -69,9 +71,9 @@ export class PlanarReflection {
     // Camera under the water plane: nothing to mirror (the cleared target means "sky only").
     if (this.view.dot(this.normal) < 0) {
       this.updateCamera(camera);
-      for (const o of hidden) o.visible = false;
+      hideFor(hidden, this.wasVisible);
       r.render(scene, this.virtualCamera);
-      for (const o of hidden) o.visible = true;
+      restore(hidden, this.wasVisible);
     }
 
     r.setRenderTarget(prevTarget);

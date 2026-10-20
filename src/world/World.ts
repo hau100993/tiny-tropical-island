@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Heightmap, ISLAND_CONFIG } from './heightmap';
 import { createLayout, type IslandLayout } from './layout';
 import { createTerrainMesh, createHeightTexture } from './terrain';
-import { createForest, type Forest } from './vegetation/forest';
+import { createForest, fixedPalmTrunkAt, type Forest } from './vegetation/forest';
 import { GroundFlowers } from './vegetation/groundFlowers';
 import { createHouse, type HouseInfo } from './house';
 import { createRocks, createBeachSet, createBoat, type Rocks } from './props';
@@ -10,6 +10,9 @@ import { createFishingBoat, FishingTrip } from './fishingBoat';
 import { createLightShafts } from './lightShafts';
 import { createTrailMarkers } from './trailMarkers';
 import { createSurfboard } from './surfboard';
+import { Hammock, createHammockMaterial } from './hammock';
+import { Footprints } from './footprints';
+import { Animals } from './animals/Animals';
 import { DESK } from './houseInterior';
 import { createSky, type Sky } from './sky';
 import { createLighting, type Lighting } from './lighting';
@@ -56,7 +59,14 @@ export interface World {
   underwater: Underwater;
   /** Corals, seaweed and fish around the island (diving). */
   reef: Reef;
-  update(dt: number, time: number, camera: THREE.Camera, waveStrength: number): void;
+  /** The hammock between two palms on the beach (a seat). */
+  hammock: Hammock;
+  /** Bare footprints on sand and snow. */
+  footprints: Footprints;
+  /** Seagulls, dolphins, crabs, sea turtles. */
+  animals: Animals;
+  /** `player`: where you are on foot (the crabs run from you), or null. */
+  update(dt: number, time: number, camera: THREE.Camera, waveStrength: number, player: { x: number; z: number } | null): void;
 }
 
 /** Applies weather features to every MeshStandardMaterial under `root` (each material once). */
@@ -105,7 +115,12 @@ export function createWorld(
   const terrain = createTerrainMesh(heightmap, noise, layout.trail);
   scene.add(terrain);
 
-  const forest = createForest(heightmap, noise, layout.house, layout.clearings, WORLD_SEED + 2, shared, layout.trail);
+  const forest = createForest(heightmap, noise, layout.house, layout.clearings, WORLD_SEED + 2, shared, layout.trail, layout.hammock.palms, [
+    { ...layout.hammock.clearing, r: 3.4 },
+  ]);
+  const hammock = new Hammock(heightmap, layout.hammock, (p, y) => fixedPalmTrunkAt(WORLD_SEED + 2, p, y), createHammockMaterial());
+  scene.add(hammock.group);
+  patchTree(hammock.group, { wet: true, porosity: 0.9, snow: true }, shared);
   scene.add(forest.group);
 
   const grass = new Grass(heightmap, noise, layout.house, layout.trail, WORLD_SEED + 7, shared);
@@ -139,7 +154,8 @@ export function createWorld(
   const boat = new FloatingObject(boatMesh, heightmap, layout.boat.x, layout.boat.z, layout.boat.rotY);
   // A fishing boat out at sea, seen from the desk in the upper right of the view: it loops
   // slowly ~150 m out, 15–35° right of straight ahead (house-local −X is the desk view's right).
-  const fishingMesh = createFishingBoat(WORLD_SEED + 10);
+  const fishing = createFishingBoat(WORLD_SEED + 10, shared);
+  const fishingMesh = fishing.group;
   scene.add(fishingMesh);
   patchTree(fishingMesh, { wet: true, porosity: 0.3 }, shared);
   const fishingTrip = new FishingTrip(fishingMesh, layout.house, { x: DESK.seatX - 62, z: 160 }, { x: 34, z: 16 });
@@ -151,6 +167,8 @@ export function createWorld(
   const surfboard = createSurfboard();
   scene.add(surfboard);
   patchTree(surfboard, { wet: true, porosity: 0.1 }, shared);
+  const footprints = new Footprints(heightmap, shared);
+  scene.add(footprints.mesh);
   const spray = new Spray(shared);
   scene.add(spray.points);
 
@@ -170,6 +188,8 @@ export function createWorld(
 
   const reef = createReef(heightmap, WORLD_SEED + 14, shared, caustics, Math.atan2(layout.house.z, layout.house.x));
   scene.add(reef.group);
+  const animals = new Animals(heightmap, WORLD_SEED + 15, shared, layout.house, spray, reef.floorAt);
+  scene.add(animals.group);
   const underwater = new Underwater(scene, sky.mesh, shared);
   water.attachUnderwater(underwater);
   const weather = new Weather(scene, shared, water);
@@ -178,9 +198,9 @@ export function createWorld(
   scene.add(fireflies.points);
   // The refraction capture only needs what lies under the water. Sky and particles would show
   // up twice; vegetation is all on land, so skipping it saves most of the capture's cost.
-  water.setCaptureHidden([sky.mesh, ...weather.particleMeshes, forest.group, grass.mesh, flowers.group, fireflies.points, shafts, spray.points]);
+  water.setCaptureHidden([sky.mesh, ...weather.particleMeshes, forest.group, grass.mesh, flowers.group, fireflies.points, shafts, spray.points, footprints.mesh, animals.seagulls.mesh, animals.crabs.mesh, ...fishing.lights.onWater, ...fishing.lights.aboveWater]);
   // Reflections keep the trees (that's what you want to see mirrored) but skip small stuff.
-  water.setReflectionHidden([sky.mesh, ...weather.particleMeshes, grass.mesh, flowers.group, fireflies.points, shafts, spray.points, reef.group]);
+  water.setReflectionHidden([sky.mesh, ...weather.particleMeshes, grass.mesh, flowers.group, fireflies.points, shafts, spray.points, reef.group, footprints.mesh, animals.turtles.mesh, animals.crabs.mesh, ...fishing.lights.onWater]);
 
   return {
     heightmap,
@@ -203,11 +223,16 @@ export function createWorld(
     spray,
     underwater,
     reef,
-    update(dt, time, camera, waveStrength) {
+    hammock,
+    footprints,
+    animals,
+    update(dt, time, camera, waveStrength, player) {
+      animals.update(dt, time, camera, player);
       sky.follow(camera);
       spray.update(dt);
       boat.update(time, waveStrength, camera, dt);
       fishingTrip.update(time, waveStrength, camera, dt);
+      fishing.lights.update();
     },
   };
 }

@@ -1518,39 +1518,147 @@ kbd.key {
   gap: 8px;
 }
 
-/* Time section: big clock with the stop/run button. */
+/*
+ * Time section: the clock with three icon tools (stop/run, speed, the computer's clock) in one
+ * row; the hour slider below, painted with the colours of the day. Labels are tooltips.
+ */
 .clock-face {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 6px 8px 6px 10px;
   border-radius: 10px;
   background: var(--control-bg);
 }
 
+.clock-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .clock-big {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
 }
 
-.clock-pause {
-  display: inline-flex;
+/* Running: a filled dot; the computer's clock: a ring; stopped: grey. */
+.clock-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.clock-face[data-state='real'] .clock-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.clock-face[data-state='paused'] .clock-dot {
+  background: var(--panel-muted);
+}
+
+.clock-tools {
+  display: flex;
   align-items: center;
   gap: 4px;
   flex: none;
 }
 
-.clock-pause[aria-pressed='true'] {
-  background: var(--accent);
+.clock-tool[aria-pressed='true'] {
+  color: var(--accent);
   border-color: var(--accent);
-  color: var(--accent-fg);
+  background: color-mix(in srgb, var(--accent) 14%, var(--control-bg));
 }
 
-.seg-group.five {
-  grid-template-columns: repeat(5, 1fr);
+/* Speed: one button that shows the speed and steps through them. */
+.speed-btn {
+  height: 26px;
+  min-width: 46px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  background: var(--control-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.speed-btn:hover {
+  background: var(--control-bg-hover);
+}
+
+/* On the computer's clock the island speed is only shown, dimmed. */
+.speed-btn.inactive {
+  color: var(--panel-muted);
+  font-weight: 400;
+}
+
+/* Hour slider: no label or value (the clock above says it), a day-coloured track. */
+.slider.day-slider {
+  grid-template-columns: 1fr;
+  padding: 2px 2px 0;
+}
+
+.day-slider .slider-label,
+.day-slider .slider-value {
+  display: none;
+}
+
+.day-slider .slider-input {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 18px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* Night · dawn (~06) · day · dusk (~18) · night, at their places on 0–24 h. */
+.day-slider .slider-input::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(
+    to right,
+    #1b2450 0%,
+    #243066 19%,
+    #e99a7c 24.5%,
+    #f6d48e 28%,
+    #8ccaf0 35%,
+    #8ccaf0 65%,
+    #f4c46a 71%,
+    #ea8456 75.5%,
+    #6a4d8a 80%,
+    #243066 85%,
+    #1b2450 100%
+  );
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+/* Thumb: a sun by day, a crescent moon by night (`.night`, set by the panel). Kept at 16 px:
+   the wheel's value bubble is placed for a 16 px thumb. */
+.day-slider .slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff7cc 0 32%, #ffc83a 36% 100%);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 0 8px rgba(255, 196, 58, 0.75);
+}
+
+.day-slider.night .slider-input::-webkit-slider-thumb {
+  background: radial-gradient(circle at 72% 32%, transparent 0 46%, #e8edff 50% 100%);
+  box-shadow: 0 0 6px rgba(190, 205, 255, 0.7);
 }
 
 .btn.danger {

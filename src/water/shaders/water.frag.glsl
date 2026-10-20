@@ -7,6 +7,7 @@ uniform vec2 uWakeCenter;
 uniform float uWakeSize;
 uniform float uWakeOn;
 uniform vec3 uUnderColor;
+uniform float uCamUnder; // 1 while the camera is under the surface
 uniform float uWaveStrength;
 uniform float uRain;
 uniform vec3 uLightDir;
@@ -100,7 +101,10 @@ void main() {
   float far = smoothstep(80.0, 400.0, dist);
   N = normalize(mix(N, vec3(0.0, 1.0, 0.0), far * 0.7));
 
-  if (!gl_FrontFacing) {
+  // Under water (the camera, see Underwater.ts) every face of the surface is its underside. Above
+  // it, a back face is the far side of a wave crest higher than your eyes (swimming, surfing):
+  // it is shaded like the top, not as the dark underside.
+  if (uCamUnder > 0.5) {
     // Seen from below, diving. Rays steeper than ~48.6° from straight up leave the water
     // (Snell's window: the whole sky squeezed into a bright disc overhead, wobbling with the
     // waves); flatter rays are reflected back down (total internal reflection), so the rest
@@ -108,7 +112,9 @@ void main() {
     vec3 d = -V;
     vec3 n = -N;
     float cosI = -dot(n, d);
-    float k = 1.0 - 1.333 * 1.333 * (1.0 - cosI * cosI);
+    // A front face seen from "under water": the surface dips below the eyes right there (the
+    // eyes are at the waterline). No window: just the water mirrored from below.
+    float k = gl_FrontFacing ? -1.0 : 1.0 - 1.333 * 1.333 * (1.0 - cosI * cosI);
     vec3 col = uUnderColor * 0.85;
     // Soft edge: the waves blur the window's rim.
     float win = smoothstep(-0.12, 0.25, k);
@@ -216,6 +222,27 @@ void main() {
   vec2 screenUV = gl_FragCoord.xy / uResolution;
   float surfaceZ = perspectiveDepthToViewZ(gl_FragCoord.z, uCameraNear, uCameraFar);
   float sceneZ = perspectiveDepthToViewZ(texture2D(uSceneDepth, screenUV).x, uCameraNear, uCameraFar);
+  // The capture is half resolution without MSAA. Right next to something standing in the water
+  // (a rock, a stilt, the kayak) its texel can belong to that object, which lies in front of the
+  // surface: the water there would show the object's colour as a bright or dark rim. Look one
+  // capture texel around for a sample that really lies behind the water and use that instead.
+  if (sceneZ > surfaceZ - 0.02) {
+    vec2 px = 2.0 / uResolution;
+    vec2 offs[4];
+    offs[0] = vec2(px.x, 0.0);
+    offs[1] = vec2(-px.x, 0.0);
+    offs[2] = vec2(0.0, px.y);
+    offs[3] = vec2(0.0, -px.y);
+    for (int i = 0; i < 4; i++) {
+      vec2 uv = screenUV + offs[i];
+      float z = perspectiveDepthToViewZ(texture2D(uSceneDepth, uv).x, uCameraNear, uCameraFar);
+      if (z < surfaceZ - 0.02) {
+        sceneZ = z;
+        screenUV = uv;
+        break;
+      }
+    }
+  }
   // Distance the view ray travels under water (view-space Z is negative in front of the camera).
   float thickness = max(surfaceZ - sceneZ, 0.0);
   vec2 refrUV = screenUV + N.xz * 0.04 * clamp(thickness / 3.0, 0.0, 1.0);

@@ -67,6 +67,8 @@ export class DayNight {
   /** Sky turn (radians): current, eased toward the target. */
   private turn = 0;
   private turnTarget = 0;
+  /** Reused for the real-time clock (no Date per frame). */
+  private readonly now = new Date();
 
   constructor(
     private readonly shared: SharedUniforms,
@@ -106,9 +108,34 @@ export class DayNight {
     writeStored(CLOCK_KEY, this.hours);
   }
 
+  /**
+   * While the tab is hidden nothing renders, but the sound plays on: with the computer's clock
+   * the night (birds → crickets) must still come. Only the clock and the night level are updated.
+   */
+  updateHidden(clock: ClockOptions): void {
+    if (clock.mode !== 'real') return;
+    this.now.setTime(Date.now());
+    this.hours = advanceTime(this.hours, clock, 0, this.now);
+    sunDirection(this.hours, this.sun, this.turn);
+    this.shared.uNight.value = nightness(this.sun.y);
+  }
+
+  /** The shader clock started again from 0 (see Loop.resetElapsed): meteors are timed on it. */
+  onTimeReset(): void {
+    const u = this.shared;
+    for (let i = 0; i < METEOR_SLOTS; i++) {
+      u.uMeteorA.value[i].w = -1e6;
+      u.uMeteorB.value[i].w = 1;
+    }
+    this.nextMeteor = 0;
+    // The cloud drift only grows; start it near the origin again (precision) while unseen.
+    u.uCloudOffset.value.set(0, 0);
+  }
+
   update(dt: number, opts: SkyOptions, weather: SkyWeather, camera: THREE.PerspectiveCamera): void {
     const u = this.shared;
-    this.hours = advanceTime(this.hours, opts.clock, dt, new Date());
+    this.now.setTime(Date.now());
+    this.hours = advanceTime(this.hours, opts.clock, dt, this.now);
     this.saveTimer += dt;
     if (this.saveTimer > 30) {
       this.saveTimer = 0;
@@ -143,7 +170,10 @@ export class DayNight {
 
     // Main light: the sun by day, the moon by night, crossfading while both are near zero.
     const sunUp = smoothstep(-0.04, 0.02, e);
-    const sunI = p.sunIntensity * (1 - 0.65 * oc);
+    // The main light switches from sun to moon at sunUp = 0.5; the sun has faded out by then
+    // (as the moon, which is at the horizon then), so the light and its shadows never jump.
+    const sunFade = smoothstep(0.5, 1.0, sunUp);
+    const sunI = p.sunIntensity * (1 - 0.65 * oc) * sunFade;
     // Moonlight: ×1 at the normal setting (0.3), up to ×2 for a bright full moon.
     const moonBoost = 0.55 + 1.5 * opts.moonlight;
     const moonI = 0.35 * moonBoost * (1 - sunUp) * smoothstep(0.0, 0.15, this.moon.y) * (1 - 0.6 * oc);

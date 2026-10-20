@@ -21,6 +21,8 @@ export const icons = {
   scene: svg('<path d="m2 19 7-9 5 6 3-4 5 7z"/><circle cx="17" cy="6" r="2"/>'),
   music: svg('<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>'),
   time: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  /** The computer's clock: a monitor with clock hands. */
+  realClock: svg('<rect x="2.5" y="3.5" width="19" height="13" rx="2"/><path d="M12 7v3l2 1.5M8 20.5h8M12 16.5v4"/>'),
   eye: svg('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
   settings: svg('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'),
   keyboard: svg('<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>'),
@@ -41,4 +43,5 @@ export const icons = {
   walk: svg('<circle cx="13" cy="4" r="2"/><path d="m9 21 2.5-6 2.5 2v4M7 12l3-4 3 2 3 2M11.5 15 10 8"/>'),
   desk: svg('<rect x="3" y="4" width="18" height="11" rx="1.5"/><path d="M12 15v4M8 21h8"/>'),
   bath: svg('<path d="M3 12h18v2a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5z"/><path d="M6 12V5a2 2 0 0 1 4 0M7 19l-1 2M17 19l1 2"/>'),
+  hammock: svg('<path d="M4 21V5M20 21V5M4 8l3 3h10l3-3M7 11c1 4 9 4 10 0"/><path d="M2 21h20"/>'),
 };

@@ -34,6 +34,14 @@ export class GpuTimer {
     this.poll();
   }
 
+  /** The GL context was lost and restored: queries of the old context are gone. */
+  reset(): void {
+    this.pending.length = 0;
+    this.free.length = 0;
+    this.active = null;
+    this.lastMs = Number.NaN;
+  }
+
   private poll(): void {
     const gl = this.gl;
     while (this.pending.length > 0) {

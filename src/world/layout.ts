@@ -38,7 +38,22 @@ export interface IslandLayout {
   trail: Trail;
   /** The surf break (a quarter of the way round the island from the house) and its board on the sand. */
   surf: { frame: SurfFrame; board: Placement };
+  /** A hammock between two coconut palms on the dry sand, along the beach. */
+  hammock: HammockLayout;
 }
+
+export interface HammockLayout {
+  /** Midpoint between the two palms (ground). */
+  x: number;
+  z: number;
+  /** The two palms; their local +X (the way they lean) points away from the hammock. */
+  palms: [Placement, Placement];
+  /** Kept free of other trees and undergrowth. */
+  clearing: Circle;
+}
+
+/** Palm-to-palm distance of the hammock (m). */
+export const HAMMOCK_SPAN = 4.2;
 
 /**
  * True inside the wedge seen from the house's glass wall toward the sea (house-local +Z,
@@ -93,6 +108,8 @@ export function inStairsPath(house: Placement, x: number, z: number, margin = 0)
 const HOUSE_ANGLE = 0.7;
 /** The surf beach: a long, gently shelving stretch of sand with no rocks, out of the desk's view. */
 const SURF_ANGLE = HOUSE_ANGLE + 1.5;
+/** The hammock: a little past the beach umbrella, along the same beach. */
+const HAMMOCK_ANGLE = HOUSE_ANGLE + 0.62;
 
 export function createLayout(hm: Heightmap, rng: Rng): IslandLayout {
   // House: a little inland from the dry-sand line, door facing the sea.
@@ -141,7 +158,44 @@ export function createLayout(hm: Heightmap, rng: Rng): IslandLayout {
     board: { x: Math.cos(SURF_ANGLE + 0.04) * boardR, z: Math.sin(SURF_ANGLE + 0.04) * boardR, rotY: Math.atan2(-sc, -ss) },
   };
 
+  // Hammock: on the dry sand above the swash, slung along the shore; the palms lean apart and a
+  // little out to sea, like coconut palms on a beach do. Start where the beach is 0.75 m up and
+  // step inland until both palms and the middle stand on sand.
+  const hc = Math.cos(HAMMOCK_ANGLE);
+  const hs = Math.sin(HAMMOCK_ANGLE);
+  const at = (r: number, side: number): { x: number; z: number } => ({
+    x: hc * r - hs * side * (HAMMOCK_SPAN / 2),
+    z: hs * r + hc * side * (HAMMOCK_SPAN / 2),
+  });
+  const sandy = (q: { x: number; z: number }): boolean => hm.surfaceAt(q.x, q.z) === 'sand' && hm.heightAt(q.x, q.z) > 0.7;
+  let hr = hm.shoreDistance(HAMMOCK_ANGLE, 0.75);
+  for (let dr = 0; dr < 8; dr += 0.25) {
+    const r = hm.shoreDistance(HAMMOCK_ANGLE, 0.75) - dr;
+    if (sandy(at(r, -1)) && sandy(at(r, 1)) && sandy(at(r, 0))) {
+      // A step further up the beach if that's still sand: a little more room to the water.
+      hr = sandy(at(r - 1, -1)) && sandy(at(r - 1, 1)) ? r - 1 : r;
+      break;
+    }
+  }
+  const hx = hc * hr;
+  const hz = hs * hr;
+  const palm = (side: number): Placement => {
+    const q = at(hr, side);
+    // Lean: away from the other palm (tangent × side), a little seaward.
+    const lx = -hs * side + 0.45 * hc;
+    const lz = hc * side + 0.45 * hs;
+    // Rotation θ maps local +X to (cos θ, −sin θ).
+    return { x: q.x, z: q.z, rotY: Math.atan2(-lz, lx) };
+  };
+  const hammock: HammockLayout = {
+    x: hx,
+    z: hz,
+    palms: [palm(-1), palm(1)],
+    clearing: { x: hx, z: hz, r: HAMMOCK_SPAN / 2 + 2.5 },
+  };
+
   const clearings: Circle[] = [
+    hammock.clearing,
     { x: house.x, z: house.z, r: 11 },
     { x: umbrella.x, z: umbrella.z, r: 5 },
     // Path from the porch steps down to the beach.
@@ -172,5 +226,5 @@ export function createLayout(hm: Heightmap, rng: Rng): IslandLayout {
   // A few lone rocks a bit further out in the water.
   for (let k = 0; k < 5; k++) addRock(rng() * Math.PI * 2, -1.8 - rng() * 1.5, 0.9 + rng() * 1.0);
 
-  return { house, umbrella, boat, kayak, rocks, clearings, trail: new Trail(hm, house), surf };
+  return { house, umbrella, boat, kayak, rocks, clearings, trail: new Trail(hm, house), surf, hammock };
 }

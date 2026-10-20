@@ -6,6 +6,7 @@ import { sharedUniforms } from './uniforms';
 import { EnvState } from './envState';
 import { GpuTimer } from './gpuTimer';
 import { createWorld, type World } from '../world/World';
+import { ISLAND_SHADOW_HALF } from '../world/lighting';
 import { createOrbitCamera, type OrbitCamera } from '../controls/orbit';
 import { Keymap } from '../controls/keymap';
 import { onWaterClick } from '../controls/waterClick';
@@ -46,6 +47,21 @@ import type { SkyOptions, SkyWeather } from '../world/dayNight';
 /** Swimming closer than this (m) to the floating kayak climbs back in, once armed farther than REBOARD_ARM away. */
 const REBOARD_NEAR = 1.4;
 const REBOARD_ARM = 2.5;
+
+/**
+ * Shader clock restart (see Loop.resetElapsed): when the tab is hidden after this many seconds
+ * of rendering, or behind a short fade after this many while it stays visible (overview or seat).
+ */
+const TIME_RESET_HIDDEN = 3600;
+/**
+ * Shadows while walking, paddling or surfing: a square of ±PLAYER_SHADOW_HALF m whose center
+ * sits PLAYER_SHADOW_AHEAD m in front of you (you see more ahead than behind).
+ */
+const PLAYER_SHADOW_HALF = 50;
+const PLAYER_SHADOW_AHEAD = 22;
+const TIME_RESET_VISIBLE = 8 * 3600;
+/** While hidden: how often the real-time clock still moves the night for the sound (ms). */
+const HIDDEN_CLOCK_MS = 5000;
 
 /** Weather level during a Pomodoro break with "Bão dịu đi khi nghỉ". */
 const CALM_LEVEL = 0.3;
@@ -132,7 +148,7 @@ export class App {
       house: w.house,
       umbrella: w.layout.umbrella,
       trunks: w.forest.trunks,
-      rocks: w.rocks.circles,
+      rocks: [...w.rocks.circles, ...w.hammock.circles],
     });
     this.walker = new Walker(
       this.camera,
@@ -208,6 +224,7 @@ export class App {
     this.cameras = new CameraManager(this.camera, this.orbit, this.walker, this.deskView, this.kayak, this.surf, this.colliders.spawn, {
       desk: spot(w.house.desk),
       bath: spot(w.house.bath),
+      hammock: this.hammockSpot(),
     });
     // The aurora hangs over the sea seen from the desk, a little right of the window's center
     // (scene skies put the moon a little left of it). Shader azimuth: atan(x, −z).
@@ -317,7 +334,8 @@ export class App {
       else if (surfing) this.walkHint.update(true, this.surf.locked, false, this.surfControls());
       else this.walkHint.update(walking, this.walker.locked, false, this.walkControls());
       if (!walking) this.activityMenu.set(null);
-      this.walkHint.showSeat(mode === 'seat', this.cameras.seat === 'bath' ? vi.bath.controls : vi.desk.controls);
+      const seat = this.cameras.seat;
+      this.walkHint.showSeat(mode === 'seat', seat === 'bath' ? vi.bath.controls : seat === 'hammock' ? vi.hammock.controls : vi.desk.controls);
       this.listenerTimer = 0;
       if (walking) this.avatar.setYaw(this.walker.yaw);
       if (mode === 'orbit') {
@@ -328,13 +346,61 @@ export class App {
 
     window.addEventListener('resize', this.onResize);
     this.loop = new Loop(this.tick);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && this.loop.elapsedSeconds > TIME_RESET_HIDDEN && this.cameras.mode !== 'surf') this.resetTime();
+    });
+    // Nothing renders while hidden (e.g. behind a full-screen editor), but the sound plays on:
+    // the real clock still brings the night to it.
+    window.setInterval(() => {
+      if (!document.hidden) return;
+      const s = this.settings.get();
+      this.skyOptions.clock.mode = s.timeMode;
+      this.world.dayNight.updateHidden(this.skyOptions.clock);
+      this.mixer.setNight(this.world.dayNight.night);
+    }, HIDDEN_CLOCK_MS);
+    // A lost GPU context (driver reset, sleep) comes back by itself in three.js; the timer's
+    // queries belong to the old context.
+    this.renderer.domElement.addEventListener('webglcontextrestored', () => this.gpuTimer.reset());
     this.applySettings(s);
-    this.onResize();
     if (s.startAtDesk) this.cameras.sit('desk', false);
     // Start in the saved weather instead of easing in from a clear sky.
     this.world.weather.setTargets(this.weatherTargets());
     this.world.weather.snapToTargets();
   }
+
+  /**
+   * Lying in the hammock: the eyes a third of the way in, head toward palm A, looking along it
+   * to the feet and up into the fronds and the sky. You get up on the seaward side.
+   */
+  private hammockSpot(): SeatSpot {
+    const h = this.world.hammock;
+    const eye = h.restingEye(new THREE.Vector3());
+    const yaw = Math.atan2(-h.dir.x, -h.dir.z);
+    const r = Math.hypot(h.center.x, h.center.z) || 1;
+    const ox = h.center.x / r;
+    const oz = h.center.z / r;
+    return {
+      seat: { x: eye.x, y: eye.y, z: eye.z, yaw, pitch: 0.6, pitchMin: -0.5, pitchMax: 1.3, yawLimit: 1.5 },
+      stand: { x: h.center.x + ox * 1.4, z: h.center.z + oz * 1.4, yaw: Math.atan2(ox, oz) },
+    };
+  }
+
+  /** Every frame: the hammock swings; lying in it, the eyes swing along. */
+  private updateHammock(dt: number): void {
+    const h = this.world.hammock;
+    const lying = this.cameras.mode === 'seat' && this.cameras.seat === 'hammock';
+    h.update(dt, sharedUniforms.uWind.value, lying, this.reducedMotion.matches);
+    if (!lying) return;
+    const pose = this.deskView.seat;
+    const eye = h.eyeWorld(this.tmpEye);
+    const m = this.deskView.motion;
+    m.x = eye.x - pose.x;
+    m.y = eye.y - pose.y;
+    m.z = eye.z - pose.z;
+    m.roll = -h.roll;
+  }
+
+  private readonly tmpEye = new THREE.Vector3();
 
   /** The scene's effect sliders (eased down during a Pomodoro break with "storm calms"). */
   private weatherTargets(): WeatherTargets {
@@ -403,7 +469,8 @@ export class App {
 
   /** Snow muffles the world a little; with your head under water it is nearly all gone. */
   private applyMuffle(): void {
-    this.mixer.setMuffle(this.underMuffled ? Math.max(this.snowMuffle, 0.93) : this.snowMuffle);
+    this.mixer.setMuffle(this.snowMuffle);
+    this.mixer.setUnderwater(this.underMuffled);
   }
 
   start(): void {
@@ -517,15 +584,46 @@ export class App {
     this.keymap.register({ code: 'Backquote', keyLabel: '`', label: vi.shortcuts.debug, action: toggleSetting('showDebug') });
   }
 
+  /** Shader clock back to 0 (see Loop.resetElapsed), with everything timed on it. */
+  private resetTime(): void {
+    this.loop.resetElapsed();
+    sharedUniforms.uTime.value = 0;
+    this.world.dayNight.onTimeReset();
+    this.world.footprints.clear();
+  }
+
+  /** Long visible sessions: restart the shader clock behind a short fade, never mid-activity. */
+  private maybeResetTimeVisible(): void {
+    const m = this.cameras.mode;
+    if (this.loop.elapsedSeconds < TIME_RESET_VISIBLE || (m !== 'orbit' && m !== 'seat')) return;
+    this.fadeThrough(() => this.resetTime());
+  }
+
+  /** Overview and seats: the whole island; on the move: a sharper square around you. */
+  private updateShadowFocus(): void {
+    const m = this.cameras.mode;
+    const lighting = this.world.lighting;
+    if (m === 'orbit' || m === 'seat') {
+      lighting.setShadowFocus(0, 0, ISLAND_SHADOW_HALF);
+      return;
+    }
+    const p = m === 'kayak' ? this.kayak.body : m === 'surf' ? this.surf.body : this.walker;
+    const f = this.camera.getWorldDirection(this.tmpDir);
+    const fl = Math.hypot(f.x, f.z) || 1;
+    lighting.setShadowFocus(p.x + (f.x / fl) * PLAYER_SHADOW_AHEAD, p.z + (f.z / fl) * PLAYER_SHADOW_AHEAD, PLAYER_SHADOW_HALF);
+  }
+
+  private readonly tmpDir = new THREE.Vector3();
+
+  /** Device pixel ratio (zoom, another monitor) capped by the quality preset. */
+  private targetPixelRatio(): number {
+    return Math.min(window.devicePixelRatio, QUALITY_PROFILES[this.settings.get().quality].pixelRatioCap);
+  }
+
   private applySettings(s: Readonly<Settings>): void {
     const profile = QUALITY_PROFILES[s.quality];
-    const pixelRatio = Math.min(window.devicePixelRatio, profile.pixelRatioCap);
-    if (pixelRatio !== this.renderer.getPixelRatio()) {
-      // Resizing the canvas clears it, so only do it when the ratio really changes.
-      this.renderer.setPixelRatio(pixelRatio);
-      this.onResize();
-    }
-    this.world.fireflies.setPixelRatio(pixelRatio);
+    // A new quality preset may change the pixel ratio cap.
+    this.onResize();
 
     const shadows = profile.shadowMapSize > 0;
     this.renderer.shadowMap.enabled = shadows;
@@ -878,9 +976,14 @@ export class App {
     this.mixer.playPaddle(e.kind, e.strength, pan);
   }
 
-  /** The seat you are standing next to in the room (walk mode), if any. */
+  /** The seat you are standing next to (walk mode), if any: in the room, or by the hammock. */
   private nearSeat(): SeatId | null {
-    if (this.cameras.mode !== 'walk' || this.walker.shelter !== 'room') return null;
+    if (this.cameras.mode !== 'walk' || this.walker.swimming) return null;
+    if (this.walker.shelter === 'none') {
+      const c = this.world.hammock.center;
+      return Math.hypot(this.walker.x - c.x, this.walker.z - c.z) < 2.3 ? 'hammock' : null;
+    }
+    if (this.walker.shelter !== 'room') return null;
     const h = this.world.house;
     const l = this.colliders.worldToHouse(this.walker.x, this.walker.z, this.tmpLocal);
     if (Math.hypot(l.x - h.desk.seatX, l.z - h.desk.seatZ) < 1.3) return 'desk';
@@ -908,14 +1011,72 @@ export class App {
     };
   }
 
-  /** Footstep sound (by surface, snow on top when it has settled) and a ripple when wading. */
+  /**
+   * Footstep sound (by surface, snow on top when it has settled), a ripple when wading, and a
+   * footprint on sand or snow.
+   */
   private onStep(e: StepEvent): void {
-    if (e.depth > 0.05) this.world.water.addRipple(this.walker.x, this.walker.z, 1.2, -0.35 * e.strength);
+    const w = this.walker;
+    if (e.depth > 0.05) this.world.water.addRipple(w.x, w.z, 1.2, -0.35 * e.strength);
+    const snowy = sharedUniforms.uSnowCover.value > 0.45;
+    this.stepSide = -this.stepSide;
+    if (e.depth === 0 && w.shelter === 'none') {
+      const onSnow = snowy && e.surface !== 'wood' && e.surface !== 'water';
+      if (onSnow || e.surface === 'sand') this.world.footprints.add(w.x, w.z, w.yaw, this.stepSide, onSnow);
+    }
     if (!this.settings.get().footsteps) return;
     let surface: FootSurface = e.surface;
-    const snowy = sharedUniforms.uSnowCover.value > 0.45;
     if (snowy && surface !== 'water' && this.walker.shelter === 'none') surface = 'snow';
     this.mixer.playFootstep(surface, e.strength, e.depth);
+  }
+
+  private stepSide = 1;
+  /** How soaked the character is from the sea (0..1); dries off slowly in sun and wind. */
+  private soaked = 0;
+  private dripDebt = 0;
+
+  /**
+   * Every frame: the character's wet look (from the sea, or the rain where it falls) and, fresh
+   * out of the water, drops falling from it.
+   */
+  private updateWetness(dt: number): void {
+    const m = this.cameras.mode;
+    const w = this.walker;
+    let soak = 0;
+    if (m === 'walk') soak = w.swimming ? 1 : Math.min(0.5, w.depth * 0.6);
+    else if (m === 'surf') soak = 0.9;
+    else if (m === 'kayak') soak = 0.3; // paddle splashes
+    const sheltered = (m === 'walk' && w.shelter !== 'none') || (m === 'seat' && this.cameras.seat !== 'hammock');
+    const raining = !sheltered && this.world.weather.rainAmount > 0.1;
+    if (soak > this.soaked) {
+      this.soaked += (soak - this.soaked) * (1 - Math.exp(-dt / 0.4));
+    } else if (!raining) {
+      // ~1 min to dry in full sun and wind, a few minutes on a still grey day or at night.
+      const sun = sharedUniforms.uDayLight.value * (1 - 0.6 * sharedUniforms.uCloudCover.value);
+      const tau = 60 + 200 * (1 - sun) - 30 * sharedUniforms.uWind.value;
+      this.soaked = Math.max(0, this.soaked - dt / Math.max(30, tau));
+    }
+    const rainWet = sheltered ? 0 : this.world.weather.wetness;
+    this.avatar.wetness.value = Math.max(this.soaked, rainWet);
+
+    // Drips from hair, hands and clothes, out of the water while still soaked.
+    if (m !== 'walk' || w.swimming || w.depth > 0.3 || this.soaked < 0.2 || !this.avatar.group.visible) return;
+    this.dripDebt += dt * 22 * (this.soaked - 0.15);
+    while (this.dripDebt >= 1) {
+      this.dripDebt -= 1;
+      const a = Math.random() * Math.PI * 2;
+      const r = 0.12 + Math.random() * 0.1;
+      this.world.spray.drop(
+        w.x + Math.cos(a) * r,
+        w.feetY + 0.2 + Math.random() * 1.3,
+        w.z + Math.sin(a) * r,
+        w.vel.x * 0.8,
+        -0.3,
+        w.vel.y * 0.8,
+        // Larger than real drops (~4 mm) so they read as glints at a few metres.
+        0.01 + Math.random() * 0.012,
+      );
+    }
   }
 
   /** The character is shown in third-person walking, unless the camera is pressed right up to it. */
@@ -989,7 +1150,7 @@ export class App {
     if (mode === 'orbit') return;
     if (mode === 'walk') {
       const near = this.nearSeat();
-      this.walkHint.setPrompt(near === 'desk' ? vi.desk.sit : near === 'bath' ? vi.bath.enter : null);
+      this.walkHint.setPrompt(near === 'desk' ? vi.desk.sit : near === 'bath' ? vi.bath.enter : near === 'hammock' ? vi.hammock.enter : null);
       this.activityMenu.set(this.nearSea() ? this.seaOffer() : null);
     }
     this.listenerTimer -= dt;
@@ -1013,7 +1174,7 @@ export class App {
     const r = Math.hypot(x, z) || 1;
     l.seaSide = (x / r) * Math.cos(yaw) - (z / r) * Math.sin(yaw);
     l.trees = this.colliders.treesNear(x, z, 12);
-    l.shelter = atDesk ? 'room' : paddling || surfing ? 'none' : this.walker.shelter;
+    l.shelter = atDesk ? (this.cameras.seat === 'hammock' ? 'none' : 'room') : paddling || surfing ? 'none' : this.walker.shelter;
     this.mixer.setListener(l);
   }
 
@@ -1024,9 +1185,21 @@ export class App {
   };
   private readonly skyWeather: SkyWeather = { overcast: 0, rain: 0, wetness: 0 };
 
+  private readonly canvasSize = { w: 0, h: 0, ratio: 0 };
+
+  /** Window size, browser zoom or monitor changed (zoom and monitors change devicePixelRatio). */
   private onResize = (): void => {
+    const pixelRatio = this.targetPixelRatio();
     const w = this.container.clientWidth || window.innerWidth;
     const h = this.container.clientHeight || window.innerHeight;
+    // Resizing the canvas reallocates (and clears) it: only when something really changed.
+    const sz = this.canvasSize;
+    if (sz.w === w && sz.h === h && sz.ratio === pixelRatio) return;
+    sz.w = w;
+    sz.h = h;
+    sz.ratio = pixelRatio;
+    this.renderer.setPixelRatio(pixelRatio);
+    this.world.fireflies.setPixelRatio(pixelRatio);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h, false);
@@ -1078,11 +1251,15 @@ export class App {
     sharedUniforms.uSurfLevel.value = this.env.waveStrength.value;
     this.mixer.setSeaState(sea);
 
+    this.updateHammock(dt);
     this.cameras.update(dt);
     this.updateListener(dt);
     this.updateSurfing();
     this.updateAvatar(dt);
-    this.world.update(dt, elapsed, this.camera, sea);
+    this.updateWetness(dt);
+    this.world.footprints.setClock(elapsed);
+    const onFoot = this.cameras.mode === 'walk' && !this.walker.swimming;
+    this.world.update(dt, elapsed, this.camera, sea, onFoot ? this.walker : null);
     this.deskScreens.update(dt, this.camera);
     this.gpuTimer.begin();
     // The wake map follows the kayak (it only has marks while the kayak moves).
@@ -1094,11 +1271,13 @@ export class App {
     const wakeX = swimmer ? this.walker.x : surfer ? this.surf.body.x : this.kayak.body.x;
     const wakeZ = swimmer ? this.walker.z : surfer ? this.surf.body.z : this.kayak.body.z;
     this.world.water.simulate(dt, wakeX, wakeZ);
+    this.updateShadowFocus();
     // The next scene render (capture if refraction is on, else main) refreshes the shadow map.
     this.renderer.shadowMap.needsUpdate = true;
     this.world.water.captureScene(this.scene, this.camera);
     this.renderer.render(this.scene, this.camera);
     this.gpuTimer.end();
+    this.maybeResetTimeVisible();
     const cpuMs = performance.now() - cpuStart;
     this.overlay.update(dt, this.renderer.info, this.loop, cpuMs, this.gpuTimer.lastMs);
   };

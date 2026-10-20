@@ -1,4 +1,4 @@
-import { button, CLOCK_MARKS, el, slider, toggle, VOLUME, type SliderControl, type ToggleControl } from './components';
+import { button, el, onWheelNotch, slider, toggle, VOLUME, type SliderControl, type ToggleControl } from './components';
 import { icons } from './icons';
 import { vi } from './strings.vi';
 import { LibraryView } from './LibraryView';
@@ -10,11 +10,12 @@ import type { Keymap } from '../controls/keymap';
 import { QUALITY_LEVELS, type QualityLevel } from '../core/quality';
 import type { ScenePresetStore } from '../core/scenePresets';
 import { PANEL_SECTIONS, type PanelSection, type Settings, type SettingsStore } from '../core/settings';
-import { formatClock, formatClockSeconds, TIME_SPEEDS, type TimeSpeed } from '../world/celestial';
+import { formatClock, formatClockSeconds } from '../world/celestial';
+import { nextSpeed } from './timeSpeed';
 import type { ScreenInfo } from '../world/deskScreens';
 
 /** Where the camera is, as the "Góc nhìn" tiles show it. */
-export type ViewId = 'orbit' | 'walk' | 'desk' | 'bath';
+export type ViewId = 'orbit' | 'walk' | 'desk' | 'bath' | 'hammock';
 
 export interface PanelDeps {
   mixer: Mixer;
@@ -60,6 +61,7 @@ const VIEWS: ReadonlyArray<[ViewId, string, string]> = [
   ['walk', icons.walk, 'C'],
   ['desk', icons.desk, 'B'],
   ['bath', icons.bath, 'E'],
+  ['hammock', icons.hammock, 'E'],
 ];
 /** Status line and header clock refresh rate (ms). */
 const TICK_MS = 500;
@@ -101,12 +103,13 @@ export class Panel {
   private readonly thirdPerson: ToggleControl;
   private readonly startAtDesk: ToggleControl;
   private readonly startQuality: QualityLevel;
-  private readonly speedBtns = new Map<TimeSpeed, HTMLButtonElement>();
   private readonly bigClock: HTMLElement;
-  private readonly clockState: HTMLElement;
+  /** Running / stopped / real clock, as a small dot before the time (its tooltip says which). */
+  private readonly clockDot: HTMLElement;
+  private readonly clockFace: HTMLElement;
   private readonly pauseBtn: HTMLButtonElement;
-  private readonly realTime: ToggleControl;
-  private readonly speedHint: HTMLElement;
+  private readonly speedBtn: HTMLButtonElement;
+  private readonly realBtn: HTMLButtonElement;
   private readonly viewTiles = new Map<ViewId, HTMLButtonElement>();
   private readonly clock: SliderControl;
   private shownMinute = -1;
@@ -186,40 +189,40 @@ export class Panel {
     sound.body.append(library.root, synthRow, this.synthStatus);
 
     // --- Thời gian ---
+    // Two rows: the hh:mm:ss clock with three icon buttons (stop/run, speed, the computer's
+    // clock), and the hour slider painted with the colours of the day. Labels live in tooltips.
     const time = this.section('time');
-    // A big hh:mm:ss clock with its state, and the stop/run button.
-    const face = el('div', 'clock-face');
-    const faceText = el('div', 'clock-text');
-    this.bigClock = el('div', 'clock-big');
-    this.clockState = el('div', 'hint');
-    faceText.append(this.bigClock, this.clockState);
-    this.pauseBtn = button('', () => deps.toggleTimePaused(), 'btn small clock-pause');
+    this.clockFace = el('div', 'clock-face');
+    const clockMain = el('div', 'clock-main');
+    this.clockDot = el('span', 'clock-dot');
+    this.bigClock = el('span', 'clock-big');
+    clockMain.append(this.clockDot, this.bigClock);
+    this.pauseBtn = button('', () => deps.toggleTimePaused(), 'icon-btn clock-tool');
     this.pauseBtn.title = vi.panel.pauseTitle;
-    face.append(faceText, this.pauseBtn);
-    this.realTime = toggle(vi.panel.realTime, s.timeMode === 'real', (on) =>
-      settings.update(on ? { timeMode: 'real' } : { timeMode: 'free', timePaused: false }),
-    );
-    const realRow = el('div', 'option-list');
-    realRow.append(this.realTime.root);
+    this.pauseBtn.setAttribute('aria-label', vi.panel.pauseTitle);
+    this.speedBtn = button('', () => undefined, 'clock-tool speed-btn');
+    // Click: one speed up (round and round); Shift + click: one down.
+    this.speedBtn.addEventListener('click', (e) => this.stepSpeed(e.shiftKey ? -1 : 1, true));
+    // Wheel: up faster, down slower (stops at the ends).
+    onWheelNotch(this.speedBtn, () => true, (dir) => this.stepSpeed(dir, false));
+    this.realBtn = button('', () => {
+      settings.update(settings.get().timeMode === 'real' ? { timeMode: 'free', timePaused: false } : { timeMode: 'real' });
+    }, 'icon-btn clock-tool real-btn');
+    this.realBtn.innerHTML = icons.realClock;
+    this.realBtn.setAttribute('aria-label', vi.panel.realTime);
+    const tools = el('div', 'clock-tools');
+    tools.append(this.pauseBtn, this.speedBtn, this.realBtn);
+    this.clockFace.append(clockMain, tools);
     // Dragging the clock: the island clock runs on from the chosen time.
     this.clock = slider(vi.panel.time, deps.getHours(), (h) => {
       const c = settings.get();
       if (c.timeMode === 'real' || c.timePaused) settings.update({ timeMode: 'free', timePaused: false });
       deps.setHours(h);
-    }, { min: 0, max: 23.99, step: 0.05, wheelStep: 0.25, wrap: 24, marks: CLOCK_MARKS, format: formatClock });
+    }, { min: 0, max: 23.99, step: 0.05, wheelStep: 0.25, wrap: 24, format: formatClock });
+    this.clock.root.classList.add('day-slider');
     this.clock.root.title = vi.panel.timeDragHint;
-    // Speeds: picking one runs the island clock at that speed from the current time.
-    const speed = el('div', 'seg-group five');
-    speed.setAttribute('role', 'group');
-    speed.setAttribute('aria-label', vi.panel.speed);
-    for (const v of TIME_SPEEDS) {
-      const b = button(`×${v}`, () => settings.update({ timeMode: 'free', timeSpeed: v, timePaused: false }), 'seg');
-      b.title = vi.panel.speedHints[v];
-      this.speedBtns.set(v, b);
-      speed.append(b);
-    }
-    this.speedHint = el('div', 'hint');
-    time.body.append(face, realRow, this.clock.root, el('div', 'subhead', vi.panel.speed), speed, this.speedHint);
+    this.clock.input.setAttribute('aria-label', vi.panel.time);
+    time.body.append(this.clockFace, this.clock.root);
 
     // --- Góc nhìn ---
     const view = this.section('view');
@@ -293,6 +296,21 @@ export class Panel {
     }, { capture: true });
   }
 
+  /**
+   * The speed button. `wrap` (click): past the fastest back to ×1; the wheel stops at the ends.
+   * On the computer's clock, the first click switches to the island clock at the speed shown.
+   */
+  private stepSpeed(dir: 1 | -1, wrap: boolean): void {
+    const { settings } = this.deps;
+    const s = settings.get();
+    if (s.timeMode === 'real') {
+      settings.update({ timeMode: 'free', timePaused: false });
+      return;
+    }
+    const next = nextSpeed(s.timeSpeed, dir, wrap);
+    if (next !== s.timeSpeed || s.timePaused) settings.update({ timeSpeed: next, timePaused: false });
+  }
+
   private toggleCollapsed(): void {
     const { settings } = this.deps;
     settings.update({ panelCollapsed: !settings.get().panelCollapsed });
@@ -325,13 +343,23 @@ export class Panel {
    * Called every frame; refreshes the status line, the Pomodoro clock and the section values
    * a couple of times a second, touching the DOM only when the text changes.
    */
+  private shownSecond = -1;
+
   tick(now: number): void {
-    setText(this.bigClock, formatClockSeconds(this.deps.getHours()));
+    // The clock string changes once a second (and no string is built in between).
+    const second = Math.floor(this.deps.getHours() * 3600);
+    if (second !== this.shownSecond) {
+      this.shownSecond = second;
+      setText(this.bigClock, formatClockSeconds(this.deps.getHours()));
+    }
     const minute = Math.floor(this.deps.getHours() * 60);
     if (minute !== this.shownMinute && document.activeElement !== this.clock.input) {
       this.shownMinute = minute;
       this.clock.set(this.deps.getHours());
     }
+    // The slider's thumb is a sun by day (06–18 h), a moon by night.
+    const h = this.deps.getHours();
+    this.clock.root.classList.toggle('night', h < 6 || h >= 18);
     if (now - this.lastTick < TICK_MS) return;
     this.lastTick = now;
     const info = this.deps.status();
@@ -342,7 +370,9 @@ export class Panel {
     setText(this.meta('scene'), scene);
     setText(this.headerScene, scene);
     setText(this.meta('sound'), muted ? vi.panel.status.muted : info.playing);
-    setText(this.meta('time'), info.islandTime);
+    const t = this.deps.settings.get();
+    const timeState = t.timeMode === 'real' ? vi.panel.timeMetaReal : t.timePaused ? vi.panel.timeMetaPaused : `×${t.timeSpeed}`;
+    setText(this.meta('time'), `${info.islandTime} · ${timeState}`);
     const p = this.deps.pomodoro();
     setText(this.pomoText, p ? p.remaining : '');
     this.pomoBtn.classList.toggle('running', !!p?.running);
@@ -403,16 +433,20 @@ export class Panel {
     this.autoCollapse.set(s.autoCollapse);
     const real = s.timeMode === 'real';
     const stopped = !real && s.timePaused;
-    this.realTime.set(real);
-    for (const [v, b] of this.speedBtns) b.setAttribute('aria-pressed', String(!real && v === s.timeSpeed));
-    this.speedHint.textContent = real ? vi.panel.speedHints[1] : vi.panel.speedHints[s.timeSpeed];
-    this.clockState.textContent = real
-      ? vi.panel.clockReal
-      : stopped
-        ? vi.panel.clockPaused
-        : vi.panel.clockFree(`×${s.timeSpeed}`);
-    this.pauseBtn.innerHTML = `${stopped ? icons.play : icons.pause}<span>${stopped ? vi.panel.resume : vi.panel.pause}</span>`;
+    // Real clock: the monitor icon is lit; the speed shows the island speed, dimmed.
+    this.realBtn.setAttribute('aria-pressed', String(real));
+    this.realBtn.title = real ? vi.panel.realTimeOn : vi.panel.realTime;
+    this.speedBtn.textContent = `×${s.timeSpeed}`;
+    this.speedBtn.classList.toggle('inactive', real);
+    this.speedBtn.title = real ? vi.panel.speedFromReal : vi.panel.speedTitle(vi.panel.speedHints[s.timeSpeed]);
+    this.speedBtn.setAttribute('aria-label', `${vi.panel.speed} ×${s.timeSpeed}`);
+    this.pauseBtn.innerHTML = stopped ? icons.play : icons.pause;
     this.pauseBtn.setAttribute('aria-pressed', String(stopped));
+    // The dot and its tooltip replace the old state line under the clock.
+    const state = real ? vi.panel.clockReal : stopped ? vi.panel.clockPaused : vi.panel.clockFree(`×${s.timeSpeed}`);
+    this.clockFace.dataset.state = real ? 'real' : stopped ? 'paused' : 'running';
+    this.clockDot.title = state;
+    this.bigClock.title = state;
     this.syncSynthStatus();
   }
 }

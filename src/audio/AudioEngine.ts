@@ -3,6 +3,8 @@ import { Scheduler } from './scheduler';
 
 /** Time constant (s) for most gain changes: fast enough to feel instant, slow enough not to click. */
 export const RAMP = 0.12;
+/** Low-pass cutoff with the head under water (Hz). */
+const UNDERWATER_HZ = 400;
 
 /**
  * Owns the single AudioContext and the shared output chain:
@@ -94,8 +96,28 @@ export class AudioEngine {
 
   /** 0 = clear, 1 = heavily muffled (snow absorbs high frequencies). Exponential in frequency. */
   setMuffle(amount: number): void {
-    const freq = 20000 * Math.pow(1500 / 20000, Math.min(1, Math.max(0, amount)));
-    this.muffle.frequency.setTargetAtTime(freq, this.now, 0.8);
+    this.muffleAmount = Math.min(1, Math.max(0, amount));
+    this.applyMuffle(0.8);
+  }
+
+  /**
+   * Head under water: the world above turns into a dull low rumble (~400 Hz and below), far
+   * more than snow's muffle. Quick in and out, like ducking under.
+   */
+  setUnderwater(on: boolean): void {
+    if (on === this.underwater) return;
+    this.underwater = on;
+    this.applyMuffle(0.06);
+  }
+
+  private muffleAmount = 0;
+  private underwater = false;
+
+  private applyMuffle(timeConstant: number): void {
+    const freq = this.underwater ? UNDERWATER_HZ : 20000 * Math.pow(1500 / 20000, this.muffleAmount);
+    this.muffle.frequency.setTargetAtTime(freq, this.now, timeConstant);
+    // A little resonance under water gives the "boomy" sound of being submerged.
+    this.muffle.Q.setTargetAtTime(this.underwater ? 1.4 : 0.5, this.now, timeConstant);
   }
 }
 

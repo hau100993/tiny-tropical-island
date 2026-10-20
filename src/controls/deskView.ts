@@ -22,6 +22,10 @@ export interface DeskPose {
   yaw: number;
   /** Default look up/down (rad). */
   pitch: number;
+  /** Neck limits for this seat (default: the desk's). Lying in the hammock you look up a lot. */
+  pitchMin?: number;
+  pitchMax?: number;
+  yawLimit?: number;
 }
 
 /**
@@ -47,6 +51,11 @@ export class DeskView {
   private readonly euler = new THREE.Euler(0, 0, 0, 'YXZ');
   private fromFov = 55;
   private baseFov = 55;
+  /**
+   * Movement of the seat itself (the hammock swinging): an offset added to the eyes and a roll
+   * around the view axis. Set every frame by the owner of the seat; zero otherwise.
+   */
+  readonly motion = { x: 0, y: 0, z: 0, roll: 0 };
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -62,8 +71,9 @@ export class DeskView {
     dom.addEventListener('pointermove', (e) => {
       if (!this.active || !this.dragging) return;
       // Dragging moves the view like grabbing it: drag left → look right.
-      this.yaw = clamp(this.yaw + (e.clientX - this.lastX) * LOOK_SPEED, -YAW_LIMIT, YAW_LIMIT);
-      this.pitch = clamp(this.pitch + (e.clientY - this.lastY) * LOOK_SPEED, PITCH_MIN, PITCH_MAX);
+      const yawLimit = this.pose.yawLimit ?? YAW_LIMIT;
+      this.yaw = clamp(this.yaw + (e.clientX - this.lastX) * LOOK_SPEED, -yawLimit, yawLimit);
+      this.pitch = clamp(this.pitch + (e.clientY - this.lastY) * LOOK_SPEED, this.pose.pitchMin ?? PITCH_MIN, this.pose.pitchMax ?? PITCH_MAX);
       this.lastX = e.clientX;
       this.lastY = e.clientY;
     });
@@ -90,6 +100,7 @@ export class DeskView {
   enter(pose: DeskPose, animate: boolean): void {
     this.pose = { ...pose };
     this.active = true;
+    this.motion.x = this.motion.y = this.motion.z = this.motion.roll = 0;
     this.yaw = 0;
     this.pitch = pose.pitch;
     this.zoom = 0;
@@ -123,21 +134,22 @@ export class DeskView {
 
   private apply(dt: number): void {
     this.zoom += (this.zoomTarget - this.zoom) * damp(8, dt || 1);
-    this.euler.set(this.pitch, this.pose.yaw + this.yaw, 0, 'YXZ');
+    const mo = this.motion;
+    this.euler.set(this.pitch, this.pose.yaw + this.yaw, mo.roll, 'YXZ');
     this.toQuat.setFromEuler(this.euler);
     const fov = FOV_WIDE + (FOV_NEAR - FOV_WIDE) * this.zoom;
     if (this.t < 1) {
       this.t = Math.min(1, this.t + dt / SIT_SECONDS);
       const k = this.t * this.t * (3 - 2 * this.t);
       this.camera.position.set(
-        this.fromPos.x + (this.pose.x - this.fromPos.x) * k,
-        this.fromPos.y + (this.pose.y - this.fromPos.y) * k,
-        this.fromPos.z + (this.pose.z - this.fromPos.z) * k,
+        this.fromPos.x + (this.pose.x + mo.x - this.fromPos.x) * k,
+        this.fromPos.y + (this.pose.y + mo.y - this.fromPos.y) * k,
+        this.fromPos.z + (this.pose.z + mo.z - this.fromPos.z) * k,
       );
       this.camera.quaternion.slerpQuaternions(this.fromQuat, this.toQuat, k);
       this.camera.fov = this.fromFov + (fov - this.fromFov) * k;
     } else {
-      this.camera.position.set(this.pose.x, this.pose.y, this.pose.z);
+      this.camera.position.set(this.pose.x + mo.x, this.pose.y + mo.y, this.pose.z + mo.z);
       this.camera.quaternion.copy(this.toQuat);
       this.camera.fov = fov;
     }

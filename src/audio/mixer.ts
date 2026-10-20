@@ -145,6 +145,14 @@ export class Mixer {
     this.applyMuffle();
   }
 
+  /** Head under water: everything heard through the water (see AudioEngine.setUnderwater). */
+  setUnderwater(on: boolean): void {
+    this.underwater = on;
+    this.engine?.setUnderwater(on);
+  }
+
+  private underwater = false;
+
   /** Null until sound has started. */
   get audioEngine(): AudioEngine | null {
     return this.engine;
@@ -235,6 +243,7 @@ export class Mixer {
 
   private applyMuffle(): void {
     this.engine?.setMuffle(this.muffle);
+    this.engine?.setUnderwater(this.underwater);
   }
 
   private changed(): void {

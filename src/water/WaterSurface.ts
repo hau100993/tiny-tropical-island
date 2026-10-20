@@ -114,6 +114,7 @@ export class WaterSurface {
         uWakeSize: { value: inputs.wakeSize },
         uWakeOn: { value: inputs.wake.value ? 1 : 0 },
         uUnderColor: { value: inputs.underColor },
+        uCamUnder: { value: 0 },
         uSurfFrame: { value: new THREE.Vector4(0, 0, 1, 0) },
         uCameraNear: { value: camera.near },
         uCameraFar: { value: camera.far },

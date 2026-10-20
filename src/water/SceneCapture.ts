@@ -46,12 +46,30 @@ export class SceneCapture {
   /** `hidden` objects (water, sky) are skipped for this pass. */
   render(scene: THREE.Scene, camera: THREE.Camera, hidden: THREE.Object3D[]): void {
     if (!this.target) return;
-    for (const o of hidden) o.visible = false;
+    hideFor(hidden, this.wasVisible);
     const prev = this.renderer.getRenderTarget();
     this.renderer.setRenderTarget(this.target);
     this.renderer.clear();
     this.renderer.render(scene, camera);
     this.renderer.setRenderTarget(prev);
-    for (const o of hidden) o.visible = true;
+    restore(hidden, this.wasVisible);
   }
+
+  private readonly wasVisible: boolean[] = [];
+}
+
+/**
+ * Hides `objects` for one extra pass, remembering whether each was visible: afterwards each gets
+ * its own state back (something switched off, like the seagulls at night, stays off).
+ */
+export function hideFor(objects: readonly THREE.Object3D[], was: boolean[]): void {
+  was.length = objects.length;
+  for (let i = 0; i < objects.length; i++) {
+    was[i] = objects[i].visible;
+    objects[i].visible = false;
+  }
+}
+
+export function restore(objects: readonly THREE.Object3D[], was: readonly boolean[]): void {
+  for (let i = 0; i < objects.length; i++) objects[i].visible = was[i];
 }

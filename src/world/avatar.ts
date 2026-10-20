@@ -990,6 +990,11 @@ const poleTmp = new THREE.Vector3();
 
 export class Avatar {
   readonly group = new THREE.Group();
+  /**
+   * How wet the character looks (0..1): darker cloth and hair, glossy skin. Set by the owner
+   * from swimming and the rain (the world's wetness doesn't reach under the roof).
+   */
+  readonly wetness = { value: 0 };
   private readonly hips = new THREE.Bone();
   private readonly torso = new THREE.Bone();
   private readonly head = new THREE.Bone();
@@ -1029,14 +1034,17 @@ export class Avatar {
     /** Ground under each foot; without it the feet stay on the walker's ground height. */
     private readonly groundAt: GroundQuery | null = null,
   ) {
-    // Three materials: matte cloth, soft skin, glossier hair and eyes. All get wet in the rain
-    // and cloud shadows like the rest of the world.
+    // Three materials: matte cloth, soft skin, glossier hair and eyes. All get wet (own wetness,
+    // see `wetness`) and cloud shadows like the rest of the world.
     const skinMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.58 });
     const clothMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 });
     const glossMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.38 });
-    patchWorldMaterial(skinMat, { wet: true, porosity: 0.3 }, shared);
-    patchWorldMaterial(clothMat, { wet: true, porosity: 0.7 }, shared);
-    patchWorldMaterial(glossMat, { wet: true, porosity: 0.4 }, shared);
+    const own: SharedUniforms = { ...shared, uWetness: this.wetness };
+    // Wet cotton and hair darken a lot (porosity > 1: about half as bright soaked); skin mostly
+    // just turns glossy.
+    patchWorldMaterial(skinMat, { wet: true, porosity: 0.3 }, own);
+    patchWorldMaterial(clothMat, { wet: true, porosity: 1.5 }, own);
+    patchWorldMaterial(glossMat, { wet: true, porosity: 1.2 }, own);
     const rng = createRng(77);
 
     // ---- Skeleton (rest pose: standing straight, arms down) ----

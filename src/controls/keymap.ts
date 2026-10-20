@@ -10,15 +10,24 @@ export interface Shortcut {
   unlisted?: boolean;
 }
 
-/** Global keyboard shortcuts; ignored while typing in an input field. */
+/** Inputs that take no typing: shortcuts still work while one of them has the focus. */
+const NON_TEXT_INPUTS = new Set(['range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'color', 'file']);
+
+/** True while the user types into a text field (a slider or switch that kept the focus doesn't count). */
+export function isTyping(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return true;
+  return target instanceof HTMLInputElement && !NON_TEXT_INPUTS.has(target.type);
+}
+
+/** Global keyboard shortcuts; ignored while typing in a text field. */
 export class Keymap {
   private readonly shortcuts = new Map<string, Shortcut>();
 
   constructor() {
     window.addEventListener('keydown', (e) => {
       if (e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      if (isTyping(e.target)) return;
       const s = this.shortcuts.get(e.code);
       if (!s) return;
       e.preventDefault();

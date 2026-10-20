@@ -5,9 +5,9 @@ import type { DeskPose, DeskView } from './deskView';
 import type { KayakActivity } from '../activities/KayakActivity';
 import type { SurfActivity } from '../activities/SurfActivity';
 
-/** 'seat': sitting somewhere in the house (the desk or the bathtub). 'kayak': paddling. 'surf': on the surfboard. */
+/** 'seat': sitting at the desk, in the bathtub or lying in the hammock. 'kayak': paddling. 'surf': on the surfboard. */
 export type CameraMode = 'orbit' | 'walk' | 'seat' | 'kayak' | 'surf';
-export type SeatId = 'desk' | 'bath';
+export type SeatId = 'desk' | 'bath' | 'hammock';
 
 /** Near plane per mode: close enough not to clip walls (or the monitors) indoors. */
 const NEAR = { orbit: 0.3, walk: 0.08, seat: 0.05, kayak: 0.08, surf: 0.08 } as const;
@@ -20,7 +20,7 @@ export interface SeatSpot {
 }
 
 /**
- * Switches between the orbit camera, walking and sitting (at the desk or in the bathtub).
+ * Switches between the orbit camera, walking and sitting (at the desk, in the bathtub, in the hammock).
  * Leaving to orbit puts the orbit camera back exactly where it was; walking resumes where you
  * left off (or next to the seat after getting up).
  */

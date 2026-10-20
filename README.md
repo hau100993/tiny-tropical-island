@@ -93,11 +93,12 @@ also take the wheel when the pointer is over their row (±1, Shift ±5).
   **Xóa** (your scenes); see *Scenes and your recordings*.
 - **Âm thanh:** **Âm thanh của tôi** (your recordings) and **Âm nền tự tạo khi không phát
   file** (the synthesized fallback, see below).
-- **Thời gian:** a big hh:mm:ss clock with **Dừng / Chạy**, **Giờ thật (theo máy tính)**, the
-  **Giờ** slider and the speed (×1 · ×10 · ×30 · ×60 · ×240), see *Day, night and sky*.
-- **Góc nhìn:** tiles for **Toàn cảnh**, **Đi bộ**, **Góc làm việc**, **Bồn tắm** (the current
-  one is highlighted, each shows its key), and switches: character view (`V`), footsteps,
-  camera auto-rotate.
+- **Thời gian:** the hh:mm:ss clock with three icon buttons (pause/play, speed, computer clock)
+  and a day-coloured hour slider, see *Day, night and sky*.
+- **Góc nhìn:** tiles for **Toàn cảnh**, **Đi bộ**, **Góc làm việc**, **Bồn tắm**, **Nằm võng**
+  (the current one is highlighted, each shows its key), and switches: character view (`V`),
+  **Âm thanh hoạt động** (footsteps, paddle and swim splashes, the surf's crash and rush; off by
+  default), camera auto-rotate.
 - **Cài đặt:** quality (Thấp / Vừa / Cao; anti-aliasing changes between Low and the others
   apply after a reload), **Mở app ở góc làm việc**, **Nhấp vào cảnh 3D để thu gọn bảng** (off by
   default: a click on the island without dragging collapses the panel), and the keyboard
@@ -201,7 +202,11 @@ ceramics are rounded and smooth-shaded. Trees are kept out of the view from the 
 **Out at sea:** a Vietnamese fishing boat (blue hull, red bottom, high bow, white-and-blue cabin,
 the red flag with the yellow star on both masts and a line of coloured pennants) cruises a slow
 loop about 150–200 m out, in the upper right of the view from the desk. It rides the same waves
-as the sea, with a bow wave and a short wake (`src/world/fishingBoat.ts`).
+as the sea, with a bow wave and a short wake (`src/world/fishingBoat.ts`). From dusk to dawn its
+lights are on (`src/world/boatLights.ts`): two lines of bright squid-fishing lamps over the
+foredeck, red and green sidelights, white masthead and stern lights and warm cabin windows, each
+with a soft glow, shimmering reflections on the sea (longer and more broken when the waves are
+higher) and a pool of light on the water under the lamps.
 
 **Sitting at the desk:** press **B** (or *Góc làm việc* in the panel) from anywhere, or walk in
 and press **E** next to the chair. At the desk:
@@ -322,8 +327,21 @@ behind you, so it works inside the small room too.
   (see *Swimming*).
 - If the mouse is not captured (e.g. right after pressing `Esc`, the browser waits a moment),
   the hint says **Nhấp vào cảnh…**: click the scene.
+- **Footprints:** bare footprints stay behind you on the sand (and on anything under settled
+  snow). They fade by themselves: a couple of minutes on dry sand, much sooner where the waves
+  reach, faster in the rain, longer in snow.
+- **Wet after the sea:** out of the water your character is soaked (darker clothes and hair,
+  glossy skin, drops falling) and dries in about a minute in sun and wind, a few minutes on a
+  grey day or at night, not while it rains on you. Rain wets him only outdoors.
+- **The hammock:** past the beach umbrella, between two palms on the sand. Stand next to it and
+  press `E` (or the panel tile **Nằm võng**): you lie in it, looking up into the palms and the sky,
+  gently rocking (more in wind). Drag to look around, scroll to look closer, `E` or `Esc` to get
+  up.
+- **Animals:** seagulls circle over the beaches by day (they roost at night); dolphins cruise off
+  the house beach and leap now and then (watch from the desk window); ghost crabs scurry on the
+  damp sand and dig in when you come close; sea turtles glide over the reef (dive to see them).
 - **Sound follows where you are:** footsteps change with the ground (sand, grass, rock, wooden
-  floor, splashing water, snow crunch; switch off with **Tiếng bước chân**). The surf is loud on
+  floor, splashing water, snow crunch; switch on with **Âm thanh hoạt động**). The surf is loud on
   the beach and fades inland, coming from the sea's side; birds get louder among the trees;
   inside the room everything is muffled and rain sounds like rain on the roof. No rain or snow
   falls under the roof, and the floor stays dry.
@@ -476,7 +494,7 @@ wet part of the blade, applied where the blade is, pushes and turns the boat, so
 less when you're already fast, and a stroke far out turns more. The waves (the same ones the
 water draws) lift, pitch and roll the boat; it runs aground on the sand and is stopped by rocks
 and the rowboat. The empty kayak keeps floating where you left it. The paddle sounds (left
-or right ear by the side) follow **Tiếng bước chân**.
+or right ear by the side) follow **Âm thanh hoạt động**.
 
 What you see on the water: the bow pushes out a V of little waves and bubbles that opens
 behind you at ~19.5° (the angle of every wake on deep water), the stern leaves a band of
@@ -489,14 +507,22 @@ in, and drips when it comes out. These marks live in a sharp "wake map" (48 m ar
 
 **The clock** (*Thời gian* in the panel):
 
-- **Giờ thật (theo máy tính):** the island follows your computer's clock, to the second.
-- Otherwise the island has its own clock. Drag **Giờ** to any time and it runs on from there
-  (dragging while stopped, or while on real time, starts it again).
-- **Tốc độ:** ×1 (1 s = 1 s), ×10 (a day ≈ 2.4 h), ×30 (≈ 48 min), ×60 (1 s = 1 min, a day ≈
-  24 min, the default) and ×240 (1 s = 4 min, a day ≈ 6 min). Picking a speed starts the island
-  clock from the current time.
-- **Dừng / Chạy** (or `N`) stops and restarts it. A scene with a time of day starts
+One row: the time (a dot before it: filled = running, ring = the computer's clock, grey =
+stopped; hover for the words) and three small buttons; below it the hour slider, coloured like
+the day (night blue, dawn pink, sky blue, sunset orange), with a sun or a moon as its handle.
+Hover any button for its name.
+
+- **Monitor icon (giờ thật):** the island follows your computer's clock, to the second. Click
+  again for the island's own clock.
+- **Hour slider:** drag (or wheel, 15 min per notch) to any time; the island clock runs on from
+  there (also when it was stopped or on real time).
+- **Speed button (×1 / ×10 / ×60 / ×240):** click for the next speed, round and round; Shift +
+  click goes back; the mouse wheel over it changes it too. ×1 = real speed, ×10 = a day in about
+  2.4 h, ×60 = a day in 24 min (default), ×240 = a day in 6 min. On the computer's clock it shows
+  the island speed dimmed; a click switches to the island clock at that speed.
+- **Pause/play icon** (or `N`) stops and restarts the clock. A scene with a time of day starts
   the clock from that time (it keeps running).
+- Closed, the section's title shows e.g. *10:14 · ×60*, *21:30 · đã dừng* or *09:38 · giờ thật*.
 
 The other sky options are scene effects (*Cảnh → Sửa cảnh / Tạo cảnh → Hiệu ứng*):
 

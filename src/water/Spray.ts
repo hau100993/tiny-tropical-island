@@ -113,9 +113,14 @@ export class Spray implements SpraySink {
     this.age[i] = 0;
     this.floor[i] = Math.min(y, 0) - 0.05;
     this.radius[i] = size;
+    this.live = true;
   }
 
+  /** Any particle alive since the last update that found none (skips idle frames entirely). */
+  private live = false;
+
   update(dt: number): void {
+    if (!this.live) return;
     const p = this.pos.array as Float32Array;
     const s = this.size.array as Float32Array;
     const f = this.fade.array as Float32Array;
@@ -155,6 +160,7 @@ export class Spray implements SpraySink {
       last = i;
     }
     this.points.geometry.setDrawRange(0, last + 1);
+    this.live = last >= 0;
     this.pos.needsUpdate = true;
     this.size.needsUpdate = true;
     this.fade.needsUpdate = true;

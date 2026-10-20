@@ -142,6 +142,7 @@ export class WaterSystem {
   /** Step 2: capture the scene behind the water for refraction (no-op when refraction is off). */
   captureScene(scene: THREE.Scene, camera: THREE.PerspectiveCamera): void {
     this.surface.syncCamera(camera);
+    this.surface.mesh.material.uniforms.uCamUnder.value = this.underwater?.under ? 1 : 0;
     // From below, the surface draws its own underside: no refraction or reflection needed.
     if (this.underwater?.under) return;
     this.capture.render(scene, camera, this.captureHidden);

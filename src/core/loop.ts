@@ -20,6 +20,20 @@ export class Loop {
     document.addEventListener('visibilitychange', this.onVisibility);
   }
 
+  /** Seconds of rendering so far (the shaders' `uTime`). */
+  get elapsedSeconds(): number {
+    return this.elapsed;
+  }
+
+  /**
+   * Starts the shader clock again from 0. The GPU keeps time in 32-bit floats, which lose
+   * precision as the number grows: after a day or two of rendering, rain and waves would move
+   * in visible steps. The caller does this when nobody is watching (tab hidden, or behind a fade).
+   */
+  resetElapsed(): void {
+    this.elapsed = 0;
+  }
+
   start(): void {
     if (this.running || document.hidden) {
       this.running = true;

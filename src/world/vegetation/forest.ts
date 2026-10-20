@@ -42,6 +42,10 @@ export function createForest(
   seed: number,
   shared: SharedUniforms,
   trail: Trail,
+  /** Placed by hand (the hammock's palms): grown first, collide like the others. */
+  fixedPalms: readonly Placement[] = [],
+  /** No plant at all inside these (the hammock and the sand under it). */
+  keepOut: readonly Circle[] = [],
 ): Forest {
   const rng = createRng(seed);
 
@@ -63,6 +67,14 @@ export function createForest(
 
   for (const sp of SPECIES) {
     const placements: Array<{ x: number; z: number; rotY: number; s: number; v: number }> = [];
+    if (sp.id === 'coconut') {
+      // Middle variant (8.4 m), full size: a hammock hangs at a sensible height on its trunk.
+      for (const p of fixedPalms) {
+        placements.push({ x: p.x, z: p.z, rotY: p.rotY, s: 1, v: FIXED_PALM_VARIANT });
+        grid.add({ x: p.x, z: p.z, r: sp.radius, layer: 'tree' });
+        trunks.push({ x: p.x, z: p.z, radius: sp.trunk });
+      }
+    }
     for (let attempt = 0; attempt < sp.count * 60 && placements.length < sp.count; attempt++) {
       const x = randRange(rng, -extent, extent);
       const z = randRange(rng, -extent, extent);
@@ -80,6 +92,7 @@ export function createForest(
       };
       if (site.house < (sp.layer === 'tree' ? 9 + sp.radius * 0.5 : 6)) continue;
       if (sp.layer === 'tree' && clearings.some((c) => Math.hypot(c.x - x, c.z - z) < c.r)) continue;
+      if (keepOut.some((c) => Math.hypot(c.x - x, c.z - z) < c.r + sp.radius * 0.5)) continue;
       if (sp.layer === 'tree' && inHouseView(house, x, z)) continue;
       // Keep the steps and the path from them to the sea clear, crowns included (the plant
       // grows somewhere else).
@@ -125,6 +138,23 @@ export function createForest(
     }
   }
   return { group, trunks, counts };
+}
+
+/** Variant of the hand-placed palms (fixedPalms): the 8.4 m one. */
+const FIXED_PALM_VARIANT = 1;
+
+/**
+ * Trunk center and radius of a hand-placed palm (see `fixedPalms`) at `y` m above its foot.
+ * Coconut trunks curve along their local +X; the curve comes from the variant's first random
+ * draw, repeated here so things tied to the trunk (the hammock ropes) sit right round it.
+ */
+export function fixedPalmTrunkAt(forestSeed: number, p: Placement, y: number): { x: number; z: number; r: number } {
+  const v = FIXED_PALM_VARIANT;
+  // Same seed and first draw as coconut.build() (species.ts): height, then bend.
+  const bend = randRange(createRng(forestSeed * 31 + v * 7 + 'coconut'.length), 1, 2.6);
+  const t = (y + 0.1) / (7 + v * 1.4);
+  const off = bend * t * t;
+  return { x: p.x + Math.cos(p.rotY) * off, z: p.z - Math.sin(p.rotY) * off, r: 0.3 - 0.13 * t };
 }
 
 /** Uniform-grid neighbor lookup for spacing checks. */

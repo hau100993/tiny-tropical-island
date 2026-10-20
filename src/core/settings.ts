@@ -4,7 +4,7 @@ import type { WalkView } from '../controls/walker';
 
 
 export const SETTINGS_KEY = 'tsw.settings';
-export const SETTINGS_VERSION = 1;
+export const SETTINGS_VERSION = 2;
 
 export interface Settings {
   version: number;
@@ -48,6 +48,10 @@ export interface Settings {
   sunSize: number;
   fireflies: boolean;
   // Walking (Phase 5)
+  /**
+   * Activity sounds ("Âm thanh hoạt động"): footsteps, paddle and swim splashes, the surf's crash
+   * and rush. Off by default (2026-10-20); version 2 turned it off once for everyone.
+   */
   footsteps: boolean;
   /** Walk mode view: through the eyes, or behind the character. */
   walkView: WalkView;
@@ -96,7 +100,7 @@ export function defaultSettings(): Settings {
     sunBrightness: 0.5,
     sunSize: 0.5,
     fireflies: true,
-    footsteps: true,
+    footsteps: false,
     walkView: 'third',
     activeScene: 'b-sunny',
     synthFallback: true,
@@ -109,7 +113,10 @@ export function defaultSettings(): Settings {
 type Raw = Record<string, unknown>;
 
 /** Upgrades older stored shapes step by step. Add `n: migrateN` entries when the schema changes. */
-const MIGRATIONS: Record<number, (raw: Raw) => Raw> = {};
+const MIGRATIONS: Record<number, (raw: Raw) => Raw> = {
+  // 1 → 2: activity sounds became opt-in.
+  1: (raw) => ({ ...raw, footsteps: false }),
+};
 
 function migrate(raw: Raw): Raw {
   let version = typeof raw.version === 'number' ? raw.version : 0;
@@ -200,17 +207,22 @@ export function parseSettings(json: string | null): Settings {
   };
 }
 
+/** The probe result, so storage is tested once and not on every read and write. */
+let storageProbe: Storage | null | undefined;
+
 /** Returns localStorage, or null when it is unavailable (privacy mode, file://, etc.). */
 export function safeLocalStorage(): Storage | null {
+  if (storageProbe !== undefined) return storageProbe;
   try {
     const s = window.localStorage;
     const probe = '__tsw_probe__';
     s.setItem(probe, probe);
     s.removeItem(probe);
-    return s;
+    storageProbe = s;
   } catch {
-    return null;
+    storageProbe = null;
   }
+  return storageProbe;
 }
 
 type Listener = (settings: Readonly<Settings>) => void;
