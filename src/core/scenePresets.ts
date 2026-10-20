@@ -21,6 +21,8 @@ export const SCENE_KEYS = [
   'meteors',
   'aurora',
   'moonlight',
+  'sunBrightness',
+  'sunSize',
   'fireflies',
 ] as const;
 
@@ -61,6 +63,8 @@ export const DEFAULT_SCENE: Readonly<SceneValues> = {
   meteors: 0.4,
   aurora: 0.5,
   moonlight: 0.3,
+  sunBrightness: 0.5,
+  sunSize: 0.5,
   fireflies: true,
 };
 

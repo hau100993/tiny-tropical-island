@@ -42,6 +42,9 @@ export const sharedUniforms = {
   uCloudCover: { value: 0.35 },
   /** Cirrus (scene effect 'Mây dạng sợi'): 0 = puffy clouds, 1 = thin streaks. */
   uCirrus: { value: 0 },
+  /** Sun disc brightness and size multipliers (scene effects; 1 = normal). */
+  uSunBright: { value: 1 },
+  uSunSize: { value: 1 },
   /** Cloud layer drift (noise-space offset), integrated from the wind. */
   uCloudOffset: { value: new THREE.Vector2() },
   uStars: { value: 1 },

@@ -7,6 +7,9 @@ uniform float uStarRotation;
 uniform float uSkyTurn;
 /** Cirrus: 0 = puffy clouds, 1 = thin streaks across the desk window's view. */
 uniform float uCirrus;
+/** Sun disc brightness and size multipliers (1 = normal). */
+uniform float uSunBright;
+uniform float uSunSize;
 // Size must match METEOR_SLOTS in core/uniforms.ts.
 #define METEOR_SLOTS 8
 uniform vec4 uMeteorA[METEOR_SLOTS];
@@ -207,7 +210,7 @@ void main() {
   float se = uSunDir.y;
   float sunA = 0.0;
   float cloudHere = 0.0;
-  float sunR = 0.0265; // radians
+  float sunR = 0.0265 * uSunSize; // radians
   vec3 sR = normalize(cross(uSunDir, vec3(0.0, 1.0, 0.0)) + vec3(1e-5, 0.0, 0.0));
   vec3 sU = cross(sR, uSunDir);
   vec2 spp = vec2(dot(dir, sR), dot(dir, sU)) / sunR;
@@ -228,6 +231,11 @@ void main() {
     base = min(base, vec3(1.0));
     float mu = sqrt(max(1.0 - sr * sr, 0.0));
     sunDisplay = base * vec3(1.0, mix(0.86, 1.0, mu), mix(0.75, 1.0, mu)) * mix(0.86, 1.0, mu);
+    // Brightness: dimmer is darker; brighter pushes the disc toward white (display colours
+    // can't exceed 1, so the excess bleeds into the other channels, like real overexposure).
+    vec3 lifted = sunDisplay * uSunBright;
+    float over = max(max(lifted.r, max(lifted.g, lifted.b)) - 1.0, 0.0);
+    sunDisplay = min(lifted + over * 0.6, vec3(1.0));
     // Green flash: as the last sliver of the sun slips under the sea (or the first one
     // appears), the very top of the disc can flash green for a moment, with a clear horizon.
     float sliver = abs(se + sunR - 0.002);
@@ -301,7 +309,7 @@ void main() {
   // Thin cloud doesn't hide the sun, thick cloud does (and dims its glare).
   float clear = 1.0 - smoothstep(0.35, 0.85, cloudHere);
   float sunVis = sunA * clear;
-  sunGlare *= mix(0.25, 1.0, clear) * mix(1.0, 0.6, smoothstep(0.2, 0.4, se));
+  sunGlare *= mix(0.25, 1.0, clear) * mix(1.0, 0.6, smoothstep(0.2, 0.4, se)) * uSunBright;
 
   // Sunbeams (crepuscular rays), drawn over the clouds (the shafts are in the air between
   // you and them), with a low sun and clouds about: looking from a point of the

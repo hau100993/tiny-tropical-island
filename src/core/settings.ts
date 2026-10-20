@@ -42,6 +42,10 @@ export interface Settings {
   aurora: number;
   /** Moon brightness and size (0.3 = the normal moon, 1 = a big bright full moon). */
   moonlight: number;
+  /** Sun disc brightness (0.5 = normal). */
+  sunBrightness: number;
+  /** Sun disc size (0.5 = normal, 0 ≈ 0.6×, 1 ≈ 2.2×). */
+  sunSize: number;
   fireflies: boolean;
   // Walking (Phase 5)
   footsteps: boolean;
@@ -85,6 +89,8 @@ export function defaultSettings(): Settings {
     meteors: 0.4,
     aurora: 0.5,
     moonlight: 0.3,
+    sunBrightness: 0.5,
+    sunSize: 0.5,
     fireflies: true,
     footsteps: true,
     walkView: 'third',
@@ -173,6 +179,8 @@ export function parseSettings(json: string | null): Settings {
     meteors: unit(raw.meteors, defaults.meteors),
     aurora: unit(raw.aurora, defaults.aurora),
     moonlight: unit(raw.moonlight, defaults.moonlight),
+    sunBrightness: unit(raw.sunBrightness, defaults.sunBrightness),
+    sunSize: unit(raw.sunSize, defaults.sunSize),
     fireflies: bool(raw.fireflies, defaults.fireflies),
     footsteps: bool(raw.footsteps, defaults.footsteps),
     walkView: raw.walkView === 'first' || raw.walkView === 'third' ? raw.walkView : defaults.walkView,

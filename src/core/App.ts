@@ -585,6 +585,9 @@ export class App {
     this.skyOptions.clouds = s.clouds;
     this.skyOptions.gloom = s.gloom;
     sharedUniforms.uCirrus.value = s.cirrus;
+    // Sliders 0..1 with 0.5 = normal: brightness ×0.4…×1.8, size ×0.6…×2.2.
+    sharedUniforms.uSunBright.value = s.sunBrightness < 0.5 ? 0.4 + 1.2 * s.sunBrightness : 1 + 1.6 * (s.sunBrightness - 0.5);
+    sharedUniforms.uSunSize.value = s.sunSize < 0.5 ? 0.6 + 0.8 * s.sunSize : 1 + 2.4 * (s.sunSize - 0.5);
     this.skyOptions.rainbow = s.rainbow;
     this.skyOptions.stars = s.stars;
     this.skyOptions.meteors = s.meteors;

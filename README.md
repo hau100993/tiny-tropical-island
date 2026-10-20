@@ -314,6 +314,8 @@ The other sky options are scene effects (*Cảnh → Sửa cảnh / Tạo cảnh
 | Option | What it does |
 |---|---|
 | Mây trôi | Cloud cover; clouds drift with the wind, glow at sunset, and cast moving shadows on the island and sea. Rain and snow add more cloud. |
+| Mặt trời: Độ sáng | Brightness of the sun disc and its glare; 50 % is normal (×0.4 … ×1.8), brighter pushes it toward white. |
+| Mặt trời: Kích thước | Size of the sun disc; 50 % is normal (×0.6 … ×2.2). |
 | Mây dạng sợi | Cirrus: clouds as thin streaks drawn across the view from the desk (thin, see-through, catching the low sun's light) instead of puffs. |
 | Trời u ám | Grey, gloomy sky without rain. |
 | Cầu vồng sau mưa | After rain, with a low sun behind you, a rainbow appears at the real 42° angle. |
