@@ -63,7 +63,6 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `B` | Work desk: sit down at the desk in the house (from anywhere) / get up |
 | `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up |
 | `K` | Walking on the beach or in the shallows: get into the kayak; in the kayak: step out (see *Kayak*) |
-| `J` | Journal ("Nhật ký"): the sea goals, see *Journal* |
 | `Esc` | Seated (desk or bathtub): get up |
 | `` ` `` (backquote) | Show/hide the stats overlay (FPS, CPU/GPU ms, draw calls) |
 
@@ -338,20 +337,11 @@ the sea; swim back right up to the floating kayak and you climb in by yourself (
 next to it). While swimming, the card shows **Space – Lặn** (dive). Surfing comes next (see PLAN.md,
 Phase 8).
 
-### Journal (`J`)
+### Journal (disabled)
 
-`J` opens "Nhật ký": 12 small goals, four per activity, ticked by themselves as you play
-(a short note at the top says so). Open goals show a hint on how to do them.
-
-| Kayak | Swimming | Diving |
-|---|---|---|
-| Launch the kayak | Swim out into deep water | First dive |
-| Paddle to the moored rowboat | Front crawl 50 m (in total) | Find the coral reef (close above a reef rock) |
-| Paddle out to the fishing boat (~150 m out) | Jump from the kayak into the sea | Dive to 8 m (~35 m off the beach) |
-| Paddle round the island in one trip | Swim back and climb into the kayak | Hold your breath 30 s in one dive |
-
-Progress is saved in the browser (localStorage, key `tsw.journal`) and survives a reload.
-"Làm lại" (click twice) clears it.
+A journal of sea goals ("Nhật ký") was built and is switched off for now, to be redesigned.
+The code (`src/activities/journal.ts`, `goalTracker.ts`, `src/ui/JournalView.ts`) stays, but nothing
+calls it.
 
 ### Swimming
 
