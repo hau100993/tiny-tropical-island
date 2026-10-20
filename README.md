@@ -114,7 +114,8 @@ back as it was, **Lưu cảnh** stores the scene and plays it. The editor has fo
 2. **Thời gian:** *Không đặt giờ* (picking the scene keeps the island's clock) or *Đặt giờ*:
    the **Giờ** slider (5-minute steps), **Dùng giờ lúc mở**, and **Mặt trời / trăng hiện ở cửa
    sổ bàn làm việc** (on by default), which turns the sky so that hour's sun, or at night the
-   moon, sits in the desk window. Picking a scene with a time jumps there and stops the clock.
+   moon, sits in the desk window. Picking a scene with a time jumps there and the clock runs on
+   from it (at the chosen speed); while you edit, the preview holds that time still.
 3. **Hiệu ứng:** the weather and night-sky sliders and switches.
 4. **Âm thanh:** switch on the recordings that play with the scene, each with its volume, or
    **+ Thêm file từ máy…** (the new file is switched on). None on: the synthesized ambience.
@@ -315,8 +316,8 @@ behind you, so it works inside the small room too.
 - **Tốc độ:** ×1 (1 s = 1 s), ×10 (a day ≈ 2.4 h), ×30 (≈ 48 min), ×60 (1 s = 1 min, a day ≈
   24 min, the default) and ×240 (1 s = 4 min, a day ≈ 6 min). Picking a speed starts the island
   clock from the current time.
-- **Dừng / Chạy** (or `N`) stops and restarts it. A scene with a time of day stops
-  the clock at that time.
+- **Dừng / Chạy** (or `N`) stops and restarts it. A scene with a time of day starts
+  the clock from that time (it keeps running).
 
 The other sky options are scene effects (*Cảnh → Sửa cảnh / Tạo cảnh → Hiệu ứng*):
 

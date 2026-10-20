@@ -90,7 +90,7 @@ export const vi = {
     noTime: 'Không đặt giờ',
     setTime: 'Đặt giờ',
     noTimeHint: 'Chọn cảnh này sẽ giữ nguyên giờ đang chạy trên đảo.',
-    timeHint: (time: string) => `Chọn cảnh này: đảo chuyển tới ${time} và đồng hồ dừng ở đó.`,
+    timeHint: (time: string) => `Chọn cảnh này: đảo chuyển tới ${time} và thời gian chạy tiếp từ đó.`,
     nowBtn: 'Dùng giờ lúc mở',
     aimWindow: 'Mặt trời / trăng hiện ở cửa sổ bàn làm việc',
     effectsTitle: 'Hiệu ứng',

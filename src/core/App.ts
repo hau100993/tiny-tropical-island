@@ -270,10 +270,11 @@ export class App {
     const p = this.scenes.get(id);
     if (!p) return;
     const patch: SettingsPatch = { ...p.values, activeScene: id };
-    // A preset saved with a time of day shows that time: the island clock stops there.
+    // A preset saved with a time of day starts there: the island clock runs on from that time
+    // at the current speed.
     if (p.hours !== null) {
       patch.timeMode = 'free';
-      patch.timePaused = true;
+      patch.timePaused = false;
     }
     this.settings.update(patch);
     if (p.hours !== null) {
