@@ -317,7 +317,8 @@ behind you, so it works inside the small room too.
   left off. The control panel hides while walking (the mouse is captured); `H` hides the hint too.
 - You follow the ground, can climb the steps onto the porch and walk into the room; trunks, rocks,
   walls, railings and furniture block you (you slide along them).
-- You can wade into the sea up to about 0.9 m deep; the deeper, the slower.
+- You can wade into the sea; the deeper, the slower. Chest deep (1.2 m) you start swimming
+  (see *Swimming*).
 - If the mouse is not captured (e.g. right after pressing `Esc`, the browser waits a moment),
   the hint says **Nhấp vào cảnh…**: click the scene.
 - **Sound follows where you are:** footsteps change with the ground (sand, grass, rock, wooden
@@ -327,11 +328,34 @@ behind you, so it works inside the small room too.
   falls under the roof, and the floor stays dry.
 - Head bob is off when Windows' "Animation effects" is disabled (`prefers-reduced-motion`).
 
-## Kayak (`K` at the sea)
+## Sea activities
 
 Walk onto the beach or into the shallows and a small card **Hoạt động biển** appears at the
-bottom right with the key of each activity you can start there. For now that is **K – Chèo
-kayak**; swimming, diving, a journal and surfing come next (see PLAN.md, Phase 8).
+bottom right with the key of each activity you can start there: **K – Chèo kayak** and
+**W – Bơi** (just walk out into deep water). While swimming next to the kayak, `K` climbs back
+in. Diving, a journal and surfing come next (see PLAN.md, Phase 8).
+
+### Swimming
+
+Walk out until the water reaches your chest (1.2 m) and you swim; back where it is under 1 m
+you stand up and walk out. The same keys as walking:
+
+| Input | Action |
+|---|---|
+| `W` `A` `S` `D` | Swim (breaststroke, ~0.75 m/s); you build up speed over a stroke or two and glide on when you stop |
+| `Shift` (hold) | Front crawl (~1.5 m/s) |
+| No key | Tread water: upright, head out, hands sculling, legs cycling |
+| Mouse / `V` | Look around / character view ↔ eyes view (just above the water, the waves rise and fall in front of you) |
+
+The body floats on the waves. The strokes follow real technique: the crawl's arms turn full
+circles half a cycle apart (pull under the chest, high-elbow recovery) with the body rolling
+and the head turning to breathe, six flutter kicks per cycle; the breaststroke pulls with the
+head up to breathe, then the arms shoot forward and the frog kick snaps the legs together,
+then a glide. Each hand entry splashes (droplets, a ring, a sound on that side), the head
+pushes a small V, the crawl kick churns white water behind and each frog kick leaves a swirl.
+Rocks still block you; far out at sea a gentle current brings you back.
+
+### Kayak (`K` at the sea)
 
 The kayak is a yellow sit-on-top, pulled up on the sand beside the house. Press `K` and it is
 put in the water in front of you (from the sand, or wherever you left it) and you sit in it.
@@ -346,7 +370,7 @@ piece, so the two sides take turns. You steer like in a game; the paddler picks 
 | `Q` / `E` | Manual: one forward stroke on the left / right side (tap, or hold to repeat). A stroke on one side turns the boat **away** from that side, like a real kayak. `Shift` + `Q`/`E`: sweep stroke |
 | Mouse | Look around; after a moment without the mouse the camera drifts back behind the boat |
 | `V` | Character view ↔ eyes view (you see your arms, legs and the paddle) |
-| `K` | Step out, where the water beside the kayak is no deeper than 0.9 m (otherwise a note says to paddle closer to the beach) |
+| `K` | Get out: where the water beside the kayak is no deeper than 0.9 m you step out; in deeper water you slip in and swim (swim back to it and press `K` to climb in) |
 | `Esc` / `C` | Back to the orbit view; `C` again puts you back in the kayak |
 
 How it moves: the kayak is a small simulated body, no physics library. The water drags on the

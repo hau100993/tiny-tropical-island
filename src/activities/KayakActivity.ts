@@ -206,6 +206,14 @@ export class KayakActivity {
     return best > -Infinity;
   }
 
+  /** Just beside the cockpit on the left (to slip into deep water and swim). */
+  besideSpot(out: { x: number; z: number; yaw: number }): void {
+    this.body.toWorld(-1.1, HULL.seatZ, this.p2);
+    out.x = this.p2.x;
+    out.z = this.p2.z;
+    out.yaw = this.body.yaw + this.lookYaw;
+  }
+
   enter(): void {
     this.active = true;
     this.wasLocked = false;

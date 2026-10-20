@@ -8,8 +8,17 @@ export const EYE_HEIGHT = 1.65;
 const RADIUS = 0.3;
 const WALK_SPEED = 1.6;
 const RUN_SPEED = 4.0;
-/** Deepest water you can wade into (m). */
+/** Water depth (m) where wading is slowest; deeper than SWIM_IN you swim. */
 export const MAX_WADE = 0.9;
+/** Swim from this depth (chest deep) and stand up again below SWIM_OUT (hysteresis). */
+const SWIM_IN = 1.2;
+const SWIM_OUT = 1.0;
+/** Swimming speeds (m/s): breaststroke, front crawl (Shift). */
+const SWIM_SPEED = { breast: 0.75, crawl: 1.5 } as const;
+/** Arm cycles per second at full speed: breaststroke, front crawl (both arms). */
+const SWIM_RATE = { breast: 0.67, crawl: 0.85 } as const;
+/** Open water past this radius (m) slowly brings a swimmer back toward the island. */
+const SEA_LIMIT = 260;
 /** Radians per pixel of mouse movement. */
 const LOOK_SPEED = 0.0022;
 /**
@@ -22,6 +31,15 @@ const ARM = 4.2;
 const HEAD = 1.4;
 
 export type WalkView = 'first' | 'third';
+
+/** One arm entering the water (crawl: each arm; breaststroke: the kick). */
+export interface SwimStroke {
+  kind: 'breast' | 'crawl';
+  /** −1 left arm, 1 right arm (0 for both, breaststroke). */
+  side: -1 | 0 | 1;
+  /** 0.3 (treading, slow) … 1 (full speed). */
+  strength: number;
+}
 
 export interface StepEvent {
   surface: WalkSurface;
@@ -38,6 +56,10 @@ export interface WalkerEvents {
   onUnlock(): void;
   /** Pointer lock state changed or could not be obtained (`failed`), for the on-screen hint. */
   onLockState(locked: boolean, failed: boolean): void;
+  /** Started swimming (deep water) or stood up again. */
+  onSwim(swimming: boolean): void;
+  /** A swim stroke (splash). */
+  onStroke(e: SwimStroke): void;
 }
 
 const MOVE_KEYS = new Set([
@@ -73,6 +95,17 @@ export class Walker {
   phase = 0;
   /** Third person: current camera distance (shorter when something is in the way). */
   arm = ARM;
+  /** In deep water: swimming instead of walking (feetY is then the seabed below). */
+  swimming = false;
+  /** Sea surface (with the waves) where the swimmer is. */
+  surfaceY = 0;
+  /** Swim cycles done (fraction = position in the arm cycle). */
+  swimPhase = 0;
+  /** 0 breaststroke … 1 front crawl (eased), and 0 treading water … 1 swimming (eased). */
+  crawl = 0;
+  swimMove = 0;
+  /** The sea surface height at (x, z); without it the sea is flat at 0. */
+  private sea: ((x: number, z: number) => number) | null = null;
   private placed = false;
   private eyeY = 0;
   readonly vel = new THREE.Vector2();
@@ -176,9 +209,17 @@ export class Walker {
       .catch(() => this.events.onLockState(false, true));
   }
 
+  setSea(fn: (x: number, z: number) => number): void {
+    this.sea = fn;
+  }
+
   update(dt: number): void {
     if (!this.active) return;
     dt = Math.min(dt, 0.05);
+    if (this.swimming) {
+      this.swim(dt);
+      return;
+    }
     const k = this.keys;
     const fwd = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
     const side = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
@@ -215,6 +256,13 @@ export class Walker {
       this.depth = this.sup.onPlatform ? 0 : Math.max(0, -this.sup.y);
     }
     this.shelter = this.colliders.shelterAt(this.x, this.z, this.feetY);
+    if (!this.sup.onPlatform && this.depth > SWIM_IN) {
+      // Chest deep: off your feet, swimming.
+      this.swimming = true;
+      this.swimMove = clamp(this.speed / SWIM_SPEED.breast, 0, 1);
+      this.surfaceY = this.seaAt(this.x, this.z);
+      this.events.onSwim(true);
+    }
 
     // A footfall every stride; longer strides when running.
     // Matched to the avatar's gait (its planted feet would otherwise drag behind).
@@ -235,15 +283,91 @@ export class Walker {
     const world = this.colliders.world;
     world.resolve(nx, nz, this.feetY, RADIUS, this.tmp);
     if (!world.supportAt(this.tmp.x, this.tmp.z, this.feetY, this.sup)) return false;
-    // Too deep: only allow moves that don't take you deeper.
-    if (!this.sup.onPlatform && this.sup.y < -MAX_WADE && this.sup.y < this.feetY) return false;
     this.x = this.tmp.x;
     this.z = this.tmp.z;
     this.feetY = this.sup.y;
     return true;
   }
 
+  private seaAt(x: number, z: number): number {
+    return this.sea ? this.sea(x, z) : 0;
+  }
+
+  /**
+   * Swimming: the same keys as walking, slower to speed up and to stop (you glide), Shift for
+   * the front crawl. The body floats on the waves; back in water shallower than SWIM_OUT you
+   * stand up and walk out.
+   */
+  private swim(dt: number): void {
+    const k = this.keys;
+    const fwd = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
+    const side = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
+    const crawl = k.has('ShiftLeft') || k.has('ShiftRight');
+    this.running = crawl;
+    this.crawl += ((crawl ? 1 : 0) - this.crawl) * damp(3, dt);
+    const max = SWIM_SPEED.breast + (SWIM_SPEED.crawl - SWIM_SPEED.breast) * this.crawl;
+    const len = Math.hypot(fwd, side);
+    const s = Math.sin(this.yaw);
+    const c = Math.cos(this.yaw);
+    const tx = len > 0 ? ((-s * fwd + c * side) / len) * max : 0;
+    const tz = len > 0 ? ((-c * fwd - s * side) / len) * max : 0;
+    // Water: you build up speed over a stroke or two, and glide on when you stop.
+    const a = damp(len > 0 ? 1.6 : 0.9, dt);
+    this.vel.x += (tx - this.vel.x) * a;
+    this.vel.y += (tz - this.vel.y) * a;
+    // Far out at sea a gentle current takes you back.
+    const r = Math.hypot(this.x, this.z);
+    if (r > SEA_LIMIT) {
+      this.vel.x -= (this.x / r) * (r - SEA_LIMIT) * 0.5 * dt;
+      this.vel.y -= (this.z / r) * (r - SEA_LIMIT) * 0.5 * dt;
+    }
+    const x0 = this.x;
+    const z0 = this.z;
+    // Rocks and stilts still block; the body floats near the surface.
+    this.colliders.world.resolve(this.x + this.vel.x * dt, this.z + this.vel.y * dt, this.surfaceY - 1.4, RADIUS, this.tmp);
+    this.x = this.tmp.x;
+    this.z = this.tmp.z;
+    this.speed = Math.hypot(this.x - x0, this.z - z0) / dt;
+    this.swimMove += (clamp(this.speed / SWIM_SPEED.breast, 0, 1) - this.swimMove) * damp(3, dt);
+
+    const sea = this.seaAt(this.x, this.z);
+    this.surfaceY += (sea - this.surfaceY) * damp(5, dt);
+    if (this.colliders.world.supportAt(this.x, this.z, this.surfaceY, this.sup)) {
+      this.feetY = this.sup.y;
+      this.surface = this.sup.surface;
+      this.depth = Math.max(0, -this.sup.y);
+    }
+    this.shelter = 'none';
+
+    // Arm cycles: faster at full speed, a slow sculling rhythm when treading water.
+    const rate = SWIM_RATE.breast + (SWIM_RATE.crawl - SWIM_RATE.breast) * this.crawl;
+    const before = this.swimPhase;
+    this.swimPhase += dt * rate * (0.55 + 0.45 * this.swimMove);
+    const strength = clamp(0.3 + 0.7 * this.swimMove, 0.3, 1);
+    if (this.swimMove > 0.25) {
+      const crossed = (at: number): boolean => Math.floor(before - at) !== Math.floor(this.swimPhase - at);
+      if (this.crawl > 0.5) {
+        // Each hand enters the water at the start of its pull.
+        if (crossed(0)) this.events.onStroke({ kind: 'crawl', side: -1, strength });
+        if (crossed(0.5)) this.events.onStroke({ kind: 'crawl', side: 1, strength });
+      } else if (crossed(0.5)) {
+        this.events.onStroke({ kind: 'breast', side: 0, strength });
+      }
+    }
+    if (this.depth < SWIM_OUT) {
+      // Feet on the bottom again: stand up.
+      this.swimming = false;
+      this.running = false;
+      this.events.onSwim(false);
+    }
+    this.applyCamera(dt);
+  }
+
   private applyCamera(dt: number): void {
+    if (this.swimming) {
+      this.applySwimCamera(dt);
+      return;
+    }
     const target = this.feetY + EYE_HEIGHT;
     const diff = target - this.eyeY;
     // Smooth over steps and bumps; snap on big jumps (first frame, teleports).
@@ -257,6 +381,32 @@ export class Walker {
     const amp = this.reducedMotion() ? 0 : (this.speed > WALK_SPEED * 1.3 ? 0.055 : 0.03) * clamp(this.speed / WALK_SPEED, 0, 1);
     const bob = amp * Math.abs(Math.sin(Math.PI * this.phase));
     this.camera.position.set(this.x, this.eyeY + bob, this.z);
+    this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
+  }
+
+  /** Swimming: eyes just above the surface (riding the waves), or the arm behind the head. */
+  private applySwimCamera(dt: number): void {
+    const target = this.surfaceY + 0.2;
+    if (dt === 0 || Math.abs(target - this.eyeY) > 3) this.eyeY = target;
+    else this.eyeY += (target - this.eyeY) * damp(8, dt);
+    if (this.view === 'first') {
+      this.camera.position.set(this.x, Math.max(this.eyeY, this.surfaceY + 0.12), this.z);
+      this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
+      return;
+    }
+    const cp = Math.cos(this.pitch);
+    const fx = -Math.sin(this.yaw) * cp;
+    const fy = Math.sin(this.pitch);
+    const fz = -Math.cos(this.yaw) * cp;
+    const headY = this.eyeY + 0.15;
+    const free = this.colliders.cameraDistance(this.x, headY, this.z, -fx, -fy, -fz, ARM);
+    const want = Math.max(0.3, free - 0.25);
+    if (want < this.arm || dt === 0) this.arm = want;
+    else this.arm += (want - this.arm) * damp(3, dt);
+    const cx = this.x - fx * this.arm;
+    const cz = this.z - fz * this.arm;
+    const cy = Math.max(headY - fy * this.arm, this.surfaceY + 0.45);
+    this.camera.position.set(cx, cy, cz);
     this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
   }
 

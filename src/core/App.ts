@@ -10,7 +10,7 @@ import { createOrbitCamera, type OrbitCamera } from '../controls/orbit';
 import { Keymap } from '../controls/keymap';
 import { onWaterClick } from '../controls/waterClick';
 import { IslandColliders, type WalkSurface } from '../controls/islandColliders';
-import { Walker, type StepEvent } from '../controls/walker';
+import { Walker, type StepEvent, type SwimStroke } from '../controls/walker';
 import { CameraManager, type SeatId, type SeatSpot } from '../controls/CameraManager';
 import type { HouseSeat } from '../world/house';
 import { DeskView } from '../controls/deskView';
@@ -20,8 +20,9 @@ import { WalkHint } from '../ui/WalkHint';
 import { ActivityMenu, type ActivityItem } from '../ui/ActivityMenu';
 import { KayakActivity } from '../activities/KayakActivity';
 import { createKayakEnv } from '../activities/kayakEnv';
-import type { BladeEvent } from '../activities/kayakPhysics';
-import { Avatar, type AvatarPose } from '../world/avatar';
+import type { BladeEvent, WaterSample } from '../activities/kayakPhysics';
+import { SwimEffects } from '../activities/swimEffects';
+import { Avatar, type AvatarPose, type SwimPose } from '../world/avatar';
 import type { ListenerState } from '../audio/spatial';
 import type { FootSurface } from '../audio/synth/footsteps';
 import type { LayerId } from '../audio/types';
@@ -53,6 +54,7 @@ export class App {
   private readonly colliders: IslandColliders;
   private readonly walker: Walker;
   private readonly kayak: KayakActivity;
+  private readonly swimFx: SwimEffects;
   private readonly activityMenu: ActivityMenu;
   private readonly cameras: CameraManager;
   private readonly deskView: DeskView;
@@ -119,16 +121,24 @@ export class App {
         onStep: (e) => this.onStep(e),
         onUnlock: () => this.cameras.setMode('orbit'),
         onLockState: (locked, failed) => {
-          this.walkHint.update(this.cameras.mode === 'walk', locked, failed);
+          this.walkHint.update(this.cameras.mode === 'walk', locked, failed, this.walkControls());
         },
+        onSwim: (swimming) => this.onSwim(swimming),
+        onStroke: (e) => this.onSwimStroke(e),
       },
       () => this.reducedMotion.matches,
     );
+    // The sea surface with its waves (the CPU twin of the water shader): the kayak floats on
+    // it, the swimmer too.
+    const seaEnv = createKayakEnv(w.heightmap, this.colliders, w.layout.boat, this.camera, sharedUniforms);
+    const sample: WaterSample = { height: 0, dhdx: 0, dhdz: 0 };
+    this.walker.setSea((x, z) => seaEnv.water(x, z, sample).height);
+    this.swimFx = new SwimEffects(w.water.wake, w.spray);
     this.kayak = new KayakActivity(
       this.camera,
       this.renderer.domElement,
       w.kayak,
-      createKayakEnv(w.heightmap, this.colliders, w.layout.boat, this.camera, sharedUniforms),
+      seaEnv,
       this.colliders,
       {
         onUnlock: () => this.cameras.setMode('orbit'),
@@ -249,7 +259,7 @@ export class App {
       document.body.classList.toggle('walking', walking || paddling);
       document.body.classList.toggle('at-desk', mode === 'seat');
       if (paddling) this.walkHint.update(true, this.kayak.locked, false, vi.kayak.controls);
-      else this.walkHint.update(walking, this.walker.locked, false);
+      else this.walkHint.update(walking, this.walker.locked, false, this.walkControls());
       if (!walking) this.activityMenu.set(null);
       this.walkHint.showSeat(mode === 'seat', this.cameras.seat === 'bath' ? vi.bath.controls : vi.desk.controls);
       this.listenerTimer = 0;
@@ -521,10 +531,33 @@ export class App {
   private nearSea(): boolean {
     const w = this.walker;
     if (w.shelter !== 'none') return false;
+    // Swimming: only when the kayak floats right here (climb back in).
+    if (w.swimming) return this.kayak.distanceTo(w.x, w.z) < 4.5;
     return w.depth > 0 || (this.world.heightmap.distanceToShore(w.x, w.z) < 9 && w.surface === 'sand');
   }
 
-  private readonly seaItems: readonly ActivityItem[] = [{ key: 'K', label: vi.sea.kayak }];
+  private readonly seaItems: readonly ActivityItem[] = [
+    { key: 'K', label: vi.sea.kayak },
+    { key: 'W', label: vi.sea.swim },
+  ];
+  private readonly swimItems: readonly ActivityItem[] = [{ key: 'K', label: vi.sea.kayak }];
+
+  /** The controls line while walking (or swimming). */
+  private walkControls(): string {
+    return this.walker.swimming ? vi.swim.controls : vi.walk.controls;
+  }
+
+  /** Into deep water / back on your feet: the controls line changes, a splash as you go in. */
+  private onSwim(swimming: boolean): void {
+    this.walkHint.update(true, this.walker.locked, false, this.walkControls());
+    if (swimming && this.settings.get().footsteps) this.mixer.playFootstep('water', 1, 1.2);
+  }
+
+  /** A swim stroke: splash sound by the arm's side, marks and droplets on the water. */
+  private onSwimStroke(e: SwimStroke): void {
+    this.swimFx.stroke(e, this.walker);
+    if (this.settings.get().footsteps) this.mixer.playPaddle('catch', 0.55 * e.strength, e.side * 0.5);
+  }
 
   /**
    * K at the shore: into the kayak. It is pulled into the water in front of you (from the sand,
@@ -542,13 +575,10 @@ export class App {
     this.fadeThrough(() => this.cameras.setMode('kayak'));
   }
 
-  /** K/E in the kayak: step out beside it where the water is shallow enough. */
+  /** K in the kayak: step out beside it where you can stand, or slip into deep water and swim. */
   private leaveKayak(): void {
     const spot = this.tmpSpot;
-    if (!this.kayak.landingSpot(spot)) {
-      this.activityMenu.flash(vi.kayak.tooDeep);
-      return;
-    }
+    if (!this.kayak.landingSpot(spot)) this.kayak.besideSpot(spot);
     this.fadeThrough(() => {
       this.walker.placeAt(spot.x, spot.z, spot.yaw);
       this.cameras.setMode('walk');
@@ -624,6 +654,25 @@ export class App {
       return;
     }
     const w = this.walker;
+    if (this.cameras.mode === 'walk' && w.swimming) {
+      // Through the eyes too: the arms come round into view.
+      const show = w.view === 'first' || w.arm > 0.7;
+      this.avatar.group.visible = show;
+      if (!show) return;
+      const sp = this.swimPose;
+      sp.x = w.x;
+      sp.z = w.z;
+      sp.surfaceY = w.surfaceY;
+      sp.vx = w.vel.x;
+      sp.vz = w.vel.y;
+      sp.speed = w.speed;
+      sp.phase = w.swimPhase;
+      sp.crawl = w.crawl;
+      sp.move = w.swimMove;
+      sp.firstPerson = w.view === 'first';
+      this.avatar.updateSwimming(dt, sp);
+      return;
+    }
     const show = this.cameras.mode === 'walk' && w.view === 'third' && w.arm > 0.7;
     this.avatar.group.visible = show;
     if (!show) return;
@@ -640,6 +689,7 @@ export class App {
   }
 
   private readonly avatarPose: AvatarPose = { x: 0, z: 0, feetY: 0, vx: 0, vz: 0, speed: 0, phase: 0, running: false };
+  private readonly swimPose: SwimPose = { x: 0, z: 0, surfaceY: 0, vx: 0, vz: 0, speed: 0, phase: 0, crawl: 0, move: 0, firstPerson: false };
 
   /** Walk/desk mode: where the listener is shapes the mix (~10 times per second is plenty). */
   private updateListener(dt: number): void {
@@ -648,7 +698,7 @@ export class App {
     if (mode === 'walk') {
       const near = this.nearSeat();
       this.walkHint.setPrompt(near === 'desk' ? vi.desk.sit : near === 'bath' ? vi.bath.enter : null);
-      this.activityMenu.set(this.nearSea() ? this.seaItems : null);
+      this.activityMenu.set(this.nearSea() ? (this.walker.swimming ? this.swimItems : this.seaItems) : null);
     }
     this.listenerTimer -= dt;
     if (this.listenerTimer > 0) return;
@@ -657,7 +707,7 @@ export class App {
     const seat = this.deskView.seat;
     const k = this.kayak;
     const paddling = mode === 'kayak';
-    if (paddling) this.walkHint.setPrompt(k.landingSpot(this.tmpSpot) ? vi.kayak.land : null);
+    if (paddling) this.walkHint.setPrompt(k.landingSpot(this.tmpSpot) ? vi.kayak.land : vi.kayak.jump);
     const x = atDesk ? seat.x : paddling ? k.body.x : this.walker.x;
     const z = atDesk ? seat.z : paddling ? k.body.z : this.walker.z;
     const yaw = atDesk ? seat.yaw : paddling ? k.body.yaw + k.lookYaw : this.walker.yaw;
@@ -738,7 +788,9 @@ export class App {
     this.deskScreens.update(dt, this.camera);
     this.gpuTimer.begin();
     // The wake map follows the kayak (it only has marks while the kayak moves).
-    this.world.water.simulate(dt, this.kayak.body.x, this.kayak.body.z);
+    if (this.cameras.mode === 'walk') this.swimFx.update(dt, this.walker);
+    const swimmer = this.cameras.mode === 'walk' && this.walker.swimming;
+    this.world.water.simulate(dt, swimmer ? this.walker.x : this.kayak.body.x, swimmer ? this.walker.z : this.kayak.body.z);
     // The next scene render (capture if refraction is on, else main) refreshes the shadow map.
     this.renderer.shadowMap.needsUpdate = true;
     this.world.water.captureScene(this.scene, this.camera);

@@ -700,6 +700,114 @@ export interface SeatedPose {
   firstPerson: boolean;
 }
 
+/** Swimming (from the walker). */
+export interface SwimPose {
+  x: number;
+  z: number;
+  /** Sea surface at the swimmer. */
+  surfaceY: number;
+  vx: number;
+  vz: number;
+  speed: number;
+  /** Arm cycles done (fraction = position in the cycle). */
+  phase: number;
+  /** 0 breaststroke … 1 front crawl; 0 treading water … 1 swimming. */
+  crawl: number;
+  move: number;
+  firstPerson: boolean;
+}
+
+/** Joint angles of one swimming pose (rad), per side where it matters [left, right]. */
+interface SwimAngles {
+  shX: [number, number];
+  shZ: [number, number];
+  el: [number, number];
+  hipX: [number, number];
+  hipZ: [number, number];
+  knee: [number, number];
+  ankle: [number, number];
+  /** Body roll about its long axis, head nod (+ lifts the face) and turn. */
+  roll: number;
+  headX: number;
+  headY: number;
+}
+
+const swimAngles = (): SwimAngles => ({
+  shX: [0, 0], shZ: [0, 0], el: [0, 0], hipX: [0, 0], hipZ: [0, 0], knee: [0, 0], ankle: [0, 0], roll: 0, headX: 0, headY: 0,
+});
+
+const frac = (x: number): number => x - Math.floor(x);
+const bump = (x: number, a: number, b: number): number => (x <= a || x >= b ? 0 : Math.sin((Math.PI * (x - a)) / (b - a)));
+/** Angle a → b by `t`, the short way round (for arm circles). */
+const lerpAngle = (a: number, b: number, t: number): number => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
+
+/**
+ * Front crawl at cycle position `s`: each arm turns a full circle (entry overhead, pull under
+ * the chest to the hip, recovery over the water with a high elbow), half a cycle apart; the
+ * body rolls toward the pulling arm, the head turns to breathe on the right; six flutter kicks
+ * per cycle from the hips with loose knees and pointed toes.
+ */
+function crawlAngles(s: number, out: SwimAngles): void {
+  for (let i = 0; i < 2; i++) {
+    const side = i === 0 ? -1 : 1;
+    const a = frac(s + i * 0.5);
+    const pull = a < 0.5 ? Math.sin(2 * Math.PI * a) : 0;
+    const rec = a >= 0.5 ? Math.sin(Math.PI * (2 * a - 1)) : 0;
+    out.shX[i] = Math.PI - 2 * Math.PI * a;
+    out.shZ[i] = side * (0.12 + 0.35 * rec);
+    out.el[i] = 0.1 + 0.4 * pull + 1.5 * rec;
+    const k = 6 * Math.PI * s + i * Math.PI;
+    out.hipX[i] = 0.22 * Math.sin(k);
+    out.hipZ[i] = side * 0.05;
+    out.knee[i] = 0.2 + 0.35 * Math.max(0, Math.sin(k + 1.2));
+    out.ankle[i] = -1.25;
+  }
+  out.roll = 0.5 * Math.sin(2 * Math.PI * s);
+  out.headX = 0.2;
+  out.headY = -0.9 * bump(s, 0.08, 0.42);
+}
+
+/**
+ * Breaststroke at cycle position `s`: pull (arms sweep out and in under the chest, head up to
+ * breathe), then the arms shoot forward while the heels come up and the frog kick snaps the
+ * legs together (s ≈ 0.5), then a long glide.
+ */
+function breastAngles(s: number, out: SwimAngles): void {
+  const pull = bump(s, 0, 0.38);
+  const armIn = s < 0.45 ? smoothstep(0.12, 0.38, s) : 1 - smoothstep(0.45, 0.6, s);
+  const legIn = smoothstep(0.28, 0.46, s) * (1 - smoothstep(0.5, 0.6, s));
+  for (let i = 0; i < 2; i++) {
+    const side = i === 0 ? -1 : 1;
+    out.shX[i] = Math.PI - 1.15 * armIn;
+    out.shZ[i] = side * (0.08 + 0.8 * pull * (1 - armIn));
+    out.el[i] = 1.7 * armIn;
+    out.hipX[i] = 1.0 * legIn;
+    out.hipZ[i] = side * (0.06 + 0.42 * legIn);
+    out.knee[i] = 2.1 * legIn;
+    out.ankle[i] = -1.25 + 1.1 * legIn;
+  }
+  out.roll = 0;
+  out.headX = 0.25 + 0.55 * pull;
+  out.headY = 0;
+}
+
+/** Treading water, upright: hands sculling out to the sides, legs cycling (eggbeater). */
+function treadAngles(t: number, out: SwimAngles): void {
+  for (let i = 0; i < 2; i++) {
+    const side = i === 0 ? -1 : 1;
+    out.shX[i] = 0.35 + 0.3 * Math.sin(t * 3 + i * Math.PI);
+    out.shZ[i] = side * (1.1 + 0.15 * Math.sin(t * 3));
+    out.el[i] = 0.7;
+    out.hipX[i] = 0.85 + 0.35 * Math.sin(t * 3.2 + i * Math.PI);
+    out.hipZ[i] = side * 0.45;
+    out.knee[i] = 1.3 + 0.4 * Math.sin(t * 3.2 + i * Math.PI + 1);
+    out.ankle[i] = -0.4;
+  }
+  out.roll = 0;
+  out.headX = 0;
+  out.headY = 0;
+}
+
 /** One leg's joint angles (rad) at gait cycle position `s` (0 = heel strike). */
 interface LegAngles {
   hip: number;
@@ -804,6 +912,9 @@ const tmpC = new THREE.Vector3();
 const tmpD = new THREE.Vector3();
 const tmpInv = new THREE.Matrix4();
 const tmpBasis = new THREE.Matrix4();
+const swimA = swimAngles();
+const swimB = swimAngles();
+const swimC = swimAngles();
 
 export class Avatar {
   readonly group = new THREE.Group();
@@ -1306,9 +1417,71 @@ export class Avatar {
     this.ankles[i].rotation.x = sole - (hipX - knee);
   }
 
+  /**
+   * Swimming: the body lies along the water (front crawl flat, breaststroke a little more
+   * upright, treading water upright with the head out) and the limbs follow the stroke
+   * curves, blended by how fast you swim and which stroke you use.
+   */
+  updateSwimming(dt: number, p: Readonly<SwimPose>): void {
+    this.time += dt;
+    this.seated = true;
+    this.rootY = Number.NaN;
+    if (p.speed > 0.15) {
+      const target = Math.atan2(-p.vx, -p.vz);
+      const d = target - this.yaw;
+      this.yaw += Math.atan2(Math.sin(d), Math.cos(d)) * damp(4, dt);
+    }
+    const s = frac(p.phase);
+    const cr = p.crawl;
+    const mv = p.move;
+    crawlAngles(s, swimA);
+    breastAngles(s, swimB);
+    treadAngles(this.time, swimC);
+    // Stroke = breaststroke → crawl; then treading → stroke.
+    const mix = (b: number, c: number, t: number): number => {
+      const stroke = b + (c - b) * cr;
+      return t + (stroke - t) * mv;
+    };
+    for (let i = 0; i < 2; i++) {
+      const arm = lerpAngle(swimB.shX[i], swimA.shX[i], cr);
+      this.shoulders[i].rotation.set(lerpAngle(swimC.shX[i], arm, mv), 0, mix(swimB.shZ[i], swimA.shZ[i], swimC.shZ[i]));
+      this.elbows[i].rotation.set(mix(swimB.el[i], swimA.el[i], swimC.el[i]), 0, 0);
+      this.wrists[i].rotation.set(0, 0, 0);
+      this.hipJoints[i].rotation.set(mix(swimB.hipX[i], swimA.hipX[i], swimC.hipX[i]), 0, mix(swimB.hipZ[i], swimA.hipZ[i], swimC.hipZ[i]));
+      this.knees[i].rotation.set(-mix(swimB.knee[i], swimA.knee[i], swimC.knee[i]), 0, 0);
+      this.ankles[i].rotation.set(mix(swimB.ankle[i], swimA.ankle[i], swimC.ankle[i]), 0, 0);
+    }
+    const roll = mix(swimB.roll, swimA.roll, swimC.roll);
+    this.hips.position.set(0, HIP_Y, 0);
+    this.hips.rotation.set(0, roll * 0.6, 0);
+    this.torso.rotation.set(0, roll * 0.4, 0);
+    this.torso.scale.y = 1;
+    this.head.rotation.set(mix(swimB.headX, swimA.headX, swimC.headX), mix(swimB.headY, swimA.headY, swimC.headY), 0);
+    this.head.scale.setScalar(p.firstPerson ? 0.001 : 1);
+    // Lying along the water: tilted up from flat by `lift` (crawl flattest, treading upright),
+    // the breaststroke rising a little on each pull.
+    const strokeLift = 0.08 + 0.22 * (1 - cr) + 0.12 * (1 - cr) * bump(s, 0, 0.4);
+    const lift = 1.35 + (strokeLift - 1.35) * mv;
+    const pitch = -(Math.PI / 2 - lift);
+    const root = this.group;
+    root.rotation.set(pitch, this.yaw, 0, 'YXZ');
+    // The chest sits just under the surface (deeper when treading: only the head is out).
+    const chest = 1.25;
+    const depth = 0.24 + (0.12 + 0.06 * (1 - cr) - 0.24) * mv;
+    const sp = Math.sin(pitch);
+    root.position.set(
+      p.x - chest * sp * Math.sin(this.yaw),
+      p.surfaceY - depth - chest * Math.cos(pitch),
+      p.z - chest * sp * Math.cos(this.yaw),
+    );
+    root.updateMatrixWorld(true);
+    this.blinkEyes(dt);
+  }
+
   /** Back on the feet after sitting: rest orientation for every bone (walking sets the rest). */
   private stand(): void {
     this.seated = false;
+    this.group.rotation.set(0, 0, 0);
     this.hips.traverse((o) => {
       if (o instanceof THREE.Bone) o.quaternion.identity();
     });
