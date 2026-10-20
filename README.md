@@ -48,9 +48,9 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 
 | Input | Action |
 |---|---|
-| Left-drag | Rotate the camera |
+| Left-drag | Rotate the camera; drag down to bring it to the sand or the sea surface and look up at the sky (it never goes below them) |
 | Wheel / pinch | Zoom |
-| Right-drag | Pan |
+| Right-drag | Pan (up/down lifts the point you look at, e.g. into the sky) |
 | Click on the water | Splash: ripples spread and bounce off the beach |
 | `M` | Mute / unmute everything |
 | `P` | Collapse / expand the control panel (or click its title) |

@@ -12,8 +12,11 @@ const RUN_SPEED = 4.0;
 export const MAX_WADE = 0.9;
 /** Radians per pixel of mouse movement. */
 const LOOK_SPEED = 0.0022;
-/** Look up/down limits per view; third person can't look far up (the camera would hit the ground). */
-const PITCH = { first: [-1.45, 1.45], third: [-1.2, 0.45] } as const;
+/**
+ * Look up/down limits per view. Third person looking up: the camera arm drops behind the head
+ * and shortens against the ground (cameraDistance), so the sky fills the view.
+ */
+const PITCH = { first: [-1.45, 1.45], third: [-1.2, 0.8] } as const;
 /** Third person: camera distance behind the pivot, and pivot height above the feet (chest). */
 const ARM = 4.2;
 const HEAD = 1.4;

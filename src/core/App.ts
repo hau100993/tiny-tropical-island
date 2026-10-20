@@ -96,7 +96,7 @@ export class App {
 
     this.camera = new THREE.PerspectiveCamera(55, 1, 0.3, 6000);
     this.world = createWorld(this.scene, this.renderer, this.camera, sharedUniforms);
-    this.orbit = createOrbitCamera(this.camera, this.renderer.domElement);
+    this.orbit = createOrbitCamera(this.camera, this.renderer.domElement, (x, z) => this.world.heightmap.heightAt(x, z));
     const w = this.world;
     this.colliders = new IslandColliders({
       heightmap: w.heightmap,
