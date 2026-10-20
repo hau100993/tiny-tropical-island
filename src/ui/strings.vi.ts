@@ -221,6 +221,7 @@ export const vi = {
     sit: 'Đứng gần bàn hoặc bồn tắm: ngồi vào / đứng dậy',
     leaveDesk: 'Đứng dậy (bàn làm việc, bồn tắm)',
     mouse: 'Kéo: xoay · Cuộn: thu phóng · Chuột phải: dời · Nhấp vào nước: gợn sóng',
+    sliderWheel: 'Thanh trượt: lăn chuột để chỉnh 5% (giờ: 15 phút) · giữ Shift để chỉnh mịn',
     walkKeys: 'Khi đi bộ: W A S D đi · Shift chạy · chuột nhìn · V đổi góc nhìn · Esc thoát',
   },
 } as const;

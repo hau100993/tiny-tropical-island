@@ -191,7 +191,7 @@ export class Panel {
       const c = settings.get();
       if (c.timeMode === 'real' || c.timePaused) settings.update({ timeMode: 'free', timePaused: false });
       deps.setHours(h);
-    }, { min: 0, max: 23.99, step: 0.05, format: formatClock });
+    }, { min: 0, max: 23.99, step: 0.05, wheelStep: 0.25, wrap: 24, format: formatClock });
     this.clock.root.title = vi.panel.timeDragHint;
     // Speeds: picking one runs the island clock at that speed from the current time.
     const speed = el('div', 'seg-group five');
@@ -241,7 +241,7 @@ export class Panel {
     const list = el('dl', 'shortcut-list');
     for (const sc of deps.keymap.list()) list.append(el('dt', '', sc.keyLabel), el('dd', '', sc.label));
     const keysBody = el('div', 'section-body');
-    keysBody.append(list, el('div', 'hint', vi.shortcuts.mouse), el('div', 'hint', vi.shortcuts.walkKeys));
+    keysBody.append(list, el('div', 'hint', vi.shortcuts.mouse), el('div', 'hint', vi.shortcuts.sliderWheel), el('div', 'hint', vi.shortcuts.walkKeys));
     keys.append(keysTitle, keysBody);
     conf.body.append(el('div', 'subhead', vi.panel.quality), quality, this.qualityNote, confOpts, keys);
 

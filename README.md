@@ -68,7 +68,11 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 Always visible at the top: the **Pomodoro clock** button (shows the time left while a session
 runs; click to show or hide the timer card), collapse, a **status line** (scene · what is
 playing · island time) and **Âm lượng chung** with mute. Below, five sections, one open at a
-time (the open one is remembered); a closed section shows its current value next to its title:
+time (the open one is remembered); a closed section shows its current value next to its title.
+Every slider also moves with the **mouse wheel** over it (wheel up = more): 5% per notch,
+15 minutes on the **Giờ** sliders (wrapping past midnight); hold **Shift** for fine steps (1%,
+or the slider's own time step). While the panel is scrolling, the wheel keeps scrolling it, so
+passing over a slider doesn't change it.
 
 - **Cảnh:** scenes as cards: icon, name, and a second line with the scene's time (or *Giữ
   giờ*) and ♪ when it plays recordings of its own. Clicking a card switches to the scene and

@@ -115,6 +115,8 @@ export class SceneEditor {
       min: 0,
       max: 24 - TIME_STEP,
       step: TIME_STEP,
+      wheelStep: 0.25,
+      wrap: 24,
       format: formatClock,
     });
     const now = button(vi.scene.nowBtn, () => {
