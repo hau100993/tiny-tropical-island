@@ -38,6 +38,10 @@ import type { WeatherTargets } from '../weather/Weather';
 import { wallSeconds } from '../weather/wind';
 import type { SkyOptions, SkyWeather } from '../world/dayNight';
 
+/** Swimming closer than this (m) to the floating kayak climbs back in, once armed farther than REBOARD_ARM away. */
+const REBOARD_NEAR = 1.4;
+const REBOARD_ARM = 2.5;
+
 /** Weather level during a Pomodoro break with "Bão dịu đi khi nghỉ". */
 const CALM_LEVEL = 0.3;
 /** Time constant of the calm-down, seconds (≈ 20 s to settle). */
@@ -144,6 +148,7 @@ export class App {
         onUnlock: () => this.cameras.setMode('orbit'),
         onLockState: (locked, failed) => this.walkHint.update(this.cameras.mode === 'kayak', locked, failed, vi.kayak.controls),
         onBlade: (e) => this.onBlade(e),
+        onJump: () => this.jumpFromKayak(),
       },
       () => this.reducedMotion.matches,
       { wake: w.water.wake, spray: w.spray },
@@ -540,7 +545,7 @@ export class App {
     { key: 'K', label: vi.sea.kayak },
     { key: 'W', label: vi.sea.swim },
   ];
-  private readonly swimItems: readonly ActivityItem[] = [{ key: 'K', label: vi.sea.kayak }];
+  private readonly swimItems: readonly ActivityItem[] = [{ key: 'K', label: vi.sea.reboard }];
 
   /** The controls line while walking (or swimming). */
   private walkControls(): string {
@@ -579,13 +584,45 @@ export class App {
   private leaveKayak(): void {
     const spot = this.tmpSpot;
     if (!this.kayak.landingSpot(spot)) this.kayak.besideSpot(spot);
+    // Copied: tmpSpot is reused every frame while the screen fades.
+    const { x, z, yaw } = spot;
     this.fadeThrough(() => {
-      this.walker.placeAt(spot.x, spot.z, spot.yaw);
+      this.walker.placeAt(x, z, yaw);
       this.cameras.setMode('walk');
     });
   }
 
   private readonly tmpSpot = { x: 0, z: 0, yaw: 0 };
+
+  /** Space in the kayak: over the side into the water (swimming if it's deep there). */
+  private jumpFromKayak(): void {
+    const spot = this.tmpSpot;
+    this.kayak.besideSpot(spot);
+    this.reboardArmed = false;
+    const { x, z, yaw } = spot;
+    this.fadeThrough(() => {
+      this.walker.placeAt(x, z, yaw);
+      this.cameras.setMode('walk');
+      if (this.settings.get().footsteps) this.mixer.playFootstep('water', 1, 1.2);
+    });
+  }
+
+  /**
+   * Swimming back to the floating kayak climbs in by itself. Armed only once you have swum a
+   * little away from it (so jumping out doesn't put you straight back in).
+   */
+  private autoReboard(): void {
+    const w = this.walker;
+    if (this.cameras.mode !== 'walk' || !w.swimming || this.fader.classList.contains('on')) return;
+    const d = this.kayak.distanceTo(w.x, w.z);
+    if (d > REBOARD_ARM) this.reboardArmed = true;
+    if (this.reboardArmed && d < REBOARD_NEAR && this.world.heightmap.heightAt(this.kayak.body.x, this.kayak.body.z) < -0.3) {
+      this.reboardArmed = false;
+      this.fadeThrough(() => this.cameras.setMode('kayak'));
+    }
+  }
+
+  private reboardArmed = true;
 
   private fadeThrough(then: () => void): void {
     window.clearTimeout(this.faderTimer);
@@ -707,7 +744,7 @@ export class App {
     const seat = this.deskView.seat;
     const k = this.kayak;
     const paddling = mode === 'kayak';
-    if (paddling) this.walkHint.setPrompt(k.landingSpot(this.tmpSpot) ? vi.kayak.land : vi.kayak.jump);
+    if (paddling) this.walkHint.setPrompt(k.landingSpot(this.tmpSpot) ? `${vi.kayak.land} · ${vi.kayak.jump}` : vi.kayak.jump);
     const x = atDesk ? seat.x : paddling ? k.body.x : this.walker.x;
     const z = atDesk ? seat.z : paddling ? k.body.z : this.walker.z;
     const yaw = atDesk ? seat.yaw : paddling ? k.body.yaw + k.lookYaw : this.walker.yaw;
@@ -789,6 +826,7 @@ export class App {
     this.gpuTimer.begin();
     // The wake map follows the kayak (it only has marks while the kayak moves).
     if (this.cameras.mode === 'walk') this.swimFx.update(dt, this.walker);
+    this.autoReboard();
     const swimmer = this.cameras.mode === 'walk' && this.walker.swimming;
     this.world.water.simulate(dt, swimmer ? this.walker.x : this.kayak.body.x, swimmer ? this.walker.z : this.kayak.body.z);
     // The next scene render (capture if refraction is on, else main) refreshes the shadow map.

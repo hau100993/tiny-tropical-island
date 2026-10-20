@@ -28,6 +28,8 @@ export interface KayakEvents {
   onLockState(locked: boolean, failed: boolean): void;
   /** A blade entered or left the water. */
   onBlade(e: BladeEvent): void;
+  /** Space: jump over the side into the sea. */
+  onJump(): void;
 }
 
 /** Where the kayak's water effects go (the wake map can be missing on old GPUs). */
@@ -100,6 +102,11 @@ export class KayakActivity {
   ) {
     this.body = new KayakBody(env);
     window.addEventListener('keydown', (e) => {
+      if (this.active && e.code === 'Space' && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        this.events.onJump();
+        return;
+      }
       if (!this.active || !KEYS.has(e.code) || e.ctrlKey || e.altKey || e.metaKey) return;
       if (!e.repeat) {
         if (e.code === 'KeyQ') this.latch.left = LATCH;

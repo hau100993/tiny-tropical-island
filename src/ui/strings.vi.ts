@@ -196,14 +196,15 @@ export const vi = {
     menuTitle: 'Hoạt động biển',
     kayak: 'Chèo kayak',
     swim: 'Bơi: cứ đi ra chỗ nước sâu',
+    reboard: 'Leo lên kayak (bơi sát vào cũng tự lên)',
   },
   swim: {
     controls: 'W A S D: bơi ếch · Shift: bơi sải · Chuột: nhìn · V: đổi góc nhìn · Vào chỗ nông: đứng dậy · Esc: thoát',
   },
   kayak: {
-    controls: 'W: chèo tới · A / D: rẽ trái / phải · S: chèo lùi · Q / E: chèo tay trái / phải · Chuột: nhìn · K: lên bờ / xuống nước · Esc: thoát',
+    controls: 'W: chèo tới · A / D: rẽ trái / phải · S: chèo lùi · Q / E: chèo tay trái / phải · Chuột: nhìn · Space: nhảy xuống bơi · K: lên bờ · Esc: thoát',
     land: 'K: Lên bờ',
-    jump: 'K: Xuống nước bơi',
+    jump: 'Space: Nhảy xuống bơi',
     noLaunch: 'Ra sát mép nước để hạ thuyền',
   },
   layers: {
@@ -246,6 +247,6 @@ export const vi = {
     sceneKeys: '1 – 9: chọn cảnh theo thứ tự trên bảng',
     walkKeys: 'Khi đi bộ: W A S D đi · Shift chạy · chuột nhìn · V đổi góc nhìn · Esc thoát',
     swimKeys: 'Bơi: đi ra chỗ sâu ngang ngực · W A S D bơi ếch · giữ Shift bơi sải · vào chỗ nông là đứng dậy',
-    kayakKeys: 'Kayak: W chèo tới · A / D rẽ · S chèo lùi · Q / E chèo tay từng bên (Shift: chèo quét) · K lên bờ',
+    kayakKeys: 'Kayak: W chèo tới · A / D rẽ · S chèo lùi · Q / E chèo tay từng bên (Shift: chèo quét) · Space nhảy xuống bơi (bơi lại sát thuyền là tự leo lên) · K lên bờ',
   },
 } as const;

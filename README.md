@@ -332,8 +332,9 @@ behind you, so it works inside the small room too.
 
 Walk onto the beach or into the shallows and a small card **Hoạt động biển** appears at the
 bottom right with the key of each activity you can start there: **K – Chèo kayak** and
-**W – Bơi** (just walk out into deep water). While swimming next to the kayak, `K` climbs back
-in. Diving, a journal and surfing come next (see PLAN.md, Phase 8).
+**W – Bơi** (just walk out into deep water). In the kayak, `Space` jumps over the side into
+the sea; swim back right up to the floating kayak and you climb in by yourself (or press `K`
+next to it). Diving, a journal and surfing come next (see PLAN.md, Phase 8).
 
 ### Swimming
 
@@ -370,7 +371,8 @@ piece, so the two sides take turns. You steer like in a game; the paddler picks 
 | `Q` / `E` | Manual: one forward stroke on the left / right side (tap, or hold to repeat). A stroke on one side turns the boat **away** from that side, like a real kayak. `Shift` + `Q`/`E`: sweep stroke |
 | Mouse | Look around; after a moment without the mouse the camera drifts back behind the boat |
 | `V` | Character view ↔ eyes view (you see your arms, legs and the paddle) |
-| `K` | Get out: where the water beside the kayak is no deeper than 0.9 m you step out; in deeper water you slip in and swim (swim back to it and press `K` to climb in) |
+| `Space` | Jump over the side and swim; swim back within ~1.4 m of the kayak and you climb back in automatically (after you have first swum a few meters away) |
+| `K` | Get out: where the water beside the kayak is no deeper than 0.9 m you step out; in deeper water you slip in and swim |
 | `Esc` / `C` | Back to the orbit view; `C` again puts you back in the kayak |
 
 How it moves: the kayak is a small simulated body, no physics library. The water drags on the
