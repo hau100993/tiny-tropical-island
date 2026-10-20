@@ -42,6 +42,7 @@
 2. Sound by time of day: a day track and a night track per scene, crossfading with the clock.
 3. Sleep timer for the sound (fade out after 15/30/60 min).
 4. Changing weather: rain, wind and clouds drifting slowly at random within a chosen range.
+5. Play music from a URL (analysed 2026-10-20, postponed by the user). Needs the "no network" rule relaxed (opt-in: only links you add; offline → silent fallback to recordings/synth). Proposed order: (a) direct MP3/OGG and internet radio in "Âm thanh của tôi" via **+ Thêm từ link**: `<audio>` with `crossOrigin` through the mixer when the server sends CORS (all effects), otherwise played directly (volume and crossfades only); no HLS (would need hls.js). (b) SoundCloud Widget API and optionally YouTube IFrame API in a small visible mini-player card (play/pause/volume/crossfade via their APIs, no muffle/underwater effects; loads their scripts and cookies). (c) Spotify: skip, or embed only (30 s previews unless logged in; the Web Playback SDK needs Premium, an app registration and OAuth). Open questions: allow network, which sources, accept a visible mini-player.
 
 **Deviations from the plan so far**
 - Vitest 5.0.5 instead of 4.x/3.x: npm 10.9 crashes resolving vitest 4.1's optional peers, and vitest 3.2 has published advisories (dev-only, but avoided anyway).
