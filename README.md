@@ -66,9 +66,11 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 ### Control panel (top right)
 
 Always visible at the top: the **Pomodoro clock** button (shows the time left while a session
-runs; click to show or hide the timer card), collapse, a **status line** (scene · what is
-playing · island time) and **Âm lượng chung** with mute. Below, five sections, one open at a
-time (the open one is remembered); a closed section shows its current value next to its title.
+runs; click to show or hide the timer card), collapse (or click the title **Đảo Nhiệt Đới**), a
+**status line** (scene · what is playing · island time) and **Âm lượng chung** with mute. Below,
+five sections that each open and close on their own (remembered; on first launch **Cảnh**, with
+*Ngày nắng* selected, and **Góc nhìn** are open); a closed section shows its current value next
+to its title.
 Every slider also moves with the **mouse wheel** over it (wheel up = more): 5% per notch,
 15 minutes on the **Giờ** sliders (wrapping past midnight); hold **Shift** for fine steps (1%,
 or the slider's own time step). Volume sliders move 2% per notch below 20%, where the ear hears

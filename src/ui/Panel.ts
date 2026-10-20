@@ -48,7 +48,7 @@ export interface PanelDeps {
   togglePomodoro: () => void;
 }
 
-const SECTION_ICONS: Readonly<Record<Exclude<PanelSection, ''>, string>> = {
+const SECTION_ICONS: Readonly<Record<PanelSection, string>> = {
   scene: icons.scene,
   sound: icons.music,
   time: icons.time,
@@ -72,19 +72,21 @@ interface Section {
 
 /**
  * The control panel. A fixed top: title, the Pomodoro clock button and collapse; a status
- * line (scene · what is playing · island time); master volume. Below, an accordion with one
- * section open at a time (remembered): Cảnh, Âm thanh, Thời gian, Góc nhìn, Cài đặt. Closed
- * sections still show their current value on the right of their title.
+ * line (scene · what is playing · island time); master volume. Below, sections that open and
+ * close on their own (remembered; Cảnh and Góc nhìn open on first launch): Cảnh, Âm thanh,
+ * Thời gian, Góc nhìn, Cài đặt. Closed sections still show their current value on the right of
+ * their title. Clicking the title collapses or expands the whole panel.
  */
 export class Panel {
   readonly root: HTMLElement;
   private readonly collapseBtn: HTMLButtonElement;
+  private readonly titleBtn: HTMLButtonElement;
   private readonly pomoBtn: HTMLButtonElement;
   private readonly pomoText: HTMLElement;
   private readonly statusLine: HTMLElement;
   private readonly masterVolume: SliderControl;
   private readonly masterMute: HTMLButtonElement;
-  private readonly sections = new Map<Exclude<PanelSection, ''>, Section>();
+  private readonly sections = new Map<PanelSection, Section>();
   private readonly synthFallback: ToggleControl;
   private readonly synthStatus: HTMLElement;
   private readonly qualityBtns = new Map<QualityLevel, HTMLButtonElement>();
@@ -115,7 +117,9 @@ export class Panel {
 
     // --- Fixed top ---
     const header = el('div', 'panel-header');
-    const title = el('h1', 'panel-title', vi.appTitle);
+    const title = el('h1', 'panel-title');
+    this.titleBtn = button(vi.appTitle, () => this.toggleCollapsed(), 'panel-title-btn');
+    title.append(this.titleBtn);
     this.pomoBtn = button('', () => deps.togglePomodoro(), 'pomo-btn');
     this.pomoBtn.title = vi.panel.pomodoroBtn;
     this.pomoBtn.setAttribute('aria-label', vi.panel.pomodoroBtn);
@@ -123,7 +127,7 @@ export class Panel {
     pomoIcon.innerHTML = icons.clock;
     this.pomoText = el('span', 'pomo-text');
     this.pomoBtn.append(pomoIcon, this.pomoText);
-    this.collapseBtn = button('', () => settings.update({ panelCollapsed: !settings.get().panelCollapsed }), 'icon-btn');
+    this.collapseBtn = button('', () => this.toggleCollapsed(), 'icon-btn');
     const headerTools = el('div', 'header-tools');
     headerTools.append(this.pomoBtn, this.collapseBtn);
     header.append(title, headerTools);
@@ -259,8 +263,13 @@ export class Panel {
     // The status line fills on the first frame (tick), once the app has built everything.
   }
 
-  /** One accordion section: icon, title, the current value on the right, a body. */
-  private section(id: Exclude<PanelSection, ''>): Section {
+  private toggleCollapsed(): void {
+    const { settings } = this.deps;
+    settings.update({ panelCollapsed: !settings.get().panelCollapsed });
+  }
+
+  /** One section: icon, title, the current value on the right, a body. */
+  private section(id: PanelSection): Section {
     const root = el('details', 'section');
     const summary = el('summary', 'section-title');
     const icon = el('span', 'section-icon');
@@ -269,11 +278,13 @@ export class Panel {
     summary.append(icon, el('span', 'section-name', vi.panel.sections[id]), meta);
     const body = el('div', 'section-body');
     root.append(summary, body);
-    // Opening one closes the others; the open one is remembered.
+    // Each section opens and closes on its own; the open ones are remembered.
     root.addEventListener('toggle', () => {
-      const current = this.deps.settings.get().panelSection;
-      if (root.open && current !== id) this.deps.settings.update({ panelSection: id });
-      else if (!root.open && current === id) this.deps.settings.update({ panelSection: '' });
+      const open = this.deps.settings.get().panelSections;
+      if (root.open === open.includes(id)) return;
+      this.deps.settings.update({
+        panelSections: root.open ? PANEL_SECTIONS.filter((x) => x === id || open.includes(x)) : open.filter((x) => x !== id),
+      });
     });
     const s: Section = { root, body, meta };
     this.sections.set(id, s);
@@ -307,7 +318,7 @@ export class Panel {
     this.pomoBtn.setAttribute('aria-pressed', String(!!p?.visible));
   }
 
-  private meta(id: Exclude<PanelSection, ''>): HTMLElement {
+  private meta(id: PanelSection): HTMLElement {
     const s = this.sections.get(id);
     if (!s) throw new Error(`Panel: no section ${id}`);
     return s.meta;
@@ -340,9 +351,12 @@ export class Panel {
     this.collapseBtn.title = label;
     this.collapseBtn.setAttribute('aria-label', label);
     this.collapseBtn.setAttribute('aria-expanded', String(!s.panelCollapsed));
+    this.titleBtn.title = label;
+    this.titleBtn.setAttribute('aria-expanded', String(!s.panelCollapsed));
     for (const id of PANEL_SECTIONS) {
       const sec = this.sections.get(id);
-      if (sec && sec.root.open !== (s.panelSection === id)) sec.root.open = s.panelSection === id;
+      const open = s.panelSections.includes(id);
+      if (sec && sec.root.open !== open) sec.root.open = open;
     }
     for (const [level, b] of this.qualityBtns) b.setAttribute('aria-pressed', String(level === s.quality));
     const msaaChanged = (s.quality === 'low') !== (this.startQuality === 'low');

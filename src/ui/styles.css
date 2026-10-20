@@ -318,6 +318,27 @@ body.ui-hidden .debug-overlay {
   letter-spacing: 0.01em;
 }
 
+/* The title is a button: click it to collapse or expand the panel. */
+.panel-title-btn {
+  margin: -4px -6px;
+  padding: 4px 6px;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.panel-title-btn:hover {
+  background: var(--control-bg-hover);
+}
+
+.panel-title-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .panel-content {
   overflow-y: auto;
   padding: 0 12px 6px;
