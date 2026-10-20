@@ -8,6 +8,7 @@ import { createHouse, type HouseInfo } from './house';
 import { createRocks, createBeachSet, createBoat, type Rocks } from './props';
 import { createFishingBoat, FishingTrip } from './fishingBoat';
 import { createLightShafts } from './lightShafts';
+import { createTrailMarkers } from './trailMarkers';
 import { DESK } from './houseInterior';
 import { createSky, type Sky } from './sky';
 import { createLighting, type Lighting } from './lighting';
@@ -100,6 +101,9 @@ export function createWorld(
   // Sunbeams through the canopy over the footpath.
   const shafts = createLightShafts(heightmap, layout.trail, WORLD_SEED + 11, shared);
   scene.add(shafts);
+  const trailMarkers = createTrailMarkers(heightmap, layout.trail, WORLD_SEED + 12);
+  scene.add(trailMarkers);
+  patchTree(trailMarkers, { wet: true, porosity: 0.5, snow: true }, shared);
 
   const house = createHouse(heightmap, layout.house, WORLD_SEED + 3);
   scene.add(house.group);

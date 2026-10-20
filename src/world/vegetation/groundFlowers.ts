@@ -63,7 +63,7 @@ export class GroundFlowers {
         const x = randRange(rng, -extent, extent);
         const z = randRange(rng, -extent, extent);
         if (hm.surfaceAt(x, z) !== 'grass') continue;
-        if (Math.hypot(x - house.x, z - house.z) < 5.5 || inStairsPath(house, x, z)) continue;
+        if (Math.hypot(x - house.x, z - house.z) < 5.5 || inStairsPath(house, x, z) || trail.distance(x, z) < 0.7) continue;
         // Each color has its own patch pattern, so meadows are mixed but not uniform.
         const patch = 0.5 + 0.5 * fbm2(noise, x * 0.06 + ci * 37, z * 0.06 - ci * 19, 2);
         if (rng() > Math.pow(Math.max(0, (patch - 0.45) / 0.55), 1.5)) continue;

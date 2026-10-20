@@ -54,7 +54,9 @@ export function createTerrainMesh(hm: Heightmap, noise: Noise2D, trail: Trail): 
       sand.set([color.r, color.g, color.b], v * 3);
       const line = hm.sandLineAt(x, z);
       grass[v] = h < 0.3 ? 0 : smoothstep(line - 0.25, line + 0.25, h);
-      path[v] = 1 - smoothstep(0.2, 1.9, trail.distance(x, z));
+      // Clearest at the entrance (worn by everyone coming up from the beach), fainter deeper in.
+      const near = trail.nearest(x, z);
+      path[v] = (1 - smoothstep(0.2, 1.9, near.d)) * (1 + 0.6 * (1 - smoothstep(12, 40, near.s)));
     }
   }
 

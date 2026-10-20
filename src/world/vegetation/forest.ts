@@ -85,8 +85,11 @@ export function createForest(
       if (inStairsPath(house, x, z)) continue;
       // The footpath: trunks stand back from it (it stays walkable, the crowns still meet
       // overhead); undergrowth crowds right up to its edges.
-      const toTrail = trail.distance(x, z);
-      if (toTrail < (sp.layer === 'tree' ? 2.0 + sp.radius * 0.3 : 0.75)) continue;
+      const near = trail.nearest(x, z);
+      const toTrail = near.d;
+      // The entrance from the beach (first ~25 m) is a little more open.
+      const open = near.s < 25 ? 0.7 : 0;
+      if (toTrail < (sp.layer === 'tree' ? 2.0 + sp.radius * 0.3 : 0.6 + sp.radius * 0.6) + open) continue;
       let habitat = sp.habitat(site);
       if (sp.layer === 'under' && toTrail < 3.5 && site.inland > 0.2) habitat = Math.min(1, habitat * 1.8 + 0.2);
       if (rng() > habitat) continue;
