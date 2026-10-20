@@ -720,6 +720,21 @@ export interface SwimPose {
   lift: number;
 }
 
+/** On the surfboard (the surf activity). */
+export interface SurfPose {
+  /** World transform of the deck: origin on the deck in the middle, −Z the nose, +Y up. */
+  board: THREE.Matrix4;
+  /** 0 lying on it (paddling) … 1 standing (riding). */
+  stand: number;
+  /** Arm strokes done, and how hard it paddles (0..1). */
+  stroke: number;
+  paddling: number;
+  /** Knees bent (0..1); the lean into the turn (rad, > 0 turning left). */
+  crouch: number;
+  lean: number;
+  firstPerson: boolean;
+}
+
 /** Joint angles of one swimming pose (rad), per side where it matters [left, right]. */
 interface SwimAngles {
   shX: [number, number];
@@ -1484,6 +1499,72 @@ export class Avatar {
       p.z - chest * sp * Math.cos(this.yaw),
     );
     root.updateMatrixWorld(true);
+    this.blinkEyes(dt);
+  }
+
+  /**
+   * On the surfboard. Lying: face down along the board, head to the nose, chest arched, legs
+   * together over the tail, the arms paddling (the crawl's arm circle, out past the rails).
+   * Standing: sideways across the board (regular stance: left foot forward toward the nose),
+   * knees bent, arms out along the board for balance, looking down the line toward the nose; the
+   * board already rolls with the lean, the hips add a little more.
+   */
+  updateSurfing(dt: number, p: Readonly<SurfPose>): void {
+    this.time += dt;
+    this.seated = true;
+    this.rootY = Number.NaN;
+    const root = this.group;
+    p.board.decompose(root.position, root.quaternion, tmpS);
+    this.torso.scale.y = 1;
+    this.head.scale.setScalar(p.firstPerson ? 0.001 : 1);
+    if (p.stand < 0.5) {
+      crawlAngles(frac(p.stroke), swimA);
+      const k = p.paddling;
+      for (let i = 0; i < 2; i++) {
+        const side = i === 0 ? -1 : 1;
+        // Resting: hands by the shoulders on the rails; paddling: the full arm circle.
+        this.shoulders[i].rotation.set(lerpAngle(0.9, swimA.shX[i], k), 0, side * (0.35 + 0.2 * k) + swimA.shZ[i] * 0.5 * k);
+        this.elbows[i].rotation.set(1.3 + (swimA.el[i] - 1.3) * k, 0, 0);
+        this.wrists[i].rotation.set(0, 0, 0);
+        this.hipJoints[i].rotation.set(0.02, 0, side * 0.05);
+        this.knees[i].rotation.set(-0.06 - 0.12 * Math.max(0, Math.sin(this.time * 1.3 + i * 2)), 0, 0);
+        this.ankles[i].rotation.set(-1.2, 0, 0);
+      }
+      this.hips.position.set(0, HIP_Y, 0);
+      this.hips.rotation.set(0, swimA.roll * 0.15 * k, 0);
+      // Chest up off the board, face looking ahead.
+      this.torso.rotation.set(0.3, swimA.roll * 0.15 * k, 0);
+      this.head.rotation.set(0.75, 0, 0);
+      // Face down, head toward the nose: body +Y → board −Z. The spine lies ~0.11 m above the
+      // deck, the feet just past the tail.
+      root.quaternion.multiply(tmpQ.setFromAxisAngle(tmpP.set(1, 0, 0), -Math.PI / 2));
+      tmpP.set(0, 0.11, 1.12).applyMatrix4(p.board);
+      root.position.copy(tmpP);
+      root.updateMatrixWorld(true);
+      this.blinkEyes(dt);
+      return;
+    }
+    const drop = 0.12 + 0.18 * p.crouch;
+    this.hips.position.set(0, HIP_Y - drop, 0);
+    // Leaning into a left turn is leaning back (the heels), into a right turn forward (the toes).
+    this.hips.rotation.set(p.lean * 0.45, 0.25, 0);
+    this.torso.rotation.set(-0.3 - 0.15 * p.crouch, 0.45, 0);
+    for (let i = 0; i < 2; i++) {
+      const side = i === 0 ? -1 : 1;
+      this.shoulders[i].rotation.set(-0.25 + 0.1 * Math.sin(this.time * 1.7 + i), 0, side * (1.15 + 0.08 * Math.sin(this.time * 1.3 + i * 2)));
+      this.elbows[i].rotation.set(0.35, 0, 0);
+      this.wrists[i].rotation.set(0, 0, 0);
+    }
+    this.head.rotation.set(0.12, 0.75, 0);
+    // Sideways across the board: body −Z (its front) → board +X.
+    root.quaternion.multiply(tmpQ.setFromAxisAngle(UP, -Math.PI / 2));
+    root.updateMatrixWorld(true);
+    // Feet on the deck, about shoulder width and a half apart: left (front) foot toward the
+    // nose, right foot over the fins.
+    for (let i = 0; i < 2; i++) {
+      tmpD.set(0, ANKLE_H, i === 0 ? -0.33 : 0.37).applyMatrix4(p.board);
+      this.reachLeg(i, tmpD, 0);
+    }
     this.blinkEyes(dt);
   }
 

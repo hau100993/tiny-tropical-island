@@ -9,6 +9,7 @@ import { createRocks, createBeachSet, createBoat, type Rocks } from './props';
 import { createFishingBoat, FishingTrip } from './fishingBoat';
 import { createLightShafts } from './lightShafts';
 import { createTrailMarkers } from './trailMarkers';
+import { createSurfboard } from './surfboard';
 import { DESK } from './houseInterior';
 import { createSky, type Sky } from './sky';
 import { createLighting, type Lighting } from './lighting';
@@ -47,6 +48,8 @@ export interface World {
   boat: FloatingObject;
   fishingTrip: FishingTrip;
   kayak: KayakModel;
+  /** The surfboard (moved by the surf activity). */
+  surfboard: THREE.Group;
   /** Droplets from the paddle. */
   spray: Spray;
   /** Under-water look while the camera is below the surface. */
@@ -145,6 +148,9 @@ export function createWorld(
   const kayak = createKayak(WORLD_SEED + 13);
   scene.add(kayak.group);
   patchTree(kayak.group, { wet: true, porosity: 0.1 }, shared);
+  const surfboard = createSurfboard();
+  scene.add(surfboard);
+  patchTree(surfboard, { wet: true, porosity: 0.1 }, shared);
   const spray = new Spray(shared);
   scene.add(spray.points);
 
@@ -156,6 +162,7 @@ export function createWorld(
   }
   const water = new WaterSystem(renderer, heightmap, heightTexture, shared, camera);
   scene.add(water.surface.mesh);
+  water.surface.setSurf(layout.surf.frame);
   // Ground and rocks: wet sheen and puddles, snow cover, and caustic light under water.
   const caustics = water.causticsUniforms;
   patchWorldMaterial(terrain.material, { wet: true, puddles: true, snow: true, caustics, ground: true }, shared);
@@ -192,6 +199,7 @@ export function createWorld(
     boat,
     fishingTrip,
     kayak,
+    surfboard,
     spray,
     underwater,
     reef,

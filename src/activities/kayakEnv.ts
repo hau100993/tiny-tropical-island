@@ -1,6 +1,7 @@
 import type * as THREE from 'three';
 import { sampleWaves, waveAttenuation } from '../water/gerstner';
-import type { KayakEnv } from './kayakPhysics';
+import { createSurfSample, sampleSurf, type SurfFrame } from '../water/surf';
+import type { SurfEnv } from './surfPhysics';
 import type { Heightmap } from '../world/heightmap';
 import type { Placement } from '../world/layout';
 import type { IslandColliders } from '../controls/islandColliders';
@@ -11,20 +12,38 @@ const BOAT_CIRCLES = [-1.3, 0, 1.3] as const;
 const BOAT_R = 0.75;
 
 /**
- * What the kayak needs to know about the world: the sea surface (the CPU twin of the water
- * shader, attenuated exactly like it near the shore and far from the camera), the terrain,
- * and what it can bump into (rocks and stilts from the walker's colliders, plus the moored
- * rowboat, which the walker never reaches).
+ * What the kayak (and the swimmer, and the surfboard) need to know about the world: the sea
+ * surface (the CPU twin of the water shader: the swell, attenuated exactly like it near the
+ * shore and far from the camera, plus the surf break), the terrain, and what they can bump into
+ * (rocks and stilts from the walker's colliders, plus the moored rowboat, which the walker
+ * never reaches).
  */
-export function createKayakEnv(hm: Heightmap, colliders: IslandColliders, boat: Placement, camera: THREE.Camera, shared: SharedUniforms): KayakEnv {
+export function createKayakEnv(
+  hm: Heightmap,
+  colliders: IslandColliders,
+  boat: Placement,
+  camera: THREE.Camera,
+  shared: SharedUniforms,
+  surfFrame: SurfFrame,
+): SurfEnv {
   const bx = Math.cos(boat.rotY);
   const bz = -Math.sin(boat.rotY);
+  const depthAt = (x: number, z: number): number => -hm.heightAt(x, z);
+  const surf = createSurfSample();
   return {
+    ux: surfFrame.ux,
+    uz: surfFrame.uz,
     water(x, z, out) {
       const dist = Math.hypot(x - camera.position.x, z - camera.position.z);
       const atten = waveAttenuation(shared.uWaveStrength.value, -hm.heightAt(x, z), dist);
-      return sampleWaves(x, z, shared.uTime.value, atten, dist, out);
+      sampleWaves(x, z, shared.uTime.value, atten, dist, out);
+      sampleSurf(surfFrame, x, z, shared.uTime.value, shared.uWaveStrength.value, depthAt, surf);
+      out.height += surf.height;
+      out.dhdx += surf.dhdx;
+      out.dhdz += surf.dhdz;
+      return out;
     },
+    surf: (x, z, out) => sampleSurf(surfFrame, x, z, shared.uTime.value, shared.uWaveStrength.value, depthAt, out),
     ground: (x, z) => hm.heightAt(x, z),
     block(x, z, y, r, out) {
       colliders.world.resolve(x, z, y, r, out);

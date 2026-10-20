@@ -1,0 +1,146 @@
+import { describe, expect, it } from 'vitest';
+import { SurfBody, type SurfControls, type SurfEnv, type SurfEvent } from '../src/activities/surfPhysics';
+import { SURF, createSurfSample, sampleSurf, type SurfFrame } from '../src/water/surf';
+
+// A straight beach: the waves run along +x, the waterline at x = 0, the seabed shelving 1:8.
+const frame: SurfFrame = { ox: 0, oz: 0, ux: 1, uz: 0 };
+const ground = (x: number): number => x / 8;
+const depthAt = (x: number): number => -ground(x);
+let time = 0;
+const env: SurfEnv = {
+  ux: 1,
+  uz: 0,
+  water(x, z, out) {
+    const s = sampleSurf(frame, x, z, time, 0.3, depthAt, createSurfSample());
+    out.height = s.height;
+    out.dhdx = s.dhdx;
+    out.dhdz = s.dhdz;
+    return out;
+  },
+  surf: (x, z, out) => sampleSurf(frame, x, z, time, 0.3, depthAt, out),
+  ground: (x) => ground(x),
+  block(x, z, _y, _r, out) {
+    out.x = x;
+    out.z = z;
+  },
+};
+
+const ctl = (p: Partial<SurfControls> = {}): SurfControls => ({ forward: false, back: false, steer: 0, hard: false, ...p });
+/** Facing the beach (+x): forward = (−sin yaw, −cos yaw). */
+const TO_BEACH = -Math.PI / 2;
+const DT = 1 / 60;
+
+/** Lie on the board out back, paddle for the beach and stand up as soon as the wave allows. */
+function catchWave(t0: number, x0 = -55): { body: SurfBody; caught: boolean; tries: Record<string, number> } {
+  time = t0;
+  const body = new SurfBody(env);
+  body.place(x0, 0, TO_BEACH);
+  body.state = 'prone';
+  const tries: Record<string, number> = {};
+  for (let i = 0; i < 60 * 30; i++) {
+    time += DT;
+    body.step(DT, ctl({ forward: true }));
+    const r = body.popUp();
+    tries[r] = (tries[r] ?? 0) + 1;
+    if (r === 'ok') return { body, caught: true, tries };
+  }
+  return { body, caught: false, tries };
+}
+
+function ride(body: SurfBody, seconds: number, c: SurfControls): { event: SurfEvent; t: number; maxSpeed: number; minX: number; maxX: number } {
+  let maxSpeed = 0;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  for (let i = 0; i < seconds * 60; i++) {
+    time += DT;
+    const e = body.step(DT, c);
+    maxSpeed = Math.max(maxSpeed, Math.hypot(body.vx, body.vz));
+    minX = Math.min(minX, body.wave.x);
+    maxX = Math.max(maxX, body.wave.x);
+    if (e !== 'none') return { event: e, t: i / 60, maxSpeed, minX, maxX };
+  }
+  return { event: 'none', t: seconds, maxSpeed, minX, maxX };
+}
+
+describe('surf break', () => {
+  it('the wave is steep in front, gentle behind, and breaks from one end', () => {
+    // At the break line, a crest at x = −30 (t chosen so): face slope > back slope.
+    const s = createSurfSample();
+    // The crest (d = 0) is where (x − c·t) / L is a half-integer: put one at x = −30.
+    time = (-30 + 100.5 * SURF.length) / SURF.speed;
+    let face = 0;
+    let back = 0;
+    for (let x = -60; x < -10; x += 0.25) {
+      sampleSurf(frame, x, 40, time, 0.3, depthAt, s);
+      if (s.d > 0) face = Math.min(face, s.dhdx);
+      else back = Math.max(back, s.dhdx);
+    }
+    expect(-face).toBeGreaterThan(back * 1.6);
+    // Broken at the peel's start side, still clean on the far shoulder.
+    const crestX = (l: number): number => {
+      let best = -Infinity;
+      let bx = 0;
+      for (let x = -40; x < -12; x += 0.1) {
+        const h = sampleSurf(frame, x, l, time, 0.3, depthAt, s).height;
+        if (h > best) {
+          best = h;
+          bx = x;
+        }
+      }
+      return bx;
+    };
+    sampleSurf(frame, crestX(-45), -45, time, 0.3, depthAt, s);
+    const left = s.broken;
+    sampleSurf(frame, crestX(45), 45, time, 0.3, depthAt, s);
+    expect(left).toBeGreaterThan(0.5);
+    expect(s.broken).toBeLessThan(0.1);
+  });
+
+  it('paddling for the beach catches a wave; standing still does not', () => {
+    const r = catchWave(3.7);
+    console.info('catch tries', r.tries, 'at x', r.body.wave.x.toFixed(1));
+    expect(r.caught).toBe(true);
+    time = 3.7;
+    const idle = new SurfBody(env);
+    idle.place(-55, 0, TO_BEACH);
+    idle.state = 'prone';
+    let ok = false;
+    for (let i = 0; i < 60 * 20; i++) {
+      time += DT;
+      idle.step(DT, ctl());
+      if (idle.popUp() === 'ok') ok = true;
+    }
+    expect(ok).toBe(false);
+  });
+
+  it('angled along the shoulder, the ride lasts and goes fast', () => {
+    const r = catchWave(3.7);
+    // Turn toward the unbroken shoulder (+z is the far end of the peel: l = +z here)...
+    const body = r.body;
+    const res = ride(body, 1.0, ctl({ steer: -1 }));
+    expect(res.event).toBe('none');
+    const long = ride(body, 8, ctl());
+    console.info('ride', long, 'state', body.state);
+    expect(long.t).toBeGreaterThan(4);
+    expect(long.maxSpeed).toBeGreaterThan(SURF.speed + 1);
+  });
+
+  it('a normal carve holds (and keeps its speed)', () => {
+    const r = catchWave(3.7);
+    ride(r.body, 1.0, ctl({ steer: -1 }));
+    ride(r.body, 1.0, ctl());
+    const v0 = Math.hypot(r.body.vx, r.body.vz);
+    const res = ride(r.body, 1.0, ctl({ steer: 1 }));
+    expect(res.event).not.toBe('wipeout');
+    expect(Math.hypot(r.body.vx, r.body.vz)).toBeGreaterThan(v0 * 0.6);
+  });
+
+  it('a hard carve at speed wipes out', () => {
+    const r = catchWave(3.7);
+    ride(r.body, 1.0, ctl({ steer: -1 }));
+    ride(r.body, 1.0, ctl());
+    const res = ride(r.body, 3, ctl({ steer: 1, hard: true }));
+    console.info('carve', res);
+    expect(res.event).toBe('wipeout');
+  });
+});

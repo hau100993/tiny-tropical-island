@@ -3,13 +3,14 @@ import type { OrbitCamera } from './orbit';
 import type { Walker } from './walker';
 import type { DeskPose, DeskView } from './deskView';
 import type { KayakActivity } from '../activities/KayakActivity';
+import type { SurfActivity } from '../activities/SurfActivity';
 
-/** 'seat': sitting somewhere in the house (the desk or the bathtub). 'kayak': paddling. */
-export type CameraMode = 'orbit' | 'walk' | 'seat' | 'kayak';
+/** 'seat': sitting somewhere in the house (the desk or the bathtub). 'kayak': paddling. 'surf': on the surfboard. */
+export type CameraMode = 'orbit' | 'walk' | 'seat' | 'kayak' | 'surf';
 export type SeatId = 'desk' | 'bath';
 
 /** Near plane per mode: close enough not to clip walls (or the monitors) indoors. */
-const NEAR = { orbit: 0.3, walk: 0.08, seat: 0.05, kayak: 0.08 } as const;
+const NEAR = { orbit: 0.3, walk: 0.08, seat: 0.05, kayak: 0.08, surf: 0.08 } as const;
 
 export interface SeatSpot {
   /** Where the eyes are when seated, and the look direction. */
@@ -27,8 +28,8 @@ export class CameraManager {
   mode: CameraMode = 'orbit';
   /** Which seat, while mode is 'seat'. */
   seat: SeatId = 'desk';
-  /** Where `C` returns to from the overview: walking, or the kayak you were paddling. */
-  private play: 'walk' | 'kayak' = 'walk';
+  /** Where `C` returns to from the overview: walking, the kayak you were paddling, the surfboard. */
+  private play: 'walk' | 'kayak' | 'surf' = 'walk';
   private readonly savedPos = new THREE.Vector3();
   private readonly savedTarget = new THREE.Vector3();
   private readonly listeners: Array<(mode: CameraMode) => void> = [];
@@ -39,6 +40,7 @@ export class CameraManager {
     private readonly walker: Walker,
     private readonly sitter: DeskView,
     private readonly kayak: KayakActivity,
+    private readonly surf: SurfActivity,
     private readonly spawn: { x: number; z: number; yaw: number },
     private readonly seats: Record<SeatId, SeatSpot>,
   ) {}
@@ -85,15 +87,19 @@ export class CameraManager {
       this.walker.exit();
     } else if (from === 'kayak') {
       this.kayak.exit();
+    } else if (from === 'surf') {
+      this.surf.exit();
     } else {
       this.sitter.exit();
     }
     // Enter the new one.
-    if (mode === 'walk' || mode === 'kayak') this.play = mode;
+    if (mode === 'walk' || mode === 'kayak' || mode === 'surf') this.play = mode;
     if (mode === 'seat') {
       this.sitter.enter(this.seats[this.seat].seat, animate);
     } else if (mode === 'kayak') {
       this.kayak.enter();
+    } else if (mode === 'surf') {
+      this.surf.enter();
     } else if (mode === 'walk') {
       if (from === 'seat') {
         const s = this.seats[this.seat].stand;
@@ -115,7 +121,8 @@ export class CameraManager {
     if (this.mode === 'walk') this.walker.update(dt);
     else if (this.mode === 'seat') this.sitter.update(dt);
     else if (this.mode === 'orbit') this.orbit.update(dt);
-    // The kayak floats (and is paddled) in every mode.
+    // The kayak and the surfboard float (and are ridden) in every mode.
     this.kayak.update(dt);
+    this.surf.update(dt, this.camera.position);
   }
 }

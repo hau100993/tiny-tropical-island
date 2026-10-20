@@ -112,7 +112,7 @@ const FRAG = /* glsl */ `
   col *= 0.8 + 0.2 * smoothstep(0.3, 0.7, fract(p.y * 16.0 + cNoise(p * 10.0)));
   if (!gl_FrontFacing) col *= 0.35;
 #elif CORAL_KIND == 6
-  col *= 0.8 + 0.35 * smoothstep(0.12, 0.05, cCell(p * 60.0));
+  col *= 0.8 + 0.35 * (1.0 - smoothstep(0.05, 0.12, cCell(p * 60.0)));
 #elif CORAL_KIND == 8 || CORAL_KIND == 9
   float tip = smoothstep(0.25, 0.65, p.y);
   col = mix(col, vec3(0.97, 0.94, 0.9), tip * 0.55);

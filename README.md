@@ -63,6 +63,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `B` | Work desk: sit down at the desk in the house (from anywhere) / get up |
 | `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up |
 | `K` | Walking on the beach or in the shallows: get into the kayak; in the kayak: step out (see *Kayak*) |
+| `L` | Walking on the beach or in the shallows: go surfing (see *Surfing*); on the board: slip off |
 | `Esc` | Seated (desk or bathtub): get up |
 | `` ` `` (backquote) | Show/hide the stats overlay (FPS, CPU/GPU ms, draw calls) |
 
@@ -331,11 +332,47 @@ behind you, so it works inside the small room too.
 ## Sea activities
 
 Walk onto the beach or into the shallows and a small card **Hoạt động biển** appears at the
-bottom right with the key of each activity you can start there: **K – Chèo kayak** and
-**W – Bơi** (just walk out into deep water). In the kayak, `Space` jumps over the side into
+bottom right with the key of each activity you can start there: **K – Chèo kayak**,
+**L – Lướt ván** and **W – Bơi** (just walk out into deep water). In the kayak, `Space` jumps over the side into
 the sea; swim back right up to the floating kayak and you climb in by yourself (or press `K`
-next to it). While swimming, the card shows **Space – Lặn** (dive). Surfing comes next (see PLAN.md,
-Phase 8).
+next to it). While swimming, the card shows **Space – Lặn** (dive).
+
+### Surfing (`L` at the sea)
+
+A quarter of the way round the island from the house (to the right when you stand on the house's
+beach facing the sea) there is a surf break: real breaking waves every ~13 s rolling onto a long
+sandy beach, ~1.7 m high. Each wave rises as it comes in, then breaks from one end and the
+break runs along it ("peels"); white water tumbles down the broken part and a band of foam
+follows it in; near the beach every wave closes out and washes up the sand. You can see it from
+the overview too.
+
+`L` anywhere on a beach fades and puts you lying on the board in the shallows of the break.
+
+| Lying on the board | |
+|---|---|
+| `W` (hold) | Paddle |
+| `A` / `D` | Turn the board |
+| `S` | Drag a hand (brake) |
+| `Space` | Stand up (only on the face of a wave, moving with it) |
+| `L` | Slip off the board |
+
+| Standing (riding) | |
+|---|---|
+| `A` / `D` | Carve along the wave |
+| `Shift` + `A`/`D` | Hard carve: turns much tighter, but held at speed you lean too far and fall |
+| `W` | Pump (a little speed down the face) |
+| `S` | Stall (lets the wave catch up) |
+
+How to catch a wave: paddle out past the white water (toward the open sea), turn the nose to the
+beach and wait. When a wave comes up behind you a note says **Sóng tới!**: hold `W` to paddle
+with it, and when the tail lifts and you slide, press `Space`. Then turn along the wave toward
+the side that has not broken yet and stay on its face, ahead of the white water. The ride ends
+when the wave passes under you or closes out (you lie down again), or at the beach (you step
+off). Falling (too hard a carve, or under the breaking lip) drops you in the water: swim back
+right up to the board and you climb on by yourself (or press `L` next to it). Space at the
+wrong moment says why: no wave, too early, too late, or too slow.
+
+The waves are also real for the kayak and the swimmer at that beach.
 
 ### Journal (disabled)
 
@@ -613,13 +650,14 @@ src/
   world/     heightmap, terrain, grass, house, props, sky, lighting, material patching, kayak, reef
     vegetation/  plant geometry builder, species (habitat rules), forest placement, wildflowers
   water/     Gerstner swell, ripple simulation, refraction capture, caustics, floating objects,
-             wake map, spray and bubbles, under-water look (fog, dome, sun rays)
+             wake map, spray and bubbles, under-water look (fog, dome, sun rays), surf break
   weather/   rain/snow particles, gusts, wetness & snow-cover rules
   audio/     audio engine, synthesized layers, mixer state, presets, scheduler
     file/      public/audio config parsing and the file layer (crossfades)
     library/   the user's recordings: IndexedDB storage, streaming players, scene mapping
   controls/  orbit camera, walking (first person), collision, water clicks, keyboard shortcuts
-  activities/  sea activities: kayak physics (paddle strokes, blade forces, hull drag) and control
+  activities/  sea activities: kayak physics (paddle strokes, blade forces, hull drag) and control,
+             surfboard physics and control
   ui/        Vietnamese strings, control panel, Pomodoro (state machine + card), stats overlay, styles
 tests/       unit tests for pure logic
 vite-plugins/  audio-manifest plugin (lists files in public/audio)

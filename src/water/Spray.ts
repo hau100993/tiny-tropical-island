@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { SharedUniforms } from '../core/uniforms';
 
-const MAX = 400;
+const MAX = 1000;
 const GRAVITY = 9.81;
 
 /** Anything that throws droplets (the paddle now). */

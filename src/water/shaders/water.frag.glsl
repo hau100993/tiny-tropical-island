@@ -32,6 +32,7 @@ varying vec3 vNormalW;
 varying float vCrest;
 varying float vCloudShadow;
 varying vec2 vSwash;
+varying vec3 vSurf;
 
 #include <fog_pars_fragment>
 
@@ -174,6 +175,9 @@ void main() {
   // A little white water on strong ripples (splashes).
   coverage += smoothstep(0.06, 0.2, sim.x) * sim.w * 0.6 * (0.4 + n2);
   coverage += wakeFoam;
+  // Surf break: white water on the broken face, the soup behind it, spray feathering the lip.
+  // Patchy (noise), so its edges never draw straight lines.
+  coverage += vSurf.x * (0.65 + 0.7 * valueNoise(xz * 0.5 + vec2(t * 0.2, 0.0)) * n);
   float foam = 0.0;
   if (coverage > 0.01) {
     // Thin foam is see-through bubbles; only thick coverage turns solid white.
@@ -189,6 +193,8 @@ void main() {
   float lit = max(uDayLight, 0.55 * golden) * (1.0 - 0.55 * vCloudShadow);
   vec3 deep = uDeepColor * lit;
   vec3 shallow = uShallowColor * lit;
+  // The thin face of a standing wave glows turquoise with the light coming through it.
+  vec3 faceGlow = mix(uShallowColor, uDeepColor, 0.35) * lit * 1.25;
 
   // Glint of the main light (sun, or the moon's silver path at night); widens and dims with
   // distance like a rougher surface. No glint under a cloud.
@@ -226,12 +232,14 @@ void main() {
   // Reflection fades in with water thickness so the waterline blends into the sand.
   float reflAmount = fres * smoothstep(0.0, 0.3, thickness);
   vec3 col = mix(body, refl, reflAmount) + uLightColor * spec * smoothstep(0.0, 0.3, thickness);
+  col = mix(col, faceGlow, vSurf.y * 0.3);
   col = mix(col, foamColor, foam);
   gl_FragColor = vec4(col, 1.0);
 #else
   float absorb = 1.0 - exp(-depth * 0.22);
   vec3 body = mix(shallow, deep, absorb);
   vec3 col = mix(body, refl, fres) + uLightColor * spec;
+  col = mix(col, faceGlow, vSurf.y * 0.3);
   col = mix(col, foamColor, foam);
   // Opacity saturates faster than color, so deep water fully hides the end of the seabed patch.
   float alpha = mix(0.5, 1.0, 1.0 - exp(-depth * 0.6)) + fres * 0.3;

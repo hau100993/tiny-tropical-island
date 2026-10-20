@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createWaveUniforms, NUM_WAVES } from './gerstner';
+import { surfGlsl, type SurfFrame } from './surf';
 import type { SharedUniforms } from '../core/uniforms';
 import waterCommon from './shaders/waterCommon.glsl?raw';
 import swash from './shaders/swash.glsl?raw';
@@ -112,12 +113,13 @@ export class WaterSurface {
         uWakeSize: { value: inputs.wakeSize },
         uWakeOn: { value: inputs.wake.value ? 1 : 0 },
         uUnderColor: { value: inputs.underColor },
+        uSurfFrame: { value: new THREE.Vector4(0, 0, 1, 0) },
         uCameraNear: { value: camera.near },
         uCameraFar: { value: camera.far },
         uShallowColor: { value: new THREE.Color('#3cc8c4') },
         uDeepColor: { value: new THREE.Color('#0a4a78') },
       },
-      vertexShader: `${waterCommon}\n${swash}\n${clouds}\n${waterVert}`,
+      vertexShader: `${waterCommon}\n${swash}\n${clouds}\n${surfGlsl}\n${waterVert}`,
       // One aurora ribbon is enough in the reflection (cheaper per water pixel).
       fragmentShader: `${waterCommon}\n${swash}\n${skyCommon}\n#define AURORA_LAYERS 1\n${aurora}\n${waterFrag}`,
       fog: true,
@@ -129,6 +131,11 @@ export class WaterSurface {
     // Drawn after all other geometry (seabed must be in the depth buffer / scene capture first).
     this.mesh.renderOrder = 1;
     this.setRefraction(false);
+  }
+
+  /** Where the surf break is (see surf.ts). */
+  setSurf(frame: SurfFrame): void {
+    this.mesh.material.uniforms.uSurfFrame.value.set(frame.ox, frame.oz, frame.ux, frame.uz);
   }
 
   /** Keeps depth linearization in sync when the camera's near/far change (walk mode). */

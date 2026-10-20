@@ -10,6 +10,7 @@ varying vec3 vNormalW;
 varying float vCrest;
 varying float vCloudShadow;
 varying vec2 vSwash; // x: wave front running up (0..1), y: near-shore weight
+varying vec3 vSurf; // surf break: foam coverage, lit face, broken
 uniform vec3 uSunDir;
 #ifdef REFLECTION
 uniform mat4 uReflectMatrix;
@@ -51,6 +52,19 @@ void main() {
     ampSum += A;
   }
   wp.xyz += disp;
+  // The surf break (see surf.ts): its height on top, its slopes into the normal.
+  vec4 sf = surfWave(p, uTime, depth, uWaveStrength);
+  vSurf = sf.yzw;
+  if (sf.x != 0.0) {
+    const float e = 0.4;
+    vec2 ex = vec2(e, 0.0);
+    vec2 ez = vec2(0.0, e);
+    float hx = surfWave(p + ex, uTime, -terrainHeight(p + ex), uWaveStrength).x - surfWave(p - ex, uTime, -terrainHeight(p - ex), uWaveStrength).x;
+    float hz = surfWave(p + ez, uTime, -terrainHeight(p + ez), uWaveStrength).x - surfWave(p - ez, uTime, -terrainHeight(p - ez), uWaveStrength).x;
+    nx += hx / (2.0 * e);
+    nz += hz / (2.0 * e);
+    wp.y += sf.x;
+  }
   // Ripples from the GPU simulation, on top of the swell.
   vec4 sim = sampleSim(p);
   wp.y += sim.x * sim.w;

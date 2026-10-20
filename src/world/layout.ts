@@ -1,6 +1,7 @@
 import type { Heightmap } from './heightmap';
 import type { Rng } from '../core/rng';
 import { Trail } from './trail';
+import type { SurfFrame } from '../water/surf';
 
 export interface Circle {
   x: number;
@@ -35,6 +36,8 @@ export interface IslandLayout {
   clearings: Circle[];
   /** The footpath through the forest. */
   trail: Trail;
+  /** The surf break (a quarter of the way round the island from the house) and its board on the sand. */
+  surf: { frame: SurfFrame; board: Placement };
 }
 
 /**
@@ -88,6 +91,8 @@ export function inStairsPath(house: Placement, x: number, z: number, margin = 0)
 
 /** Compass direction (radians, in the x-z plane) the house faces. */
 const HOUSE_ANGLE = 0.7;
+/** The surf beach: a long, gently shelving stretch of sand with no rocks, out of the desk's view. */
+const SURF_ANGLE = HOUSE_ANGLE + 1.5;
 
 export function createLayout(hm: Heightmap, rng: Rng): IslandLayout {
   // House: a little inland from the dry-sand line, door facing the sea.
@@ -124,11 +129,25 @@ export function createLayout(hm: Heightmap, rng: Rng): IslandLayout {
   const kgz = hm.heightAt(kx, kz + 2) - hm.heightAt(kx, kz - 2);
   const kayak: Placement = { x: kx, z: kz, rotY: Math.atan2(kgx, kgz) };
 
+  // Surf break: its waterline point, the swell heading straight in. The board lies on the dry
+  // sand above it, nose to the sea.
+  const surfR = hm.shoreDistance(SURF_ANGLE, 0);
+  const sc = Math.cos(SURF_ANGLE);
+  const ss = Math.sin(SURF_ANGLE);
+  const boardR = hm.shoreDistance(SURF_ANGLE + 0.04, 0.7);
+  const surf = {
+    frame: { ox: sc * surfR, oz: ss * surfR, ux: -sc, uz: -ss },
+    // Nose (local −Z) out to sea: (−sin rotY, −cos rotY) = (cos a, sin a).
+    board: { x: Math.cos(SURF_ANGLE + 0.04) * boardR, z: Math.sin(SURF_ANGLE + 0.04) * boardR, rotY: Math.atan2(-sc, -ss) },
+  };
+
   const clearings: Circle[] = [
     { x: house.x, z: house.z, r: 11 },
     { x: umbrella.x, z: umbrella.z, r: 5 },
     // Path from the porch steps down to the beach.
     { x: (house.x + umbrella.x) / 2, z: (house.z + umbrella.z) / 2, r: 4 },
+    // No palm right over the surfboard.
+    { x: surf.board.x, z: surf.board.z, r: 5 },
   ];
 
   const rocks: RockPlacement[] = [];
@@ -138,6 +157,8 @@ export function createLayout(hm: Heightmap, rng: Rng): IslandLayout {
     const z = Math.sin(angle) * r;
     if (clearings.some((c) => Math.hypot(c.x - x, c.z - z) < c.r + scale)) return;
     if (inStairsPath(house, x, z, scale)) return;
+    // No rocks in the surf break.
+    if (Math.hypot(x - surf.frame.ox, z - surf.frame.oz) < 60) return;
     rocks.push({ x, z, scale, rotY: rng() * Math.PI * 2, variant: Math.floor(rng() * 3) });
   };
   // Clusters along the shoreline, some half-submerged.
@@ -151,5 +172,5 @@ export function createLayout(hm: Heightmap, rng: Rng): IslandLayout {
   // A few lone rocks a bit further out in the water.
   for (let k = 0; k < 5; k++) addRock(rng() * Math.PI * 2, -1.8 - rng() * 1.5, 0.9 + rng() * 1.0);
 
-  return { house, umbrella, boat, kayak, rocks, clearings, trail: new Trail(hm, house) };
+  return { house, umbrella, boat, kayak, rocks, clearings, trail: new Trail(hm, house), surf };
 }
