@@ -373,10 +373,14 @@ Where the water is deeper than ~1.8 m, `Space` takes a breath and dives. Under w
   game over). Every few seconds you breathe out a puff of bubbles that wobbles up and pops at
   the surface. You can go down to 14 m.
 - **The reef:** off the beach by the house (and in patches all round the island), between 1.5
-  and 9 m deep: brain corals, staghorn, table corals, sea fans, tube sponges, starfish and sea
-  urchins, swaying seaweed, and 14 schools of fish (yellow tangs, blue and yellow, silver,
-  clownfish, blue-green, pink) circling over it. The reef also shows through the clear water
-  from above.
+  and 9 m deep. Reef rocks crusted with pink and green coralline algae carry most of the
+  corals: brain corals (meandering ridges), staghorn (pale growing tips), table corals (radial
+  growth lines), sea fans (real nets you can see through), tube sponges (growth rings, dark
+  inside), sea anemones and soft corals swaying in the swell; starfish, sea urchins, rubble
+  and shells on the sand, seagrass meadows and seaweed between the rocks, and 14 schools of
+  fish (yellow tangs, blue and yellow, silver, clownfish, blue-green, pink) circling over it.
+  The surface detail is painted by the shader, no textures. The reef also shows through the
+  clear water from above.
 - **What it looks like:** blue water that closes in after ~25 m and darkens with depth and at
   night; looking up, the surface is a bright, wobbling disc of sky with the sun in it (Snell's
   window: under water you see the whole sky squeezed into a cone of ~97°) and a mirror of the

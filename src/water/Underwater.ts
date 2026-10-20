@@ -17,9 +17,9 @@ uniform float uDayLight;
 varying vec3 vDir;
 void main() {
   vec3 d = normalize(vDir);
-  // Brighter looking up toward the light, fading to near black looking down into the deep.
-  vec3 col = uColor * mix(0.3, 1.0, smoothstep(-0.7, 0.05, d.y));
-  col += uColor * 1.4 * smoothstep(0.0, 0.9, d.y);
+  // The fog color at and below the horizon (so the fogged seabed melts into it), brighter
+  // looking up toward the light.
+  vec3 col = uColor + uColor * 1.4 * smoothstep(0.0, 0.9, d.y);
   // A soft glow toward the sun, bent down into the water.
   vec3 s = normalize(vec3(uSunDir.x, max(uSunDir.y, 0.2) * 1.6, uSunDir.z));
   col += uColor * 2.0 * pow(max(dot(d, s), 0.0), 6.0) * uDayLight;

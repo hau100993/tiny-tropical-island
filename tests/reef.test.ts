@@ -21,22 +21,22 @@ const caustics: CausticsUniforms = {
 const reef = createReef(hm, SEED + 14, sharedUniforms, caustics, Math.atan2(layout.house.z, layout.house.x));
 
 describe('reef', () => {
-  it('has corals of every kind, seaweed and fish', () => {
-    for (const k of ['brain', 'staghorn', 'table', 'fan', 'tube', 'star', 'urchin', 'seaweed', 'fish']) {
+  it('has reef rocks, corals of every kind, seagrass, seaweed and fish', () => {
+    for (const k of ['bommie', 'brain', 'staghorn', 'table', 'fan', 'tube', 'anemone', 'soft', 'star', 'urchin', 'seagrass', 'seaweed', 'rubble', 'fish']) {
       expect(reef.counts[k], k).toBeGreaterThan(30);
     }
   });
 
-  it('corals sit on the seabed under at least 1.2 m of water', () => {
+  it('corals sit on the seabed or the reef rocks, under at least 1.2 m of water', () => {
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
     reef.group.traverse((o) => {
-      if (!(o instanceof THREE.InstancedMesh)) return;
+      if (!(o instanceof THREE.InstancedMesh) || o.name === 'reef-bommie') return;
       for (let i = 0; i < o.count; i++) {
         o.getMatrixAt(i, m);
         p.setFromMatrixPosition(m);
         expect(p.y).toBeLessThan(-1.15);
-        expect(Math.abs(p.y - hm.heightAt(p.x, p.z))).toBeLessThan(0.2);
+        expect(Math.abs(p.y - reef.floorAt(p.x, p.z)), o.name).toBeLessThan(0.2);
       }
     });
   });
