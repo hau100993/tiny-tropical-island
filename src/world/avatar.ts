@@ -702,7 +702,7 @@ const DEG = Math.PI / 180;
  * Running: a shorter stance (40%), a bent-knee landing and a deep fold in the swing.
  */
 const WALK = {
-  hip: [24, 22, 15, 6, -3, -11, -15, -4, 13, 23],
+  hip: [20, 18, 12, 5, -3, -9, -13, -3, 11, 19],
   knee: [4, 14, 17, 11, 6, 15, 38, 58, 46, 16],
   foot: [14, 2, 0, 0, -8, -22, -30, -6, 4, 11],
   toeOff: 0.6,
@@ -1124,6 +1124,11 @@ export class Avatar {
     let need = 0;
     for (let i = 0; i < 2; i++) {
       const nominal = this.ankles[i].getWorldPosition(tmpA);
+      // Feet land close to the body's midline when walking (a step width of ~10 cm, feet almost
+      // in line), a little wider when standing; not under the hip joints, which looked bow-legged.
+      root.worldToLocal(nominal);
+      nominal.x = (i === 0 ? -1 : 1) * (0.09 - 0.04 * g - 0.01 * r);
+      root.localToWorld(nominal);
       const ground = this.groundAt ? this.groundAt(nominal.x, nominal.z, p.feetY) : p.feetY;
       // Heel up at toe-off: the foot pivots on its ball, lifting the ankle.
       const lift = this.sole[i] < 0 ? TOE * Math.sin(-this.sole[i]) : 0.03 * Math.sin(this.sole[i]);

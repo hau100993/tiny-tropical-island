@@ -218,7 +218,7 @@ export class Walker {
 
     // A footfall every stride; longer strides when running.
     // Matched to the avatar's gait (its planted feet would otherwise drag behind).
-    const stride = run ? 0.85 : 0.6;
+    const stride = run ? 0.8 : 0.52;
     const before = Math.floor(this.phase);
     this.phase += moved / stride;
     if (Math.floor(this.phase) !== before) {
