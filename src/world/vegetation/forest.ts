@@ -81,8 +81,9 @@ export function createForest(
       if (site.house < (sp.layer === 'tree' ? 9 + sp.radius * 0.5 : 6)) continue;
       if (sp.layer === 'tree' && clearings.some((c) => Math.hypot(c.x - x, c.z - z) < c.r)) continue;
       if (sp.layer === 'tree' && inHouseView(house, x, z)) continue;
-      // Keep the steps and the way out from them clear (the plant grows somewhere else).
-      if (inStairsPath(house, x, z)) continue;
+      // Keep the steps and the path from them to the sea clear, crowns included (the plant
+      // grows somewhere else).
+      if (inStairsPath(house, x, z, sp.radius * sp.scale[1] * 0.6)) continue;
       // The footpath: trunks stand back from it (it stays walkable, the crowns still meet
       // overhead); undergrowth crowds right up to its edges.
       const near = trail.nearest(x, z);

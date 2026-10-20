@@ -112,7 +112,7 @@ export function createWorld(
   // Sunbeams through the canopy over the footpath.
   const shafts = createLightShafts(heightmap, layout.trail, WORLD_SEED + 11, shared);
   scene.add(shafts);
-  const trailMarkers = createTrailMarkers(heightmap, layout.trail, WORLD_SEED + 12);
+  const trailMarkers = createTrailMarkers(heightmap, layout.trail, layout.house, WORLD_SEED + 12);
   scene.add(trailMarkers);
   patchTree(trailMarkers, { wet: true, porosity: 0.5, snow: true }, shared);
 

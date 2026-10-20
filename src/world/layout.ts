@@ -51,21 +51,39 @@ export function inHouseView(house: Placement, x: number, z: number): boolean {
   return lz > 2 && lz < 90 && Math.abs(lx) < 5 + lz;
 }
 
-/** The deck's steps (house-local x of their center line, half their width). */
-export const STAIRS = { x: 2.5, halfWidth: 0.72 } as const;
+/**
+ * The deck's steps (house-local x of their center line, half their width) and where the
+ * stone path from their foot starts (house-local z; it runs straight on, down to the sea).
+ */
+export const STAIRS = { x: 2.5, halfWidth: 0.72, pathFrom: 8.1 } as const;
+
+/** House-local point (+Z toward the sea) to world x, z. */
+export function houseToWorld(house: Placement, lx: number, lz: number): { x: number; z: number } {
+  const c = Math.cos(house.rotY);
+  const s = Math.sin(house.rotY);
+  return { x: house.x + lx * c + lz * s, z: house.z - lx * s + lz * c };
+}
 
 /**
- * True on the steps or the way out from them (house-local: a strip a little wider than the
- * flight, from the deck edge to ~3 m past its foot). Bushes and flowers stay out of it.
+ * Distance (m) from the center line of the steps and the stone path below them, from the deck
+ * edge down to the sea; Infinity anywhere else.
  */
-export function inStairsPath(house: Placement, x: number, z: number): boolean {
+export function stairsPathDistance(house: Placement, x: number, z: number): number {
   const dx = x - house.x;
   const dz = z - house.z;
   const c = Math.cos(house.rotY);
   const s = Math.sin(house.rotY);
   const lx = dx * c - dz * s;
   const lz = dx * s + dz * c;
-  return Math.abs(lx - STAIRS.x) < STAIRS.halfWidth + 1.3 && lz > 4.2 && lz < 4.6 + 2.6 + 3.2;
+  return lz > 4.2 && lz < 60 ? Math.abs(lx - STAIRS.x) : Infinity;
+}
+
+/**
+ * True on the steps or the path from them to the sea (a strip a little wider than the flight,
+ * widened by `margin`, e.g. a bush's spread). Bushes, flowers and rocks stay out of it.
+ */
+export function inStairsPath(house: Placement, x: number, z: number, margin = 0): boolean {
+  return stairsPathDistance(house, x, z) < STAIRS.halfWidth + 1.3 + margin;
 }
 
 /** Compass direction (radians, in the x-z plane) the house faces. */
@@ -119,6 +137,7 @@ export function createLayout(hm: Heightmap, rng: Rng): IslandLayout {
     const x = Math.cos(angle) * r;
     const z = Math.sin(angle) * r;
     if (clearings.some((c) => Math.hypot(c.x - x, c.z - z) < c.r + scale)) return;
+    if (inStairsPath(house, x, z, scale)) return;
     rocks.push({ x, z, scale, rotY: rng() * Math.PI * 2, variant: Math.floor(rng() * 3) });
   };
   // Clusters along the shoreline, some half-submerged.

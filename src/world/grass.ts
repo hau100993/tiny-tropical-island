@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Heightmap } from './heightmap';
-import type { Placement } from './layout';
+import { stairsPathDistance, type Placement } from './layout';
 import type { Trail } from './trail';
 import { patchWorldMaterial } from './patchMaterial';
 import { fbm2, type Noise2D } from '../core/noise';
@@ -41,6 +41,8 @@ export class Grass {
       if (hm.surfaceAt(x, z) !== 'grass') continue;
       if (Math.hypot(x - house.x, z - house.z) < 5.5) continue;
       // Fewer blades on the trodden footpath (a quarter in the middle), thinning in toward it.
+      // Thin out on the stone path from the steps to the sea.
+      if (stairsPathDistance(house, x, z) < 0.6 && rng() > 0.15) continue;
       const toTrail = trail.distance(x, z);
       if (toTrail < 1.3 && rng() > 0.25 + (0.75 * toTrail) / 1.3) continue;
       // Clumps: more blades where the noise is high.

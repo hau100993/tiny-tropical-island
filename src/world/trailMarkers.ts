@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GeoBuilder } from './geoBuilder';
 import type { Heightmap } from './heightmap';
 import type { Trail } from './trail';
+import { STAIRS, houseToWorld, type Placement } from './layout';
 import { createRng, randRange } from '../core/rng';
 
 const STONES = ['#9a958a', '#8b867c', '#a7a196'] as const;
@@ -9,16 +10,15 @@ const WOOD = '#7a5636';
 const WOOD_DARK = '#5e4129';
 
 /**
- * Where the footpath begins: flat stepping stones up the beach from the water's edge to the
- * grass, and a weathered wooden signpost ("Đường mòn") where the path leaves the sand.
+ * Flat stepping stones from the foot of the house's steps down the beach to the water's edge,
+ * and a weathered wooden signpost ("Đường mòn") where the forest footpath leaves the sand.
  * One mesh for stones and post, one small textured board for the sign's lettering.
  */
-export function createTrailMarkers(hm: Heightmap, trail: Trail, seed: number): THREE.Group {
+export function createTrailMarkers(hm: Heightmap, trail: Trail, house: Placement, seed: number): THREE.Group {
   const rng = createRng(seed);
   const b = new GeoBuilder(rng, 0.08);
   const pts = trail.points;
   const along = trail.along;
-  // Walk the path from its start, a stone every ~0.75 m, until it is well onto the grass.
   const at = (s: number): { x: number; z: number; dx: number; dz: number } => {
     let i = 0;
     while (i < along.length - 2 && along[i + 1] < s) i++;
@@ -28,20 +28,23 @@ export function createTrailMarkers(hm: Heightmap, trail: Trail, seed: number): T
     const len = Math.hypot(dx, dz) || 1;
     return { x: pts[i].x + dx * f, z: pts[i].z + dz * f, dx: dx / len, dz: dz / len };
   };
-  let grassAt = -1;
-  for (let s = 0.4, k = 0; s < 40; s += 0.75 + rng() * 0.15, k++) {
-    const p = at(s);
-    if (grassAt < 0 && hm.surfaceAt(p.x, p.z) === 'grass') grassAt = s;
-    if (grassAt >= 0 && s > grassAt + 1.5) break;
+  // A stone every ~0.75 m from the steps (house-local +Z) until the sand is wet.
+  for (let lz = STAIRS.pathFrom, k = 0; lz < 60; lz += 0.75 + rng() * 0.15, k++) {
     // Zigzag a little to either side, like stones set by hand for left and right feet.
     const off = (k % 2 ? 0.18 : -0.18) + randRange(rng, -0.05, 0.05);
-    const x = p.x - p.dz * off;
-    const z = p.z + p.dx * off;
+    const { x, z } = houseToWorld(house, STAIRS.x + off, lz);
+    if (hm.heightAt(x, z) < 0.2) break;
     const g = new THREE.CylinderGeometry(1, 1, 1, 7);
     g.scale(randRange(rng, 0.24, 0.32), randRange(rng, 0.06, 0.09), randRange(rng, 0.2, 0.28));
     g.rotateY(rng() * Math.PI);
     g.translate(x, hm.heightAt(x, z) + 0.015, z);
     b.add(g, STONES[k % STONES.length]);
+  }
+  // Where the footpath leaves the sand.
+  let grassAt = -1;
+  for (let s = 0.4; s < 40 && grassAt < 0; s += 0.5) {
+    const p = at(s);
+    if (hm.surfaceAt(p.x, p.z) === 'grass') grassAt = s;
   }
   const group = new THREE.Group();
   group.name = 'trail-markers';

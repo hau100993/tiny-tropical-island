@@ -504,8 +504,10 @@ The island is zoned like a real tropical island, from the coast inward:
 | Rainforest (inland, up the hill) | canopy trees in varied greens (one variant flowers crimson-orange like a flame tree), emergent giants with buttress roots, tree ferns; a dark mossy floor with leaf litter |
 | Understory and floor | shrubs, ground ferns, heliconia ("lobster claw" flowers), wildflower meadows in four colors on the grass |
 
-**The forest trail:** from the sea, stepping stones lead up the beach to a wooden signpost
-("Đường mòn"); the path then runs along the left side of the house (seen from the sea), passes
+**The way to the sea:** from the foot of the house's steps, stepping stones lead straight down
+the beach to the wet sand; no bushes grow along it.
+
+**The forest trail:** from the beach, a wooden signpost ("Đường mòn") marks where it starts; the path then runs along the left side of the house (seen from the sea), passes
 behind it into the forest, winds through the heart of the rainforest and comes out on the beach
 on the far side (~170 m). It is clearest at the entrance and fainter deeper in. It is only half there: trodden earth and leaf litter in the middle, moss and grass
 creeping back over it, ferns and shrubs crowding its edges and wildflowers along both sides;
