@@ -124,6 +124,19 @@ describe('surf break', () => {
     expect(idle.state).toBe('prone');
   });
 
+  it('the ride goes the way the nose points along the beach', () => {
+    // u = +x here, +l = +z. Forward is (−sin yaw, −cos yaw): yaw −π/2 + 0.5 leans to −z
+    // (forward z = −cos yaw = −sin 0.5 < 0), −π/2 − 0.5 leans to +z.
+    const left = catchWave(3.7, -55, TO_BEACH + 0.5);
+    ride(left.body, 1.5, ctl());
+    expect(left.caught).toBe(true);
+    expect(left.body.vz).toBeLessThan(-0.5);
+    const right = catchWave(3.7, -55, TO_BEACH - 0.5);
+    ride(right.body, 1.5, ctl());
+    expect(right.caught).toBe(true);
+    expect(right.body.vz).toBeGreaterThan(0.5);
+  });
+
   it('angled along the shoulder, the ride lasts and goes fast', () => {
     const r = catchWave(3.7);
     // The catch already angles the board toward the unbroken shoulder (+z here, the far end of

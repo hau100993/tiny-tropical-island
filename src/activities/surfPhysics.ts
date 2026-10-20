@@ -116,6 +116,8 @@ export class SurfBody {
   /** Seconds in the current catch / wipeout, and since the wave grabbed the board. */
   private timer = 0;
   private grabbed = 0;
+  /** The side of the ride, chosen at Space from where the nose points (+1: +l, −1: −l). */
+  private rideSide = 1;
   readonly water: WaterSample = { height: 0, dhdx: 0, dhdz: 0 };
   readonly wave: SurfSample = { height: 0, dhdx: 0, dhdz: 0, push: 0, broken: 0, d: 0, size: 0, x: 0, l: 0 };
   private readonly tmp = { x: 0, z: 0 };
@@ -150,8 +152,9 @@ export class SurfBody {
   }
 
   /**
-   * Space while lying, as a wave comes: catch it. The board then turns for the beach, paddles
-   * and is picked up by the face, and the rider stands up by himself (see `catching`).
+   * Space while lying, as a wave comes: catch it. The board then turns for the beach, angled to
+   * whichever side its nose already leans (along the beach), paddles and is picked up by the
+   * face, and the rider stands up by himself.
    */
   popUp(): PopUp {
     if (this.state === 'catch') return 'catching';
@@ -165,13 +168,20 @@ export class SurfBody {
     this.state = 'catch';
     this.timer = 0;
     this.grabbed = 0;
+    // Which way along the beach the nose points (+l = (−uz, ux)); straight in or out: the
+    // shoulder that breaks last (+l).
+    const along = -Math.sin(this.yaw) * -this.env.uz + -Math.cos(this.yaw) * this.env.ux;
+    this.rideSide = along < -0.1 ? -1 : 1;
     return 'catching';
   }
 
-  /** The heading of the ride line: toward the beach, angled to the shoulder that breaks last. */
-  rideYaw(): number {
+  /**
+   * The heading of the ride line: toward the beach, angled along it to `side` (+1: +l, the
+   * shoulder that breaks last; −1: the other way).
+   */
+  rideYaw(side = this.rideSide): number {
     const c = Math.cos(CATCH.angle);
-    const sn = Math.sin(CATCH.angle);
+    const sn = Math.sin(CATCH.angle) * side;
     // u toward the beach, +l = (−uz, ux) along it.
     const dx = this.env.ux * c - this.env.uz * sn;
     const dz = this.env.uz * c + this.env.ux * sn;

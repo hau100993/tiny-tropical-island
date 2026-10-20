@@ -375,8 +375,9 @@ for waves, out past the white water), nose to the beach.
 How to catch a wave: wait at the lineup. While you lie still the view turns out to sea, so you
 see the waves coming, and a bar at the top counts down to the next one (**Sóng tiếp theo: 4 s**).
 When it turns green (**Space!**, and a note says **Sóng tới!**) press `Space`, whichever way
-the board points. It turns for the beach (angled toward the side that breaks
-last), waits for the wave, which picks it up, and you stand up. Then stay on the face, ahead
+the board points. It turns for the beach, angled toward the side its nose already leans
+to along the beach (so you choose the direction of the ride; nose straight in or out: the
+side that breaks last), waits for the wave, which picks it up, and you stand up. Then stay on the face, ahead
 of the white water, carving with `A`/`D`: the wave holds you on its face (see the table), so
 riding straight on takes you all the way in; angle along it for speed. The ride ends when the wave passes under you or
 closes out (you lie down again), or at the beach (you step off). Falling (holding a hard carve

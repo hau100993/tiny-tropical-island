@@ -173,7 +173,7 @@ export class SurfActivity {
   launch(): void {
     this.findLineup();
     // Nose to the beach, ready for the next wave.
-    this.body.place(this.lineup.x, this.lineup.z, this.body.rideYaw());
+    this.body.place(this.lineup.x, this.lineup.z, this.body.rideYaw(1));
     this.returning = false;
   }
 
@@ -316,7 +316,7 @@ export class SurfActivity {
     const dx = this.lineup.x - b.x;
     const dz = this.lineup.z - b.z;
     const far = Math.hypot(dx, dz) > 3;
-    const want = far ? Math.atan2(-dx, -dz) : b.rideYaw();
+    const want = far ? Math.atan2(-dx, -dz) : b.rideYaw(1);
     const err = Math.atan2(Math.sin(want - b.yaw), Math.cos(want - b.yaw));
     c.steer = clamp(err * 2, -1, 1);
     c.forward = far && Math.abs(err) < 1.2;
