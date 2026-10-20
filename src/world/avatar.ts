@@ -682,7 +682,7 @@ export interface AvatarPose {
   running: boolean;
 }
 
-/** One leg's joint angles (rad) at gait cycle position `s` (0 = heel strike, 0.6 = toe off). */
+/** One leg's joint angles (rad) at gait cycle position `s` (0 = heel strike). */
 interface LegAngles {
   hip: number;
   knee: number;
@@ -692,36 +692,92 @@ interface LegAngles {
 }
 
 const TAU = Math.PI * 2;
-/** Bump centered at `c` on the cycle (wraps around), width `w`. */
-const bump = (s: number, c: number, w: number): number => {
-  let d = Math.abs(s - c) % 1;
-  if (d > 0.5) d = 1 - d;
-  return Math.exp(-((d / w) ** 2));
-};
+const DEG = Math.PI / 180;
 
 /**
- * Walking: heel strike with the leg forward and the toes up; the knee gives a little as the
- * body weight lands (~15°), straightens in mid stance, the heel lifts and the toes push off;
- * in the swing the knee folds (~60°) so the foot clears the ground, then reaches forward.
- * Running: longer reach, deeper folds, a flight phase, landing on a bent knee.
- * `hip` > 0 swings the leg forward, `knee` is the flexion (bend), `foot` the sole's pitch
- * against the ground (> 0 toes up).
+ * Joint angles over one gait cycle, sampled every 10% (degrees), after measured human gait
+ * (sagittal hip, knee and ankle curves). `hip` > 0 swings the thigh forward, `knee` is the
+ * flexion, `foot` the sole's pitch against the ground (> 0 toes up). Walking: heel strike with
+ * the toes up, the knee gives ~17° as the weight lands, ~37° at toe-off and ~58° in the swing.
+ * Running: a shorter stance (40%), a bent-knee landing and a deep fold in the swing.
  */
+const WALK = {
+  hip: [24, 22, 15, 6, -3, -11, -15, -4, 13, 23],
+  knee: [4, 14, 17, 11, 6, 15, 38, 58, 46, 16],
+  foot: [14, 2, 0, 0, -8, -22, -30, -6, 4, 11],
+  toeOff: 0.6,
+} as const;
+const RUN = {
+  hip: [30, 22, 9, -6, -18, -10, 10, 30, 42, 38],
+  knee: [22, 38, 33, 24, 26, 62, 95, 98, 70, 38],
+  foot: [8, 0, -4, -16, -34, -15, 0, 8, 14, 12],
+  toeOff: 0.4,
+} as const;
+
+/** Periodic Catmull-Rom through samples at s = 0, 0.1, … 0.9 (degrees in, radians out). */
+function cyc(table: readonly number[], s: number): number {
+  const n = table.length;
+  const x = (((s % 1) + 1) % 1) * n;
+  const i = Math.floor(x);
+  const t = x - i;
+  const p0 = table[(i - 1 + n) % n];
+  const p1 = table[i % n];
+  const p2 = table[(i + 1) % n];
+  const p3 = table[(i + 2) % n];
+  return 0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (3 * p1 - p0 - 3 * p2 + p3) * t * t * t) * DEG;
+}
+
 function legAngles(s: number, run: number, out: LegAngles): LegAngles {
-  const walkHip = 0.06 + 0.36 * Math.cos(TAU * (s - 0.03));
-  const walkKnee = 0.26 * bump(s, 0.13, 0.08) + 1.05 * bump(s, 0.73, 0.11) + 0.05;
-  const walkFoot = 0.28 * bump(s, 0.0, 0.05) - 0.55 * bump(s, 0.58, 0.07) + 0.12 * bump(s, 0.92, 0.07);
-  const runHip = 0.12 + 0.45 * Math.cos(TAU * (s - 0.05));
-  const runKnee = 0.5 * bump(s, 0.15, 0.1) + 1.35 * bump(s, 0.68, 0.13) + 0.15;
-  const runFoot = 0.15 * bump(s, 0.0, 0.05) - 0.7 * bump(s, 0.42, 0.08) + 0.2 * bump(s, 0.85, 0.08);
-  out.hip = walkHip + (runHip - walkHip) * run;
-  out.knee = walkKnee + (runKnee - walkKnee) * run;
-  out.foot = walkFoot + (runFoot - walkFoot) * run;
-  const walkStance = 1 - smoothstep(0.56, 0.68, s) + smoothstep(0.92, 1.0, s);
-  const runStance = 1 - smoothstep(0.36, 0.48, s) + smoothstep(0.92, 1.0, s);
-  out.stance = walkStance + (runStance - walkStance) * run;
+  const mix = (w: number, r: number): number => w + (r - w) * run;
+  out.hip = mix(cyc(WALK.hip, s), cyc(RUN.hip, s));
+  out.knee = mix(cyc(WALK.knee, s), cyc(RUN.knee, s));
+  out.foot = mix(cyc(WALK.foot, s), cyc(RUN.foot, s));
+  const off = mix(WALK.toeOff, RUN.toeOff);
+  out.stance = 1 - smoothstep(off - 0.03, off + 0.03, s) + smoothstep(0.97, 1.0, s);
   return out;
 }
+
+/**
+ * A damped spring (follow-through): the value chases its target with a little lag and
+ * overshoot, like a forearm or a head carried by the body's motion. Sub-stepped for stability.
+ */
+class Spring {
+  x = 0;
+  private v = 0;
+  constructor(
+    private readonly freq: number,
+    private readonly zeta: number,
+  ) {}
+
+  step(target: number, dt: number): number {
+    const w = TAU * this.freq;
+    const n = Math.max(1, Math.ceil(dt * 240));
+    const h = dt / n;
+    for (let k = 0; k < n; k++) {
+      this.v += (w * w * (target - this.x) - 2 * this.zeta * w * this.v) * h;
+      this.x += this.v * h;
+    }
+    return this.x;
+  }
+
+  snap(value: number): void {
+    this.x = value;
+    this.v = 0;
+  }
+}
+
+/** Ground height under (x, z) for feet near `nearY` (terrain, the house floor, the steps). */
+export type GroundQuery = (x: number, z: number, nearY: number) => number;
+
+const THIGH = 0.41 * LEG_SCALE;
+const SHIN = 0.375 * LEG_SCALE;
+/** Ankle joint height above the ground when standing. */
+const ANKLE_H = HIP_Y - 0.03 - THIGH - SHIN;
+/** From the ankle to the ball of the foot (where the heel lifts around at toe-off). */
+const TOE = 0.12;
+const tmpA = new THREE.Vector3();
+const tmpB = new THREE.Vector3();
+const tmpInv = new THREE.Matrix4();
 
 export class Avatar {
   readonly group = new THREE.Group();
@@ -736,6 +792,19 @@ export class Avatar {
   private readonly knees: THREE.Bone[] = [];
   private readonly ankles: THREE.Bone[] = [];
   private readonly leg: LegAngles = { hip: 0, knee: 0, foot: 0, stance: 1 };
+  // Follow-through: forearms, hands, chest and head lag the motion a little.
+  private readonly elbowS = [new Spring(3.2, 0.55), new Spring(3.2, 0.55)];
+  private readonly wristS = [new Spring(2.4, 0.4), new Spring(2.4, 0.4)];
+  private readonly chestS = new Spring(2.5, 0.7);
+  // Foot planting (IK): where each foot is pinned while it carries weight, and how pinned it is.
+  private readonly lock = [new THREE.Vector3(), new THREE.Vector3()];
+  private readonly locked = [false, false];
+  private readonly plant = [0, 0];
+  private readonly target = [new THREE.Vector3(), new THREE.Vector3()];
+  private readonly sole = [0, 0];
+  private readonly stanceW = [1, 1];
+  private rootY = Number.NaN;
+  private drop = 0;
   private yaw = 0;
   private gait = 0;
   private run = 0;
@@ -743,7 +812,11 @@ export class Avatar {
   /** Seconds until the next blink; negative while the eyes are closing/opening. */
   private blink = 2;
 
-  constructor(shared: SharedUniforms) {
+  constructor(
+    shared: SharedUniforms,
+    /** Ground under each foot; without it the feet stay on the walker's ground height. */
+    private readonly groundAt: GroundQuery | null = null,
+  ) {
     // Three materials: matte cloth, soft skin, glossier hair and eyes. All get wet in the rain
     // and cloud shadows like the rest of the world.
     const skinMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.58 });
@@ -969,7 +1042,17 @@ export class Avatar {
     this.group.visible = false;
   }
 
-  /** Places and animates the body. Call once per frame while it is visible. */
+  /**
+   * Places and animates the body. Call once per frame while it is visible.
+   *
+   * 1. Forward kinematics from the gait tables (hip, knee, foot pitch per leg; pelvis, chest,
+   *    arms), blended standing → walking → running.
+   * 2. Foot planting: a foot that carries weight is pinned to the ground where it landed (no
+   *    sliding); a swinging foot follows the gait but keeps its clearance above the actual
+   *    ground under it (steps, slopes).
+   * 3. Two-bone IK per leg (law of cosines) reaches those targets; when a target is out of
+   *    reach the pelvis lowers, which also gives the natural dip of each step.
+   */
   update(dt: number, p: Readonly<AvatarPose>): void {
     this.time += dt;
     // Face the walking direction (shortest way round); keep the last facing when standing.
@@ -984,48 +1067,109 @@ export class Avatar {
     this.run += ((p.running && p.speed > 2 ? 1 : 0) - this.run) * damp(6, dt);
     const g = this.gait;
     const r = this.run;
+    // The body rides a smoothed ground height (steps would make it jump); the legs reach the
+    // real ground under each foot.
+    const fresh = Number.isNaN(this.rootY) || Math.abs(p.feetY - this.rootY) > 1;
+    this.rootY = fresh ? p.feetY : this.rootY + (p.feetY - this.rootY) * damp(10, dt);
 
-    // Gait cycle: two steps per cycle; the left heel strikes at even footfalls, the right
-    // at odd ones (the walker's step sounds land on these).
+    // ---- 1. Gait from the tables (two steps per cycle; left heel at even footfalls) ----
     const cycle = p.phase / 2;
     const breathe = Math.sin(this.time * 1.8);
     for (let i = 0; i < 2; i++) {
       const s = (((cycle + i * 0.5) % 1) + 1) % 1;
       const a = legAngles(s, r, this.leg);
-      const hip = a.hip * g;
-      const knee = 0.04 + (a.knee - 0.05) * g;
-      this.hipJoints[i].rotation.x = hip;
-      this.knees[i].rotation.x = -knee;
-      // On the ground the ankle sets the sole's pitch against the ground (undoing the shin's
-      // angle); in the swing the foot just hangs off the shin, toes a little up.
-      const onGround = a.foot * g - (hip - knee);
-      this.ankles[i].rotation.x = a.stance * onGround + (1 - a.stance) * 0.12 * g;
+      this.hipJoints[i].rotation.x = a.hip * g;
+      this.knees[i].rotation.x = -(0.04 + (a.knee - 0.04) * g);
       // Legs slightly apart at rest, a touch less while walking (feet under the body).
       this.hipJoints[i].rotation.z = (i === 0 ? -1 : 1) * (0.03 - 0.01 * g);
+      this.sole[i] = a.foot * g;
+      // Standing still, both feet carry weight.
+      this.stanceW[i] = Math.max(a.stance, 1 - g);
     }
-
-    // Pelvis: lowest just after each heel strike (the knee gives), highest in mid stance;
-    // drops on the side of the swinging leg and turns with the forward leg.
+    // Pelvis: drops on the side of the swinging leg and turns with the forward leg; the chest
+    // turns against it. Leans into the stride (more when running). Its height comes from IK.
     const sL = (((cycle % 1) + 1) % 1) * TAU;
-    this.hips.position.y = HIP_Y - g * (0.012 + 0.025 * r) * Math.cos(2 * (sL - 0.6)) - g * (0.01 + 0.05 * r);
-    this.hips.rotation.z = 0.045 * g * Math.sin(sL);
-    this.hips.rotation.y = 0.11 * g * Math.cos(sL);
-    // Chest turns against the hips, leans forward when running.
-    this.torso.rotation.y = -0.17 * g * Math.cos(sL);
+    this.hips.position.y = HIP_Y;
+    this.hips.rotation.z = (0.05 - 0.02 * r) * g * Math.sin(sL);
+    this.hips.rotation.y = (0.1 + 0.04 * r) * g * Math.cos(sL);
+    if (fresh) this.chestS.snap(0);
+    this.torso.rotation.y = this.chestS.step(-(0.14 + 0.06 * r) * g * Math.cos(sL), dt);
     this.torso.rotation.z = -0.03 * g * Math.sin(sL);
-    this.torso.rotation.x = -0.2 * r - 0.04 * g;
+    this.torso.rotation.x = -(0.05 * g + 0.17 * r);
     this.torso.scale.y = 1 + 0.008 * breathe * (1 - g);
 
-    // Arms swing against the legs (left arm forward with the right leg); the elbow bends more
-    // as the arm comes forward, a lot when running.
+    // Arms swing against the leg on the same side (right arm back as the right leg comes
+    // forward), a beat behind it. The elbow is always a little bent and folds more as the arm
+    // comes forward; the forearm and the hand trail the upper arm (springs).
     for (let i = 0; i < 2; i++) {
       const side = i === 0 ? -1 : 1;
-      const fwd = -Math.cos(sL + i * Math.PI);
-      const amp = 0.32 + 0.4 * r;
-      this.shoulders[i].rotation.x = fwd * amp * g;
-      this.shoulders[i].rotation.z = side * (0.08 + 0.02 * breathe * (1 - g) + 0.06 * r);
-      this.elbows[i].rotation.x = 0.18 + g * (0.12 + 0.15 * Math.max(0, fwd)) + r * (1.05 + 0.3 * fwd);
-      this.wrists[i].rotation.x = 0.08 * fwd * g;
+      const s = (((cycle + i * 0.5 - 0.04) % 1) + 1) % 1;
+      const legSwing = cyc(WALK.hip, s) + (cyc(RUN.hip, s) - cyc(WALK.hip, s)) * r - (8 + 6 * r) * DEG;
+      const shoulder = -legSwing * (0.75 + 0.35 * r) * g;
+      this.shoulders[i].rotation.x = shoulder;
+      this.shoulders[i].rotation.z = side * (0.08 + 0.02 * breathe * (1 - g) + 0.08 * r);
+      const fwd = Math.max(0, shoulder) / (0.3 + 0.4 * r);
+      const elbow = 0.2 + g * (0.12 + 0.35 * fwd) + r * (1.15 + 0.25 * fwd);
+      if (fresh) this.elbowS[i].snap(elbow);
+      this.elbows[i].rotation.x = this.elbowS[i].step(elbow, dt);
+      // The hand flops a little behind the forearm's motion.
+      this.wrists[i].rotation.x = this.wristS[i].step(0.1 * g * Math.sin(sL + i * Math.PI - 0.6) + 0.05, dt);
+    }
+
+    // ---- 2. Foot targets (world space) ----
+    const root = this.group;
+    root.position.set(p.x, this.rootY, p.z);
+    root.rotation.y = this.yaw;
+    root.updateMatrixWorld(true);
+    let need = 0;
+    for (let i = 0; i < 2; i++) {
+      const nominal = this.ankles[i].getWorldPosition(tmpA);
+      const ground = this.groundAt ? this.groundAt(nominal.x, nominal.z, p.feetY) : p.feetY;
+      // Heel up at toe-off: the foot pivots on its ball, lifting the ankle.
+      const lift = this.sole[i] < 0 ? TOE * Math.sin(-this.sole[i]) : 0.03 * Math.sin(this.sole[i]);
+      const onGround = ground + ANKLE_H + lift;
+      const st = this.stanceW[i];
+      if (st > 0.5) {
+        // Pin where the foot lands; re-pin if the body got far from it (turning on the spot,
+        // a teleport, the first frame).
+        if (!this.locked[i] || fresh || this.lock[i].distanceTo(nominal) > 0.55) {
+          this.lock[i].set(nominal.x, onGround, nominal.z);
+          this.locked[i] = true;
+        }
+        this.lock[i].y = onGround;
+      } else {
+        this.locked[i] = false;
+      }
+      this.plant[i] = fresh ? (this.locked[i] ? 1 : 0) : this.plant[i] + ((this.locked[i] ? 1 : 0) - this.plant[i]) * damp(this.locked[i] ? 40 : 14, dt);
+      // Swing: the gait's path, lifted by the same clearance above the real ground.
+      const clearance = Math.max(0, nominal.y - (this.rootY + ANKLE_H));
+      const t = this.target[i].set(nominal.x, onGround + clearance * (1 - st), nominal.z);
+      t.lerp(this.lock[i], this.plant[i]);
+      // How far the pelvis must come down for this leg to reach.
+      const hipPos = this.hipJoints[i].getWorldPosition(tmpB);
+      need = Math.max(need, hipPos.distanceTo(t) - (THIGH + SHIN - 0.004));
+    }
+    this.drop += (Math.max(0, need) - this.drop) * (fresh ? 1 : damp(16, dt));
+    this.hips.position.y = HIP_Y - this.drop;
+    root.updateMatrixWorld(true);
+
+    // ---- 3. Two-bone IK per leg, in the pelvis's frame ----
+    tmpInv.copy(this.hips.matrixWorld).invert();
+    for (let i = 0; i < 2; i++) {
+      const d = tmpA.copy(this.target[i]).applyMatrix4(tmpInv).sub(this.hipJoints[i].position);
+      const len = Math.min(THIGH + SHIN - 1e-4, Math.max(Math.abs(THIGH - SHIN) + 1e-3, d.length()));
+      d.normalize();
+      // Leg direction after roll (z) then pitch (x): (sin z, −cos z·cos x, −cos z·sin x).
+      const roll = Math.asin(clamp(d.x, -1, 1));
+      const pitch = Math.atan2(-d.z, -d.y);
+      const knee = Math.PI - Math.acos(clamp((THIGH * THIGH + SHIN * SHIN - len * len) / (2 * THIGH * SHIN), -1, 1));
+      // The thigh points ahead of the hip→ankle line by this much (the knee bends backward).
+      const ahead = Math.acos(clamp((THIGH * THIGH + len * len - SHIN * SHIN) / (2 * THIGH * len), -1, 1));
+      const hipX = pitch + ahead;
+      this.hipJoints[i].rotation.set(hipX, 0, roll);
+      this.knees[i].rotation.x = -knee;
+      // Sole against the ground: the gait's pitch, minus what the leg already tilts it.
+      this.ankles[i].rotation.x = this.sole[i] - (hipX - knee);
     }
 
     // Head stays level (counters the torso), looks around slowly when standing still.
@@ -1046,8 +1190,6 @@ export class Avatar {
     const lid = 0.12 + 0.88 * Math.max(0, closed);
     for (const h of this.lids) h.scale.y = lid;
 
-    this.group.position.set(p.x, p.feetY, p.z);
-    this.group.rotation.y = this.yaw;
   }
 
   /** Faces a direction immediately (when walking starts). */

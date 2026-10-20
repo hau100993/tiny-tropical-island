@@ -217,7 +217,8 @@ export class Walker {
     this.shelter = this.colliders.shelterAt(this.x, this.z, this.feetY);
 
     // A footfall every stride; longer strides when running.
-    const stride = run ? 0.95 : 0.7;
+    // Matched to the avatar's gait (its planted feet would otherwise drag behind).
+    const stride = run ? 0.85 : 0.6;
     const before = Math.floor(this.phase);
     this.phase += moved / stride;
     if (Math.floor(this.phase) !== before) {

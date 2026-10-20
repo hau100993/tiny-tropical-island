@@ -9,7 +9,7 @@ import { createWorld, type World } from '../world/World';
 import { createOrbitCamera, type OrbitCamera } from '../controls/orbit';
 import { Keymap } from '../controls/keymap';
 import { onWaterClick } from '../controls/waterClick';
-import { IslandColliders } from '../controls/islandColliders';
+import { IslandColliders, type WalkSurface } from '../controls/islandColliders';
 import { Walker, type StepEvent } from '../controls/walker';
 import { CameraManager, type SeatId, type SeatSpot } from '../controls/CameraManager';
 import type { HouseSeat } from '../world/house';
@@ -143,7 +143,11 @@ export class App {
     auroraMotion();
     this.reducedMotion.addEventListener('change', auroraMotion);
     this.deskScreens = new DeskScreens(w.house.screens, this.renderer.capabilities.getMaxAnisotropy(), () => this.screenInfo());
-    this.avatar = new Avatar(sharedUniforms);
+    // The avatar's feet find the ground (terrain, house floor, steps) like the walker does.
+    const support = { y: 0, surface: 'sand' as WalkSurface, onPlatform: false };
+    this.avatar = new Avatar(sharedUniforms, (x, z, nearY) =>
+      this.colliders.world.supportAt(x, z, nearY, support) ? support.y : nearY,
+    );
     this.scene.add(this.avatar.group);
     this.walker.setView(s.walkView);
     onWaterClick(

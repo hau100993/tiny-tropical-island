@@ -291,9 +291,14 @@ pale linen shirt with an open collar, board shorts, flip-flops, a bead bracelet,
 friendly face). The head is a sculpted sphere (jaw, cheekbones, nose, eye sockets, ears); the hair
 grows from a hairline and is made of tapered locks; chest, arms and calves have muscle shape; hands
 have fingers, feet have toes. The body is a skinned mesh on a 15-bone skeleton, so knees and
-elbows bend smoothly. The walk follows a real gait cycle (heel strike, the knee giving under the
-weight, push-off from the toes, the knee folding as the leg swings through, hips dropping and
-turning against the shoulders); running adds a flight phase and pumping arms. He breathes, blinks
+elbows bend smoothly. The walk follows measured human gait curves (heel strike with the toes up,
+the knee giving under the weight, the heel lifting and the toes pushing off, the knee folding as
+the leg swings through, hips turning against the shoulders); running adds a flight phase, a deep
+knee fold and arms bent at about 90°. The arms swing a beat behind the legs with the elbows
+always a little bent, and the forearms, hands and chest trail the motion (springs). The feet are
+planted with inverse kinematics: a foot carrying weight stays put on the ground (no sliding), each
+foot finds the real ground under it (on the steps one foot is a tread higher than the other), and
+the hips dip as the legs reach. He breathes, blinks
 and looks around slowly when standing.
 In the character view the camera pulls in when a wall, the roof, a trunk or the ground is
 behind you, so it works inside the small room too.
