@@ -5,6 +5,7 @@ import { SceneCapture } from './SceneCapture';
 import { PlanarReflection } from './PlanarReflection';
 import { WaterSurface } from './WaterSurface';
 import { WakeMap, WAKE_SIZE } from './WakeMap';
+import { Underwater } from './Underwater';
 import type { SharedUniforms } from '../core/uniforms';
 import type { QualityProfile } from '../core/quality';
 import type { Heightmap } from '../world/heightmap';
@@ -24,10 +25,13 @@ export class WaterSystem {
   private readonly capture: SceneCapture;
   private readonly simTexture: { value: THREE.Texture | null } = { value: null };
   private readonly simEnabled = { value: 0 };
+  private readonly underColor = new THREE.Color();
   private readonly resolution = { value: new THREE.Vector2(1, 1) };
   private captureHidden: THREE.Object3D[] = [];
   private readonly reflection: PlanarReflection;
   private reflectionHidden: THREE.Object3D[] = [];
+  /** Set by `attachUnderwater`; while the camera is under water the capture passes are skipped. */
+  underwater: Underwater | null = null;
   /** Pass to `patchCaustics` for materials that should receive caustic light. */
   readonly causticsUniforms: CausticsUniforms;
 
@@ -70,6 +74,7 @@ export class WaterSystem {
         wake: { value: this.wake?.target.texture ?? null },
         wakeCenter: this.wake?.center ?? new THREE.Vector2(1e5, 1e5),
         wakeSize: WAKE_SIZE,
+        underColor: this.underColor,
       },
       camera,
     );
@@ -127,9 +132,18 @@ export class WaterSystem {
     this.caustics?.render();
   }
 
+  /** Under-water look for the scene (fog, sky) and the surface's underside. */
+  attachUnderwater(u: Underwater): void {
+    this.underwater = u;
+    this.underColor.copy(u.color);
+    this.surface.mesh.material.uniforms.uUnderColor.value = u.color;
+  }
+
   /** Step 2: capture the scene behind the water for refraction (no-op when refraction is off). */
   captureScene(scene: THREE.Scene, camera: THREE.PerspectiveCamera): void {
     this.surface.syncCamera(camera);
+    // From below, the surface draws its own underside: no refraction or reflection needed.
+    if (this.underwater?.under) return;
     this.capture.render(scene, camera, this.captureHidden);
     this.reflection.render(scene, camera, this.reflectionHidden, 0);
   }

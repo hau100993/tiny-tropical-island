@@ -6,6 +6,7 @@ uniform sampler2D uWake;
 uniform vec2 uWakeCenter;
 uniform float uWakeSize;
 uniform float uWakeOn;
+uniform vec3 uUnderColor;
 uniform float uWaveStrength;
 uniform float uRain;
 uniform vec3 uLightDir;
@@ -97,6 +98,33 @@ void main() {
   // the sun glint and reflections turn into blocky blobs when seen from high above.
   float far = smoothstep(80.0, 400.0, dist);
   N = normalize(mix(N, vec3(0.0, 1.0, 0.0), far * 0.7));
+
+  if (!gl_FrontFacing) {
+    // Seen from below, diving. Rays steeper than ~48.6° from straight up leave the water
+    // (Snell's window: the whole sky squeezed into a bright disc overhead, wobbling with the
+    // waves); flatter rays are reflected back down (total internal reflection), so the rest
+    // of the surface mirrors the dim water below.
+    vec3 d = -V;
+    vec3 n = -N;
+    float cosI = -dot(n, d);
+    float k = 1.0 - 1.333 * 1.333 * (1.0 - cosI * cosI);
+    vec3 col = uUnderColor * 0.85;
+    // Soft edge: the waves blur the window's rim.
+    float win = smoothstep(-0.12, 0.25, k);
+    if (k > 0.0) {
+      vec3 r = normalize(1.333 * d + (1.333 * cosI - sqrt(k)) * n);
+      vec3 sky = skyColor(r) * vec3(0.75, 0.95, 1.0);
+      float sun = pow(max(dot(r, uSunDir), 0.0), 60.0) * 4.0 * step(0.0, uSunDir.y) * uDayLight;
+      col = mix(col, sky + uLightColor * sun, win);
+    }
+    // A bright rim right at the window's edge.
+    col += uUnderColor * 1.2 * exp(-k * k * 60.0) * uDayLight;
+    gl_FragColor = vec4(col, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+    #include <fog_fragment>
+    return;
+  }
 
   float depth = max(vWorldPos.y - terrainHeight(xz), 0.0);
 
@@ -191,8 +219,9 @@ void main() {
   vec3 behind = texture2D(uSceneColor, refrUV).rgb;
   // Turquoise tint grows quickly, then deep blue takes over.
   vec3 tint = mix(vec3(1.0), uShallowColor * 1.8, 1.0 - exp(-thickness * 0.6));
-  // Rescaled so it reaches exactly 1 by ~25 m: deep seabed and "no seabed" look identical.
-  float absorb = min(1.0, (1.0 - exp(-thickness * 0.14)) / 0.97);
+  // Clear tropical water: the reef shows through a few meters of it. Rescaled so it reaches
+  // exactly 1 by ~35 m: deep seabed and "no seabed" look identical.
+  float absorb = min(1.0, (1.0 - exp(-thickness * 0.1)) / 0.97);
   vec3 body = mix(behind * tint, deep, absorb);
   // Reflection fades in with water thickness so the waterline blends into the sand.
   float reflAmount = fres * smoothstep(0.0, 0.3, thickness);

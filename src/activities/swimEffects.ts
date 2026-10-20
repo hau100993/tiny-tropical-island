@@ -22,7 +22,7 @@ export class SwimEffects {
   /** Every frame while swimming. */
   update(dt: number, w: Readonly<Walker>): void {
     this.timer -= dt;
-    if (!this.wake || !w.swimming || w.speed < 0.12 || this.timer > 0) return;
+    if (!this.wake || !w.swimming || w.diving || w.speed < 0.12 || this.timer > 0) return;
     this.timer = 0.06;
     const k = clamp(w.speed / 1.2, 0, 1.2);
     // Swimming direction (the body faces where it moves).

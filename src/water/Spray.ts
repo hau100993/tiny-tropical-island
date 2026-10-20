@@ -32,15 +32,24 @@ void main() {
   vec2 c = gl_PointCoord * 2.0 - 1.0;
   float r2 = dot(c, c);
   if (r2 > 1.0) discard;
-  // A bright glint toward the top of each drop, soft edge.
+  // A bright glint toward the top of each drop.
   float glint = exp(-dot(c - vec2(-0.3, -0.35), c - vec2(-0.3, -0.35)) * 6.0);
   vec3 col = mix(vec3(0.75, 0.88, 0.95), vec3(1.0), glint) * (0.08 + 0.92 * uDayLight) * mix(vec3(1.0), uSunColor, 0.25);
-  gl_FragColor = vec4(col, (1.0 - r2) * 0.75 * vFade);
+#ifdef BUBBLE
+  // An air bubble: a silvery rim (the light bent at its edge) around a clear middle.
+  float a = smoothstep(0.45, 0.95, r2) * 0.85 + glint * 0.6;
+#else
+  float a = (1.0 - r2) * 0.75;
+#endif
+  gl_FragColor = vec4(col, a * vFade);
 }
 `;
 
+/** Droplets fall (spray); bubbles rise and wobble until they reach the surface. */
+export type SprayKind = 'spray' | 'bubbles';
+
 /**
- * Water droplets thrown by the paddle: a few hundred points with ballistic motion (CPU, tiny
+ * Water droplets thrown by the paddle (or air bubbles under water, kind 'bubbles'): a few hundred points with ballistic motion (CPU, tiny
  * arrays, no allocation per frame), drawn as soft round sprites. A droplet ends when it falls
  * back below the water it came from or after a second and a half.
  */
@@ -56,7 +65,12 @@ export class Spray implements SpraySink {
   private next = 0;
   private readonly scale: { value: number };
 
-  constructor(shared: SharedUniforms) {
+  constructor(
+    shared: SharedUniforms,
+    private readonly kind: SprayKind = 'spray',
+    /** Bubbles: the sea surface above (x, z), where they pop. */
+    private readonly ceiling: (x: number, z: number) => number = () => 0,
+  ) {
     const geo = new THREE.BufferGeometry();
     this.pos = new THREE.BufferAttribute(new Float32Array(MAX * 3), 3).setUsage(THREE.DynamicDrawUsage);
     this.size = new THREE.BufferAttribute(new Float32Array(MAX), 1).setUsage(THREE.DynamicDrawUsage);
@@ -70,11 +84,12 @@ export class Spray implements SpraySink {
       uniforms: { uScale: this.scale, uDayLight: shared.uDayLight, uSunColor: shared.uSunColor },
       vertexShader: VERT,
       fragmentShader: FRAG,
+      defines: kind === 'bubbles' ? { BUBBLE: '' } : {},
       transparent: true,
       depthWrite: false,
     });
     this.points = new THREE.Points(geo, mat);
-    this.points.name = 'spray';
+    this.points.name = kind;
     this.points.frustumCulled = false;
     this.points.renderOrder = 2;
     for (let i = 0; i < MAX; i++) this.age[i] = Infinity;
@@ -111,17 +126,32 @@ export class Spray implements SpraySink {
         continue;
       }
       this.age[i] += dt;
-      this.vel[i * 3 + 1] -= GRAVITY * dt;
-      p[i * 3] += this.vel[i * 3] * dt;
-      p[i * 3 + 1] += this.vel[i * 3 + 1] * dt;
-      p[i * 3 + 2] += this.vel[i * 3 + 2] * dt;
-      if (this.age[i] > 1.5 || (p[i * 3 + 1] < this.floor[i] && this.vel[i * 3 + 1] < 0)) {
+      let dead: boolean;
+      if (this.kind === 'bubbles') {
+        // Rise toward a terminal speed (bigger bubbles rise faster), wobbling side to side.
+        const top = 0.45 + this.radius[i] * 20;
+        this.vel[i * 3 + 1] += (top - this.vel[i * 3 + 1]) * (1 - Math.exp(-2 * dt));
+        this.vel[i * 3] *= Math.exp(-1.5 * dt);
+        this.vel[i * 3 + 2] *= Math.exp(-1.5 * dt);
+        const wob = Math.sin(this.age[i] * 9 + i) * 0.12 * dt;
+        p[i * 3] += this.vel[i * 3] * dt + wob;
+        p[i * 3 + 1] += this.vel[i * 3 + 1] * dt;
+        p[i * 3 + 2] += this.vel[i * 3 + 2] * dt + Math.cos(this.age[i] * 7 + i) * 0.12 * dt;
+        dead = this.age[i] > 20 || p[i * 3 + 1] > this.ceiling(p[i * 3], p[i * 3 + 2]) - 0.03;
+      } else {
+        this.vel[i * 3 + 1] -= GRAVITY * dt;
+        p[i * 3] += this.vel[i * 3] * dt;
+        p[i * 3 + 1] += this.vel[i * 3 + 1] * dt;
+        p[i * 3 + 2] += this.vel[i * 3 + 2] * dt;
+        dead = this.age[i] > 1.5 || (p[i * 3 + 1] < this.floor[i] && this.vel[i * 3 + 1] < 0);
+      }
+      if (dead) {
         this.age[i] = Infinity;
         s[i] = 0;
         continue;
       }
       s[i] = this.radius[i];
-      f[i] = 1 - Math.max(0, this.age[i] - 1) * 2;
+      f[i] = this.kind === 'bubbles' ? Math.min(1, this.age[i] * 6) : 1 - Math.max(0, this.age[i] - 1) * 2;
       last = i;
     }
     this.points.geometry.setDrawRange(0, last + 1);

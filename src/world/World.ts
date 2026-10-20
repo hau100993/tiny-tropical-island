@@ -21,6 +21,8 @@ import { DayNight } from './dayNight';
 import { Fireflies } from './fireflies';
 import { createKayak, type KayakModel } from './kayak';
 import { Spray } from '../water/Spray';
+import { Underwater } from '../water/Underwater';
+import { createReef, type Reef } from './reef';
 import { createNoise2D } from '../core/noise';
 import { createRng } from '../core/rng';
 import type { SharedUniforms } from '../core/uniforms';
@@ -47,6 +49,10 @@ export interface World {
   kayak: KayakModel;
   /** Droplets from the paddle. */
   spray: Spray;
+  /** Under-water look while the camera is below the surface. */
+  underwater: Underwater;
+  /** Corals, seaweed and fish around the island (diving). */
+  reef: Reef;
   update(dt: number, time: number, camera: THREE.Camera, waveStrength: number): void;
 }
 
@@ -155,6 +161,10 @@ export function createWorld(
   patchWorldMaterial(terrain.material, { wet: true, puddles: true, snow: true, caustics, ground: true }, shared);
   patchTree(rocks.group, { wet: true, porosity: 0.6, snow: true, caustics, stone: true }, shared);
 
+  const reef = createReef(heightmap, WORLD_SEED + 14, shared, caustics, Math.atan2(layout.house.z, layout.house.x));
+  scene.add(reef.group);
+  const underwater = new Underwater(scene, sky.mesh, shared);
+  water.attachUnderwater(underwater);
   const weather = new Weather(scene, shared, water);
   const dayNight = new DayNight(shared, lighting, house);
   const fireflies = new Fireflies(heightmap, WORLD_SEED + 9, shared);
@@ -163,7 +173,7 @@ export function createWorld(
   // up twice; vegetation is all on land, so skipping it saves most of the capture's cost.
   water.setCaptureHidden([sky.mesh, ...weather.particleMeshes, forest.group, grass.mesh, flowers.group, fireflies.points, shafts, spray.points]);
   // Reflections keep the trees (that's what you want to see mirrored) but skip small stuff.
-  water.setReflectionHidden([sky.mesh, ...weather.particleMeshes, grass.mesh, flowers.group, fireflies.points, shafts, spray.points]);
+  water.setReflectionHidden([sky.mesh, ...weather.particleMeshes, grass.mesh, flowers.group, fireflies.points, shafts, spray.points, reef.group]);
 
   return {
     heightmap,
@@ -183,6 +193,8 @@ export function createWorld(
     fishingTrip,
     kayak,
     spray,
+    underwater,
+    reef,
     update(dt, time, camera, waveStrength) {
       sky.follow(camera);
       spray.update(dt);

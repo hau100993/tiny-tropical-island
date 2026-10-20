@@ -561,6 +561,54 @@ body.walking .panel {
   pointer-events: none;
 }
 
+/* Diving: breath bar at the top. */
+.breath {
+  position: fixed;
+  left: 50%;
+  top: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  color: #fff;
+  background: rgba(10, 30, 44, 0.55);
+  border-radius: 999px;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.breath-bar {
+  width: 160px;
+  height: 6px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.breath-fill {
+  height: 100%;
+  background: #8fe3ff;
+  border-radius: 3px;
+}
+
+.breath.low .breath-fill {
+  background: #ff7a6b;
+  animation: breath-pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes breath-pulse {
+  to {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .breath.low .breath-fill {
+    animation: none;
+  }
+}
+
 /* Near the sea: the activities you can start here, with their keys. */
 .activity-menu {
   position: fixed;

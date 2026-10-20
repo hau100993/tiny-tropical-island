@@ -19,6 +19,13 @@ const SWIM_SPEED = { breast: 0.75, crawl: 1.5 } as const;
 const SWIM_RATE = { breast: 0.67, crawl: 0.85 } as const;
 /** Open water past this radius (m) slowly brings a swimmer back toward the island. */
 const SEA_LIMIT = 260;
+/** One breath lasts this long under water (s, swimming calmly); refills in BREATH_REFILL s. */
+const BREATH_SECONDS = 45;
+const BREATH_REFILL = 4;
+/** Underwater speeds (m/s): calm, fast (Shift); rising with Space. */
+const DIVE_SPEED = { calm: 0.8, fast: 1.4, up: 0.9 } as const;
+/** Deepest you can go (m below the surface): a free diver's comfortable limit. */
+const MAX_DIVE = 14;
 /** Radians per pixel of mouse movement. */
 const LOOK_SPEED = 0.0022;
 /**
@@ -60,9 +67,12 @@ export interface WalkerEvents {
   onSwim(swimming: boolean): void;
   /** A swim stroke (splash). */
   onStroke(e: SwimStroke): void;
+  /** Went under (a dive) or came back up to the surface. */
+  onDive(under: boolean): void;
 }
 
 const MOVE_KEYS = new Set([
+  'Space',
   'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight',
 ]);
 
@@ -104,6 +114,12 @@ export class Walker {
   /** 0 breaststroke … 1 front crawl (eased), and 0 treading water … 1 swimming (eased). */
   crawl = 0;
   swimMove = 0;
+  /** Under water (a breath-hold dive): the head is at bodyY, moving in 3D. */
+  diving = false;
+  bodyY = 0;
+  vy = 0;
+  /** 1 full lungs … 0 out of breath (then you float up whatever you press). */
+  breath = 1;
   /** The sea surface height at (x, z); without it the sea is flat at 0. */
   private sea: ((x: number, z: number) => number) | null = null;
   private placed = false;
@@ -217,9 +233,11 @@ export class Walker {
     if (!this.active) return;
     dt = Math.min(dt, 0.05);
     if (this.swimming) {
-      this.swim(dt);
+      if (this.diving) this.dive(dt);
+      else this.swim(dt);
       return;
     }
+    this.breath = Math.min(1, this.breath + dt / BREATH_REFILL);
     const k = this.keys;
     const fwd = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
     const side = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
@@ -300,6 +318,16 @@ export class Walker {
    */
   private swim(dt: number): void {
     const k = this.keys;
+    this.breath = Math.min(1, this.breath + dt / BREATH_REFILL);
+    // Duck dive: Space where the water is deep enough.
+    if (k.has('Space') && this.depth > 1.8 && this.breath > 0.15) {
+      this.diving = true;
+      this.bodyY = this.surfaceY - 0.15;
+      this.vy = -1.1;
+      this.events.onDive(true);
+      this.dive(dt);
+      return;
+    }
     const fwd = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
     const side = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
     const crawl = k.has('ShiftLeft') || k.has('ShiftRight');
@@ -363,6 +391,77 @@ export class Walker {
     this.applyCamera(dt);
   }
 
+  /**
+   * Under water: W/S swim where you look (look down to go deeper), A/D sideways, Space rises,
+   * Shift is faster. Slightly buoyant: you drift up slowly when still. The breath runs down
+   * (faster when swimming hard); out of breath you float up to the surface on your own.
+   */
+  private dive(dt: number): void {
+    const k = this.keys;
+    const fast = k.has('ShiftLeft') || k.has('ShiftRight');
+    this.running = fast;
+    this.crawl += ((fast ? 1 : 0) - this.crawl) * damp(3, dt);
+    this.breath = Math.max(0, this.breath - (dt / BREATH_SECONDS) * (fast ? 1.4 : 1));
+    const out = this.breath <= 0;
+    const fwd = out ? 0 : (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
+    const side = out ? 0 : (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
+    const up = out || k.has('Space') ? 1 : 0;
+    const max = fast ? DIVE_SPEED.fast : DIVE_SPEED.calm;
+    const s = Math.sin(this.yaw);
+    const c = Math.cos(this.yaw);
+    const cp = Math.cos(this.pitch);
+    const sp = Math.sin(this.pitch);
+    // Forward where the eyes look, sideways level.
+    let tx = (-s * cp * fwd + c * side) * max;
+    let ty = sp * fwd * max + up * (out ? 1.2 : DIVE_SPEED.up);
+    let tz = (-c * cp * fwd - s * side) * max;
+    const len = Math.hypot(tx, ty, tz);
+    const cap = Math.max(max, up ? DIVE_SPEED.up : 0) * (out ? 1.3 : 1);
+    if (len > cap) {
+      tx *= cap / len;
+      ty *= cap / len;
+      tz *= cap / len;
+    }
+    // A little buoyancy near the surface (lungs full of air).
+    if (fwd === 0 && side === 0 && !up) ty += 0.08;
+    const a = damp(fwd !== 0 || side !== 0 || up ? 1.8 : 0.8, dt);
+    this.vel.x += (tx - this.vel.x) * a;
+    this.vel.y += (tz - this.vel.y) * a;
+    this.vy += (ty - this.vy) * a;
+    const x0 = this.x;
+    const z0 = this.z;
+    const y0 = this.bodyY;
+    this.colliders.world.resolve(this.x + this.vel.x * dt, this.z + this.vel.y * dt, this.bodyY - 1, RADIUS, this.tmp);
+    this.x = this.tmp.x;
+    this.z = this.tmp.z;
+    this.bodyY += this.vy * dt;
+    const sea = this.seaAt(this.x, this.z);
+    this.surfaceY += (sea - this.surfaceY) * damp(5, dt);
+    if (this.colliders.world.supportAt(this.x, this.z, this.bodyY, this.sup)) {
+      this.feetY = this.sup.y;
+      this.surface = this.sup.surface;
+      this.depth = Math.max(0, -this.sup.y);
+    }
+    // The seabed below, the depth limit above it.
+    const floor = Math.max(this.feetY + 0.35, this.surfaceY - MAX_DIVE);
+    if (this.bodyY < floor) {
+      this.bodyY = floor;
+      if (this.vy < 0) this.vy = 0;
+    }
+    this.speed = Math.hypot(this.x - x0, this.z - z0, this.bodyY - y0) / dt;
+    this.swimMove += (clamp(this.speed / DIVE_SPEED.calm, 0, 1) - this.swimMove) * damp(3, dt);
+    const rate = SWIM_RATE.breast + (SWIM_RATE.crawl - SWIM_RATE.breast) * this.crawl;
+    this.swimPhase += dt * rate * (0.5 + 0.5 * this.swimMove);
+    this.shelter = 'none';
+    // Back at the surface (or the water got too shallow to stay under): swimming again.
+    if ((this.bodyY > this.surfaceY - 0.2 && this.vy >= 0) || this.feetY > this.surfaceY - 0.9) {
+      this.diving = false;
+      this.vy = 0;
+      this.events.onDive(false);
+    }
+    this.applyCamera(dt);
+  }
+
   private applyCamera(dt: number): void {
     if (this.swimming) {
       this.applySwimCamera(dt);
@@ -386,11 +485,12 @@ export class Walker {
 
   /** Swimming: eyes just above the surface (riding the waves), or the arm behind the head. */
   private applySwimCamera(dt: number): void {
-    const target = this.surfaceY + 0.2;
+    const target = this.diving ? this.bodyY : this.surfaceY + 0.2;
     if (dt === 0 || Math.abs(target - this.eyeY) > 3) this.eyeY = target;
-    else this.eyeY += (target - this.eyeY) * damp(8, dt);
+    else this.eyeY += (target - this.eyeY) * damp(this.diving ? 14 : 8, dt);
     if (this.view === 'first') {
-      this.camera.position.set(this.x, Math.max(this.eyeY, this.surfaceY + 0.12), this.z);
+      // At the surface the eyes stay just above the water; under it, wherever the head is.
+      this.camera.position.set(this.x, this.diving ? this.eyeY : Math.max(this.eyeY, this.surfaceY + 0.12), this.z);
       this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
       return;
     }
@@ -398,14 +498,17 @@ export class Walker {
     const fx = -Math.sin(this.yaw) * cp;
     const fy = Math.sin(this.pitch);
     const fz = -Math.cos(this.yaw) * cp;
-    const headY = this.eyeY + 0.15;
+    const headY = this.eyeY + (this.diving ? 0.1 : 0.15);
     const free = this.colliders.cameraDistance(this.x, headY, this.z, -fx, -fy, -fz, ARM);
     const want = Math.max(0.3, free - 0.25);
     if (want < this.arm || dt === 0) this.arm = want;
     else this.arm += (want - this.arm) * damp(3, dt);
     const cx = this.x - fx * this.arm;
     const cz = this.z - fz * this.arm;
-    const cy = Math.max(headY - fy * this.arm, this.surfaceY + 0.45);
+    // At the surface the camera stays above the water; diving, it stays under it.
+    const cy = this.diving
+      ? Math.min(headY - fy * this.arm, this.surfaceY - 0.25)
+      : Math.max(headY - fy * this.arm, this.surfaceY + 0.45);
     this.camera.position.set(cx, cy, cz);
     this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
   }

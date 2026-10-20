@@ -18,6 +18,8 @@ import { DeskScreens, type ScreenInfo } from '../world/deskScreens';
 import { formatClock, windowSkyTurn } from '../world/celestial';
 import { WalkHint } from '../ui/WalkHint';
 import { ActivityMenu, type ActivityItem } from '../ui/ActivityMenu';
+import { BreathMeter } from '../ui/BreathMeter';
+import { Spray } from '../water/Spray';
 import { KayakActivity } from '../activities/KayakActivity';
 import { createKayakEnv } from '../activities/kayakEnv';
 import type { BladeEvent, WaterSample } from '../activities/kayakPhysics';
@@ -59,6 +61,15 @@ export class App {
   private readonly walker: Walker;
   private readonly kayak: KayakActivity;
   private readonly swimFx: SwimEffects;
+  /** Air bubbles under water (exhaled while diving). */
+  private readonly bubbles: Spray;
+  private readonly breathMeter: BreathMeter;
+  /** Sea surface (with waves) at (x, z). */
+  private readonly seaHeight: (x: number, z: number) => number;
+  private bubbleTimer = 0;
+  private outOfBreath = false;
+  /** Snow's muffle (0..1); diving muffles everything a lot more. */
+  private snowMuffle = 0;
   private readonly activityMenu: ActivityMenu;
   private readonly cameras: CameraManager;
   private readonly deskView: DeskView;
@@ -129,6 +140,7 @@ export class App {
         },
         onSwim: (swimming) => this.onSwim(swimming),
         onStroke: (e) => this.onSwimStroke(e),
+        onDive: (under) => this.onDive(under),
       },
       () => this.reducedMotion.matches,
     );
@@ -136,7 +148,10 @@ export class App {
     // it, the swimmer too.
     const seaEnv = createKayakEnv(w.heightmap, this.colliders, w.layout.boat, this.camera, sharedUniforms);
     const sample: WaterSample = { height: 0, dhdx: 0, dhdz: 0 };
-    this.walker.setSea((x, z) => seaEnv.water(x, z, sample).height);
+    this.seaHeight = (x, z) => seaEnv.water(x, z, sample).height;
+    this.walker.setSea(this.seaHeight);
+    this.bubbles = new Spray(sharedUniforms, 'bubbles', this.seaHeight);
+    this.scene.add(this.bubbles.points);
     this.swimFx = new SwimEffects(w.water.wake, w.spray);
     this.kayak = new KayakActivity(
       this.camera,
@@ -255,6 +270,7 @@ export class App {
     // The panel offers a "Bật âm thanh" button; the prompt only reports a failed start.
     this.walkHint = new WalkHint(ui);
     this.activityMenu = new ActivityMenu(ui);
+    this.breathMeter = new BreathMeter(ui);
     this.fader = document.createElement('div');
     this.fader.className = 'fader';
     container.append(this.fader);
@@ -343,10 +359,17 @@ export class App {
     this.synthLevels.snow = on ? 0.8 * s.visualSnow : 0;
     this.mixer.setSceneMix(this.synthLevels);
     // Falling snow muffles everything, recordings included.
-    this.mixer.setMuffle(0.8 * s.visualSnow);
+    this.snowMuffle = 0.8 * s.visualSnow;
+    this.applyMuffle();
   }
 
   private readonly synthLevels: Record<LayerId, number> = { waves: 0, birds: 0, wind: 0, rain: 0, snow: 0 };
+  private underMuffled = false;
+
+  /** Snow muffles the world a little; with your head under water it is nearly all gone. */
+  private applyMuffle(): void {
+    this.mixer.setMuffle(this.underMuffled ? Math.max(this.snowMuffle, 0.93) : this.snowMuffle);
+  }
 
   start(): void {
     this.loop.start();
@@ -536,20 +559,81 @@ export class App {
   private nearSea(): boolean {
     const w = this.walker;
     if (w.shelter !== 'none') return false;
-    // Swimming: only when the kayak floats right here (climb back in).
-    if (w.swimming) return this.kayak.distanceTo(w.x, w.z) < 4.5;
+    if (w.swimming) return !w.diving;
     return w.depth > 0 || (this.world.heightmap.distanceToShore(w.x, w.z) < 9 && w.surface === 'sand');
+  }
+
+  /** What the activity card offers right now. */
+  private seaOffer(): readonly ActivityItem[] {
+    const w = this.walker;
+    if (!w.swimming) return this.seaItems;
+    const nearKayak = this.kayak.distanceTo(w.x, w.z) < 4.5;
+    return nearKayak ? this.diveKayakItems : this.diveItems;
   }
 
   private readonly seaItems: readonly ActivityItem[] = [
     { key: 'K', label: vi.sea.kayak },
     { key: 'W', label: vi.sea.swim },
   ];
-  private readonly swimItems: readonly ActivityItem[] = [{ key: 'K', label: vi.sea.reboard }];
+  private readonly diveItems: readonly ActivityItem[] = [{ key: 'Space', label: vi.dive.menu }];
+  private readonly diveKayakItems: readonly ActivityItem[] = [{ key: 'Space', label: vi.dive.menu }, { key: 'K', label: vi.sea.reboard }];
 
-  /** The controls line while walking (or swimming). */
+  /** The controls line while walking (or swimming, or diving). */
   private walkControls(): string {
-    return this.walker.swimming ? vi.swim.controls : vi.walk.controls;
+    const w = this.walker;
+    return w.diving ? vi.dive.controls : w.swimming ? vi.swim.controls : vi.walk.controls;
+  }
+
+  /** Going under: a splash and a burst of bubbles; coming up: a gasp of air (a splash). */
+  private onDive(under: boolean): void {
+    this.walkHint.update(true, this.walker.locked, false, this.walkControls());
+    if (under) this.exhale(14, 0.4);
+    if (this.settings.get().footsteps) this.mixer.playFootstep('water', under ? 0.9 : 0.6, 1.2);
+  }
+
+  /** A puff of bubbles from the diver's mouth. */
+  private exhale(count: number, spread: number): void {
+    const w = this.walker;
+    const fx = -Math.sin(w.yaw);
+    const fz = -Math.cos(w.yaw);
+    for (let i = 0; i < count; i++) {
+      this.bubbles.drop(
+        w.x + fx * 0.15 + (Math.random() - 0.5) * spread * 0.3,
+        w.bodyY + 0.02,
+        w.z + fz * 0.15 + (Math.random() - 0.5) * spread * 0.3,
+        (Math.random() - 0.5) * spread,
+        0.1 + Math.random() * 0.3,
+        (Math.random() - 0.5) * spread,
+        0.006 + Math.random() * 0.018,
+      );
+    }
+  }
+
+  /** Every frame: breath bar, exhaled bubbles, the under-water look and sound. */
+  private updateDiving(dt: number): void {
+    const w = this.walker;
+    const walking = this.cameras.mode === 'walk';
+    this.breathMeter.set(walking && w.swimming && (w.diving || w.breath < 0.999), w.breath);
+    if (walking && w.diving && w.breath <= 0 && !this.outOfBreath) {
+      this.outOfBreath = true;
+      this.activityMenu.flash(vi.dive.out);
+    }
+    if (w.breath > 0.5) this.outOfBreath = false;
+    if (walking && w.diving) {
+      this.bubbleTimer -= dt;
+      if (this.bubbleTimer <= 0) {
+        this.bubbleTimer = 2.2 + Math.random() * 1.4;
+        this.exhale(6 + Math.floor(Math.random() * 7), 0.15);
+      }
+    }
+    this.bubbles.update(dt);
+    const cam = this.camera.position;
+    this.world.underwater.update(this.camera, this.seaHeight(cam.x, cam.z));
+    const under = this.world.underwater.under;
+    if (under !== this.underMuffled) {
+      this.underMuffled = under;
+      this.applyMuffle();
+    }
   }
 
   /** Into deep water / back on your feet: the controls line changes, a splash as you go in. */
@@ -707,6 +791,16 @@ export class App {
       sp.crawl = w.crawl;
       sp.move = w.swimMove;
       sp.firstPerson = w.view === 'first';
+      if (w.diving) {
+        // Lying along the way you swim (head down when diving, up when rising), half upright when still.
+        const h = Math.hypot(w.vel.x, w.vel.y);
+        sp.lift = w.speed > 0.2 ? Math.atan2(w.vy, h) : 0.7;
+        sp.chestY = w.bodyY - 0.3;
+        sp.move = Math.max(sp.move, 0.6);
+      } else {
+        sp.lift = Number.NaN;
+        sp.chestY = Number.NaN;
+      }
       this.avatar.updateSwimming(dt, sp);
       return;
     }
@@ -726,7 +820,9 @@ export class App {
   }
 
   private readonly avatarPose: AvatarPose = { x: 0, z: 0, feetY: 0, vx: 0, vz: 0, speed: 0, phase: 0, running: false };
-  private readonly swimPose: SwimPose = { x: 0, z: 0, surfaceY: 0, vx: 0, vz: 0, speed: 0, phase: 0, crawl: 0, move: 0, firstPerson: false };
+  private readonly swimPose: SwimPose = {
+    x: 0, z: 0, surfaceY: 0, vx: 0, vz: 0, speed: 0, phase: 0, crawl: 0, move: 0, firstPerson: false, chestY: Number.NaN, lift: Number.NaN,
+  };
 
   /** Walk/desk mode: where the listener is shapes the mix (~10 times per second is plenty). */
   private updateListener(dt: number): void {
@@ -735,7 +831,7 @@ export class App {
     if (mode === 'walk') {
       const near = this.nearSeat();
       this.walkHint.setPrompt(near === 'desk' ? vi.desk.sit : near === 'bath' ? vi.bath.enter : null);
-      this.activityMenu.set(this.nearSea() ? (this.walker.swimming ? this.swimItems : this.seaItems) : null);
+      this.activityMenu.set(this.nearSea() ? this.seaOffer() : null);
     }
     this.listenerTimer -= dt;
     if (this.listenerTimer > 0) return;
@@ -775,6 +871,7 @@ export class App {
     this.renderer.getDrawingBufferSize(this.drawingBuffer);
     this.world.water.setSize(this.drawingBuffer.x, this.drawingBuffer.y);
     this.world.spray.setViewport(this.drawingBuffer.y, this.camera.fov);
+    this.bubbles.setViewport(this.drawingBuffer.y, this.camera.fov);
   };
 
   private tick = (dt: number, elapsed: number): void => {
@@ -827,6 +924,7 @@ export class App {
     // The wake map follows the kayak (it only has marks while the kayak moves).
     if (this.cameras.mode === 'walk') this.swimFx.update(dt, this.walker);
     this.autoReboard();
+    this.updateDiving(dt);
     const swimmer = this.cameras.mode === 'walk' && this.walker.swimming;
     this.world.water.simulate(dt, swimmer ? this.walker.x : this.kayak.body.x, swimmer ? this.walker.z : this.kayak.body.z);
     // The next scene render (capture if refraction is on, else main) refreshes the shadow map.

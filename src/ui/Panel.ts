@@ -257,7 +257,7 @@ export class Panel {
     const list = el('dl', 'shortcut-list');
     for (const sc of deps.keymap.list()) list.append(el('dt', '', sc.keyLabel), el('dd', '', sc.label));
     const keysBody = el('div', 'section-body');
-    keysBody.append(list, el('div', 'hint', vi.shortcuts.mouse), el('div', 'hint', vi.shortcuts.sliderWheel), el('div', 'hint', vi.shortcuts.sceneKeys), el('div', 'hint', vi.shortcuts.walkKeys), el('div', 'hint', vi.shortcuts.swimKeys), el('div', 'hint', vi.shortcuts.kayakKeys));
+    keysBody.append(list, el('div', 'hint', vi.shortcuts.mouse), el('div', 'hint', vi.shortcuts.sliderWheel), el('div', 'hint', vi.shortcuts.sceneKeys), el('div', 'hint', vi.shortcuts.walkKeys), el('div', 'hint', vi.shortcuts.swimKeys), el('div', 'hint', vi.shortcuts.diveKeys), el('div', 'hint', vi.shortcuts.kayakKeys));
     keys.append(keysTitle, keysBody);
     conf.body.append(el('div', 'subhead', vi.panel.quality), quality, this.qualityNote, confOpts, keys);
 

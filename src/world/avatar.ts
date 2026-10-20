@@ -715,6 +715,9 @@ export interface SwimPose {
   crawl: number;
   move: number;
   firstPerson: boolean;
+  /** Diving: where the chest is (NaN: just under the surface), and the body's elevation (rad, NaN: from the stroke). */
+  chestY: number;
+  lift: number;
 }
 
 /** Joint angles of one swimming pose (rad), per side where it matters [left, right]. */
@@ -945,6 +948,7 @@ export class Avatar {
   private yaw = 0;
   /** The last update was seated (bones then need a reset before walking again). */
   private seated = false;
+  private swimLift = 1.35;
   private gait = 0;
   private run = 0;
   private time = 0;
@@ -1461,7 +1465,11 @@ export class Avatar {
     // Lying along the water: tilted up from flat by `lift` (crawl flattest, treading upright),
     // the breaststroke rising a little on each pull.
     const strokeLift = 0.08 + 0.22 * (1 - cr) + 0.12 * (1 - cr) * bump(s, 0, 0.4);
-    const lift = 1.35 + (strokeLift - 1.35) * mv;
+    let lift = 1.35 + (strokeLift - 1.35) * mv;
+    if (!Number.isNaN(p.lift)) lift = p.lift;
+    // Turning to dive or rise takes a moment.
+    this.swimLift += (lift - this.swimLift) * damp(4, dt);
+    lift = this.swimLift;
     const pitch = -(Math.PI / 2 - lift);
     const root = this.group;
     root.rotation.set(pitch, this.yaw, 0, 'YXZ');
@@ -1469,9 +1477,10 @@ export class Avatar {
     const chest = 1.25;
     const depth = 0.24 + (0.12 + 0.06 * (1 - cr) - 0.24) * mv;
     const sp = Math.sin(pitch);
+    const chestY = Number.isNaN(p.chestY) ? p.surfaceY - depth : p.chestY;
     root.position.set(
       p.x - chest * sp * Math.sin(this.yaw),
-      p.surfaceY - depth - chest * Math.cos(pitch),
+      chestY - chest * Math.cos(pitch),
       p.z - chest * sp * Math.cos(this.yaw),
     );
     root.updateMatrixWorld(true);

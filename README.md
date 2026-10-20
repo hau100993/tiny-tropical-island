@@ -334,7 +334,8 @@ Walk onto the beach or into the shallows and a small card **Hoạt động biể
 bottom right with the key of each activity you can start there: **K – Chèo kayak** and
 **W – Bơi** (just walk out into deep water). In the kayak, `Space` jumps over the side into
 the sea; swim back right up to the floating kayak and you climb in by yourself (or press `K`
-next to it). Diving, a journal and surfing come next (see PLAN.md, Phase 8).
+next to it). While swimming, the card shows **Space – Lặn** (dive). A journal and surfing come
+next (see PLAN.md, Phase 8).
 
 ### Swimming
 
@@ -355,6 +356,32 @@ head up to breathe, then the arms shoot forward and the frog kick snaps the legs
 then a glide. Each hand entry splashes (droplets, a ring, a sound on that side), the head
 pushes a small V, the crawl kick churns white water behind and each frog kick leaves a swirl.
 Rocks still block you; far out at sea a gentle current brings you back.
+
+### Diving (`Space` while swimming)
+
+Where the water is deeper than ~1.8 m, `Space` takes a breath and dives. Under water:
+
+| Input | Action |
+|---|---|
+| `W` / `S` | Swim where you look (look down to go deeper, up to rise) / backwards |
+| `A` / `D` | Sideways |
+| `Space` (hold) | Rise |
+| `Shift` (hold) | Swim faster (uses your breath faster) |
+
+- **Breath:** a bar at the top. One breath lasts ~45 s (less when swimming fast) and refills
+  in a few seconds at the surface. Out of breath, you float up to the surface by yourself (no
+  game over). Every few seconds you breathe out a puff of bubbles that wobbles up and pops at
+  the surface. You can go down to 14 m.
+- **The reef:** off the beach by the house (and in patches all round the island), between 1.5
+  and 9 m deep: brain corals, staghorn, table corals, sea fans, tube sponges, starfish and sea
+  urchins, swaying seaweed, and 14 schools of fish (yellow tangs, blue and yellow, silver,
+  clownfish, blue-green, pink) circling over it. The reef also shows through the clear water
+  from above.
+- **What it looks like:** blue water that closes in after ~25 m and darkens with depth and at
+  night; looking up, the surface is a bright, wobbling disc of sky with the sun in it (Snell's
+  window: under water you see the whole sky squeezed into a cone of ~97°) and a mirror of the
+  dark water all around it; sun rays slant down through the water and flicker; caustics dance
+  on the sand and the corals. Sounds are muffled while your head is under.
 
 ### Kayak (`K` at the sea)
 
@@ -571,9 +598,10 @@ The fallback sound is generated in code with the Web Audio API — no audio file
 ```
 src/
   core/      app wiring, render loop, settings, quality presets, shared uniforms, noise/RNG
-  world/     heightmap, terrain, grass, house, props, sky, lighting, material patching
+  world/     heightmap, terrain, grass, house, props, sky, lighting, material patching, kayak, reef
     vegetation/  plant geometry builder, species (habitat rules), forest placement, wildflowers
-  water/     Gerstner swell, ripple simulation, refraction capture, caustics, floating objects
+  water/     Gerstner swell, ripple simulation, refraction capture, caustics, floating objects,
+             wake map, spray and bubbles, under-water look (fog, dome, sun rays)
   weather/   rain/snow particles, gusts, wetness & snow-cover rules
   audio/     audio engine, synthesized layers, mixer state, presets, scheduler
     file/      public/audio config parsing and the file layer (crossfades)

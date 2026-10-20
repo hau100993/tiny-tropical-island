@@ -63,6 +63,8 @@ export interface WaterSurfaceInputs {
   wake: { value: THREE.Texture | null };
   wakeCenter: THREE.Vector2;
   wakeSize: number;
+  /** Water color seen from inside (Underwater.color). */
+  underColor: THREE.Color;
 }
 
 export class WaterSurface {
@@ -109,6 +111,7 @@ export class WaterSurface {
         uWakeCenter: { value: inputs.wakeCenter },
         uWakeSize: { value: inputs.wakeSize },
         uWakeOn: { value: inputs.wake.value ? 1 : 0 },
+        uUnderColor: { value: inputs.underColor },
         uCameraNear: { value: camera.near },
         uCameraFar: { value: camera.far },
         uShallowColor: { value: new THREE.Color('#3cc8c4') },
@@ -118,6 +121,8 @@ export class WaterSurface {
       // One aurora ribbon is enough in the reflection (cheaper per water pixel).
       fragmentShader: `${waterCommon}\n${swash}\n${skyCommon}\n#define AURORA_LAYERS 1\n${aurora}\n${waterFrag}`,
       fog: true,
+      // Both faces: the underside is what you see when diving.
+      side: THREE.DoubleSide,
     });
     this.mesh = new THREE.Mesh(createRadialGrid(), material);
     this.mesh.name = 'water';
