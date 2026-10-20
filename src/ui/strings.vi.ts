@@ -197,7 +197,7 @@ export const vi = {
     kayak: 'Chèo kayak',
   },
   kayak: {
-    controls: 'A / D: chèo trái / phải · W: chèo đều · S: chèo lùi · Shift + A/D: chèo quét · Chuột: nhìn · K: lên bờ · Esc: thoát',
+    controls: 'W: chèo tới · A / D: rẽ trái / phải · S: chèo lùi · Q / E: chèo tay trái / phải · Chuột: nhìn · K: lên bờ · Esc: thoát',
     land: 'K: Lên bờ',
     tooDeep: 'Nước còn sâu: chèo vào chỗ nông hơn để lên bờ',
     noLaunch: 'Ra sát mép nước để hạ thuyền',
@@ -241,6 +241,6 @@ export const vi = {
     sliderWheel: 'Thanh trượt: lăn chuột để chỉnh 5% (giờ: 15 phút) · giữ Shift để chỉnh mịn · nhấp đúp: về mặc định',
     sceneKeys: '1 – 9: chọn cảnh theo thứ tự trên bảng',
     walkKeys: 'Khi đi bộ: W A S D đi · Shift chạy · chuột nhìn · V đổi góc nhìn · Esc thoát',
-    kayakKeys: 'Kayak: A / D chèo trái / phải · W chèo đều · S chèo lùi · Shift + A/D chèo quét',
+    kayakKeys: 'Kayak: W chèo tới · A / D rẽ · S chèo lùi · Q / E chèo tay từng bên (Shift: chèo quét) · K lên bờ',
   },
 } as const;

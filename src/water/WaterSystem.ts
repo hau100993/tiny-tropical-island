@@ -4,6 +4,7 @@ import { Caustics } from './Caustics';
 import { SceneCapture } from './SceneCapture';
 import { PlanarReflection } from './PlanarReflection';
 import { WaterSurface } from './WaterSurface';
+import { WakeMap, WAKE_SIZE } from './WakeMap';
 import type { SharedUniforms } from '../core/uniforms';
 import type { QualityProfile } from '../core/quality';
 import type { Heightmap } from '../world/heightmap';
@@ -17,6 +18,8 @@ export class WaterSystem {
   readonly surface: WaterSurface;
   /** Null when the GPU can't render to float textures (then: Gerstner waves only). */
   readonly sim: WaterSim | null;
+  /** Foam and small bumps left by the kayak (null without float render targets). */
+  readonly wake: WakeMap | null;
   private readonly caustics: Caustics | null;
   private readonly capture: SceneCapture;
   private readonly simTexture: { value: THREE.Texture | null } = { value: null };
@@ -41,6 +44,7 @@ export class WaterSystem {
 
     this.sim = floatTargets ? new WaterSim(renderer, hm, heightTexture, 256) : null;
     this.simEnabled.value = this.sim ? 1 : 0;
+    this.wake = floatTargets ? new WakeMap(renderer, 512) : null;
     this.caustics = floatTargets ? new Caustics(renderer, hm, heightTexture, shared, this.simTexture) : null;
     this.capture = new SceneCapture(renderer);
     this.reflection = new PlanarReflection(renderer);
@@ -63,6 +67,9 @@ export class WaterSystem {
         resolution: this.resolution,
         reflection: this.reflection.texture,
         reflectMatrix: this.reflection.matrix,
+        wake: { value: this.wake?.target.texture ?? null },
+        wakeCenter: this.wake?.center ?? new THREE.Vector2(1e5, 1e5),
+        wakeSize: WAKE_SIZE,
       },
       camera,
     );
@@ -111,7 +118,8 @@ export class WaterSystem {
   }
 
   /** Step 1 of the frame: simulation and caustics passes (no scene geometry involved). */
-  simulate(dt: number): void {
+  simulate(dt: number, wakeX = 0, wakeZ = 0): void {
+    this.wake?.update(dt, wakeX, wakeZ);
     if (this.sim) {
       this.sim.update(dt);
       this.simTexture.value = this.sim.texture;

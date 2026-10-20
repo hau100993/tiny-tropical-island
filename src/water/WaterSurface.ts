@@ -59,6 +59,10 @@ export interface WaterSurfaceInputs {
   resolution: { value: THREE.Vector2 };
   reflection: { value: THREE.Texture | null };
   reflectMatrix: { value: THREE.Matrix4 };
+  /** Wake map (R foam, G height) around a world center, `wakeSize` m wide. */
+  wake: { value: THREE.Texture | null };
+  wakeCenter: THREE.Vector2;
+  wakeSize: number;
 }
 
 export class WaterSurface {
@@ -101,6 +105,10 @@ export class WaterSurface {
         uResolution: inputs.resolution,
         uReflection: inputs.reflection,
         uReflectMatrix: inputs.reflectMatrix,
+        uWake: inputs.wake,
+        uWakeCenter: { value: inputs.wakeCenter },
+        uWakeSize: { value: inputs.wakeSize },
+        uWakeOn: { value: inputs.wake.value ? 1 : 0 },
         uCameraNear: { value: camera.near },
         uCameraFar: { value: camera.far },
         uShallowColor: { value: new THREE.Color('#3cc8c4') },

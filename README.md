@@ -61,7 +61,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `V` | While walking: character view (third person) ↔ eyes view (first person) |
 | `T` | Pomodoro: show the timer and start / pause it |
 | `B` | Work desk: sit down at the desk in the house (from anywhere) / get up |
-| `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up; in the kayak: step out |
+| `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up |
 | `K` | Walking on the beach or in the shallows: get into the kayak; in the kayak: step out (see *Kayak*) |
 | `Esc` | Seated (desk or bathtub): get up |
 | `` ` `` (backquote) | Show/hide the stats overlay (FPS, CPU/GPU ms, draw calls) |
@@ -335,18 +335,18 @@ kayak**; swimming, diving, a journal and surfing come next (see PLAN.md, Phase 8
 
 The kayak is a yellow sit-on-top, pulled up on the sand beside the house. Press `K` and it is
 put in the water in front of you (from the sand, or wherever you left it) and you sit in it.
-It has no rudder: like a real kayak you steer only with your strokes, and the paddle is one
-piece, so the two sides take turns.
+It has no rudder: like a real kayak it turns only through the paddle, and the paddle is one
+piece, so the two sides take turns. You steer like in a game; the paddler picks the real strokes.
 
 | Input | Action |
 |---|---|
-| `A` / `D` | One forward stroke on the left / right side (tap, or hold to keep stroking that side). Alternating goes straight; one side only turns the boat **away** from that side |
-| `W` (hold) | Steady cruising rhythm, left and right by itself (~1.5 m/s, a relaxed touring pace) |
-| `S` (hold) | Reverse strokes: brake, then back up (~0.8 m/s) |
-| `Shift` + `A` / `D` | Sweep stroke: a wide arc from the bow to the stern far from the hull; turns about twice as much as a forward stroke |
-| Mouse | Look around (the head turns, the boat doesn't) |
+| `W` (hold) | Paddle forward: steady strokes, left and right (~1.5 m/s, a relaxed touring pace) |
+| `A` / `D` | Turn left / right. Standing still: sweep strokes on the other side (turns on the spot, ~30°/s). With `W`: strokes on the outside of the turn (~25°/s). Gliding without `W`: the blade is trailed behind your hip as a stern rudder (~20°/s, slows you a little). The paddler also leans the kayak onto its outer edge, which frees the stern |
+| `S` (hold) | Paddle backwards: brake, then back up (~0.8 m/s); with `A`/`D` it backs round |
+| `Q` / `E` | Manual: one forward stroke on the left / right side (tap, or hold to repeat). A stroke on one side turns the boat **away** from that side, like a real kayak. `Shift` + `Q`/`E`: sweep stroke |
+| Mouse | Look around; after a moment without the mouse the camera drifts back behind the boat |
 | `V` | Character view ↔ eyes view (you see your arms, legs and the paddle) |
-| `K` or `E` | Step out, where the water beside the kayak is no deeper than 0.9 m (otherwise a note says to paddle closer to the beach) |
+| `K` | Step out, where the water beside the kayak is no deeper than 0.9 m (otherwise a note says to paddle closer to the beach) |
 | `Esc` / `C` | Back to the orbit view; `C` again puts you back in the kayak |
 
 How it moves: the kayak is a small simulated body, no physics library. The water drags on the
@@ -355,9 +355,15 @@ long way after the last stroke). Each stroke moves the blade through the water; 
 wet part of the blade, applied where the blade is, pushes and turns the boat, so a stroke helps
 less when you're already fast, and a stroke far out turns more. The waves (the same ones the
 water draws) lift, pitch and roll the boat; it runs aground on the sand and is stopped by rocks
-and the rowboat. Blade catches make ripples and a soft splash (left or right ear by the side),
-the bow pushes small ripples while moving. The empty kayak keeps floating where you left it.
-The paddle sounds follow **Tiếng bước chân**.
+and the rowboat. The empty kayak keeps floating where you left it. The paddle sounds (left
+or right ear by the side) follow **Tiếng bước chân**.
+
+What you see on the water: the bow pushes out a V of little waves and bubbles that opens
+behind you at ~19.5° (the angle of every wake on deep water), the stern leaves a band of
+stirred water, each pull leaves a pair of small whirlpools (dimples with foam spun round them)
+that drift behind for a few seconds, the blade throws a splash ring and droplets when it goes
+in, and drips when it comes out. These marks live in a sharp "wake map" (48 m around the kayak,
+9 cm per texel) that the water shader reads for foam and bumps, so they work anywhere at sea.
 
 ## Day, night and sky
 

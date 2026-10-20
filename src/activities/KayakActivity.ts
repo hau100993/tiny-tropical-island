@@ -5,6 +5,8 @@ import type { SeatedPose } from '../world/avatar';
 import type { IslandColliders } from '../controls/islandColliders';
 import type { WalkView } from '../controls/walker';
 import { clamp, damp } from '../core/math';
+import { WakeKind, type WakeSink } from '../water/WakeMap';
+import type { SpraySink } from '../water/Spray';
 
 const LOOK_SPEED = 0.0022;
 const PITCH = { first: [-1.2, 1.2], third: [-1.0, 0.7] } as const;
@@ -16,7 +18,9 @@ const EYE = { y: 0.84, z: -0.06 } as const;
 const LATCH = 0.6;
 /** Deepest water you can step out into (m), as deep as you can wade. */
 const MAX_STEP_OUT = 0.9;
-const KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight']);
+const KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight']);
+/** Seconds without mouse movement before the camera drifts back behind the boat. */
+const RECENTER_AFTER = 1.2;
 
 export interface KayakEvents {
   /** The pointer lock was released (Esc) after having been active. */
@@ -24,9 +28,16 @@ export interface KayakEvents {
   onLockState(locked: boolean, failed: boolean): void;
   /** A blade entered or left the water. */
   onBlade(e: BladeEvent): void;
-  /** Bow wave while moving: a ripple at (x, z). */
-  onWake(x: number, z: number, strength: number): void;
 }
+
+/** Where the kayak's water effects go (the wake map can be missing on old GPUs). */
+export interface KayakEffects {
+  wake: WakeSink | null;
+  spray: SpraySink;
+}
+
+/** tan(19.47°): the half-angle of the V behind anything moving on deep water (Kelvin wake). */
+const KELVIN = 0.354;
 
 /**
  * Paddling the kayak: keys drive the paddle strokes (see kayakPhysics), the mouse looks
@@ -57,9 +68,17 @@ export class KayakActivity {
   };
   private readonly keys = new Set<string>();
   private readonly latch = { left: 0, right: 0 };
-  private readonly ctl: PaddleControls = { left: false, right: false, cruise: false, back: false, sweep: false };
+  private readonly ctl: PaddleControls = { left: false, right: false, steer: 0, cruise: false, back: false, sweep: false };
   private wasLocked = false;
   private wakeTimer = 0;
+  private readonly bladeTimer = [0, 0];
+  /** Seconds since each blade left the water (it drips for a while). */
+  private readonly sinceExit = [9, 9];
+  private dripTimer = 0;
+  private readonly bp = { x: 0, y: 0, z: 0 };
+  /** Third person: the camera follows the boat's heading with a little lag (turns read). */
+  private camYaw = 0;
+  private mouseIdle = 0;
   private readonly tmp = new THREE.Vector3();
   private readonly dir = { x: 0, y: 0, z: 0 };
   private readonly basis = new THREE.Matrix4();
@@ -77,13 +96,14 @@ export class KayakActivity {
     private readonly colliders: IslandColliders,
     private readonly events: KayakEvents,
     private readonly reducedMotion: () => boolean,
+    private readonly fx: KayakEffects,
   ) {
     this.body = new KayakBody(env);
     window.addEventListener('keydown', (e) => {
       if (!this.active || !KEYS.has(e.code) || e.ctrlKey || e.altKey || e.metaKey) return;
       if (!e.repeat) {
-        if (e.code === 'KeyA' || e.code === 'ArrowLeft') this.latch.left = LATCH;
-        if (e.code === 'KeyD' || e.code === 'ArrowRight') this.latch.right = LATCH;
+        if (e.code === 'KeyQ') this.latch.left = LATCH;
+        if (e.code === 'KeyE') this.latch.right = LATCH;
       }
       this.keys.add(e.code);
       e.preventDefault();
@@ -94,6 +114,7 @@ export class KayakActivity {
       if (!this.active || !this.locked) return;
       if (Math.abs(e.movementX) > 300 || Math.abs(e.movementY) > 300) return;
       this.lookYaw -= e.movementX * LOOK_SPEED;
+      if (e.movementX !== 0) this.mouseIdle = 0;
       this.lookYaw = Math.atan2(Math.sin(this.lookYaw), Math.cos(this.lookYaw));
       const [lo, hi] = PITCH[this.view];
       this.pitch = clamp(this.pitch - e.movementY * LOOK_SPEED, lo, hi);
@@ -191,6 +212,8 @@ export class KayakActivity {
     this.keys.clear();
     this.latch.left = this.latch.right = 0;
     this.lookYaw = 0;
+    this.camYaw = this.body.yaw;
+    this.mouseIdle = 0;
     this.pitch = -0.18;
     this.arm = ARM;
     this.camera.rotation.order = 'YXZ';
@@ -226,28 +249,104 @@ export class KayakActivity {
       this.latch.left = Math.max(0, this.latch.left - dt);
       this.latch.right = Math.max(0, this.latch.right - dt);
       const c = this.ctl;
-      c.left = k.has('KeyA') || k.has('ArrowLeft') || this.latch.left > 0;
-      c.right = k.has('KeyD') || k.has('ArrowRight') || this.latch.right > 0;
+      // A/D steer (the paddle picks the strokes); Q/E stroke one side by hand.
+      c.left = k.has('KeyQ') || this.latch.left > 0;
+      c.right = k.has('KeyE') || this.latch.right > 0;
+      c.steer = (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0) - (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0);
       c.cruise = k.has('KeyW') || k.has('ArrowUp');
       c.back = k.has('KeyS') || k.has('ArrowDown');
       c.sweep = k.has('ShiftLeft') || k.has('ShiftRight');
-      this.paddle.update(dt, c);
+      this.paddle.update(dt, c, this.body.speed);
+      // Not looking around and moving: the view settles back behind the boat, like a car cam.
+      this.mouseIdle += dt;
+      if (this.mouseIdle > RECENTER_AFTER && Math.abs(this.body.speed) > 0.25) this.lookYaw *= 1 - damp(1.2, dt);
       if (this.paddle.consumed(-1)) this.latch.left = 0;
       if (this.paddle.consumed(1)) this.latch.right = 0;
-      this.body.step(dt, this.paddle, (e) => this.events.onBlade(e));
-      // Bow wave: a small ripple off the bow every few tenths of a second when moving.
-      const v = Math.abs(this.body.speed);
-      this.wakeTimer -= dt;
-      if (v > 0.35 && this.wakeTimer <= 0 && this.body.grounded < 0.5) {
-        this.wakeTimer = 0.3;
-        this.body.toWorld(0, -1.75, this.p2);
-        this.events.onWake(this.p2.x, this.p2.z, clamp(v / 2, 0.2, 1));
-      }
+      this.body.step(dt, this.paddle, this.onBlade);
+      this.bladeEffects(dt);
     } else {
       this.body.step(dt, null);
     }
+    this.hullWake(dt);
     this.syncModel();
     if (this.active) this.applyCamera(dt);
+  }
+
+  /** The blade in or out of the water: splash ring, droplets, the swirl it leaves behind. */
+  private readonly onBlade = (e: BladeEvent): void => {
+    const i = e.side < 0 ? 0 : 1;
+    const b = this.body;
+    const wake = this.fx.wake;
+    this.body.bladeWorld(i, this.bp);
+    const y = Math.max(this.bp.y, b.y - 0.02);
+    if (e.kind === 'catch') {
+      wake?.emit(WakeKind.Ring, e.x, e.z, 0, 0, 1.1, 0.12, 0.9, 0.3, 0.05 + 0.04 * e.strength);
+      const n = 4 + Math.round(8 * e.strength);
+      for (let k = 0; k < n; k++) {
+        const a = Math.random() * Math.PI * 2;
+        const h = 0.4 + Math.random() * 0.8;
+        this.fx.spray.drop(e.x, y, e.z, b.vx + Math.cos(a) * h, 1.2 + Math.random() * 1.6 * (0.5 + e.strength), b.vz + Math.sin(a) * h, 0.012 + Math.random() * 0.012);
+      }
+    } else {
+      // The pull leaves a pair of small whirlpools where the blade came out: the classic
+      // trail of a kayak, dimples with foam spun round them, drifting slowly behind.
+      wake?.emit(WakeKind.Eddy, e.x, e.z, 0, 0, 5, 0.22, 0.6, 0.5, 0.08);
+      this.body.toWorld(e.side * 0.75, HULL.seatZ + 0.15, this.p2);
+      wake?.emit(WakeKind.Eddy, (e.x + this.p2.x) / 2, (e.z + this.p2.z) / 2, 0, 0, 4, 0.16, 0.45, 0.35, 0.06);
+      // Water sheeting off the blade as it rises.
+      for (let k = 0; k < 6; k++) {
+        this.fx.spray.drop(e.x, y + 0.1, e.z, b.vx * 0.5 + (Math.random() - 0.5) * 0.6, 0.6 + Math.random() * 1.2, b.vz * 0.5 + (Math.random() - 0.5) * 0.6, 0.01 + Math.random() * 0.01);
+      }
+      this.sinceExit[i] = 0;
+    }
+    this.events.onBlade(e);
+  };
+
+  /** While a blade pulls: whitewater around it. After it leaves the water: drips. */
+  private bladeEffects(dt: number): void {
+    const b = this.body;
+    this.dripTimer -= dt;
+    for (let i = 0; i < 2; i++) {
+      const wet = b.bladeWorld(i, this.bp);
+      this.sinceExit[i] += dt;
+      this.bladeTimer[i] -= dt;
+      if (wet > 0.2 && this.paddle.stroking && this.bladeTimer[i] <= 0) {
+        this.bladeTimer[i] = 0.05;
+        this.fx.wake?.emit(WakeKind.Blob, this.bp.x, this.bp.z, 0, 0, 1.6, 0.1, 0.32, 0.28 * wet, 0.04 * wet);
+      }
+      // Drips from the raised blade for about a second.
+      if (wet < 0.05 && this.sinceExit[i] < 1.1 && this.dripTimer <= 0) {
+        this.fx.spray.drop(this.bp.x, this.bp.y + 0.05, this.bp.z, b.vx, -0.2, b.vz, 0.008 + Math.random() * 0.006);
+      }
+    }
+    if (this.dripTimer <= 0) this.dripTimer = 0.06;
+  }
+
+  /**
+   * Bow and stern: while moving, marks slide out sideways from both bow shoulders at
+   * tan(19.5°) × speed, so the trail of marks opens into the Kelvin V; a softer wash spreads
+   * behind the stern.
+   */
+  private hullWake(dt: number): void {
+    const wake = this.fx.wake;
+    const b = this.body;
+    const v = b.speed;
+    const av = Math.abs(v);
+    this.wakeTimer -= dt;
+    if (!wake || av < 0.15 || b.grounded > 0.5 || this.wakeTimer > 0) return;
+    this.wakeTimer = 0.045;
+    const k = clamp(av / 1.6, 0, 1.2);
+    const c = Math.cos(b.yaw);
+    const s = Math.sin(b.yaw);
+    // Right in the world: (cos yaw, −sin yaw).
+    const out = KELVIN * av;
+    const front = v >= 0 ? -1.55 : 1.6;
+    for (const side of [-1, 1]) {
+      b.toWorld(side * 0.2, front, this.p2);
+      wake.emit(WakeKind.Blob, this.p2.x, this.p2.z, side * c * out, -side * s * out, 3, 0.08, 0.4, 0.12 * k, 0.05 * k);
+    }
+    b.toWorld(0, -front * 1.15, this.p2);
+    wake.emit(WakeKind.Blob, this.p2.x, this.p2.z, 0, 0, 2.5, 0.14, 0.6, 0.07 * k, -0.025 * k);
   }
 
   /** Hull and paddle meshes from the physics; the avatar's seat and grips. */
@@ -285,7 +384,9 @@ export class KayakActivity {
     s.twist = this.paddle.twist;
     // Lean into the catch, sit up at the exit.
     s.lean = 0.08 + 0.12 * clamp(-(pose.cz + 0.24) / 0.12, 0, 1);
-    s.lookYaw = this.lookYaw;
+    // The head looks where the camera looks (relative to the boat).
+    const rel = this.camYaw + this.lookYaw - this.body.yaw;
+    s.lookYaw = Math.atan2(Math.sin(rel), Math.cos(rel));
     s.lookPitch = this.pitch;
     s.firstPerson = this.view === 'first';
   }
@@ -294,14 +395,18 @@ export class KayakActivity {
     const b = this.body;
     const g = this.model.group;
     const head = this.tmp.set(0, HULL.seatY + EYE.y, HULL.seatZ + EYE.z).applyMatrix4(g.matrixWorld);
-    const yaw = b.yaw + this.lookYaw;
+    const turn = b.yaw - this.camYaw;
+    this.camYaw = dt === 0 ? b.yaw : this.camYaw + Math.atan2(Math.sin(turn), Math.cos(turn)) * damp(4, dt);
+    const calm = this.reducedMotion() ? 0 : 1;
     if (this.view === 'first') {
+      const yaw = b.yaw + this.lookYaw;
       // The boat's roll and pitch, softened (and none with reduced motion).
-      const k = this.reducedMotion() ? 0 : 0.35;
+      const k = 0.35 * calm;
       this.camera.position.copy(head);
       this.camera.rotation.set(this.pitch + b.pitch * k, yaw, -b.roll * k, 'YXZ');
       return;
     }
+    const yaw = this.camYaw + this.lookYaw;
     const cp = Math.cos(this.pitch);
     const fx = -Math.sin(yaw) * cp;
     const fy = Math.sin(this.pitch);
@@ -315,6 +420,7 @@ export class KayakActivity {
     const cz = head.z - fz * this.arm;
     const cy = Math.max(oy - fy * this.arm, this.colliders.waterClearance(cx, cz));
     this.camera.position.set(cx, cy, cz);
-    this.camera.rotation.set(this.pitch, yaw, 0, 'YXZ');
+    // Leans a touch into turns.
+    this.camera.rotation.set(this.pitch, yaw, clamp(-b.w * 0.05, -0.04, 0.04) * calm, 'YXZ');
   }
 }

@@ -2,6 +2,10 @@
 // REFRACTION: the body is the captured scene behind the surface, distorted by the normal and
 // tinted by how much water the view ray crosses. Otherwise: alpha blending over the seabed.
 uniform float uTime;
+uniform sampler2D uWake;
+uniform vec2 uWakeCenter;
+uniform float uWakeSize;
+uniform float uWakeOn;
 uniform float uWaveStrength;
 uniform float uRain;
 uniform vec3 uLightDir;
@@ -68,6 +72,20 @@ void main() {
   vec4 sim = sampleSim(xz);
   // Simulated slopes are amplified so ripple rings stay readable from orbit distance.
   g += sim.yz * sim.w * 4.0;
+  // Kayak wake (see WakeMap.ts): fine foam and bumps; slopes from the height channel.
+  float wakeFoam = 0.0;
+  vec2 wuv = (xz - uWakeCenter) / uWakeSize + 0.5;
+  if (uWakeOn > 0.5 && all(lessThan(abs(wuv - 0.5), vec2(0.5)))) {
+    float e = 0.12 / uWakeSize;
+    vec2 wk = texture2D(uWake, wuv).rg;
+    float hx = texture2D(uWake, wuv + vec2(e, 0.0)).g - texture2D(uWake, wuv - vec2(e, 0.0)).g;
+    float hz = texture2D(uWake, wuv + vec2(0.0, e)).g - texture2D(uWake, wuv - vec2(0.0, e)).g;
+    // Fade out at the map's edge so its square never shows.
+    float edge = 1.0 - smoothstep(0.4, 0.5, max(abs(wuv.x - 0.5), abs(wuv.y - 0.5)));
+    g += vec2(hx, hz) / 0.24 * 2.2 * edge;
+    // Saturates gently: many overlapping marks make thick foam, never a solid sheet.
+    wakeFoam = (1.0 - exp(-wk.r * 1.6)) * 0.85 * edge;
+  }
   // Rain pitting: fine, fast-changing roughness (the sim adds the bigger splash rings).
   if (uRain > 0.001) {
     vec2 rp = xz * 3.3;
@@ -127,6 +145,7 @@ void main() {
   coverage += smoothstep(0.55, 0.95, vCrest) * smoothstep(0.5, 1.0, uWaveStrength) * n2;
   // A little white water on strong ripples (splashes).
   coverage += smoothstep(0.06, 0.2, sim.x) * sim.w * 0.6 * (0.4 + n2);
+  coverage += wakeFoam;
   float foam = 0.0;
   if (coverage > 0.01) {
     // Thin foam is see-through bubbles; only thick coverage turns solid white.

@@ -134,9 +134,9 @@ export class App {
         onUnlock: () => this.cameras.setMode('orbit'),
         onLockState: (locked, failed) => this.walkHint.update(this.cameras.mode === 'kayak', locked, failed, vi.kayak.controls),
         onBlade: (e) => this.onBlade(e),
-        onWake: (x, z, k) => this.world.water.addRipple(x, z, 1.6, -0.18 * k),
       },
       () => this.reducedMotion.matches,
+      { wake: w.water.wake, spray: w.spray },
     );
     this.kayak.place(w.layout.kayak.x, w.layout.kayak.z, w.layout.kayak.rotY);
     this.deskView = new DeskView(this.camera, this.renderer.domElement);
@@ -389,10 +389,8 @@ export class App {
           this.cameras.getUp();
           return;
         }
-        if (this.cameras.mode === 'kayak') {
-          this.leaveKayak();
-          return;
-        }
+        // In the kayak, E is the right-hand stroke (K steps out).
+        if (this.cameras.mode === 'kayak') return;
         const near = this.nearSeat();
         if (near) this.cameras.sit(near, true);
       },
@@ -568,9 +566,8 @@ export class App {
     }, 300);
   }
 
-  /** Paddle in or out of the water: a ripple and a splash, panned to the blade's side. */
+  /** Paddle in or out of the water: a splash sound, panned to the blade's side (the kayak draws the water). */
   private onBlade(e: BladeEvent): void {
-    if (e.kind === 'catch') this.world.water.addRipple(e.x, e.z, 1.4, -0.25 * (0.4 + e.strength));
     if (!this.settings.get().footsteps) return;
     // The blade's side, as heard from where the head looks.
     const pan = e.side * Math.cos(this.kayak.lookYaw);
@@ -690,6 +687,7 @@ export class App {
     this.renderer.setSize(w, h, false);
     this.renderer.getDrawingBufferSize(this.drawingBuffer);
     this.world.water.setSize(this.drawingBuffer.x, this.drawingBuffer.y);
+    this.world.spray.setViewport(this.drawingBuffer.y, this.camera.fov);
   };
 
   private tick = (dt: number, elapsed: number): void => {
@@ -739,7 +737,8 @@ export class App {
     this.world.update(dt, elapsed, this.camera, sea);
     this.deskScreens.update(dt, this.camera);
     this.gpuTimer.begin();
-    this.world.water.simulate(dt);
+    // The wake map follows the kayak (it only has marks while the kayak moves).
+    this.world.water.simulate(dt, this.kayak.body.x, this.kayak.body.z);
     // The next scene render (capture if refraction is on, else main) refreshes the shadow map.
     this.renderer.shadowMap.needsUpdate = true;
     this.world.water.captureScene(this.scene, this.camera);

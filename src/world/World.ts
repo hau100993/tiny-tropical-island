@@ -20,6 +20,7 @@ import { Weather } from '../weather/Weather';
 import { DayNight } from './dayNight';
 import { Fireflies } from './fireflies';
 import { createKayak, type KayakModel } from './kayak';
+import { Spray } from '../water/Spray';
 import { createNoise2D } from '../core/noise';
 import { createRng } from '../core/rng';
 import type { SharedUniforms } from '../core/uniforms';
@@ -44,6 +45,8 @@ export interface World {
   boat: FloatingObject;
   fishingTrip: FishingTrip;
   kayak: KayakModel;
+  /** Droplets from the paddle. */
+  spray: Spray;
   update(dt: number, time: number, camera: THREE.Camera, waveStrength: number): void;
 }
 
@@ -136,6 +139,8 @@ export function createWorld(
   const kayak = createKayak(WORLD_SEED + 13);
   scene.add(kayak.group);
   patchTree(kayak.group, { wet: true, porosity: 0.1 }, shared);
+  const spray = new Spray(shared);
+  scene.add(spray.points);
 
   const heightTexture = createHeightTexture(heightmap);
   if (!renderer.extensions.has('OES_texture_float_linear')) {
@@ -156,9 +161,9 @@ export function createWorld(
   scene.add(fireflies.points);
   // The refraction capture only needs what lies under the water. Sky and particles would show
   // up twice; vegetation is all on land, so skipping it saves most of the capture's cost.
-  water.setCaptureHidden([sky.mesh, ...weather.particleMeshes, forest.group, grass.mesh, flowers.group, fireflies.points, shafts]);
+  water.setCaptureHidden([sky.mesh, ...weather.particleMeshes, forest.group, grass.mesh, flowers.group, fireflies.points, shafts, spray.points]);
   // Reflections keep the trees (that's what you want to see mirrored) but skip small stuff.
-  water.setReflectionHidden([sky.mesh, ...weather.particleMeshes, grass.mesh, flowers.group, fireflies.points, shafts]);
+  water.setReflectionHidden([sky.mesh, ...weather.particleMeshes, grass.mesh, flowers.group, fireflies.points, shafts, spray.points]);
 
   return {
     heightmap,
@@ -177,8 +182,10 @@ export function createWorld(
     boat,
     fishingTrip,
     kayak,
+    spray,
     update(dt, time, camera, waveStrength) {
       sky.follow(camera);
+      spray.update(dt);
       boat.update(time, waveStrength, camera, dt);
       fishingTrip.update(time, waveStrength, camera, dt);
     },

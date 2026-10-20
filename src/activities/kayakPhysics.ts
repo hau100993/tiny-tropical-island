@@ -55,11 +55,15 @@ const MAX_BLADE_FORCE = 260;
 /** Hull drag along the boat: linear + quadratic (≈ 25 N at 1.8 m/s, like a real sea kayak). */
 const DRAG_LONG = [3, 6.5] as const;
 /** Sideways drag per end: much larger (the keel effect: the boat goes where it points). */
-const DRAG_SIDE = [20, 80] as const;
+const DRAG_SIDE = [14, 70] as const;
 /** The stern grips the water a bit more than the bow, so the boat tracks straight. */
 const BOW_GRIP = 0.9;
-const STERN_GRIP = 1.3;
+const STERN_GRIP = 1.05;
 const END = 1.35;
+/** How much of the stern's sideways grip a fully edged hull loses. */
+const EDGE_GRIP = 0.7;
+/** Steering assist (N·m at 1 m/s), see `step`. */
+const EDGE_TORQUE = 85;
 /** Open water past this radius (m) slowly pushes the boat back toward the island. */
 export const SEA_LIMIT = 280;
 
@@ -67,14 +71,16 @@ export type StrokeKind = 'forward' | 'reverse' | 'sweep';
 export type Side = -1 | 1;
 
 export interface PaddleControls {
-  /** A stroke on the left / right side is wanted (key held, or tapped a moment ago). */
+  /** Q / E: a manual stroke on the left / right side (key held, or tapped a moment ago). */
   left: boolean;
   right: boolean;
+  /** A / D: where to go, +1 left … −1 right. The paddle picks the strokes that turn that way. */
+  steer: number;
   /** W: alternate sides by itself. */
   cruise: boolean;
   /** S: reverse strokes. */
   back: boolean;
-  /** Shift: sweep strokes. */
+  /** Shift with Q / E: sweep strokes. */
   sweep: boolean;
 }
 
@@ -132,6 +138,14 @@ const STROKES: Record<StrokeKind, { dur: number; keys: readonly Key[] }> = {
 
 /** Resting across the lap, hands forward. */
 const IDLE: PaddlePose = { psi: 0, phi: 0, cx: 0, cy: 0.36, cz: -0.36 };
+/**
+ * Stern rudder (mirrored by the side): the blade trailed in the water behind the hip, its face
+ * angled to the flow. The water pushing on it swings the stern out, so the bow turns toward
+ * that side (and the boat slows a little). No special physics: the blade drag does it.
+ */
+const RUDDER: PaddlePose = { psi: 0.95, phi: 0.5, cx: 0.06, cy: 0.3, cz: -0.18 };
+/** Gliding faster than this (m/s), steering uses the rudder instead of sweeps. */
+const RUDDER_SPEED = 0.7;
 
 function sampleStroke(kind: StrokeKind, side: Side, t: number, out: PaddlePose): PaddlePose {
   const keys = STROKES[kind].keys;
@@ -174,28 +188,82 @@ export class Paddle {
   kind: StrokeKind = 'forward';
   t = 1;
   stroking = false;
+  /** 0 … 1: how much the blade is held as a stern rudder, and on which side. */
+  rudder = 0;
+  rudderSide: Side = 1;
+  /**
+   * −1 … 1: the paddler leans the boat onto its outer edge while steering (+ = turning left,
+   * so the right edge goes down). An edged hull has less keel in the water: it turns easily.
+   */
+  edge = 0;
   private lastSide: Side = 1;
   private readonly target: PaddlePose = { ...IDLE };
 
-  /** Starts a new stroke when the controls ask for one and the current one allows it. */
-  update(dt: number, c: Readonly<PaddleControls>): void {
+  /**
+   * Starts a new stroke when the controls ask for one and the current one allows it.
+   * Steering (A/D) picks real strokes: to turn left, strokes on the right side (sweeps when
+   * slow, forward strokes with W held), reverse strokes on the left with S, or, gliding, the
+   * blade trailed as a rudder on the left. `speed`: the boat's forward speed (m/s).
+   */
+  update(dt: number, c: Readonly<PaddleControls>, speed = 0): void {
     if (this.stroking) {
       this.t += dt / STROKES[this.kind].dur;
       if (this.t >= 1) this.stroking = false;
     }
-    const want: Side | 0 =
-      c.left && c.right ? (-this.lastSide as Side) : c.left ? -1 : c.right ? 1 : c.cruise || c.back ? (-this.lastSide as Side) : 0;
+    const steer = Math.abs(c.steer) > 0.1 ? (c.steer > 0 ? 1 : -1) : 0;
+    // Turning left: the outer side is the right one.
+    const outer = steer as Side;
+    let want: Side | 0 = 0;
+    let kind: StrokeKind = 'forward';
+    let rudder = false;
+    if (c.left || c.right) {
+      want = c.left && c.right ? (-this.lastSide as Side) : c.left ? -1 : 1;
+      kind = c.back ? 'reverse' : c.sweep ? 'sweep' : 'forward';
+    } else if (steer !== 0) {
+      if (c.back) {
+        want = -outer as Side;
+        kind = 'reverse';
+      } else if (c.cruise) {
+        want = outer;
+      } else if (speed > RUDDER_SPEED) {
+        rudder = true;
+      } else {
+        want = outer;
+        kind = 'sweep';
+      }
+    } else if (c.cruise || c.back) {
+      want = -this.lastSide as Side;
+      kind = c.back ? 'reverse' : 'forward';
+    }
     // The shaft is one piece: the other side can start while this stroke swings over; the
-    // same side again only once the blade has come all the way back.
-    if (want !== 0 && (!this.stroking || (want !== this.side && this.t > 0.82))) {
+    // same side again only once the blade is nearly back (a little sooner when steering).
+    const again = steer !== 0 ? 0.9 : 1;
+    if (want !== 0 && (!this.stroking || (want !== this.side ? this.t > 0.82 : this.t >= again))) {
       this.side = want;
       this.lastSide = want;
-      this.kind = c.back ? 'reverse' : c.sweep && (c.left || c.right) ? 'sweep' : 'forward';
+      this.kind = kind;
       this.t = 0;
       this.stroking = true;
     }
-    const tg = this.stroking ? sampleStroke(this.kind, this.side, this.t, this.target) : Object.assign(this.target, IDLE);
-    const k = damp(this.stroking ? 16 : 5, dt);
+    this.edge += (steer - this.edge) * damp(3, dt);
+    // Rudder: blade trailed on the inner side, only between strokes.
+    if (rudder && !this.stroking) this.rudderSide = -outer as Side;
+    this.rudder += ((rudder && !this.stroking ? 1 : 0) - this.rudder) * damp(rudder ? 6 : 10, dt);
+    let tg: PaddlePose;
+    if (this.stroking) {
+      tg = sampleStroke(this.kind, this.side, this.t, this.target);
+    } else {
+      // Between idle and the rudder hold.
+      const r = this.rudder;
+      const sd = this.rudderSide;
+      tg = this.target;
+      tg.psi = sd * RUDDER.psi * r;
+      tg.phi = sd * RUDDER.phi * r;
+      tg.cx = sd * RUDDER.cx * r;
+      tg.cy = IDLE.cy + (RUDDER.cy - IDLE.cy) * r;
+      tg.cz = IDLE.cz + (RUDDER.cz - IDLE.cz) * r;
+    }
+    const k = damp(this.stroking ? 16 : 6, dt);
     const p = this.pose;
     p.psi += (tg.psi - p.psi) * k;
     p.phi += (tg.phi - p.phi) * k;
@@ -241,6 +309,8 @@ export class KayakBody {
   roll = 0;
   /** 0 afloat … 1 firmly on the sand. */
   grounded = 0;
+  /** How far the paddler leans it into a turn (see Paddle.edge), for the looks. */
+  edge = 0;
   private readonly ws: WaterSample = { height: 0, dhdx: 0, dhdz: 0 };
   private readonly blk = { x: 0, z: 0 };
   private readonly prevTip = [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }];
@@ -265,6 +335,21 @@ export class KayakBody {
   get speed(): number {
     return -this.vx * Math.sin(this.yaw) - this.vz * Math.cos(this.yaw);
   }
+
+  /**
+   * World position of blade `i`'s middle (0 left, 1 right; heave included, tilt ignored), and
+   * how deep it is in the water (0 out … 1 fully in) as of the last step.
+   */
+  bladeWorld(i: number, out: { x: number; y: number; z: number }): number {
+    const t = this.tip[i];
+    this.toWorld(t.x, t.z, this.blk2);
+    out.x = this.blk2.x;
+    out.y = this.y + t.y;
+    out.z = this.blk2.z;
+    return this.wet[i];
+  }
+
+  private readonly blk2 = { x: 0, z: 0 };
 
   /** Boat-local (lx, lz) → world, written into `out`. */
   toWorld(lx: number, lz: number, out: { x: number; z: number }): { x: number; z: number } {
@@ -325,7 +410,10 @@ export class KayakBody {
       const fl = -(DRAG_LONG[0] * vl + DRAG_LONG[1] * vl * Math.abs(vl));
       fx += fl * ux;
       fz += fl * uz;
-      for (const [d, grip] of [[END, BOW_GRIP], [-END, STERN_GRIP]] as const) {
+      // Edging lifts the keel out of the water, the stern's grip most.
+      const edge = paddle ? Math.abs(paddle.edge) : 0;
+      for (const [d, baseGrip] of [[END, BOW_GRIP * (1 - 0.3 * edge)], [-END, STERN_GRIP * (1 - EDGE_GRIP * edge)]] as const) {
+        const grip = baseGrip;
         const px = ux * d;
         const pz = uz * d;
         // Point velocity: v + ω × r.
@@ -335,7 +423,11 @@ export class KayakBody {
         const ft = -(DRAG_SIDE[0] * vt + DRAG_SIDE[1] * vt * Math.abs(vt)) * grip;
         addForce(px, pz, ft * rx, ft * rz);
       }
-      tq -= 6 * this.w + 12 * this.w * Math.abs(this.w);
+      tq -= 4 * this.w + 8 * this.w * Math.abs(this.w);
+      // Steering also turns the boat through what the strokes don't show: the edged hull
+      // carving, small correction strokes, hips. A yaw torque that grows with speed (a carve
+      // needs flow) on top of the real strokes, so A/D respond like a game expects.
+      if (paddle) tq += paddle.edge * EDGE_TORQUE * (0.35 + 0.5 * Math.min(Math.abs(vl), 2));
 
       // The paddle blades in the water.
       if (paddle) {
@@ -436,6 +528,7 @@ export class KayakBody {
       this.yaw += this.w * h;
       this.collide(ux, uz);
     }
+    this.edge = paddle ? paddle.edge : 0;
     this.float(dt);
   }
 
@@ -485,7 +578,8 @@ export class KayakBody {
     const y = (bow + stern + left + right) / 4;
     const pitch = Math.atan2(bow - stern, 3.2);
     // Leans a little into turns, like a real hull at speed.
-    const roll = Math.atan2(left - right, HULL.halfBeam * 2) * 0.6 + clamp(this.w * this.speed * 0.04, -0.08, 0.08);
+    const roll =
+      Math.atan2(left - right, HULL.halfBeam * 2) * 0.6 + clamp(this.w * this.speed * 0.04, -0.08, 0.08) + this.edge * 0.1;
     if (!Number.isFinite(this.y) || Math.abs(y - this.y) > 1) this.y = y;
     // Light boat: it follows the water quickly, but not rigidly.
     this.y += (y - this.y) * damp(6, dt);
