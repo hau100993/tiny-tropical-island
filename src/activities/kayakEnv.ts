@@ -37,13 +37,14 @@ export function createKayakEnv(
       const dist = Math.hypot(x - camera.position.x, z - camera.position.z);
       const atten = waveAttenuation(shared.uWaveStrength.value, -hm.heightAt(x, z), dist);
       sampleWaves(x, z, shared.uTime.value, atten, dist, out);
-      sampleSurf(surfFrame, x, z, shared.uTime.value, shared.uWaveStrength.value, depthAt, surf);
+      sampleSurf(surfFrame, x, z, shared.uTime.value, shared.uSurfLevel.value, depthAt, surf);
       out.height += surf.height;
       out.dhdx += surf.dhdx;
       out.dhdz += surf.dhdz;
       return out;
     },
-    surf: (x, z, out) => sampleSurf(surfFrame, x, z, shared.uTime.value, shared.uWaveStrength.value, depthAt, out),
+    surf: (x, z, out) => sampleSurf(surfFrame, x, z, shared.uTime.value, shared.uSurfLevel.value, depthAt, out),
+    level: () => shared.uSurfLevel.value,
     ground: (x, z) => hm.heightAt(x, z),
     block(x, z, y, r, out) {
       colliders.world.resolve(x, z, y, r, out);

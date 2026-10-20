@@ -5,6 +5,7 @@ import { SnowQuietLayer } from './synth/snowQuiet';
 import { WavesLayer } from './synth/waves';
 import { WindLayer } from './synth/wind';
 import { Footsteps, type FootSurface } from './synth/footsteps';
+import { SurfSound } from './synth/surf';
 import { spatialMix, type ListenerState } from './spatial';
 import { LayerSlot, type LayerSource } from './LayerSlot';
 import { FileLayer } from './file/FileLayer';
@@ -31,6 +32,7 @@ export class Mixer {
   private readonly listeners: Listener[] = [];
   private saveTimer = 0;
   private footsteps: Footsteps | null = null;
+  private surf: SurfSound | null = null;
   /** Last spatial mix sent per layer (only resent when it changes noticeably). */
   private readonly spatialSent = new Map<LayerId, SpatialMix>();
   private readonly spatialTmp: SpatialMix = { gain: 1, pan: 0, occlusion: 0 };
@@ -61,6 +63,7 @@ export class Mixer {
     const all: AudioLayer[] = [this.waves, this.birds, new WindLayer(engine), new RainLayer(engine), new SnowQuietLayer(engine)];
     for (const layer of all) this.layers.set(layer.id, new LayerSlot(layer.id, layer, () => this.emit()));
     this.footsteps = new Footsteps(engine);
+    this.surf = new SurfSound(engine);
     this.applyAll(0.7);
     this.applyCalm(0.01);
     this.emit();
@@ -199,6 +202,16 @@ export class Mixer {
   /** Kayak paddle splash (see Footsteps.paddle); follows the footsteps on/off setting. */
   playPaddle(kind: 'catch' | 'exit', strength: number, pan: number): void {
     this.footsteps?.paddle(kind, strength, pan);
+  }
+
+  /** A wave breaking near the surfer (see SurfSound.crash). */
+  playSurfCrash(gain: number, pan: number): void {
+    this.surf?.crash(gain, pan);
+  }
+
+  /** Water and wind rushing past while riding (m/s; 0 stops it). */
+  setSurfRush(speed: number): void {
+    this.surf?.setRush(speed);
   }
 
   onChange(listener: Listener): void {

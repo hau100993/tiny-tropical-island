@@ -7,17 +7,20 @@ const frame: SurfFrame = { ox: 0, oz: 0, ux: 1, uz: 0 };
 const ground = (x: number): number => x / 8;
 const depthAt = (x: number): number => -ground(x);
 let time = 0;
+/** The "Sóng biển" slider. */
+let level = 0.45;
 const env: SurfEnv = {
   ux: 1,
   uz: 0,
+  level: () => level,
   water(x, z, out) {
-    const s = sampleSurf(frame, x, z, time, 0.3, depthAt, createSurfSample());
+    const s = sampleSurf(frame, x, z, time, level, depthAt, createSurfSample());
     out.height = s.height;
     out.dhdx = s.dhdx;
     out.dhdz = s.dhdz;
     return out;
   },
-  surf: (x, z, out) => sampleSurf(frame, x, z, time, 0.3, depthAt, out),
+  surf: (x, z, out) => sampleSurf(frame, x, z, time, level, depthAt, out),
   ground: (x) => ground(x),
   block(x, z, _y, _r, out) {
     out.x = x;
@@ -77,7 +80,7 @@ describe('surf break', () => {
     let face = 0;
     let back = 0;
     for (let x = -60; x < -10; x += 0.25) {
-      sampleSurf(frame, x, 40, time, 0.3, depthAt, s);
+      sampleSurf(frame, x, 40, time, level, depthAt, s);
       if (s.d > 0) face = Math.min(face, s.dhdx);
       else back = Math.max(back, s.dhdx);
     }
@@ -87,7 +90,7 @@ describe('surf break', () => {
       let best = -Infinity;
       let bx = 0;
       for (let x = -40; x < -12; x += 0.1) {
-        const h = sampleSurf(frame, x, l, time, 0.3, depthAt, s).height;
+        const h = sampleSurf(frame, x, l, time, level, depthAt, s).height;
         if (h > best) {
           best = h;
           bx = x;
@@ -95,9 +98,9 @@ describe('surf break', () => {
       }
       return bx;
     };
-    sampleSurf(frame, crestX(-45), -45, time, 0.3, depthAt, s);
+    sampleSurf(frame, crestX(-45), -45, time, level, depthAt, s);
     const left = s.broken;
-    sampleSurf(frame, crestX(45), 45, time, 0.3, depthAt, s);
+    sampleSurf(frame, crestX(45), 45, time, level, depthAt, s);
     expect(left).toBeGreaterThan(0.5);
     expect(s.broken).toBeLessThan(0.1);
   });
@@ -142,9 +145,29 @@ describe('surf break', () => {
     expect(Math.hypot(r.body.vx, r.body.vz)).toBeGreaterThan(v0 * 0.6);
   });
 
+  it('on small waves even a hard carve holds', () => {
+    level = 0.15;
+    const r = catchWave(3.7);
+    ride(r.body, 2.0, ctl());
+    const res = ride(r.body, 2, ctl({ steer: 1, hard: true }));
+    level = 0.45;
+    expect(r.caught).toBe(true);
+    expect(res.event).not.toBe('wipeout');
+  });
+
+  it('the face holds the board: riding straight on, the wave carries it to the beach', () => {
+    const r = catchWave(3.7);
+    const res = ride(r.body, 25, ctl());
+    console.info('hands off', res);
+    // Still riding (or just lying down in the close-out) right in by the beach.
+    expect(res.maxX).toBeGreaterThan(-16);
+    expect(res.event === 'none' || res.event === 'waveGone' || res.event === 'beach').toBe(true);
+  });
+
   it('a hard carve at speed wipes out', () => {
     const r = catchWave(3.7);
-    ride(r.body, 1.0, ctl());
+    // Turn further along the wave (toward +z, the open shoulder) for speed.
+    ride(r.body, 0.6, ctl({ steer: -1 }));
     ride(r.body, 1.0, ctl());
     const res = ride(r.body, 3, ctl({ steer: 1, hard: true }));
     console.info('carve', res);

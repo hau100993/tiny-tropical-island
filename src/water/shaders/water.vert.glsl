@@ -2,6 +2,7 @@
 // vertices bunch up at crests. Normals are computed analytically from the same sum.
 uniform float uTime;
 uniform float uWaveStrength;
+uniform float uSurfLevel;
 uniform vec4 uWaveA[NUM_WAVES]; // dir.x, dir.z, k, amplitude
 uniform vec4 uWaveB[NUM_WAVES]; // omega, Q, phase, unused
 
@@ -53,14 +54,14 @@ void main() {
   }
   wp.xyz += disp;
   // The surf break (see surf.ts): its height on top, its slopes into the normal.
-  vec4 sf = surfWave(p, uTime, depth, uWaveStrength);
+  vec4 sf = surfWave(p, uTime, depth, uSurfLevel);
   vSurf = sf.yzw;
   if (sf.x != 0.0) {
     const float e = 0.4;
     vec2 ex = vec2(e, 0.0);
     vec2 ez = vec2(0.0, e);
-    float hx = surfWave(p + ex, uTime, -terrainHeight(p + ex), uWaveStrength).x - surfWave(p - ex, uTime, -terrainHeight(p - ex), uWaveStrength).x;
-    float hz = surfWave(p + ez, uTime, -terrainHeight(p + ez), uWaveStrength).x - surfWave(p - ez, uTime, -terrainHeight(p - ez), uWaveStrength).x;
+    float hx = surfWave(p + ex, uTime, -terrainHeight(p + ex), uSurfLevel).x - surfWave(p - ex, uTime, -terrainHeight(p - ex), uSurfLevel).x;
+    float hz = surfWave(p + ez, uTime, -terrainHeight(p + ez), uSurfLevel).x - surfWave(p - ez, uTime, -terrainHeight(p - ez), uSurfLevel).x;
     nx += hx / (2.0 * e);
     nz += hz / (2.0 * e);
     wp.y += sf.x;

@@ -19,6 +19,7 @@ import { formatClock, windowSkyTurn } from '../world/celestial';
 import { WalkHint } from '../ui/WalkHint';
 import { ActivityMenu, type ActivityItem } from '../ui/ActivityMenu';
 import { BreathMeter } from '../ui/BreathMeter';
+import { WaveMeter } from '../ui/WaveMeter';
 import { Spray } from '../water/Spray';
 import { KayakActivity } from '../activities/KayakActivity';
 import { createKayakEnv } from '../activities/kayakEnv';
@@ -67,6 +68,8 @@ export class App {
   /** Air bubbles under water (exhaled while diving). */
   private readonly bubbles: Spray;
   private readonly breathMeter: BreathMeter;
+  /** Surfing: when the next wave comes. */
+  private readonly waveMeter: WaveMeter;
   /** Sea surface (with waves) at (x, z). */
   private readonly seaHeight: (x: number, z: number) => number;
   private bubbleTimer = 0;
@@ -187,6 +190,7 @@ export class App {
         onStroke: (side, strength) => {
           if (this.settings.get().footsteps) this.mixer.playPaddle('catch', 0.45 * strength, side * 0.5);
         },
+        onCrash: (x, z) => this.onSurfCrash(x, z),
       },
       () => this.reducedMotion.matches,
       { wake: w.water.wake, spray: w.spray },
@@ -299,6 +303,7 @@ export class App {
     this.walkHint = new WalkHint(ui);
     this.activityMenu = new ActivityMenu(ui);
     this.breathMeter = new BreathMeter(ui);
+    this.waveMeter = new WaveMeter(ui);
     this.fader = document.createElement('div');
     this.fader.className = 'fader';
     container.append(this.fader);
@@ -689,6 +694,33 @@ export class App {
 
   private surfArmed = true;
 
+  /** A wave breaks near you (walking on that beach, or surfing): its crash, by distance and side. */
+  private onSurfCrash(x: number, z: number): void {
+    const mode = this.cameras.mode;
+    if ((mode !== 'surf' && mode !== 'walk') || !this.settings.get().footsteps) return;
+    const cam = this.camera.position;
+    const dx = x - cam.x;
+    const dz = z - cam.z;
+    const d = Math.hypot(dx, dz);
+    const near = Math.max(0, 1 - d / 140);
+    // Bigger waves are louder.
+    const gain = near * near * (0.55 + 0.45 * sharedUniforms.uSurfLevel.value);
+    // The camera's right (first column of its world matrix), to pan the crash.
+    const m = this.camera.matrixWorld.elements;
+    const rl = Math.hypot(m[0], m[2]) || 1;
+    const pan = d > 1e-3 ? ((dx / d) * m[0] + (dz / d) * m[2]) / rl : 0;
+    this.mixer.playSurfCrash(gain, pan);
+  }
+
+  /** Every frame: the next-wave bar while lying in the break, the rush of water while riding. */
+  private updateSurfing(): void {
+    const surfing = this.cameras.mode === 'surf';
+    this.waveMeter.set(surfing ? this.surf.nextWave() : null);
+    const b = this.surf.body;
+    const riding = surfing && b.state === 'ride' && this.settings.get().footsteps;
+    this.mixer.setSurfRush(riding ? Math.hypot(b.vx, b.vz) : 0);
+  }
+
   /** The controls line while walking (or swimming, or diving). */
   private walkControls(): string {
     const w = this.walker;
@@ -1043,10 +1075,12 @@ export class App {
     // Wind roughens the sea on top of the wave slider; the surf sound follows the same value.
     const sea = Math.min(1, this.env.waveStrength.value + weather.seaBoost);
     sharedUniforms.uWaveStrength.value = sea;
+    sharedUniforms.uSurfLevel.value = this.env.waveStrength.value;
     this.mixer.setSeaState(sea);
 
     this.cameras.update(dt);
     this.updateListener(dt);
+    this.updateSurfing();
     this.updateAvatar(dt);
     this.world.update(dt, elapsed, this.camera, sea);
     this.deskScreens.update(dt, this.camera);

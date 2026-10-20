@@ -231,7 +231,7 @@ export const vi = {
   surf: {
     menu: 'Lướt ván (ra bãi sóng)',
     mount: 'Leo lên ván (bơi sát vào cũng tự lên)',
-    controlsProne: 'W: chèo · A / D: quay ván · S: phanh · Space: bắt sóng khi hiện "Sóng tới!" · L: rời ván · Chuột: nhìn · Esc: thoát',
+    controlsProne: 'W: chèo (Shift: chèo mạnh) · A / D: quay ván · S: phanh · Space: bắt sóng khi hiện "Sóng tới!" · L: rời ván · Chuột: nhìn · Esc: thoát',
     controlsRide: 'A / D: ôm cua dọc sóng (Shift: gắt hơn, dễ ngã) · W: lấy đà · S: hãm cho sóng đuổi kịp · Chuột: nhìn · Esc: thoát',
     cue: 'Sóng tới! Nhấn Space để bắt sóng',
     popUp: {
@@ -241,6 +241,8 @@ export const vi = {
       late: 'Sóng qua mất rồi, chờ con sau',
     },
     missed: 'Lỡ sóng, chờ con sau',
+    meter: (s: number): string => `Sóng tiếp theo: ${s} s`,
+    meterReady: 'Space!',
     wipeout: 'Ngã rồi!',
     waveGone: 'Sóng đã qua, nằm xuống chèo tiếp',
     beach: 'Vào tới bờ',

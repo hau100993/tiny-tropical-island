@@ -712,6 +712,19 @@ body.walking .panel {
   animation: breath-pulse 0.8s ease-in-out infinite alternate;
 }
 
+/* Surfing: the next-wave bar (same look as the breath bar), green while Space can catch it. */
+.wave-meter .breath-label {
+  min-width: 118px;
+}
+
+.wave-meter.ready .breath-fill {
+  background: #8fe3a0;
+}
+
+.wave-meter.ready .breath-label {
+  font-weight: 600;
+}
+
 @keyframes breath-pulse {
   to {
     opacity: 0.4;

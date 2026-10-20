@@ -341,16 +341,25 @@ next to it). While swimming, the card shows **Space – Lặn** (dive).
 
 A quarter of the way round the island from the house (to the right when you stand on the house's
 beach facing the sea) there is a surf break: real breaking waves every ~13 s rolling onto a long
-sandy beach, ~1.7 m high. Each wave rises as it comes in, then breaks from one end and the
+sandy beach. Each wave rises as it comes in, then breaks from one end and the
 break runs along it ("peels"); white water tumbles down the broken part and a band of foam
 follows it in; near the beach every wave closes out and washes up the sand. You can see it from
 the overview too.
 
-`L` anywhere on a beach fades and puts you lying on the board in the shallows of the break.
+`L` anywhere on a beach fades and puts you lying on the board at the lineup (where you wait
+for waves, out past the white water), nose to the beach.
+
+**Difficulty follows the "Sóng biển" slider** (the wind's extra chop doesn't count):
+
+| Slider | Waves | The break runs along at | Holding you on the wave | You fall when leaning past |
+|---|---|---|---|---|
+| low (~0.15) | ~1.0 m | 3.6 m/s | strong | ~70° (practically never) |
+| default (0.45) | ~1.5 m | 4.8 m/s | medium | ~49° |
+| storm (~0.95) | ~2.4 m | 6.8 m/s | light | ~42°; the falling lip knocks you off too |
 
 | Lying on the board | |
 |---|---|
-| `W` (hold) | Paddle |
+| `W` (hold) | Paddle (`Shift` + `W`: paddle hard) |
 | `A` / `D` | Turn the board |
 | `S` | Drag a hand (brake) |
 | `Space` | Catch the wave (when **Sóng tới!** shows): the board turns, paddles and stands up by itself |
@@ -363,15 +372,24 @@ the overview too.
 | `W` | Pump (a little speed down the face) |
 | `S` | Stall (lets the wave catch up) |
 
-How to catch a wave: wait out past the white water (you start there; if the waves push you in,
-paddle out with `W`). When a wave comes up behind you a note says **Sóng tới!**: press `Space`,
-whichever way the board points. It turns for the beach (angled toward the side that breaks
+How to catch a wave: wait at the lineup. While you lie still the view turns out to sea, so you
+see the waves coming, and a bar at the top counts down to the next one (**Sóng tiếp theo: 4 s**).
+When it turns green (**Space!**, and a note says **Sóng tới!**) press `Space`, whichever way
+the board points. It turns for the beach (angled toward the side that breaks
 last), waits for the wave, which picks it up, and you stand up. Then stay on the face, ahead
-of the white water, carving with `A`/`D`. The ride ends when the wave passes under you or
+of the white water, carving with `A`/`D`: the wave holds you on its face (see the table), so
+riding straight on takes you all the way in; angle along it for speed. The ride ends when the wave passes under you or
 closes out (you lie down again), or at the beach (you step off). Falling (holding a hard carve
 at speed, or under the breaking lip) is a splash and a second in the white water, then you are
-lying on the board again by yourself. Space at the wrong moment says why: no wave here, still
-far, or already gone by.
+lying on the board again by yourself. After a ride (or a fall, or a missed wave), leave the
+keys alone for a second and the board paddles itself back out to the lineup (diving under the
+white water) and turns for the beach; any key takes over. Space at the wrong moment says why:
+no wave here, still far, or already gone by.
+
+Sounds: each wave crashes as it starts to break, along the peel and where it closes out
+(louder close by and for big waves, from its side); riding, the water tears past the board and
+the wind rises with your speed. The camera shakes a little in a hard carve and when you fall
+(not with reduced motion).
 
 The waves are also real for the kayak and the swimmer at that beach.
 

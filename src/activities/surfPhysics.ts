@@ -1,5 +1,5 @@
 import { clamp, damp } from '../core/math';
-import { SURF, type SurfSample } from '../water/surf';
+import { SURF, surfDifficulty, type SurfSample } from '../water/surf';
 import type { KayakEnv, WaterSample } from './kayakPhysics';
 
 /**
@@ -37,7 +37,7 @@ export interface SurfControls {
   back: boolean;
   /** A / D: +1 left … −1 right. */
   steer: number;
-  /** Shift: a hard carve (turns more, leans more). */
+  /** Shift: a hard carve (turns more, leans more); lying: paddle hard (faster). */
   hard: boolean;
 }
 
@@ -47,6 +47,8 @@ export interface SurfEnv extends KayakEnv {
   /** Unit direction the waves travel (toward the beach). */
   readonly ux: number;
   readonly uz: number;
+  /** The "Sóng biển" slider (0..1): bigger waves, less help (see surfDifficulty). */
+  level(): number;
 }
 
 /** What happened this step (the activity turns it into a message, a splash, a mode change). */
@@ -63,11 +65,16 @@ const DRAG = {
   prone: { along: [0.5, 0.25], side: [2.0, 0.5] },
   ride: { along: [0.05, 0.015], side: [5.0, 1.5] },
 } as const;
-/** Arm paddling: push (m/s²) and the speed it can't go past. */
-const PADDLE = { accel: 1.9, top: 2.5 } as const;
-/** Lean (rad) the rail holds; seconds past it before the wipeout (a quick snap is fine). */
-const MAX_LEAN = 0.85;
+/** Arm paddling: push (m/s²) and the speed it can't go past (paddling hard, with Shift). */
+const PADDLE = { accel: 1.9, top: 2.5, sprint: 3.6 } as const;
+/** Seconds past the lean the rail holds (surfDifficulty) before the wipeout (a quick snap is fine). */
 const LEAN_GRACE = 0.25;
+/**
+ * Riding help (scaled by the level's `assist`): the board is drawn to the sweet spot of the face
+ * (just ahead of the crest, in wavelengths) and to the wave's speed toward the beach, so it
+ * takes real effort to fall off the wave; A/D still carve freely along it.
+ */
+const FACE = { spot: 0.05, pull: 12, match: 0.8, max: 4 } as const;
 /** v·ω (m/s²) of a normal and a hard carve. */
 const TURN = 6.5;
 const HARD_TURN = 15;
@@ -162,7 +169,7 @@ export class SurfBody {
   }
 
   /** The heading of the ride line: toward the beach, angled to the shoulder that breaks last. */
-  private rideYaw(): number {
+  rideYaw(): number {
     const c = Math.cos(CATCH.angle);
     const sn = Math.sin(CATCH.angle);
     // u toward the beach, +l = (−uz, ux) along it.
@@ -210,6 +217,9 @@ export class SurfBody {
     // The water's own motion: the wave's orbit, plus the rush of white water behind a broken crest.
     let push = s.push;
     if (s.d < 0) push += SURF.speed * 0.7 * s.broken;
+    // Paddling out (lying, nose to the open sea) you push the board under the oncoming waves (a
+    // duck dive): they hold you back much less.
+    if (this.state === 'prone') push *= 1 - 0.75 * clamp(-(fx * this.env.ux + fz * this.env.uz), 0, 1);
     const wx = this.env.ux * push;
     const wz = this.env.uz * push;
     const relX = this.vx - wx;
@@ -252,7 +262,8 @@ export class SurfBody {
       const v = this.speed;
       this.paddling += ((ctl.forward ? 1 : Math.abs(ctl.steer) * 0.5) - this.paddling) * damp(4, dt);
       if (ctl.forward) {
-        const a = PADDLE.accel * clamp(1 - v / PADDLE.top, 0, 1);
+        const top = ctl.hard ? PADDLE.sprint : PADDLE.top;
+        const a = PADDLE.accel * (ctl.hard ? 1.5 : 1) * clamp(1 - v / top, 0, 1);
         ax += fx * a;
         az += fz * a;
       }
@@ -268,6 +279,14 @@ export class SurfBody {
         const grab = 4 * Math.max(0, SURF.speed * 1.15 - toBeach);
         ax += this.env.ux * grab;
         az += this.env.uz * grab;
+      }
+      // Held on the face (more on small waves, see FACE).
+      const help = surfDifficulty(this.env.level()).assist;
+      if (s.size > 0.2 && s.d > -0.25 && s.d < 0.4) {
+        const toBeach = this.vx * this.env.ux + this.vz * this.env.uz;
+        const a = clamp(help * (FACE.pull * (FACE.spot - s.d) + FACE.match * (SURF.speed - toBeach)), -FACE.max, FACE.max);
+        ax += this.env.ux * a;
+        az += this.env.uz * a;
       }
       // Pump down the face (a little speed); stall (drag the tail) to let the wave catch up.
       if (ctl.forward) {
@@ -355,11 +374,12 @@ export class SurfBody {
     // Leaning into the carve; too far and the rail lets go.
     const target = Math.atan2(this.speed * this.w, G);
     this.lean += (target - this.lean) * damp(10, dt);
-    this.over = Math.abs(this.lean) > MAX_LEAN ? this.over + dt : 0;
+    const diff = surfDifficulty(this.env.level());
+    this.over = Math.abs(this.lean) > diff.maxLean ? this.over + dt : 0;
     if (this.over > LEAN_GRACE) return this.wipe();
-    // Under the falling lip of a breaking wave (not the close-out at the beach: that one just
+    // Under the falling lip of a big breaking wave (not the close-out at the beach: that one just
     // washes you in).
-    if (s.broken > 0.8 && s.d > -0.02 && s.d < 0.09 && s.x < SURF.closeOut - 6) return this.wipe();
+    if (diff.lipWipe && s.broken > 0.8 && s.d > -0.02 && s.d < 0.09 && s.x < SURF.closeOut - 6) return this.wipe();
     // The wave has passed (or died): the ride is over.
     const gone = s.size < 0.08 || s.d < -0.15 || s.broken > 0.85;
     this.lost = gone && Math.abs(this.speed) < 3 ? this.lost + dt : gone ? this.lost + dt * 0.3 : 0;

@@ -27,19 +27,43 @@ export const SURF = {
   closeOut: -9,
   /** Half width of the break along the beach (m). */
   halfWidth: 55,
-  /** The peel: where along the crest the breaking starts, and how fast it runs (m/s). */
+  /** The peel: where along the crest the breaking starts. Its speed comes from the level. */
   peelStart: -48,
-  peelSpeed: 5,
 } as const;
 
 /** Mean of the crest shape over a wavelength (subtracted so the mean water level stays put). */
 const MEAN = ((SURF.face + SURF.back) * Math.sqrt(Math.PI)) / 2;
 
-/** Crest height (m, trough to crest ≈ this) for the sea slider: a rideable wave even when calm. */
-const AMP = { base: 1.6, perStrength: 0.5 } as const;
+/**
+ * The break follows the "Sóng biển" slider (the level, 0..1; the wind's extra chop is left out so
+ * gusts don't change it): crest height ~1.0 m at 0.15, ~1.5 m at the default 0.45, ~2.4 m at
+ * 0.95, and the peel runs faster (3.6 → 4.8 → 6.8 m/s), harder to stay ahead of.
+ */
+const AMP = { base: 0.75, perLevel: 1.75 } as const;
+const PEEL = { base: 3, perLevel: 4 } as const;
 
-export function surfAmplitude(strength: number): number {
-  return AMP.base + AMP.perStrength * strength;
+export function surfAmplitude(level: number): number {
+  return AMP.base + AMP.perLevel * level;
+}
+
+export function surfPeelSpeed(level: number): number {
+  return PEEL.base + PEEL.perLevel * level;
+}
+
+/**
+ * How forgiving the board is at a level: how hard it is held on the wave's face (0..1+), the
+ * lean (rad) the rail holds (~70° calm, ~49° default, ~42° stormy), and whether the falling lip
+ * knocks you off (big waves only).
+ */
+export function surfDifficulty(level: number): { assist: number; maxLean: number; lipWipe: boolean } {
+  const l = Math.min(1, Math.max(0, level));
+  const maxLean = l <= 0.45 ? 1.22 + (0.85 - 1.22) * (l / 0.45) : 0.85 + (0.73 - 0.85) * ((l - 0.45) / 0.5);
+  return { assist: Math.min(1.2, Math.max(0.15, 1.3 - 1.6 * l)), maxLean, lipWipe: l > 0.7 };
+}
+
+/** Surf-frame x of crest n at time t (crests sit where (x − c·t)/L is a half-integer). */
+export function crestX(n: number, t: number): number {
+  return SURF.speed * t + (n + 0.5) * SURF.length;
 }
 
 /** Where the break is: its waterline origin and the unit direction toward the beach. */
@@ -69,7 +93,7 @@ export interface SurfSample {
 }
 
 /** Height and foam terms at surf-frame (x, l), time t; `depth` = water depth there. */
-function wave(x: number, l: number, t: number, amp: number, depth: number, out: SurfSample): number {
+function wave(x: number, l: number, t: number, amp: number, peelV: number, depth: number, out: SurfSample): number {
   const S = SURF;
   out.x = x;
   out.l = l;
@@ -86,7 +110,7 @@ function wave(x: number, l: number, t: number, amp: number, depth: number, out: 
   // This crest's position and the time since it crossed the break line.
   const xc = x - d * S.length;
   const tau = (xc - S.breakAt) / S.speed;
-  const peel = S.peelStart + S.peelSpeed * tau;
+  const peel = S.peelStart + peelV * tau;
   let broken = tau > 0 ? smoothstep(peel + 4, peel - 4, l) : 0;
   broken = Math.max(broken, smoothstep(S.closeOut - 6, S.closeOut, xc));
   const size =
@@ -114,15 +138,16 @@ export function sampleSurf(
   px: number,
   pz: number,
   t: number,
-  strength: number,
+  level: number,
   depthAt: (x: number, z: number) => number,
   out: SurfSample,
 ): SurfSample {
-  const amp = surfAmplitude(strength);
+  const amp = surfAmplitude(level);
+  const peelV = surfPeelSpeed(level);
   const at = (wx: number, wz: number, o: SurfSample): number => {
     const rx = wx - frame.ox;
     const rz = wz - frame.oz;
-    return wave(rx * frame.ux + rz * frame.uz, -rx * frame.uz + rz * frame.ux, t, amp, depthAt(wx, wz), o);
+    return wave(rx * frame.ux + rz * frame.uz, -rx * frame.uz + rz * frame.ux, t, amp, peelV, depthAt(wx, wz), o);
   };
   out.height = at(px, pz, out);
   if (out.size <= 0) {
@@ -146,14 +171,14 @@ export function createSurfSample(): SurfSample {
 const f = (v: number): string => v.toFixed(4);
 
 /**
- * GLSL of the same wave: `vec4 surfWave(vec2 p, float t, float depth, float strength)` → (height, foam
+ * GLSL of the same wave: `vec4 surfWave(vec2 p, float t, float depth, float level)` → (height, foam
  * coverage, lit face, broken). Constants are baked in from SURF.
  */
 export const surfGlsl = /* glsl */ `
 uniform vec4 uSurfFrame; // origin.xz, direction to the beach
 
-// strength: the sea slider (uWaveStrength).
-vec4 surfWave(vec2 p, float t, float depth, float strength) {
+// level: the "Sóng biển" slider (uSurfLevel).
+vec4 surfWave(vec2 p, float t, float depth, float level) {
   vec2 r = p - uSurfFrame.xy;
   vec2 u = uSurfFrame.zw;
   float x = dot(r, u);
@@ -164,7 +189,7 @@ vec4 surfWave(vec2 p, float t, float depth, float strength) {
   float shape = d > 0.0 ? exp(-pow(d / ${f(SURF.face)}, 2.0)) : exp(-pow(d / ${f(SURF.back)}, 2.0));
   float xc = x - d * ${f(SURF.length)};
   float tau = (xc - ${f(SURF.breakAt)}) / ${f(SURF.speed)};
-  float peel = ${f(SURF.peelStart)} + ${f(SURF.peelSpeed)} * tau;
+  float peel = ${f(SURF.peelStart)} + (${f(PEEL.base)} + ${f(PEEL.perLevel)} * level) * tau;
   // (GLSL leaves smoothstep with edge0 > edge1 undefined: always flip with 1 − smoothstep.)
   float broken = tau > 0.0 ? 1.0 - smoothstep(peel - 4.0, peel + 4.0, l) : 0.0;
   broken = max(broken, smoothstep(${f(SURF.closeOut - 6)}, ${f(SURF.closeOut)}, xc));
@@ -172,7 +197,7 @@ vec4 surfWave(vec2 p, float t, float depth, float strength) {
     * (1.0 - smoothstep(-14.0, -2.0, x))
     * (1.0 - smoothstep(${f(SURF.halfWidth - 15)}, ${f(SURF.halfWidth + 5)}, abs(l)))
     * smoothstep(-0.1, 0.8, depth);
-  float h = (${f(AMP.base)} + ${f(AMP.perStrength)} * strength) * size * (shape * (1.0 - 0.45 * broken) - ${f(MEAN)});
+  float h = (${f(AMP.base)} + ${f(AMP.perLevel)} * level) * size * (shape * (1.0 - 0.45 * broken) - ${f(MEAN)});
   // White water: tumbling down the face of the broken part, and the soup trailing behind it
   // (thinning out a few meters back). A thin feather of spray along the lip just ahead of the peel.
   float lip = smoothstep(-0.05, 0.0, d) * (1.0 - smoothstep(0.07, 0.16, d));
