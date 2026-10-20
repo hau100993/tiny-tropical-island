@@ -213,23 +213,32 @@ void main() {
   vec2 spp = vec2(dot(dir, sR), dot(dir, sU)) / sunR;
   spp.y /= mix(0.82, 1.0, smoothstep(0.0, 0.08, se));
   float sr = length(spp);
-  // The disc is drawn after tone mapping, in display colours (see the end of main): through
-  // ACES a bright golden disc bleaches to cream and a dim one turns olive. Golden-orange with a
-  // paler hot core when low (dawn more yellow, dusk more orange), near-white high up.
+  // The disc and its glare are drawn after tone mapping, in display colours (see the end of
+  // main): through ACES a bright disc bleaches to cream and a dim one turns olive. One colour
+  // across the disc, set by the sun's height (deep orange-red on the sea, golden a little
+  // higher, near white high up; mornings a touch more yellow), only slightly darker and redder
+  // toward the rim (limb darkening), with a soft edge that melts into the glare around it.
   vec3 sunDisplay = vec3(0.0);
-  if (sr < 1.2 && dot(dir, uSunDir) > 0.0) {
-    float disc = (1.0 - smoothstep(0.9, 1.0, sr)) * smoothstep(-0.0015, 0.0015, dir.y);
-    float core = pow(max(1.0 - sr * sr, 0.0), 1.5);
-    float high = smoothstep(0.05, 0.35, se);
-    vec3 lowEdge = mix(vec3(1.0, 0.42, 0.07), vec3(1.0, 0.6, 0.1), uDawn);
-    vec3 lowCore = mix(vec3(1.0, 0.8, 0.38), vec3(1.0, 0.9, 0.52), uDawn);
-    sunDisplay = mix(mix(lowEdge, lowCore, core), vec3(1.0, 0.98, 0.92), high);
+  float sunGlare = 0.0;
+  if (dot(dir, uSunDir) > 0.95) {
+    vec3 base = mix(vec3(1.0, 0.5, 0.13), vec3(1.0, 0.7, 0.26), smoothstep(0.0, 0.08, se));
+    base = mix(base, vec3(1.0, 0.8, 0.45), smoothstep(0.08, 0.2, se));
+    base = mix(base, vec3(1.0, 0.97, 0.9), smoothstep(0.2, 0.4, se));
+    base = mix(base, base * vec3(1.0, 1.12, 1.3), 0.35 * uDawn * (1.0 - smoothstep(0.2, 0.4, se)));
+    base = min(base, vec3(1.0));
+    float mu = sqrt(max(1.0 - sr * sr, 0.0));
+    sunDisplay = base * vec3(1.0, mix(0.86, 1.0, mu), mix(0.75, 1.0, mu)) * mix(0.86, 1.0, mu);
     // Green flash: as the last sliver of the sun slips under the sea (or the first one
     // appears), the very top of the disc can flash green for a moment, with a clear horizon.
     float sliver = abs(se + sunR - 0.002);
     float flash = (1.0 - smoothstep(0.0, 0.004, sliver)) * smoothstep(0.4, 0.9, spp.y) * (1.0 - uCloudCover);
     sunDisplay = mix(sunDisplay, vec3(0.25, 1.0, 0.35), flash);
-    sunA = disc * step(-0.06, se);
+    float above = smoothstep(-0.0015, 0.0015, dir.y) * step(-0.06, se);
+    sunA = (1.0 - smoothstep(0.8, 1.0, sr)) * above;
+    // Glare: a bright rim fading quickly, then a wide soft glow (radii in sun radii).
+    float out1 = max(sr - 0.9, 0.0);
+    sunGlare = (exp(-out1 * 2.2) * 0.75 + exp(-out1 * 0.3) * 0.22) * (1.0 - sunA) * above;
+    sunDisplay = mix(sunDisplay, base, 1.0 - sunA); // the glare takes the disc's base colour
   }
 
   col += meteors(dir) * uStars;
@@ -246,7 +255,8 @@ void main() {
     // comes from the low sun lighting them (glow, below), not a white daytime base.
     float lowGlow = (1.0 - smoothstep(0.12, 0.3, uSunDir.y)) * smoothstep(-0.18, -0.06, uSunDir.y);
     // (Sunrise: warm amber bodies instead, as the whole dawn sky is orange.)
-    vec3 shadedBase = mix(vec3(0.24, 0.22, 0.32), vec3(0.62, 0.36, 0.18), uDawn);
+    float sunward = pow(max(dot(normalize(dir.xz + 1e-4), normalize(uSunDir.xz + 1e-4)), 0.0), 1.5);
+    vec3 shadedBase = mix(vec3(0.24, 0.22, 0.32), vec3(0.62, 0.36, 0.18), uDawn * sunward);
     lit = mix(lit, shadedBase * (0.35 + 0.65 * uDayLight), lowGlow * 0.8);
     vec3 shade = lit * mix(1.0, 0.55, selfShadow);
     // Silver lining where the sun shines through thin edges; moonlit rims at night.
@@ -270,7 +280,9 @@ void main() {
     float glowOn = (1.0 - smoothstep(0.12, 0.3, uSunDir.y)) * smoothstep(-0.18, -0.06, uSunDir.y);
     vec2 hdc = normalize(dir.xz + 1e-4);
     vec2 shc = normalize(uSunDir.xz + 1e-4);
-    float side = 0.25 + 0.75 * pow(max(dot(hdc, shc), 0.0), 2.0);
+    // The low sun lights the clouds on its side; away from it they stay grey-lilac with at
+    // most a faint blush.
+    float side = 0.04 + 0.96 * pow(max(dot(hdc, shc), 0.0), 1.5);
     // Thick cores stay darker (the light only reaches their undersides and edges).
     shade += glowCol * glowOn * side * mix(1.0, 0.45, selfShadow) * (1.0 - 0.6 * uCloudCover) * 0.9;
     shade += vec3(0.2, 0.24, 0.38) * pow(max(dot(dir, uMoonDir), 0.0), 4.0) * uNight * 0.35;
@@ -285,15 +297,11 @@ void main() {
     cloudHere = dens;
   }
 
-  // A low sun glows: a tight golden halo around the disc, dimmed by cloud in front.
   float toSun = dot(dir, uSunDir);
-  float sunsetGlow = (1.0 - smoothstep(0.15, 0.4, se)) * smoothstep(-0.03, 0.0, se);
-  if (toSun > 0.9) {
-    vec3 glowGold = mix(vec3(1.0, 0.5, 0.14), vec3(1.0, 0.68, 0.3), uDawn);
-    col += glowGold * (pow(toSun, 1500.0) * 1.1 + pow(toSun, 120.0) * 0.28) * sunsetGlow * (1.0 - 0.7 * cloudHere);
-  }
-  // Thin cloud doesn't hide the sun, thick cloud does.
-  float sunVis = sunA * (1.0 - smoothstep(0.35, 0.85, cloudHere));
+  // Thin cloud doesn't hide the sun, thick cloud does (and dims its glare).
+  float clear = 1.0 - smoothstep(0.35, 0.85, cloudHere);
+  float sunVis = sunA * clear;
+  sunGlare *= mix(0.25, 1.0, clear) * mix(1.0, 0.6, smoothstep(0.2, 0.4, se));
 
   // Sunbeams (crepuscular rays), drawn over the clouds (the shafts are in the air between
   // you and them), with a low sun and clouds about: looking from a point of the
@@ -314,6 +322,8 @@ void main() {
 
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
+  // Disc over the sky; glare added like light (screen blend), so the disc melts into it.
+  gl_FragColor.rgb = 1.0 - (1.0 - gl_FragColor.rgb) * (1.0 - sunDisplay * sunGlare);
   gl_FragColor.rgb = mix(gl_FragColor.rgb, sunDisplay, sunVis);
   #include <colorspace_fragment>
 }

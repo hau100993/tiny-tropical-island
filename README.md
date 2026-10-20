@@ -330,9 +330,13 @@ the monitors; the sky swings there smoothly when you pick the scene. Any other s
 of day turns it back to the real direction (scenes without a time keep the current one). In the
 scene editor, **Mặt trời / trăng hiện ở cửa sổ bàn làm việc** does the same for any time.
 
-**Sunrise and sunset.** Low over the sea the sun is a crisp golden disc with a paler hot core
-and a warm glow (drawn after tone mapping, so it never bleaches to cream), squashed a little by
-refraction and cut by the horizon; high up it is near white. *Sunrise*: warm amber and peach
+**Sunrise and sunset.** Low over the sea the sun is one even colour (deep orange on the sea,
+golden a little higher, near white high up), only slightly darker and redder at the rim, with a
+soft edge that melts into a wide glare (drawn after tone mapping, so it never bleaches to
+cream); refraction squashes it a little and the horizon cuts it. The warm colours belong to the
+sun's side of the sky: they fan out over the horizon below the sun and fade sideways and
+upward, while the opposite sky stays a cool blue-lilac (with Earth's shadow and a faint pink
+band just after sunset). *Sunrise*: warm amber and peach
 tones, a soft pink horizon, a clear sky with a few glowing (golden-peach) clouds and a golden
 road of sparkles on calm water. *Sunset*: a warm amber-orange sky, a golden sun on the horizon,
 coral-pink clouds, and a sea that stays a clear blue away from the sun while carrying the

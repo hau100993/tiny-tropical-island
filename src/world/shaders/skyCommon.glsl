@@ -23,8 +23,9 @@ vec3 skyColor(vec3 dir) {
   // Glow around the sun (only while it is near or above the horizon).
   float sunUp = smoothstep(-0.12, 0.05, uSunDir.y);
   float sd = max(dot(dir, uSunDir), 0.0);
-  // A sunrise sun through clean morning air has little halo (a crisp disc).
-  float sunHalo = 1.0 - 0.5 * uDawn * (1.0 - smoothstep(0.0, 0.25, abs(uSunDir.y)));
+  // A low sun has little halo of its own in the sky (its glare is drawn with the disc, after
+  // tone mapping); stacked glows made the sky around it brighter than the sun.
+  float sunHalo = 1.0 - 0.65 * (1.0 - smoothstep(0.0, 0.25, abs(uSunDir.y)));
   col += uSunColor * (0.18 * pow(sd, 6.0) + 0.35 * pow(sd, 48.0)) * sunUp * sunHalo;
 
   // Twilight: a warm band along the horizon on the sun's side at dawn and dusk.
@@ -32,9 +33,14 @@ vec3 skyColor(vec3 dir) {
   vec2 sh = normalize(uSunDir.xz + 1e-4);
   float twilight = 1.0 - smoothstep(0.0, 0.25, abs(uSunDir.y));
   float toward = dot(hd, sh);
-  col += uSunColor * 0.35 * twilight * pow(max(toward, 0.0), 3.0) * exp(-h * 6.0);
-  // A wider, softer warm glow fanning out over the sun's half of the sky at dusk and dawn.
-  col += uSunColor * 0.14 * twilight * pow(max(toward, 0.0), 1.5) * exp(-h * 4.5);
+  col += uSunColor * 0.18 * twilight * pow(max(toward, 0.0), 3.0) * exp(-h * 6.0);
+  // The sunset/sunrise colours fan out from the sun: strongest over the horizon right below
+  // it, fading sideways (gone ~90° away) and upward. Amber-orange in the evening, amber-peach
+  // in the morning. The rest of the sky keeps its cool twilight blue and lilac.
+  float sunSideUp = smoothstep(-0.08, 0.0, uSunDir.y);
+  float fanAz = pow(max(toward, 0.0), 1.8);
+  vec3 warm = mix(uSunColor, vec3(1.0, 0.6, 0.42), 0.35 * uDawn) * 0.95 + vec3(0.06, 0.04, 0.02);
+  col = mix(col, warm * 0.8, twilight * mix(0.5, 1.0, sunSideUp) * fanAz * exp(-h * 2.2) * 0.85);
 
   // Opposite the sun, around and just after sunset (and before sunrise): Earth's shadow, a
   // dark blue band rising from the horizon as the sun sinks, topped by the pink "Belt of
@@ -45,21 +51,22 @@ vec3 skyColor(vec3 dir) {
   float inShadow = 1.0 - smoothstep(shadowTop - 0.012, shadowTop + 0.012, h);
   col = mix(col, col * vec3(0.55, 0.6, 0.85), anti * venus * inShadow * 0.65);
   float belt = exp(-pow((h - shadowTop - 0.045) / 0.045, 2.0));
-  col += vec3(0.95, 0.5, 0.58) * 0.32 * belt * anti * venus;
+  col += vec3(0.95, 0.5, 0.58) * 0.18 * belt * anti * venus;
 
   // Haze over the horizon: bright and warm toward the sun, cool and grey-blue away from it,
   // by day as well (sunlight scattered by water vapour and salt over the sea).
   float haze = exp(-h * 9.0) * uDayLight;
-  col += uSunColor * 0.12 * pow(max(toward, 0.0), 4.0) * haze;
+  col += uSunColor * 0.12 * pow(max(toward, 0.0), 4.0) * haze * (1.0 - 0.6 * twilight);
   col = mix(col, vec3(0.62, 0.68, 0.76) * uDayLight, 0.12 * max(-toward, 0.0) * haze);
   // The ACES tone mapper turns bright twilight colours pastel; push their saturation back up
   // around sunrise and sunset, only while the sun is up or just touching the sea (in the blue
   // hour it would turn magenta).
-  float sat = 1.0 + twilight * 0.55 * smoothstep(-0.05, 0.01, uSunDir.y);
+  // Toward the sun only: the far side stays soft.
+  float sat = 1.0 + twilight * 0.55 * smoothstep(-0.05, 0.01, uSunDir.y) * (0.15 + 0.85 * pow(max(toward, 0.0), 1.5));
   col = max(mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, sat), 0.0);
 
   // Sunrise: a soft pink-peach haze lies low over the sea.
-  col = mix(col, vec3(0.95, 0.68, 0.6) * (0.25 + 0.75 * uDayLight), 0.2 * uDawn * twilight * exp(-h * 14.0));
+  col = mix(col, vec3(0.95, 0.68, 0.6) * (0.25 + 0.75 * uDayLight), 0.2 * uDawn * twilight * exp(-h * 14.0) * (0.3 + 0.7 * max(toward, 0.0)));
 
   // Moon halo at night; a bright full moon (uMoonGlow) adds a wide soft glow, which the
   // sea's sky reflection turns into a silver path toward the moon.

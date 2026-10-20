@@ -74,7 +74,9 @@ const key = (e: number, top: string, horizon: string, sun: string, sunIntensity:
 
 /**
  * Night → blue hour → sunset/sunrise → golden hour → day, keyed by sun elevation (sin of its
- * altitude; 0.1 ≈ 6°). Blue hour: the sun 4–10° below, deep blue sky with a lilac-pink horizon.
+ * altitude; 0.1 ≈ 6°). These colours apply in every direction, so around sunset the horizon
+ * key is a neutral lilac-grey: the orange and gold are added toward the sun only, in
+ * skyColor() (skyCommon.glsl). Blue hour: the sun 4–10° below, deep blue sky with a lilac-pink horizon.
  * Golden hour: the sun low, warm light and long shadows; the sky light (hemi) stays bluish, so
  * shadows turn cool against the warm sunlit side.
  */
@@ -82,37 +84,29 @@ const KEYS: Key[] = [
   key(-0.3, '#040917', '#0b1730', '#7d8fd0', 0, '#1d2c50', '#0a0d12', 0.35),
   key(-0.16, '#0b1640', '#2b2f5e', '#ff7a6a', 0, '#2a3360', '#101118', 0.4),
   key(-0.07, '#1c2e6a', '#6f5a8c', '#ff6a4a', 0, '#4a5288', '#1a1820', 0.5),
-  key(0.0, '#2c4686', '#ff8650', '#ff6a30', 0.6, '#8a7a9a', '#4a3428', 0.62),
-  key(0.04, '#36599e', '#ffa060', '#ff8a40', 1.1, '#9da6c8', '#6a5038', 0.72),
-  key(0.12, '#4479bf', '#ffcf96', '#ffc27a', 1.9, '#a9b8dc', '#8a7a60', 0.88),
+  key(0.0, '#2c4686', '#9a8aa8', '#ff6a30', 0.6, '#8a7a9a', '#4a3428', 0.62),
+  key(0.04, '#36599e', '#b4a8b8', '#ff8a40', 1.1, '#9da6c8', '#6a5038', 0.72),
+  key(0.12, '#4479bf', '#d8d2cc', '#ffc27a', 1.9, '#a9b8dc', '#8a7a60', 0.88),
   key(0.3, '#2f7fd6', '#bfe2f5', '#fff0d4', 2.6, '#cfe8ff', '#c9b68a', 1.1),
 ];
 
 const DAWN_SUN = new THREE.Color('#ffc070');
-const DAWN_TOP = new THREE.Color('#e3995e');
-const DAWN_HORIZON = new THREE.Color('#f5a89a');
 const DAWN_HEMI = new THREE.Color('#e8b090');
 const DUSK_SUN = new THREE.Color('#ffa040');
-const DUSK_TOP = new THREE.Color('#c86c3c');
-const DUSK_HORIZON = new THREE.Color('#ff8a3a');
 
 /**
- * Sunrise and sunset, after the user's briefs. Sunrise: warm amber and peach, a soft pink
- * horizon, golden light. Sunset: a warm amber-orange sky, a golden sun on the horizon (coral
- * clouds are in the sky shader). Shifts the palette while the sun is near the horizon (the sky
- * colours only once it is nearly up); `morning` is 1 before noon, 0 after.
+ * Sunrise and sunset light: golden-peach in the morning, amber-orange in the evening. Only the
+ * sunlight and the light on the island change here; the sky's colours depend on the direction
+ * you look (warm toward the sun, cool away from it) and are made in the sky shader.
+ * `morning` is 1 before noon, 0 after.
  */
 export function dawnDuskShift(p: SkyPalette, elevation: number, morning: number): SkyPalette {
   const tw = 1 - smoothstep(0.0, 0.25, Math.abs(elevation));
   const up = smoothstep(-0.06, 0.02, elevation);
   const evening = 1 - morning;
   p.sun.lerp(DAWN_SUN, 0.6 * tw * morning);
-  p.top.lerp(DAWN_TOP, 0.8 * tw * up * morning);
-  p.horizon.lerp(DAWN_HORIZON, 0.8 * tw * up * morning);
-  p.hemiSky.lerp(DAWN_HEMI, 0.5 * tw * up * morning);
+  p.hemiSky.lerp(DAWN_HEMI, 0.35 * tw * up * morning);
   p.sun.lerp(DUSK_SUN, 0.5 * tw * evening);
-  p.top.lerp(DUSK_TOP, 0.55 * tw * up * evening);
-  p.horizon.lerp(DUSK_HORIZON, 0.6 * tw * evening);
   return p;
 }
 
