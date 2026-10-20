@@ -23,7 +23,12 @@ import type { KayakEnv, WaterSample } from './kayakPhysics';
 /** 7'0" funboard (m): length, half width, the deck's height above the waterline when floating. */
 export const BOARD = { length: 2.13, halfWidth: 0.27, deckY: 0.045 } as const;
 
-export type SurfState = 'idle' | 'prone' | 'ride';
+/**
+ * idle: nobody on it. prone: lying, paddling. catch: Space was pressed as a wave came, the board
+ * turns, paddles and gets picked up by itself. ride: standing. wiped: fell off (a moment in the
+ * white water, then lying on the board again).
+ */
+export type SurfState = 'idle' | 'prone' | 'catch' | 'ride' | 'wiped';
 
 export interface SurfControls {
   /** W: paddle (lying) / pump down the face (standing). */
@@ -45,10 +50,10 @@ export interface SurfEnv extends KayakEnv {
 }
 
 /** What happened this step (the activity turns it into a message, a splash, a mode change). */
-export type SurfEvent = 'none' | 'wipeout' | 'waveGone' | 'beach';
+export type SurfEvent = 'none' | 'wipeout' | 'remount' | 'stand' | 'missed' | 'waveGone' | 'beach';
 
-/** Why a pop-up did or didn't work. */
-export type PopUp = 'ok' | 'noWave' | 'slow' | 'early' | 'late' | 'caught';
+/** What Space did: started catching the wave, or why not (no wave here, still far, gone by). */
+export type PopUp = 'catching' | 'noWave' | 'early' | 'late';
 
 const G = 9.81;
 /** Gravity along the slope: lying (half under water), standing (planing). */
@@ -70,6 +75,15 @@ const HARD_TURN = 15;
 const CARVE_GRIP = 0.9;
 /** Water this shallow (m): the board touches the sand. */
 const BEACH_DEPTH = 0.4;
+/**
+ * Catching (Space): the window, in wavelengths from the crest (the face arrives from d = 0.5 down
+ * to 0): a crest up to ~13 m behind, or just past. The board heads this far (rad) off straight in,
+ * toward the shoulder that breaks last (+l), waits, is grabbed by the face from `grab` on and
+ * stands up at `stand`.
+ */
+const CATCH = { from: 0.32, to: -0.06, angle: 0.6, grab: 0.14, stand: 0.08, timeout: 8, assist: 1.2 } as const;
+/** Seconds in the white water after a wipeout before lying on the board again. */
+const WIPE_TIME = 1.2;
 
 export class SurfBody {
   x = 0;
@@ -92,6 +106,9 @@ export class SurfBody {
   paddling = 0;
   /** Standing on a wave that's gone (seconds): the ride ends. */
   private lost = 0;
+  /** Seconds in the current catch / wipeout, and since the wave grabbed the board. */
+  private timer = 0;
+  private grabbed = 0;
   readonly water: WaterSample = { height: 0, dhdx: 0, dhdz: 0 };
   readonly wave: SurfSample = { height: 0, dhdx: 0, dhdz: 0, push: 0, broken: 0, d: 0, size: 0, x: 0, l: 0 };
   private readonly tmp = { x: 0, z: 0 };
@@ -126,26 +143,33 @@ export class SurfBody {
   }
 
   /**
-   * Space while lying: stand up. Works on the face of a wave (just ahead of the crest) when the
-   * board already moves toward the beach about as fast as the wave lifts it.
+   * Space while lying, as a wave comes: catch it. The board then turns for the beach, paddles
+   * and is picked up by the face, and the rider stands up by himself (see `catching`).
    */
   popUp(): PopUp {
+    if (this.state === 'catch') return 'catching';
     if (this.state !== 'prone') return 'noWave';
     const s = this.wave;
-    if (s.size < 0.25) return 'noWave';
-    if (s.broken > 0.6 && s.d > -0.05 && s.d < 0.1) {
-      this.state = 'idle';
-      return 'caught';
-    }
+    if (s.size < 0.25 || s.x > SURF.closeOut) return 'noWave';
     // The crest comes from behind: first its face reaches the board (d falls from 0.5 to 0),
     // then the crest passes under it (d < 0).
-    if (s.d > 0.22) return 'early';
-    if (s.d < -0.03) return 'late';
-    const toBeach = this.vx * this.env.ux + this.vz * this.env.uz;
-    if (toBeach < 0.75 * SURF.speed) return 'slow';
-    this.state = 'ride';
-    this.lost = 0;
-    return 'ok';
+    if (s.d > CATCH.from) return 'early';
+    if (s.d < CATCH.to) return 'late';
+    this.state = 'catch';
+    this.timer = 0;
+    this.grabbed = 0;
+    return 'catching';
+  }
+
+  /** The heading of the ride line: toward the beach, angled to the shoulder that breaks last. */
+  private rideYaw(): number {
+    const c = Math.cos(CATCH.angle);
+    const sn = Math.sin(CATCH.angle);
+    // u toward the beach, +l = (−uz, ux) along it.
+    const dx = this.env.ux * c - this.env.uz * sn;
+    const dz = this.env.uz * c + this.env.ux * sn;
+    // Forward is (−sin yaw, −cos yaw).
+    return Math.atan2(-dx, -dz);
   }
 
   /**
@@ -154,6 +178,17 @@ export class SurfBody {
    */
   step(dt: number, ctl: SurfControls | null): SurfEvent {
     let ev: SurfEvent = 'none';
+    if (this.state === 'wiped') {
+      // Tumbling in the white water (the board drifts), then back on it, lying.
+      this.timer += dt;
+      ctl = null;
+      if (this.timer > WIPE_TIME) {
+        this.state = 'prone';
+        this.vx *= 0.3;
+        this.vz *= 0.3;
+        ev = 'remount';
+      }
+    }
     const n = Math.max(1, Math.ceil(dt / (1 / 120)));
     const h = dt / n;
     for (let i = 0; i < n && ev === 'none'; i++) ev = this.substep(h, ctl);
@@ -190,7 +225,29 @@ export class SurfBody {
     let az = -slide * this.water.dhdz;
 
     let steer = 0;
-    if (ctl && this.state === 'prone') {
+    if (ctl && this.state === 'catch') {
+      // Turning for the ride line and paddling hard; as the face comes under the board, the wave
+      // grabs it (pulled up to the wave's speed toward the beach).
+      this.timer += dt;
+      const turn = Math.atan2(Math.sin(this.rideYaw() - this.yaw), Math.cos(this.rideYaw() - this.yaw));
+      steer = clamp(turn * 4, -2.5, 2.5);
+      // Wait for it (the board turned, a few easy strokes), then paddle hard as it gets close:
+      // paddling early would just run away from the wave.
+      const close = s.d < CATCH.grab ? 1 : 0.15;
+      this.paddling += (close - this.paddling) * damp(6, dt);
+      this.stroke += dt * (0.4 + 1.1 * this.paddling);
+      const v = this.speed;
+      const a = PADDLE.accel * 1.4 * close * clamp(1 - v / PADDLE.top, 0, 1);
+      ax += fx * a;
+      az += fz * a;
+      if (s.d < CATCH.grab && s.d > CATCH.to) {
+        const toBeach = this.vx * this.env.ux + this.vz * this.env.uz;
+        const grab = 6 * Math.max(0, SURF.speed * 1.1 - toBeach) * s.size;
+        this.grabbed += dt;
+        ax += this.env.ux * grab;
+        az += this.env.uz * grab;
+      }
+    } else if (ctl && this.state === 'prone') {
       // Arm paddling, alternating strokes; a hand in the water brakes.
       const v = this.speed;
       this.paddling += ((ctl.forward ? 1 : Math.abs(ctl.steer) * 0.5) - this.paddling) * damp(4, dt);
@@ -203,6 +260,15 @@ export class SurfBody {
       this.stroke += dt * (0.4 + 1.1 * this.paddling);
       steer = ctl.steer * 1.4;
     } else if (ctl && ride) {
+      // Just stood up: the wave carries the board on for a moment (the drop in), whatever the
+      // rider does, so the ride always starts.
+      this.timer += dt;
+      if (this.timer < CATCH.assist && s.size > 0.2) {
+        const toBeach = this.vx * this.env.ux + this.vz * this.env.uz;
+        const grab = 4 * Math.max(0, SURF.speed * 1.15 - toBeach);
+        ax += this.env.ux * grab;
+        az += this.env.uz * grab;
+      }
       // Pump down the face (a little speed); stall (drag the tail) to let the wave catch up.
       if (ctl.forward) {
         ax += fx * 0.9;
@@ -262,6 +328,24 @@ export class SurfBody {
     this.z = this.tmp.z;
 
     if (!ctl) return 'none';
+    if (this.state === 'catch') {
+      // Up once the wave has carried the board for a moment (or it is right at the crest).
+      if ((this.grabbed > 0.6 || s.d < CATCH.stand) && s.d > CATCH.to && s.size > 0.2) {
+        // Up! Moving with the wave at least as fast as it goes.
+        const toBeach = this.vx * this.env.ux + this.vz * this.env.uz;
+        const add = Math.max(0, SURF.speed * 1.1 - toBeach);
+        this.vx += this.env.ux * add;
+        this.vz += this.env.uz * add;
+        this.state = 'ride';
+        this.lost = 0;
+        this.timer = 0;
+        return 'stand';
+      }
+      if (s.d < CATCH.to - 0.04 || s.size < 0.15 || this.timer > CATCH.timeout) {
+        this.state = 'prone';
+        return 'missed';
+      }
+    }
     if (this.depth < BEACH_DEPTH) {
       // Reported once: the rider steps off, the board lies there.
       this.state = 'idle';
@@ -288,7 +372,8 @@ export class SurfBody {
   }
 
   private wipe(): SurfEvent {
-    this.state = 'idle';
+    this.state = 'wiped';
+    this.timer = 0;
     this.lean = 0;
     this.over = 0;
     return 'wipeout';

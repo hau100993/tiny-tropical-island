@@ -353,7 +353,7 @@ the overview too.
 | `W` (hold) | Paddle |
 | `A` / `D` | Turn the board |
 | `S` | Drag a hand (brake) |
-| `Space` | Stand up (only on the face of a wave, moving with it) |
+| `Space` | Catch the wave (when **Sóng tới!** shows): the board turns, paddles and stands up by itself |
 | `L` | Slip off the board |
 
 | Standing (riding) | |
@@ -363,14 +363,15 @@ the overview too.
 | `W` | Pump (a little speed down the face) |
 | `S` | Stall (lets the wave catch up) |
 
-How to catch a wave: paddle out past the white water (toward the open sea), turn the nose to the
-beach and wait. When a wave comes up behind you a note says **Sóng tới!**: hold `W` to paddle
-with it, and when the tail lifts and you slide, press `Space`. Then turn along the wave toward
-the side that has not broken yet and stay on its face, ahead of the white water. The ride ends
-when the wave passes under you or closes out (you lie down again), or at the beach (you step
-off). Falling (too hard a carve, or under the breaking lip) drops you in the water: swim back
-right up to the board and you climb on by yourself (or press `L` next to it). Space at the
-wrong moment says why: no wave, too early, too late, or too slow.
+How to catch a wave: wait out past the white water (you start there; if the waves push you in,
+paddle out with `W`). When a wave comes up behind you a note says **Sóng tới!**: press `Space`,
+whichever way the board points. It turns for the beach (angled toward the side that breaks
+last), waits for the wave, which picks it up, and you stand up. Then stay on the face, ahead
+of the white water, carving with `A`/`D`. The ride ends when the wave passes under you or
+closes out (you lie down again), or at the beach (you step off). Falling (holding a hard carve
+at speed, or under the breaking lip) is a splash and a second in the white water, then you are
+lying on the board again by yourself. Space at the wrong moment says why: no wave here, still
+far, or already gone by.
 
 The waves are also real for the kayak and the swimmer at that beach.
 

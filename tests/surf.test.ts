@@ -30,19 +30,25 @@ const ctl = (p: Partial<SurfControls> = {}): SurfControls => ({ forward: false, 
 const TO_BEACH = -Math.PI / 2;
 const DT = 1 / 60;
 
-/** Lie on the board out back, paddle for the beach and stand up as soon as the wave allows. */
-function catchWave(t0: number, x0 = -55): { body: SurfBody; caught: boolean; tries: Record<string, number> } {
+/**
+ * Lie on the board out back (facing `yaw`, not paddling) and press Space every frame: the first
+ * press inside the window starts the catch; then just hold on until standing (or missed).
+ */
+function catchWave(t0: number, x0 = -55, yaw = TO_BEACH): { body: SurfBody; caught: boolean; tries: Record<string, number> } {
   time = t0;
   const body = new SurfBody(env);
-  body.place(x0, 0, TO_BEACH);
+  body.place(x0, 0, yaw);
   body.state = 'prone';
   const tries: Record<string, number> = {};
   for (let i = 0; i < 60 * 30; i++) {
     time += DT;
-    body.step(DT, ctl({ forward: true }));
-    const r = body.popUp();
-    tries[r] = (tries[r] ?? 0) + 1;
-    if (r === 'ok') return { body, caught: true, tries };
+    const e = body.step(DT, ctl());
+    if (e === 'stand') return { body, caught: true, tries };
+    if (e === 'missed') tries.missed = (tries.missed ?? 0) + 1;
+    if (body.state === 'prone') {
+      const r = body.popUp();
+      tries[r] = (tries[r] ?? 0) + 1;
+    }
   }
   return { body, caught: false, tries };
 }
@@ -96,29 +102,30 @@ describe('surf break', () => {
     expect(s.broken).toBeLessThan(0.1);
   });
 
-  it('paddling for the beach catches a wave; standing still does not', () => {
+  it('Space as a wave comes catches it, even facing out to sea; no Space, no ride', () => {
     const r = catchWave(3.7);
     console.info('catch tries', r.tries, 'at x', r.body.wave.x.toFixed(1));
     expect(r.caught).toBe(true);
+    expect(r.body.state).toBe('ride');
+    // Lying the wrong way round (nose out to sea): the board turns for the beach by itself.
+    const back = catchWave(3.7, -55, TO_BEACH + Math.PI);
+    expect(back.caught).toBe(true);
     time = 3.7;
     const idle = new SurfBody(env);
     idle.place(-55, 0, TO_BEACH);
     idle.state = 'prone';
-    let ok = false;
     for (let i = 0; i < 60 * 20; i++) {
       time += DT;
-      idle.step(DT, ctl());
-      if (idle.popUp() === 'ok') ok = true;
+      idle.step(DT, ctl({ forward: true }));
     }
-    expect(ok).toBe(false);
+    expect(idle.state).toBe('prone');
   });
 
   it('angled along the shoulder, the ride lasts and goes fast', () => {
     const r = catchWave(3.7);
-    // Turn toward the unbroken shoulder (+z is the far end of the peel: l = +z here)...
+    // The catch already angles the board toward the unbroken shoulder (+z here, the far end of
+    // the peel): just ride on.
     const body = r.body;
-    const res = ride(body, 1.0, ctl({ steer: -1 }));
-    expect(res.event).toBe('none');
     const long = ride(body, 8, ctl());
     console.info('ride', long, 'state', body.state);
     expect(long.t).toBeGreaterThan(4);
@@ -127,7 +134,7 @@ describe('surf break', () => {
 
   it('a normal carve holds (and keeps its speed)', () => {
     const r = catchWave(3.7);
-    ride(r.body, 1.0, ctl({ steer: -1 }));
+    ride(r.body, 1.0, ctl());
     ride(r.body, 1.0, ctl());
     const v0 = Math.hypot(r.body.vx, r.body.vz);
     const res = ride(r.body, 1.0, ctl({ steer: 1 }));
@@ -137,10 +144,14 @@ describe('surf break', () => {
 
   it('a hard carve at speed wipes out', () => {
     const r = catchWave(3.7);
-    ride(r.body, 1.0, ctl({ steer: -1 }));
+    ride(r.body, 1.0, ctl());
     ride(r.body, 1.0, ctl());
     const res = ride(r.body, 3, ctl({ steer: 1, hard: true }));
     console.info('carve', res);
     expect(res.event).toBe('wipeout');
+    // A moment in the white water, then lying on the board again by itself.
+    const back = ride(r.body, 3, ctl());
+    expect(back.event).toBe('remount');
+    expect(r.body.state).toBe('prone');
   });
 });

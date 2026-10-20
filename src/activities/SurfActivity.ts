@@ -198,7 +198,12 @@ export class SurfActivity {
   /** A wave coming in behind the board: time to paddle (for the hint). */
   get waveComing(): boolean {
     const s = this.body.wave;
-    return this.body.state === 'prone' && s.size > 0.3 && s.d > 0.04 && s.d < 0.35 && s.broken < 0.5;
+    return this.body.state === 'prone' && s.size > 0.3 && s.x < SURF.closeOut && s.d > -0.04 && s.d < 0.32;
+  }
+
+  /** Fallen off: the rider is somewhere in the white water (not drawn) for a moment. */
+  get riderHidden(): boolean {
+    return this.body.state === 'wiped';
   }
 
   /** Every frame, ridden or not (an empty board still drifts on the waves). */

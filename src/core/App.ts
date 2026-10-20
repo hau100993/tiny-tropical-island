@@ -652,39 +652,32 @@ export class App {
     });
   }
 
-  /** Space on the board: stood up, or why not. */
+  /** Space on the board: catching the wave, or why not. */
   private onPopUp(r: PopUp): void {
-    if (r === 'ok') {
-      this.walkHint.update(true, this.surf.locked, false, vi.surf.controlsRide);
-      return;
-    }
-    if (r === 'caught') {
-      this.onSurfEvent('wipeout');
-      this.activityMenu.flash(vi.surf.popUp.caught);
-      return;
-    }
     this.activityMenu.flash(vi.surf.popUp[r]);
   }
 
-  /** The board reports a wipeout, the end of a ride, or the beach. */
+  /** The board reports standing up, a wipeout, the end of a ride, or the beach. */
   private onSurfEvent(e: SurfEvent): void {
     if (this.cameras.mode !== 'surf') return;
-    if (e === 'waveGone') {
+    if (e === 'stand') {
+      this.walkHint.update(true, this.surf.locked, false, vi.surf.controlsRide);
+      return;
+    }
+    if (e === 'wipeout') {
+      // A splash, a moment in the white water, then back on the board by itself.
+      if (this.settings.get().footsteps) this.mixer.playFootstep('water', 1, 1.2);
+      this.activityMenu.flash(vi.surf.wipeout);
+      return;
+    }
+    if (e === 'waveGone' || e === 'missed' || e === 'remount') {
       this.walkHint.update(true, this.surf.locked, false, vi.surf.controlsProne);
-      this.activityMenu.flash(vi.surf.waveGone);
+      if (e !== 'remount') this.activityMenu.flash(e === 'missed' ? vi.surf.missed : vi.surf.waveGone);
       return;
     }
     const spot = this.tmpSpot;
     this.surf.besideSpot(spot);
     this.surfArmed = false;
-    if (e === 'wipeout') {
-      // Straight into the water, no fade: the splash is the point.
-      this.walker.placeAt(spot.x, spot.z, spot.yaw);
-      this.cameras.setMode('walk');
-      if (this.settings.get().footsteps) this.mixer.playFootstep('water', 1, 1.2);
-      this.activityMenu.flash(vi.surf.wipeout);
-      return;
-    }
     // On the beach: step off.
     const { x, z, yaw } = spot;
     this.fadeThrough(() => {
@@ -896,7 +889,7 @@ export class App {
   /** The character is shown in third-person walking, unless the camera is pressed right up to it. */
   private updateAvatar(dt: number): void {
     if (this.cameras.mode === 'surf') {
-      const show = this.surf.view === 'first' || this.surf.arm > 0.7;
+      const show = (this.surf.view === 'first' || this.surf.arm > 0.7) && !this.surf.riderHidden;
       this.avatar.group.visible = show;
       if (show) this.avatar.updateSurfing(dt, this.surf.pose);
       return;
