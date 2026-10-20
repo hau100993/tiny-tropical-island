@@ -81,6 +81,11 @@ export class Panel {
   readonly root: HTMLElement;
   private readonly collapseBtn: HTMLButtonElement;
   private readonly titleBtn: HTMLButtonElement;
+  /** Shown only while the panel is collapsed: the scene's name and a mute button. */
+  private readonly headerScene: HTMLElement;
+  private readonly headerMute: HTMLButtonElement;
+  private readonly startBtn: HTMLButtonElement;
+  private readonly autoCollapse: ToggleControl;
   private readonly pomoBtn: HTMLButtonElement;
   private readonly pomoText: HTMLElement;
   private readonly statusLine: HTMLElement;
@@ -128,9 +133,11 @@ export class Panel {
     this.pomoText = el('span', 'pomo-text');
     this.pomoBtn.append(pomoIcon, this.pomoText);
     this.collapseBtn = button('', () => this.toggleCollapsed(), 'icon-btn');
+    this.headerScene = el('span', 'header-scene');
+    this.headerMute = button('', () => mixer.toggleMuteAll(), 'icon-btn header-mute');
     const headerTools = el('div', 'header-tools');
-    headerTools.append(this.pomoBtn, this.collapseBtn);
-    header.append(title, headerTools);
+    headerTools.append(this.headerMute, this.pomoBtn, this.collapseBtn);
+    header.append(title, this.headerScene, headerTools);
 
     const top = el('div', 'panel-top');
     this.statusLine = el('div', 'status-line');
@@ -138,7 +145,11 @@ export class Panel {
     this.masterVolume = slider(vi.panel.master, mixer.current.master.volume, (v) => mixer.setMaster({ volume: v }), { ...VOLUME, defaultValue: 0.8 });
     this.masterMute = button('', () => mixer.toggleMuteAll(), 'icon-btn');
     masterRow.append(this.masterVolume.root, this.masterMute);
-    top.append(this.statusLine, masterRow);
+    // Browsers allow sound only after a click or key press: until then, say so right here.
+    this.startBtn = button('', () => deps.startAudio(), 'btn primary start-sound');
+    this.startBtn.innerHTML = `${icons.speaker}<span>${vi.panel.startSound}</span>`;
+    this.startBtn.title = vi.panel.startSoundHint;
+    top.append(this.statusLine, this.startBtn, masterRow);
 
     const content = el('div', 'panel-content');
 
@@ -238,14 +249,15 @@ export class Panel {
     }
     this.qualityNote = el('div', 'note');
     this.startAtDesk = toggle(vi.desk.startAtDesk, s.startAtDesk, (on) => settings.update({ startAtDesk: on }));
+    this.autoCollapse = toggle(vi.panel.autoCollapse, s.autoCollapse, (on) => settings.update({ autoCollapse: on }));
     const confOpts = el('div', 'option-list');
-    confOpts.append(this.startAtDesk.root);
+    confOpts.append(this.startAtDesk.root, this.autoCollapse.root);
     const keys = el('details', 'subsection');
     const keysTitle = el('summary', 'subsection-title', vi.panel.shortcuts);
     const list = el('dl', 'shortcut-list');
     for (const sc of deps.keymap.list()) list.append(el('dt', '', sc.keyLabel), el('dd', '', sc.label));
     const keysBody = el('div', 'section-body');
-    keysBody.append(list, el('div', 'hint', vi.shortcuts.mouse), el('div', 'hint', vi.shortcuts.sliderWheel), el('div', 'hint', vi.shortcuts.walkKeys));
+    keysBody.append(list, el('div', 'hint', vi.shortcuts.mouse), el('div', 'hint', vi.shortcuts.sliderWheel), el('div', 'hint', vi.shortcuts.sceneKeys), el('div', 'hint', vi.shortcuts.walkKeys));
     keys.append(keysTitle, keysBody);
     conf.body.append(el('div', 'subhead', vi.panel.quality), quality, this.qualityNote, confOpts, keys);
 
@@ -260,7 +272,25 @@ export class Panel {
     this.syncMixer(mixer.current);
     this.syncSettings(s);
     this.syncView();
+    this.watchSceneClicks();
     // The status line fills on the first frame (tick), once the app has built everything.
+  }
+
+  /**
+   * "Nhấp vào cảnh 3D để thu gọn bảng": a click on the 3D view (pressed and released almost
+   * in place, so orbit drags don't count) collapses the panel.
+   */
+  private watchSceneClicks(): void {
+    let down: { x: number; y: number } | null = null;
+    window.addEventListener('pointerdown', (e) => {
+      down = e.button === 0 && e.target instanceof HTMLCanvasElement ? { x: e.clientX, y: e.clientY } : null;
+    }, { capture: true });
+    window.addEventListener('pointerup', (e) => {
+      const s = this.deps.settings.get();
+      if (!down || !s.autoCollapse || s.panelCollapsed) return;
+      if (Math.hypot(e.clientX - down.x, e.clientY - down.y) < 6) this.deps.settings.update({ panelCollapsed: true });
+      down = null;
+    }, { capture: true });
   }
 
   private toggleCollapsed(): void {
@@ -310,6 +340,7 @@ export class Panel {
     const playing = muted ? vi.panel.status.muted : info.playing;
     setText(this.statusLine, `${scene}  ·  ♪ ${playing}  ·  ${info.islandTime}`);
     setText(this.meta('scene'), scene);
+    setText(this.headerScene, scene);
     setText(this.meta('sound'), muted ? vi.panel.status.muted : info.playing);
     setText(this.meta('time'), info.islandTime);
     const p = this.deps.pomodoro();
@@ -327,6 +358,9 @@ export class Panel {
   private syncMixer(state: Readonly<MixerState>): void {
     this.masterVolume.set(state.master.volume);
     setMuteIcon(this.masterMute, state.master.muted);
+    setMuteIcon(this.headerMute, state.master.muted);
+    this.startBtn.hidden = this.deps.mixer.started;
+    this.root.classList.toggle('sound-off', !this.deps.mixer.started);
     this.syncSynthStatus();
     this.lastTick = -Infinity;
   }
@@ -366,6 +400,7 @@ export class Panel {
     this.synthFallback.set(s.synthFallback);
     this.thirdPerson.set(s.walkView === 'third');
     this.startAtDesk.set(s.startAtDesk);
+    this.autoCollapse.set(s.autoCollapse);
     const real = s.timeMode === 'real';
     const stopped = !real && s.timePaused;
     this.realTime.set(real);

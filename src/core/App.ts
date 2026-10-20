@@ -211,7 +211,7 @@ export class App {
     for (const type of ['pointerdown', 'keydown'] as const) {
       window.addEventListener(type, () => this.onFirstGesture(), { capture: true });
     }
-    this.audioPrompt.show();
+    // The panel offers a "Bật âm thanh" button; the prompt only reports a failed start.
     this.walkHint = new WalkHint(ui);
     this.fader = document.createElement('div');
     this.fader.className = 'fader';
@@ -378,6 +378,19 @@ export class App {
       label: vi.shortcuts.view,
       action: () => this.settings.update({ walkView: this.settings.get().walkView === 'third' ? 'first' : 'third' }),
     });
+    // 1–9: the scenes in the order of the panel's cards.
+    for (let i = 1; i <= 9; i++) {
+      this.keymap.register({
+        code: `Digit${i}`,
+        keyLabel: String(i),
+        label: vi.shortcuts.sceneKeys,
+        unlisted: true,
+        action: () => {
+          const p = this.scenes.all()[i - 1];
+          if (p) this.applyScene(p.id);
+        },
+      });
+    }
     this.keymap.register({ code: 'Backquote', keyLabel: '`', label: vi.shortcuts.debug, action: toggleSetting('showDebug') });
   }
 

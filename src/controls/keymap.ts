@@ -6,6 +6,8 @@ export interface Shortcut {
   /** Vietnamese label shown in the UI. */
   label: string;
   action: () => void;
+  /** Not listed one by one in the panel (e.g. the 1–9 scene keys, described by one hint). */
+  unlisted?: boolean;
 }
 
 /** Global keyboard shortcuts; ignored while typing in an input field. */
@@ -29,6 +31,6 @@ export class Keymap {
   }
 
   list(): Shortcut[] {
-    return [...this.shortcuts.values()];
+    return [...this.shortcuts.values()].filter((s) => !s.unlisted);
   }
 }

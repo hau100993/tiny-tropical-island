@@ -11,6 +11,9 @@ export const vi = {
   },
   panel: {
     collapse: 'Thu gọn bảng',
+    startSound: 'Bật âm thanh',
+    startSoundHint: 'Trình duyệt chỉ cho phát âm thanh sau khi bạn nhấp hoặc nhấn phím',
+    autoCollapse: 'Nhấp vào cảnh 3D để thu gọn bảng',
     expand: 'Mở bảng',
     audio: 'Âm thanh',
     scene: 'Cảnh',
@@ -225,6 +228,7 @@ export const vi = {
     leaveDesk: 'Đứng dậy (bàn làm việc, bồn tắm)',
     mouse: 'Kéo: xoay · Cuộn: thu phóng · Chuột phải: dời · Nhấp vào nước: gợn sóng',
     sliderWheel: 'Thanh trượt: lăn chuột để chỉnh 5% (giờ: 15 phút) · giữ Shift để chỉnh mịn · nhấp đúp: về mặc định',
+    sceneKeys: '1 – 9: chọn cảnh theo thứ tự trên bảng',
     walkKeys: 'Khi đi bộ: W A S D đi · Shift chạy · chuột nhìn · V đổi góc nhìn · Esc thoát',
   },
 } as const;

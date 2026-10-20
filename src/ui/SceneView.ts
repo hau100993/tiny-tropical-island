@@ -101,12 +101,12 @@ export class SceneView {
   private refresh(): void {
     this.grid.replaceChildren();
     this.cards.clear();
-    for (const p of this.deps.scenes.all()) this.grid.append(this.card(p));
+    this.deps.scenes.all().forEach((p, i) => this.grid.append(this.card(p, i)));
     this.updateMeta();
     this.sync(this.deps.settings.get());
   }
 
-  private card(p: ScenePreset): HTMLButtonElement {
+  private card(p: ScenePreset, index: number): HTMLButtonElement {
     const b = button('', () => {
       this.deps.startAudio();
       this.deps.applyScene(p.id);
@@ -117,8 +117,16 @@ export class SceneView {
     const text = el('span', 'preset-text');
     const meta = el('span', 'preset-meta');
     text.append(el('span', 'preset-name', p.name), meta);
+    // A check on the icon of the selected scene; keys 1–9 pick the first nine.
+    const check = el('span', 'preset-check');
+    check.innerHTML = icons.check;
+    icon.append(check);
     b.append(icon, text);
     b.title = p.name;
+    if (index < 9) {
+      b.append(el('kbd', 'key', String(index + 1)));
+      b.title = `${p.name} (${index + 1})`;
+    }
     this.cards.set(p.id, { card: b, meta });
     return b;
   }

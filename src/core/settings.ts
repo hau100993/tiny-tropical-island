@@ -57,6 +57,8 @@ export interface Settings {
   synthFallback: boolean;
   /** Open the app sitting at the desk in the house. */
   startAtDesk: boolean;
+  /** Clicking the 3D scene (without dragging) collapses the panel. */
+  autoCollapse: boolean;
   /** Control panel: the sections that are open (each opens and closes on its own). */
   panelSections: PanelSection[];
 }
@@ -99,6 +101,7 @@ export function defaultSettings(): Settings {
     activeScene: 'b-sunny',
     synthFallback: true,
     startAtDesk: false,
+    autoCollapse: false,
     panelSections: [...DEFAULT_SECTIONS],
   };
 }
@@ -193,6 +196,7 @@ export function parseSettings(json: string | null): Settings {
       : [...defaults.panelSections],
     synthFallback: bool(raw.synthFallback, defaults.synthFallback),
     startAtDesk: bool(raw.startAtDesk, defaults.startAtDesk),
+    autoCollapse: bool(raw.autoCollapse, defaults.autoCollapse),
   };
 }
 

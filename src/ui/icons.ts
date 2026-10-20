@@ -14,6 +14,7 @@ export const icons = {
   skip: svg('<path d="M6 5v14l9-7z" fill="currentColor" stroke="none"/><path d="M18 5v14"/>'),
   reset: svg('<path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 4v4h4"/>'),
   gear: svg('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>'),
+  check: svg('<path d="m5 12.5 4.5 4.5L19 7.5"/>'),
   close: svg('<path d="m6 6 12 12"/><path d="M18 6 6 18"/>'),
   clock: svg('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/>'),
   // Accordion sections.

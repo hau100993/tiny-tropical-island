@@ -38,8 +38,9 @@ own browser.
 ## First start
 
 The island shows right away, no start screen. Browsers only allow sound after you interact
-with the page, so the sound starts with your **first click or key press anywhere** (a small
-note at the bottom of the screen says so until then).
+with the page, so the sound starts with your **first click or key press anywhere**; until then
+the panel shows a **Bật âm thanh** button above the volume (a note at the bottom of the screen
+appears only if starting the sound failed).
 
 Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mute is remembered).
 
@@ -52,7 +53,8 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | Right-drag | Pan |
 | Click on the water | Splash: ripples spread and bounce off the beach |
 | `M` | Mute / unmute everything |
-| `P` | Collapse / expand the control panel |
+| `P` | Collapse / expand the control panel (or click its title) |
+| `1` – `9` | Pick a scene, in the order of the panel's cards (the key shows on each card) |
 | `H` | Hide all UI (clean wallpaper view); press again to show |
 | `N` | Stop / run the clock (stopping the real-time clock freezes the island at that moment) |
 | `C` | Walk around the island; press again to go back to the orbit view |
@@ -70,7 +72,9 @@ runs; click to show or hide the timer card), collapse (or click the title **Đ�
 **status line** (scene · what is playing · island time) and **Âm lượng chung** with mute. Below,
 five sections that each open and close on their own (remembered; on first launch **Cảnh**, with
 *Ngày nắng* selected, and **Góc nhìn** are open); a closed section shows its current value next
-to its title.
+to its title (hidden while the section is open). Collapsed, the panel keeps a one-line header:
+title, the current scene, mute, Pomodoro and expand. The selected scene card is tinted and has a
+✓ on its icon; cards keep an even height (only a long name makes its own row taller).
 Every slider also moves with the **mouse wheel** over it (wheel up = more): 5% per notch,
 15 minutes on the **Giờ** sliders (wrapping past midnight); hold **Shift** for fine steps (1%,
 or the slider's own time step). Volume sliders move 2% per notch below 20%, where the ear hears
@@ -93,7 +97,9 @@ also take the wheel when the pointer is over their row (±1, Shift ±5).
   one is highlighted, each shows its key), and switches: character view (`V`), footsteps,
   camera auto-rotate.
 - **Cài đặt:** quality (Thấp / Vừa / Cao; anti-aliasing changes between Low and the others
-  apply after a reload), **Mở app ở góc làm việc**, and the keyboard shortcuts.
+  apply after a reload), **Mở app ở góc làm việc**, **Nhấp vào cảnh 3D để thu gọn bảng** (off by
+  default: a click on the island without dragging collapses the panel), and the keyboard
+  shortcuts.
 
 On/off options are switches; buttons only do things.
 

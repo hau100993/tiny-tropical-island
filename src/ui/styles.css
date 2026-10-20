@@ -346,7 +346,7 @@ body.ui-hidden .debug-overlay {
 
 .section {
   border-top: 1px solid var(--panel-border);
-  padding: 8px 0;
+  padding: 6px 0;
 }
 
 .section-title {
@@ -905,6 +905,52 @@ body.walking .pomo-settings {
   display: none;
 }
 
+/* Collapsed: the header also shows the scene and a mute button. */
+.header-scene,
+.header-mute {
+  display: none;
+}
+
+.panel.collapsed .header-scene {
+  display: block;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--panel-muted);
+}
+
+.panel.collapsed .header-mute {
+  display: inline-grid;
+}
+
+/* No sound yet: the start button replaces the mute buttons. */
+.panel.sound-off .header-mute,
+.panel.sound-off .mix-row.master .icon-btn {
+  visibility: hidden;
+}
+
+.start-sound {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  font-weight: 600;
+}
+
+.start-sound svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* An open section shows its contents, so the value next to its title would repeat them. */
+.section[open] .section-meta {
+  visibility: hidden;
+}
+
 .status-line {
   font-size: 11px;
   color: var(--panel-muted);
@@ -1106,6 +1152,7 @@ kbd.key {
 .view-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  grid-auto-rows: minmax(44px, auto); /* even rows; only a card with a long name grows */
   gap: 6px;
 }
 
@@ -1116,7 +1163,7 @@ kbd.key {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  padding: 8px;
+  padding: 6px 8px;
   font: inherit;
   font-size: 12px;
   text-align: left;
@@ -1136,15 +1183,45 @@ kbd.key {
 .view-tile[aria-pressed='true'] {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--control-bg));
   font-weight: 600;
+}
+
+/* Check badge on the selected scene's icon. */
+.preset-icon {
+  position: relative;
+}
+
+.preset-check {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  display: none;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  color: var(--accent);
+  background: var(--panel-bg);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+.preset-icon .preset-check svg {
+  width: 10px;
+  height: 10px;
+  stroke-width: 3;
+}
+
+.preset-card[aria-checked='true'] .preset-check {
+  display: grid;
 }
 
 .preset-icon,
 .view-icon {
   display: inline-grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 8px;
   flex: none;
   color: var(--accent);
@@ -1188,6 +1265,12 @@ kbd.key {
 
 .preset-card.edited .preset-dot {
   display: block;
+}
+
+.preset-card kbd.key {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
 }
 
 .view-tile kbd.key {
