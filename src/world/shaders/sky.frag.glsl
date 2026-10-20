@@ -222,6 +222,7 @@ void main() {
   // higher, near white high up; mornings a touch more yellow), only slightly darker and redder
   // toward the rim (limb darkening), with a soft edge that melts into the glare around it.
   vec3 sunDisplay = vec3(0.0);
+  vec3 sunGlareCol = vec3(0.0);
   float sunGlare = 0.0;
   if (dot(dir, uSunDir) > 0.95) {
     vec3 base = mix(vec3(1.0, 0.5, 0.13), vec3(1.0, 0.7, 0.26), smoothstep(0.0, 0.08, se));
@@ -229,13 +230,15 @@ void main() {
     base = mix(base, vec3(1.0, 0.97, 0.9), smoothstep(0.2, 0.4, se));
     base = mix(base, base * vec3(1.0, 1.12, 1.3), 0.35 * uDawn * (1.0 - smoothstep(0.2, 0.4, se)));
     base = min(base, vec3(1.0));
-    float mu = sqrt(max(1.0 - sr * sr, 0.0));
-    sunDisplay = base * vec3(1.0, mix(0.86, 1.0, mu), mix(0.75, 1.0, mu)) * mix(0.86, 1.0, mu);
     // Brightness: dimmer is darker; brighter pushes the disc toward white (display colours
     // can't exceed 1, so the excess bleeds into the other channels, like real overexposure).
-    vec3 lifted = sunDisplay * uSunBright;
+    vec3 lifted = base * uSunBright;
     float over = max(max(lifted.r, max(lifted.g, lifted.b)) - 1.0, 0.0);
-    sunDisplay = min(lifted + over * 0.6, vec3(1.0));
+    vec3 exposed = min(lifted + over * 0.6, vec3(1.0));
+    // Limb darkening fades out as the disc burns out, or its rim would stay an orange ring.
+    float mu = sqrt(max(1.0 - sr * sr, 0.0));
+    vec3 limb = vec3(1.0, mix(0.86, 1.0, mu), mix(0.75, 1.0, mu)) * mix(0.86, 1.0, mu);
+    sunDisplay = exposed * mix(vec3(1.0), limb, 1.0 - 0.85 * clamp(over * 1.5, 0.0, 1.0));
     // Green flash: as the last sliver of the sun slips under the sea (or the first one
     // appears), the very top of the disc can flash green for a moment, with a clear horizon.
     float sliver = abs(se + sunR - 0.002);
@@ -245,8 +248,12 @@ void main() {
     sunA = (1.0 - smoothstep(0.8, 1.0, sr)) * above;
     // Glare: a bright rim fading quickly, then a wide soft glow (radii in sun radii).
     float out1 = max(sr - 0.9, 0.0);
-    sunGlare = (exp(-out1 * 2.2) * 0.75 + exp(-out1 * 0.3) * 0.22) * (1.0 - sunA) * above;
-    sunDisplay = mix(sunDisplay, base, 1.0 - sunA); // the glare takes the disc's base colour
+    // It also runs under the disc: fading it out across the disc's soft edge left a darker ring.
+    sunGlare = (exp(-out1 * 2.2) * 0.75 + exp(-out1 * 0.3) * 0.22) * above;
+    // The glare starts in the disc's (exposed) colour and turns to its base colour further out,
+    // so a burnt-out white disc doesn't sit in an orange ring.
+    vec3 glareCol = mix(exposed, base, smoothstep(0.0, 1.5, out1));
+    sunGlareCol = glareCol;
   }
 
   col += meteors(dir) * uStars;
@@ -331,7 +338,7 @@ void main() {
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   // Disc over the sky; glare added like light (screen blend), so the disc melts into it.
-  gl_FragColor.rgb = 1.0 - (1.0 - gl_FragColor.rgb) * (1.0 - sunDisplay * sunGlare);
+  gl_FragColor.rgb = 1.0 - (1.0 - gl_FragColor.rgb) * (1.0 - sunGlareCol * sunGlare);
   gl_FragColor.rgb = mix(gl_FragColor.rgb, sunDisplay, sunVis);
   #include <colorspace_fragment>
 }
