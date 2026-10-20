@@ -88,6 +88,12 @@ void main() {
   R.y = abs(R.y);
   // The sky, aurora included: its ribbons shimmer on the waves as green streaks.
   vec3 refl = skyColor(R) + aurora(R, uTime) * uAurora;
+  // Golden hour: away from the sun the sea stays a clear blue (its sky reflections cooled);
+  // toward the sun it carries the golden light.
+  float golden = (1.0 - smoothstep(0.0, 0.25, abs(uSunDir.y))) * smoothstep(-0.03, 0.02, uSunDir.y);
+  float sunSide = pow(max(dot(normalize(R.xz + 1e-4), normalize(uSunDir.xz + 1e-4)), 0.0), 4.0);
+  vec3 coolRefl = vec3(dot(refl, vec3(0.2126, 0.7152, 0.0722))) * vec3(0.55, 0.85, 1.25);
+  refl = mix(refl, coolRefl, golden * (1.0 - sunSide) * 0.55);
 #ifdef REFLECTION
   // Mirror image of the scene (alpha 0 where only sky would be reflected). Waves bend it; far
   // away the distortion fades with the flattened normal.
@@ -132,7 +138,8 @@ void main() {
   // Foam and water body follow the light level (dark sea at night).
   vec3 foamColor = vec3(0.92, 0.96, 0.97) * (0.03 + 0.97 * uDayLight * uDayLight);
   // Cloud shadows darken the water body (reflections of the sky stay).
-  float lit = uDayLight * (1.0 - 0.55 * vCloudShadow);
+  // At golden hour the water body keeps some clear blue under the low sun.
+  float lit = max(uDayLight, 0.55 * golden) * (1.0 - 0.55 * vCloudShadow);
   vec3 deep = uDeepColor * lit;
   vec3 shallow = uShallowColor * lit;
 
@@ -148,7 +155,8 @@ void main() {
   vec2 gp = xz * 2.3;
   float sp = valueNoise(gp + vec2(t * 1.9, -t * 1.4)) * valueNoise(gp * 1.7 - vec2(t * 1.2, t * 2.1));
   float sparkle = mix(smoothstep(0.4, 0.75, sp) * 3.0, 0.35, smoothstep(30.0, 140.0, dist));
-  spec += lobe * sparkle * (0.35 + 0.9 * uWaveStrength) * mix(1.4, 0.3, uDayLight);
+  // A low sun lays a strong golden road of sparkles.
+  spec += lobe * sparkle * (0.35 + 0.9 * uWaveStrength) * mix(1.4, 0.3, uDayLight) * (1.0 + 2.5 * golden);
   spec *= 1.0 - vCloudShadow;
 
 #ifdef REFRACTION

@@ -15,6 +15,7 @@ export const SCENE_KEYS = [
   'waveStrength',
   'clouds',
   'gloom',
+  'cirrus',
   'rainbow',
   'stars',
   'meteors',
@@ -54,6 +55,7 @@ export const DEFAULT_SCENE: Readonly<SceneValues> = {
   waveStrength: 0.45,
   clouds: 0.35,
   gloom: 0,
+  cirrus: 0,
   rainbow: true,
   stars: true,
   meteors: 0.4,
@@ -70,10 +72,10 @@ export const BUILT_IN_SCENES: readonly ScenePreset[] = [
   // Sky turns put the sun/moon in the desk window, a little left of center (the panel covers
   // the right): sunrise ~25° left, sunset ~12° left, the full moon ~15° left and 17° up.
   builtIn('b-dawn', 'Bình minh ơi', 6.2, {
-    visualWind: 0.12, waveStrength: 0.2, clouds: 0.45, gloom: 0, meteors: 0, aurora: 0, fireflies: false,
+    visualWind: 0.08, waveStrength: 0.15, clouds: 0.3, cirrus: 0.6, gloom: 0, meteors: 0, aurora: 0, fireflies: false,
   }, 15),
   builtIn('b-sunny', 'Ngày nắng', 10, { visualWind: 0.25, waveStrength: 0.4, clouds: 0.25 }),
-  builtIn('b-sunset', 'Hoàng hôn yên ả', 17.7, { visualWind: 0.15, waveStrength: 0.25, clouds: 0.3 }, -150),
+  builtIn('b-sunset', 'Hoàng hôn yên ả', 17.9, { visualWind: 0.12, waveStrength: 0.2, clouds: 0.35, cirrus: 0.35 }, -152),
   builtIn('b-storm', 'Bão nhiệt đới', null, {
     visualRain: 0.9, visualWind: 0.85, waveStrength: 0.95, clouds: 1, gloom: 0.6, fireflies: false,
   }),

@@ -584,6 +584,7 @@ export class App {
     this.skyOptions.clock.paused = s.timePaused;
     this.skyOptions.clouds = s.clouds;
     this.skyOptions.gloom = s.gloom;
+    sharedUniforms.uCirrus.value = s.cirrus;
     this.skyOptions.rainbow = s.rainbow;
     this.skyOptions.stars = s.stars;
     this.skyOptions.meteors = s.meteors;

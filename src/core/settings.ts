@@ -33,6 +33,8 @@ export interface Settings {
   clouds: number;
   /** Extra gloom ("âm u"): grey sky without rain, 0..1. */
   gloom: number;
+  /** Cirrus: clouds as thin streaks instead of puffs, 0..1. */
+  cirrus: number;
   rainbow: boolean;
   stars: boolean;
   /** Shooting-star frequency, 0..1. */
@@ -77,6 +79,7 @@ export function defaultSettings(): Settings {
     timePaused: false,
     clouds: 0.35,
     gloom: 0,
+    cirrus: 0,
     rainbow: true,
     stars: true,
     meteors: 0.4,
@@ -164,6 +167,7 @@ export function parseSettings(json: string | null): Settings {
     ...parseClock(raw, defaults),
     clouds: unit(raw.clouds, defaults.clouds),
     gloom: unit(raw.gloom, defaults.gloom),
+    cirrus: unit(raw.cirrus, defaults.cirrus),
     rainbow: bool(raw.rainbow, defaults.rainbow),
     stars: bool(raw.stars, defaults.stars),
     meteors: unit(raw.meteors, defaults.meteors),

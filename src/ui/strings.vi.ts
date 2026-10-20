@@ -111,6 +111,7 @@ export const vi = {
     wind: 'Gió',
     waves: 'Sóng biển',
     clouds: 'Mây trôi',
+    cirrus: 'Mây dạng sợi',
     gloom: 'Trời u ám',
     rainbow: 'Cầu vồng sau mưa',
   },

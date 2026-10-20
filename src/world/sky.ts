@@ -33,6 +33,7 @@ export function createSky(shared: SharedUniforms): Sky {
       uRainbow: u.uRainbow,
       uStarRotation: u.uStarRotation,
       uSkyTurn: u.uSkyTurn,
+      uCirrus: u.uCirrus,
       uMeteorA: u.uMeteorA,
       uMeteorB: u.uMeteorB,
       uCloudCover: u.uCloudCover,

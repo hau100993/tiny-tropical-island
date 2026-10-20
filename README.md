@@ -93,7 +93,7 @@ moonlight, stars, shooting stars, aurora, fireflies), optionally a time of day, 
 the recordings chosen for it, or, with none chosen, the synthesized ambience that follows its
 effects (rain sound with rain, and so on). Recordings and the synthesized ambience don't mix:
 to layer sounds, choose several recordings.
-Built in: *Bình minh ơi* (sunrise, 06:12), *Ngày nắng*, *Hoàng hôn yên ả* (sunset, 17:42),
+Built in: *Bình minh ơi* (sunrise, 06:12), *Ngày nắng*, *Hoàng hôn yên ả* (sunset, 17:54, the sun touching the sea),
 *Bão nhiệt đới*, *Mưa rừng*, *Đêm lửa trại*, *Đêm trăng tròn* (19:15, a big bright full moon and
 its path on the sea), *Sáng sương mù*, *Đêm tuyết cực quang*.
 
@@ -314,6 +314,7 @@ The other sky options are scene effects (*Cảnh → Sửa cảnh / Tạo cảnh
 | Option | What it does |
 |---|---|
 | Mây trôi | Cloud cover; clouds drift with the wind, glow at sunset, and cast moving shadows on the island and sea. Rain and snow add more cloud. |
+| Mây dạng sợi | Cirrus: clouds as thin streaks drawn across the view from the desk (thin, see-through, catching the low sun's light) instead of puffs. |
 | Trời u ám | Grey, gloomy sky without rain. |
 | Cầu vồng sau mưa | After rain, with a low sun behind you, a rainbow appears at the real 42° angle. |
 | Sao & Ngân Hà | Twinkling stars and a faint Milky Way that slowly wheel across the night sky. |
@@ -329,16 +330,21 @@ the monitors; the sky swings there smoothly when you pick the scene. Any other s
 of day turns it back to the real direction (scenes without a time keep the current one). In the
 scene editor, **Mặt trời / trăng hiện ở cửa sổ bàn làm việc** does the same for any time.
 
-**Sunrise and sunset.** Low over the sea the sun turns orange-red, dims enough to look at,
-squashes a little (refraction) and sinks behind the horizon; high up it is yellow-white. The sky
+**Sunrise and sunset.** Low over the sea the sun is a crisp golden disc with a paler hot core
+and a warm glow (drawn after tone mapping, so it never bleaches to cream), squashed a little by
+refraction and cut by the horizon; high up it is near white. *Sunrise*: warm amber and peach
+tones, a soft pink horizon, a clear sky with a few glowing (golden-peach) clouds and a golden
+road of sparkles on calm water. *Sunset*: a warm amber-orange sky, a golden sun on the horizon,
+coral-pink clouds, and a sea that stays a clear blue away from the sun while carrying the
+golden light toward it. The sky
 depends on where you look: toward the sun a warm glow fans out over the horizon; opposite it,
 around sunset, Earth's shadow rises as a dark blue band under the pink *Belt of Venus*. The
 palette has a golden hour (warm light, cool bluish shadows) and a blue hour (deep blue with a
 lilac horizon). Clouds are lit from below: gold, then orange, red-pink as the sun touches the
 sea, and magenta-violet after it has set, while the sea darkens; their edges blaze with the sun
 behind them, and with gaps near a low sun faint sunbeams fan out. A haze lies over the horizon
-(warm toward the sun, grey-blue away from it). Mornings are cooler and paler, with a thin mist
-over the sea; evenings warmer and more saturated. With a clear horizon, the last sliver of the
+(warm toward the sun, grey-blue away from it), and at sunrise a soft pink-peach haze lies low
+over the sea. With a clear horizon, the last sliver of the
 setting sun (or the first of the rising one) can flash green for a moment.
 
 **The moon.** It shows the real near side's dark "seas" (maria) and bright Tycho with its rays.

@@ -435,7 +435,7 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
   const glassMaterial = new THREE.MeshBasicMaterial({
     color: '#0b1a1e',
     transparent: true,
-    opacity: 0.1,
+    opacity: 0.05,
     depthWrite: false,
   });
 

@@ -23,7 +23,9 @@ vec3 skyColor(vec3 dir) {
   // Glow around the sun (only while it is near or above the horizon).
   float sunUp = smoothstep(-0.12, 0.05, uSunDir.y);
   float sd = max(dot(dir, uSunDir), 0.0);
-  col += uSunColor * (0.18 * pow(sd, 6.0) + 0.35 * pow(sd, 48.0)) * sunUp;
+  // A sunrise sun through clean morning air has little halo (a crisp disc).
+  float sunHalo = 1.0 - 0.5 * uDawn * (1.0 - smoothstep(0.0, 0.25, abs(uSunDir.y)));
+  col += uSunColor * (0.18 * pow(sd, 6.0) + 0.35 * pow(sd, 48.0)) * sunUp * sunHalo;
 
   // Twilight: a warm band along the horizon on the sun's side at dawn and dusk.
   vec2 hd = normalize(dir.xz + 1e-4);
@@ -51,13 +53,13 @@ vec3 skyColor(vec3 dir) {
   col += uSunColor * 0.12 * pow(max(toward, 0.0), 4.0) * haze;
   col = mix(col, vec3(0.62, 0.68, 0.76) * uDayLight, 0.12 * max(-toward, 0.0) * haze);
   // The ACES tone mapper turns bright twilight colours pastel; push their saturation back up
-  // around sunset (strongly) and sunrise (a little: mornings are paler).
-  // Only while the sun is up or just touching the sea: in the blue hour it would turn magenta.
-  float sat = 1.0 + twilight * mix(0.5, 0.15, uDawn) * smoothstep(-0.05, 0.01, uSunDir.y);
+  // around sunrise and sunset, only while the sun is up or just touching the sea (in the blue
+  // hour it would turn magenta).
+  float sat = 1.0 + twilight * 0.55 * smoothstep(-0.05, 0.01, uSunDir.y);
   col = max(mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, sat), 0.0);
 
-  // Sunrise: a pale mist lies low over the sea.
-  col = mix(col, vec3(0.86, 0.86, 0.9) * (0.25 + 0.75 * uDayLight), 0.22 * uDawn * twilight * exp(-h * 16.0));
+  // Sunrise: a soft pink-peach haze lies low over the sea.
+  col = mix(col, vec3(0.95, 0.68, 0.6) * (0.25 + 0.75 * uDayLight), 0.2 * uDawn * twilight * exp(-h * 14.0));
 
   // Moon halo at night; a bright full moon (uMoonGlow) adds a wide soft glow, which the
   // sea's sky reflection turns into a silver path toward the moon.

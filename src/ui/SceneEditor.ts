@@ -23,7 +23,7 @@ export interface SceneEditorDeps {
   onClose: (savedId: string | null) => void;
 }
 
-type EffectKey = 'visualRain' | 'visualSnow' | 'visualWind' | 'waveStrength' | 'clouds' | 'gloom' | 'meteors' | 'aurora' | 'moonlight';
+type EffectKey = 'visualRain' | 'visualSnow' | 'visualWind' | 'waveStrength' | 'clouds' | 'cirrus' | 'gloom' | 'meteors' | 'aurora' | 'moonlight';
 type FlagKey = 'rainbow' | 'stars' | 'fireflies';
 
 /** The island as it was when the editor opened (Hủy puts it back). */
@@ -156,6 +156,7 @@ export class SceneEditor {
       add('visualWind', vi.scene.wind),
       add('waveStrength', vi.scene.waves),
       add('clouds', vi.scene.clouds),
+      add('cirrus', vi.scene.cirrus),
       add('gloom', vi.scene.gloom),
       weatherFlags,
       el('div', 'subhead', vi.panel.nightSky),

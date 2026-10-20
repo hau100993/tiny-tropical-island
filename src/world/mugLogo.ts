@@ -7,9 +7,10 @@ import { MUG } from './houseInterior';
  * Vite's glob finds nothing when a file is absent, so with neither the mug stays plain and
  * nothing is requested (no 404).
  */
+// Local first: the first file found is the one used.
 const found = {
-  ...import.meta.glob<string>('../assets/decor/mug-logo.{png,jpg,jpeg,webp}', { eager: true, query: '?url', import: 'default' }),
   ...import.meta.glob<string>('../assets/local/mug-logo.{png,jpg,jpeg,webp}', { eager: true, query: '?url', import: 'default' }),
+  ...import.meta.glob<string>('../assets/decor/mug-logo.{png,jpg,jpeg,webp}', { eager: true, query: '?url', import: 'default' }),
 };
 
 /** The mug body's radius at height h (see `mug()` in houseInterior.ts). */
@@ -25,7 +26,8 @@ const ARC = 1.75;
  */
 export function createMugLogo(x: number, y: number, z: number, yaw: number): THREE.Mesh | null {
   const url = Object.values(found)[0];
-  if (!url) return null;
+  // No file, or no DOM to load it in (unit tests run in Node).
+  if (!url || typeof Image === 'undefined') return null;
   // An open slice of a cone hugging the tapered body, just outside the glaze. Its texture
   // coordinates run around the mug (u) and up (v), so the image wraps without stretching.
   const geo = new THREE.CylinderGeometry(radiusAt(Y1) + 0.0006, radiusAt(Y0) + 0.0006, Y1 - Y0, 24, 1, true, -ARC / 2, ARC);

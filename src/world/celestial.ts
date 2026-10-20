@@ -88,20 +88,31 @@ const KEYS: Key[] = [
   key(0.3, '#2f7fd6', '#bfe2f5', '#fff0d4', 2.6, '#cfe8ff', '#c9b68a', 1.1),
 ];
 
-const DAWN_SUN = new THREE.Color('#ffc9a0');
-const DAWN_HORIZON = new THREE.Color('#f2b6a8');
-const DUSK_HORIZON = new THREE.Color('#ff7436');
+const DAWN_SUN = new THREE.Color('#ffc070');
+const DAWN_TOP = new THREE.Color('#e3995e');
+const DAWN_HORIZON = new THREE.Color('#f5a89a');
+const DAWN_HEMI = new THREE.Color('#e8b090');
+const DUSK_SUN = new THREE.Color('#ffa040');
+const DUSK_TOP = new THREE.Color('#c86c3c');
+const DUSK_HORIZON = new THREE.Color('#ff8a3a');
 
 /**
- * Sunrise and sunset differ: mornings are cooler and paler (cool air, mist over the sea),
- * evenings warmer and more saturated (dust and haze from the day). Shifts the palette while
- * the sun is near the horizon; `morning` is 1 before noon, 0 after.
+ * Sunrise and sunset, after the user's briefs. Sunrise: warm amber and peach, a soft pink
+ * horizon, golden light. Sunset: a warm amber-orange sky, a golden sun on the horizon (coral
+ * clouds are in the sky shader). Shifts the palette while the sun is near the horizon (the sky
+ * colours only once it is nearly up); `morning` is 1 before noon, 0 after.
  */
 export function dawnDuskShift(p: SkyPalette, elevation: number, morning: number): SkyPalette {
   const tw = 1 - smoothstep(0.0, 0.25, Math.abs(elevation));
-  p.sun.lerp(DAWN_SUN, 0.35 * tw * morning);
-  p.horizon.lerp(DAWN_HORIZON, 0.3 * tw * morning);
-  p.horizon.lerp(DUSK_HORIZON, 0.2 * tw * (1 - morning));
+  const up = smoothstep(-0.06, 0.02, elevation);
+  const evening = 1 - morning;
+  p.sun.lerp(DAWN_SUN, 0.6 * tw * morning);
+  p.top.lerp(DAWN_TOP, 0.8 * tw * up * morning);
+  p.horizon.lerp(DAWN_HORIZON, 0.8 * tw * up * morning);
+  p.hemiSky.lerp(DAWN_HEMI, 0.5 * tw * up * morning);
+  p.sun.lerp(DUSK_SUN, 0.5 * tw * evening);
+  p.top.lerp(DUSK_TOP, 0.55 * tw * up * evening);
+  p.horizon.lerp(DUSK_HORIZON, 0.6 * tw * evening);
   return p;
 }
 

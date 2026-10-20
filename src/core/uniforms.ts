@@ -40,6 +40,8 @@ export const sharedUniforms = {
   uSnowCover: { value: 0 },
   // Sky (Phase 4).
   uCloudCover: { value: 0.35 },
+  /** Cirrus (scene effect 'Mây dạng sợi'): 0 = puffy clouds, 1 = thin streaks. */
+  uCirrus: { value: 0 },
   /** Cloud layer drift (noise-space offset), integrated from the wind. */
   uCloudOffset: { value: new THREE.Vector2() },
   uStars: { value: 1 },
