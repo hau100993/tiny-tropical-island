@@ -1,8 +1,8 @@
-import { button, el, slider, toggle, type SliderControl } from './components';
+import { button, CLOCK_MARKS, el, PERCENT, slider, toggle, VOLUME, type SliderControl } from './components';
 import { icons } from './icons';
 import { vi } from './strings.vi';
 import type { SettingsStore } from '../core/settings';
-import { sceneValuesOf, type ScenePreset, type ScenePresetStore, type SceneValues } from '../core/scenePresets';
+import { DEFAULT_SCENE, sceneValuesOf, type ScenePreset, type ScenePresetStore, type SceneValues } from '../core/scenePresets';
 import type { SoundLibrary } from '../audio/library/SoundLibrary';
 import { formatClock } from '../world/celestial';
 
@@ -38,6 +38,7 @@ interface Snapshot {
 
 /** Time slider step: 5 minutes. */
 const TIME_STEP = 5 / 60;
+const NORMAL_MARKED: readonly EffectKey[] = ['sunBrightness', 'sunSize', 'moonlight'];
 
 /**
  * "Tạo cảnh" / "Sửa cảnh": one page inside the Cảnh section with the scene's name, time of day
@@ -117,6 +118,7 @@ export class SceneEditor {
       step: TIME_STEP,
       wheelStep: 0.25,
       wrap: 24,
+      marks: CLOCK_MARKS,
       format: formatClock,
     });
     const now = button(vi.scene.nowBtn, () => {
@@ -139,7 +141,12 @@ export class SceneEditor {
     // Effects: weather, then the night sky.
     const fx = this.group(icons.scene, vi.scene.effectsTitle);
     const add = (key: EffectKey, label: string): HTMLElement =>
-      slider(label, this.values[key], (v) => this.setValue(key, v)).root;
+      slider(label, this.values[key], (v) => this.setValue(key, v), {
+        ...PERCENT,
+        defaultValue: DEFAULT_SCENE[key],
+        // The sun and moon sliders have a "normal" level in the middle: mark it.
+        marks: NORMAL_MARKED.includes(key) ? [DEFAULT_SCENE[key]] : undefined,
+      }).root;
     const flag = (key: FlagKey, label: string): HTMLElement => {
       const t = toggle(label, this.values[key], (on) => {
         t.set(on);
@@ -280,7 +287,7 @@ export class SceneEditor {
       on.root.title = t.name;
       row.append(on.root);
       if (vol !== undefined) {
-        const v = slider('', vol, (x) => this.sounds.set(t.id, x));
+        const v = slider('', vol, (x) => this.sounds.set(t.id, x), { ...VOLUME, defaultValue: 0.7 });
         v.root.classList.add('compact');
         v.input.setAttribute('aria-label', `${vi.library.volume}: ${t.name}`);
         row.append(v.root);

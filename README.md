@@ -71,8 +71,13 @@ playing · island time) and **Âm lượng chung** with mute. Below, five sectio
 time (the open one is remembered); a closed section shows its current value next to its title.
 Every slider also moves with the **mouse wheel** over it (wheel up = more): 5% per notch,
 15 minutes on the **Giờ** sliders (wrapping past midnight); hold **Shift** for fine steps (1%,
-or the slider's own time step). While the panel is scrolling, the wheel keeps scrolling it, so
-passing over a slider doesn't change it.
+or the slider's own time step). Volume sliders move 2% per notch below 20%, where the ear hears
+small changes. While the panel is scrolling, the wheel keeps scrolling it, so passing over a
+slider doesn't change it. A floating value shows over the thumb while you wheel.
+**Double-click** a slider's row to return it to its default (master 80%, recordings 70%, scene
+effects their normal level). Small ticks mark 06:00 / 12:00 / 18:00 on the **Giờ** sliders and
+the normal 50% (30% for **Trăng sáng**) on the sun and moon sliders. The Pomodoro minute boxes
+also take the wheel when the pointer is over their row (±1, Shift ±5).
 
 - **Cảnh:** scenes as cards: icon, name, and a second line with the scene's time (or *Giữ
   giờ*) and ♪ when it plays recordings of its own. Clicking a card switches to the scene and

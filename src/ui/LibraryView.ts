@@ -1,4 +1,4 @@
-import { button, el, slider, toggle } from './components';
+import { button, el, slider, toggle, VOLUME } from './components';
 import { icons } from './icons';
 import { vi } from './strings.vi';
 import type { SoundLibrary } from '../audio/library/SoundLibrary';
@@ -183,7 +183,7 @@ export class LibraryView {
     const bundled = library.isBundled(t.id);
     const name = el('span', 'track-name', t.name);
     name.title = `${t.name} · ${formatSize(t.size)}${bundled ? ` · ${vi.library.bundled}` : ''}`;
-    const vol = slider('', t.volume, (v) => library.setVolume(t.id, v));
+    const vol = slider('', t.volume, (v) => library.setVolume(t.id, v), { ...VOLUME, defaultValue: 0.7 });
     vol.root.classList.add('compact');
     vol.input.setAttribute('aria-label', `${vi.library.volume}: ${t.name}`);
     this.trackDrag(vol.input);
@@ -237,7 +237,7 @@ export class LibraryView {
       const on = toggle(p.name, !!mapping, (v) => library.setMapping(t.id, p.id, v ? (mapping?.volume ?? 0.7) : null), 'toggle small');
       r.append(on.root);
       if (mapping) {
-        const v = slider('', mapping.volume, (x) => library.setMapping(t.id, p.id, x));
+        const v = slider('', mapping.volume, (x) => library.setMapping(t.id, p.id, x), { ...VOLUME, defaultValue: 0.7 });
         v.root.classList.add('compact');
         v.input.setAttribute('aria-label', `${vi.library.volume}: ${p.name}`);
         this.trackDrag(v.input);

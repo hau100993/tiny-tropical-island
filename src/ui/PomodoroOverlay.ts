@@ -1,4 +1,4 @@
-import { button, el, toggle, type ToggleControl } from './components';
+import { button, el, onWheelNotch, toggle, type ToggleControl } from './components';
 import { icons } from './icons';
 import { vi } from './strings.vi';
 import { isRecord, parseJson, readStored, writeStored } from '../core/storage';
@@ -169,6 +169,13 @@ export class PomodoroOverlay {
         if (!Number.isFinite(v)) return;
         this.setNumber(key, Math.min(max, Math.max(min, v)));
         input.value = String(this.config[key]);
+      });
+      // Wheel over the row (no need to click the box first): ±1 per notch, Shift ±5.
+      onWheelNotch(row, () => true, (dir, e) => {
+        const v = Math.min(max, Math.max(min, Number(input.value) + dir * (e.shiftKey ? 5 : 1)));
+        if (v === Number(input.value)) return;
+        input.value = String(v);
+        input.dispatchEvent(new Event('change'));
       });
       row.append(el('span', '', label), input, el('span', 'unit', unit));
       box.append(row);

@@ -1,4 +1,4 @@
-import { button, el, slider, toggle, type SliderControl, type ToggleControl } from './components';
+import { button, CLOCK_MARKS, el, slider, toggle, VOLUME, type SliderControl, type ToggleControl } from './components';
 import { icons } from './icons';
 import { vi } from './strings.vi';
 import { LibraryView } from './LibraryView';
@@ -131,7 +131,7 @@ export class Panel {
     const top = el('div', 'panel-top');
     this.statusLine = el('div', 'status-line');
     const masterRow = el('div', 'mix-row master');
-    this.masterVolume = slider(vi.panel.master, mixer.current.master.volume, (v) => mixer.setMaster({ volume: v }));
+    this.masterVolume = slider(vi.panel.master, mixer.current.master.volume, (v) => mixer.setMaster({ volume: v }), { ...VOLUME, defaultValue: 0.8 });
     this.masterMute = button('', () => mixer.toggleMuteAll(), 'icon-btn');
     masterRow.append(this.masterVolume.root, this.masterMute);
     top.append(this.statusLine, masterRow);
@@ -191,7 +191,7 @@ export class Panel {
       const c = settings.get();
       if (c.timeMode === 'real' || c.timePaused) settings.update({ timeMode: 'free', timePaused: false });
       deps.setHours(h);
-    }, { min: 0, max: 23.99, step: 0.05, wheelStep: 0.25, wrap: 24, format: formatClock });
+    }, { min: 0, max: 23.99, step: 0.05, wheelStep: 0.25, wrap: 24, marks: CLOCK_MARKS, format: formatClock });
     this.clock.root.title = vi.panel.timeDragHint;
     // Speeds: picking one runs the island clock at that speed from the current time.
     const speed = el('div', 'seg-group five');
