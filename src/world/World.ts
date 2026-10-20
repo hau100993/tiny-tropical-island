@@ -6,6 +6,8 @@ import { createForest, type Forest } from './vegetation/forest';
 import { GroundFlowers } from './vegetation/groundFlowers';
 import { createHouse, type HouseInfo } from './house';
 import { createRocks, createBeachSet, createBoat, type Rocks } from './props';
+import { createFishingBoat, FishingTrip } from './fishingBoat';
+import { DESK } from './houseInterior';
 import { createSky, type Sky } from './sky';
 import { createLighting, type Lighting } from './lighting';
 import { Grass } from './grass';
@@ -37,6 +39,7 @@ export interface World {
   dayNight: DayNight;
   fireflies: Fireflies;
   boat: FloatingObject;
+  fishingTrip: FishingTrip;
   update(dt: number, time: number, camera: THREE.Camera, waveStrength: number): void;
 }
 
@@ -112,6 +115,12 @@ export function createWorld(
   scene.add(boatMesh);
   patchTree(boatMesh, { wet: true, porosity: 0.5 }, shared);
   const boat = new FloatingObject(boatMesh, heightmap, layout.boat.x, layout.boat.z, layout.boat.rotY);
+  // A fishing boat out at sea, seen from the desk in the upper right of the view: it loops
+  // slowly ~150 m out, 15–35° right of straight ahead (house-local −X is the desk view's right).
+  const fishingMesh = createFishingBoat(WORLD_SEED + 10);
+  scene.add(fishingMesh);
+  patchTree(fishingMesh, { wet: true, porosity: 0.3 }, shared);
+  const fishingTrip = new FishingTrip(fishingMesh, layout.house, { x: DESK.seatX - 62, z: 160 }, { x: 34, z: 16 });
 
   const heightTexture = createHeightTexture(heightmap);
   if (!renderer.extensions.has('OES_texture_float_linear')) {
@@ -151,9 +160,11 @@ export function createWorld(
     dayNight,
     fireflies,
     boat,
+    fishingTrip,
     update(dt, time, camera, waveStrength) {
       sky.follow(camera);
       boat.update(time, waveStrength, camera, dt);
+      fishingTrip.update(time, waveStrength, camera, dt);
     },
   };
 }

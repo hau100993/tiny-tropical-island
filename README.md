@@ -196,6 +196,11 @@ something else, put your own image at `src/assets/local/mug-logo.png` (or `.jpg`
 that folder is git-ignored and takes precedence) and restart `npm run dev`. Wood has a procedural grain (shader, no textures); cushions, futon, chair and
 ceramics are rounded and smooth-shaded. Trees are kept out of the view from the glass to the sea.
 
+**Out at sea:** a Vietnamese fishing boat (blue hull, red bottom, high bow, white-and-blue cabin,
+the red flag with the yellow star on both masts and a line of coloured pennants) cruises a slow
+loop about 150–200 m out, in the upper right of the view from the desk. It rides the same waves
+as the sea, with a bow wave and a short wake (`src/world/fishingBoat.ts`).
+
 **Sitting at the desk:** press **B** (or *Góc làm việc* in the panel) from anywhere, or walk in
 and press **E** next to the chair. At the desk:
 
