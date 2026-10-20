@@ -17,6 +17,10 @@ import { DeskView } from '../controls/deskView';
 import { DeskScreens, type ScreenInfo } from '../world/deskScreens';
 import { formatClock, windowSkyTurn } from '../world/celestial';
 import { WalkHint } from '../ui/WalkHint';
+import { ActivityMenu, type ActivityItem } from '../ui/ActivityMenu';
+import { KayakActivity } from '../activities/KayakActivity';
+import { createKayakEnv } from '../activities/kayakEnv';
+import type { BladeEvent } from '../activities/kayakPhysics';
 import { Avatar, type AvatarPose } from '../world/avatar';
 import type { ListenerState } from '../audio/spatial';
 import type { FootSurface } from '../audio/synth/footsteps';
@@ -48,6 +52,8 @@ export class App {
   private readonly orbit: OrbitCamera;
   private readonly colliders: IslandColliders;
   private readonly walker: Walker;
+  private readonly kayak: KayakActivity;
+  private readonly activityMenu: ActivityMenu;
   private readonly cameras: CameraManager;
   private readonly deskView: DeskView;
   private readonly deskScreens: DeskScreens;
@@ -118,6 +124,21 @@ export class App {
       },
       () => this.reducedMotion.matches,
     );
+    this.kayak = new KayakActivity(
+      this.camera,
+      this.renderer.domElement,
+      w.kayak,
+      createKayakEnv(w.heightmap, this.colliders, w.layout.boat, this.camera, sharedUniforms),
+      this.colliders,
+      {
+        onUnlock: () => this.cameras.setMode('orbit'),
+        onLockState: (locked, failed) => this.walkHint.update(this.cameras.mode === 'kayak', locked, failed, vi.kayak.controls),
+        onBlade: (e) => this.onBlade(e),
+        onWake: (x, z, k) => this.world.water.addRipple(x, z, 1.6, -0.18 * k),
+      },
+      () => this.reducedMotion.matches,
+    );
+    this.kayak.place(w.layout.kayak.x, w.layout.kayak.z, w.layout.kayak.rotY);
     this.deskView = new DeskView(this.camera, this.renderer.domElement);
     // House-local seat → world-space camera pose (desk faces the sea, the tub the forest).
     const spot = (h: HouseSeat): SeatSpot => {
@@ -126,7 +147,7 @@ export class App {
       const yaw = this.colliders.seaYaw + (h.facesSea ? 0 : Math.PI);
       return { seat: { x: seat.x, y: h.eyeY, z: seat.z, yaw, pitch: h.pitch }, stand: { x: stand.x, z: stand.z, yaw } };
     };
-    this.cameras = new CameraManager(this.camera, this.orbit, this.walker, this.deskView, this.colliders.spawn, {
+    this.cameras = new CameraManager(this.camera, this.orbit, this.walker, this.deskView, this.kayak, this.colliders.spawn, {
       desk: spot(w.house.desk),
       bath: spot(w.house.bath),
     });
@@ -150,6 +171,7 @@ export class App {
     );
     this.scene.add(this.avatar.group);
     this.walker.setView(s.walkView);
+    this.kayak.setView(s.walkView);
     onWaterClick(
       this.renderer.domElement,
       this.camera,
@@ -190,7 +212,7 @@ export class App {
       },
       setHours: (h) => this.world.dayNight.setHours(h),
       status: () => this.screenInfo(),
-      view: () => (this.cameras.mode === 'seat' ? this.cameras.seat : this.cameras.mode),
+      view: () => (this.cameras.mode === 'seat' ? this.cameras.seat : this.cameras.mode === 'kayak' ? 'walk' : this.cameras.mode),
       onViewChange: (fn) => this.cameras.onChange(fn),
       goTo: (view) => this.goTo(view),
       pomodoro: () => {
@@ -217,14 +239,18 @@ export class App {
     }
     // The panel offers a "Bật âm thanh" button; the prompt only reports a failed start.
     this.walkHint = new WalkHint(ui);
+    this.activityMenu = new ActivityMenu(ui);
     this.fader = document.createElement('div');
     this.fader.className = 'fader';
     container.append(this.fader);
     this.cameras.onChange((mode) => {
       const walking = mode === 'walk';
-      document.body.classList.toggle('walking', walking);
+      const paddling = mode === 'kayak';
+      document.body.classList.toggle('walking', walking || paddling);
       document.body.classList.toggle('at-desk', mode === 'seat');
-      this.walkHint.update(walking, this.walker.locked, false);
+      if (paddling) this.walkHint.update(true, this.kayak.locked, false, vi.kayak.controls);
+      else this.walkHint.update(walking, this.walker.locked, false);
+      if (!walking) this.activityMenu.set(null);
       this.walkHint.showSeat(mode === 'seat', this.cameras.seat === 'bath' ? vi.bath.controls : vi.desk.controls);
       this.listenerTimer = 0;
       if (walking) this.avatar.setYaw(this.walker.yaw);
@@ -363,6 +389,10 @@ export class App {
           this.cameras.getUp();
           return;
         }
+        if (this.cameras.mode === 'kayak') {
+          this.leaveKayak();
+          return;
+        }
         const near = this.nearSeat();
         if (near) this.cameras.sit(near, true);
       },
@@ -376,6 +406,15 @@ export class App {
       },
     });
     this.keymap.register({ code: 'KeyC', keyLabel: 'C', label: vi.shortcuts.walk, action: () => this.cameras.toggle() });
+    this.keymap.register({
+      code: 'KeyK',
+      keyLabel: 'K',
+      label: vi.shortcuts.kayak,
+      action: () => {
+        if (this.cameras.mode === 'kayak') this.leaveKayak();
+        else if (this.cameras.mode === 'walk' && this.nearSea()) this.boardKayak();
+      },
+    });
     this.keymap.register({
       code: 'KeyV',
       keyLabel: 'V',
@@ -433,6 +472,7 @@ export class App {
     this.world.flowers.setCount(profile.flowerCount);
     this.env.waveStrength.target = s.waveStrength;
     if (s.walkView !== this.walker.view) this.walker.setView(s.walkView);
+    if (s.walkView !== this.kayak.view) this.kayak.setView(s.walkView);
     this.library.setActivePreset(s.activeScene);
     this.updateSynth();
     this.overlay.setVisible(s.showDebug);
@@ -479,6 +519,64 @@ export class App {
     }
   }
 
+  /** Walking on the beach or in the shallows: the sea activities are on offer. */
+  private nearSea(): boolean {
+    const w = this.walker;
+    if (w.shelter !== 'none') return false;
+    return w.depth > 0 || (this.world.heightmap.distanceToShore(w.x, w.z) < 9 && w.surface === 'sand');
+  }
+
+  private readonly seaItems: readonly ActivityItem[] = [{ key: 'K', label: vi.sea.kayak }];
+
+  /**
+   * K at the shore: into the kayak. It is pulled into the water in front of you (from the sand,
+   * or wherever you left it), unless it already floats right next to you. The screen fades
+   * through black meanwhile, like getting into a seat from afar.
+   */
+  private boardKayak(): void {
+    const w = this.walker;
+    const k = this.kayak;
+    const afloat = this.world.heightmap.heightAt(k.body.x, k.body.z) < -0.3;
+    if (!(afloat && k.distanceTo(w.x, w.z) < 4.5) && !k.launchNear(w.x, w.z)) {
+      this.activityMenu.flash(vi.kayak.noLaunch);
+      return;
+    }
+    this.fadeThrough(() => this.cameras.setMode('kayak'));
+  }
+
+  /** K/E in the kayak: step out beside it where the water is shallow enough. */
+  private leaveKayak(): void {
+    const spot = this.tmpSpot;
+    if (!this.kayak.landingSpot(spot)) {
+      this.activityMenu.flash(vi.kayak.tooDeep);
+      return;
+    }
+    this.fadeThrough(() => {
+      this.walker.placeAt(spot.x, spot.z, spot.yaw);
+      this.cameras.setMode('walk');
+    });
+  }
+
+  private readonly tmpSpot = { x: 0, z: 0, yaw: 0 };
+
+  private fadeThrough(then: () => void): void {
+    window.clearTimeout(this.faderTimer);
+    this.fader.classList.add('on');
+    this.faderTimer = window.setTimeout(() => {
+      then();
+      this.fader.classList.remove('on');
+    }, 300);
+  }
+
+  /** Paddle in or out of the water: a ripple and a splash, panned to the blade's side. */
+  private onBlade(e: BladeEvent): void {
+    if (e.kind === 'catch') this.world.water.addRipple(e.x, e.z, 1.4, -0.25 * (0.4 + e.strength));
+    if (!this.settings.get().footsteps) return;
+    // The blade's side, as heard from where the head looks.
+    const pan = e.side * Math.cos(this.kayak.lookYaw);
+    this.mixer.playPaddle(e.kind, e.strength, pan);
+  }
+
   /** The seat you are standing next to in the room (walk mode), if any. */
   private nearSeat(): SeatId | null {
     if (this.cameras.mode !== 'walk' || this.walker.shelter !== 'room') return null;
@@ -521,6 +619,13 @@ export class App {
 
   /** The character is shown in third-person walking, unless the camera is pressed right up to it. */
   private updateAvatar(dt: number): void {
+    if (this.cameras.mode === 'kayak') {
+      // Through the eyes too: your arms and legs are in view while paddling.
+      const show = this.kayak.view === 'first' || this.kayak.arm > 0.7;
+      this.avatar.group.visible = show;
+      if (show) this.avatar.updateSeated(dt, this.kayak.seated);
+      return;
+    }
     const w = this.walker;
     const show = this.cameras.mode === 'walk' && w.view === 'third' && w.arm > 0.7;
     this.avatar.group.visible = show;
@@ -546,15 +651,19 @@ export class App {
     if (mode === 'walk') {
       const near = this.nearSeat();
       this.walkHint.setPrompt(near === 'desk' ? vi.desk.sit : near === 'bath' ? vi.bath.enter : null);
+      this.activityMenu.set(this.nearSea() ? this.seaItems : null);
     }
     this.listenerTimer -= dt;
     if (this.listenerTimer > 0) return;
     this.listenerTimer = 0.1;
     const atDesk = mode === 'seat';
     const seat = this.deskView.seat;
-    const x = atDesk ? seat.x : this.walker.x;
-    const z = atDesk ? seat.z : this.walker.z;
-    const yaw = atDesk ? seat.yaw : this.walker.yaw;
+    const k = this.kayak;
+    const paddling = mode === 'kayak';
+    if (paddling) this.walkHint.setPrompt(k.landingSpot(this.tmpSpot) ? vi.kayak.land : null);
+    const x = atDesk ? seat.x : paddling ? k.body.x : this.walker.x;
+    const z = atDesk ? seat.z : paddling ? k.body.z : this.walker.z;
+    const yaw = atDesk ? seat.yaw : paddling ? k.body.yaw + k.lookYaw : this.walker.yaw;
     const l = this.listener;
     l.walking = true;
     l.shoreDistance = this.world.heightmap.distanceToShore(x, z);
@@ -562,7 +671,7 @@ export class App {
     const r = Math.hypot(x, z) || 1;
     l.seaSide = (x / r) * Math.cos(yaw) - (z / r) * Math.sin(yaw);
     l.trees = this.colliders.treesNear(x, z, 12);
-    l.shelter = atDesk ? 'room' : this.walker.shelter;
+    l.shelter = atDesk ? 'room' : paddling ? 'none' : this.walker.shelter;
     this.mixer.setListener(l);
   }
 

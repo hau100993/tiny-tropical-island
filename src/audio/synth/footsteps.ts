@@ -80,6 +80,34 @@ export class Footsteps {
     }
   }
 
+  /**
+   * Kayak paddle. `catch`: the blade knifing in (a soft "plunk" and a short gurgle);
+   * `exit`: the blade lifting out, with water running off it in a few drips.
+   * `pan`: −1 left … 1 right.
+   */
+  paddle(kind: 'catch' | 'exit', strength: number, pan: number): void {
+    const ctx = this.engine.ctx;
+    const t = ctx.currentTime + 0.005;
+    const p = ctx.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan)) * 0.6;
+    p.connect(this.out);
+    window.setTimeout(() => p.disconnect(), 2000);
+    const v = (0.35 + 0.5 * strength) * (0.85 + Math.random() * 0.3);
+    const r = 0.9 + Math.random() * 0.2;
+    const n = this.engine.noise;
+    if (kind === 'catch') {
+      this.blip(p, 'sine', 210 * r, 120 * r, t, 0.09, 0.32 * v);
+      this.burst(p, n.white, t, 'bandpass', 900 * r, 0.8, 0.012, 0.22, 0.5 * v, 2200 * r);
+      this.burst(p, n.pink, t + 0.05, 'lowpass', 600 * r, 0.7, 0.04, 0.35, 0.25 * v);
+    } else {
+      this.burst(p, n.white, t, 'highpass', 1800 * r, 0.6, 0.02, 0.18, 0.28 * v);
+      for (let i = 0; i < 5; i++) {
+        const f = 900 + Math.random() * 1500;
+        this.blip(p, 'sine', f, f * 1.5, t + 0.08 + Math.random() * 0.55, 0.04, 0.07 * v);
+      }
+    }
+  }
+
   /** Filtered noise burst: attack, then exponential decay. Optional filter sweep to `freqEnd`. */
   private burst(
     dest: AudioNode,

@@ -196,6 +196,11 @@ export class Mixer {
     this.footsteps?.play(surface, strength, depth);
   }
 
+  /** Kayak paddle splash (see Footsteps.paddle); follows the footsteps on/off setting. */
+  playPaddle(kind: 'catch' | 'exit', strength: number, pan: number): void {
+    this.footsteps?.paddle(kind, strength, pan);
+  }
+
   onChange(listener: Listener): void {
     this.listeners.push(listener);
   }

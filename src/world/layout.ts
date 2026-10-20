@@ -28,6 +28,8 @@ export interface IslandLayout {
   house: Placement;
   umbrella: Placement;
   boat: Placement;
+  /** The kayak, pulled up on the sand beside the house (away from the trail), bow to the water. */
+  kayak: Placement;
   rocks: RockPlacement[];
   /** Areas kept free of palms. */
   clearings: Circle[];
@@ -95,6 +97,15 @@ export function createLayout(hm: Heightmap, rng: Rng): IslandLayout {
     rotY: -boatAngle + 0.4,
   };
 
+  const kayakAngle = HOUSE_ANGLE - 0.1;
+  const kayakR = hm.shoreDistance(kayakAngle, 0.45);
+  const kx = Math.cos(kayakAngle) * kayakR;
+  const kz = Math.sin(kayakAngle) * kayakR;
+  // Bow (local −Z, i.e. (−sin rotY, −cos rotY)) straight down the beach, toward the water.
+  const kgx = hm.heightAt(kx + 2, kz) - hm.heightAt(kx - 2, kz);
+  const kgz = hm.heightAt(kx, kz + 2) - hm.heightAt(kx, kz - 2);
+  const kayak: Placement = { x: kx, z: kz, rotY: Math.atan2(kgx, kgz) };
+
   const clearings: Circle[] = [
     { x: house.x, z: house.z, r: 11 },
     { x: umbrella.x, z: umbrella.z, r: 5 },
@@ -121,5 +132,5 @@ export function createLayout(hm: Heightmap, rng: Rng): IslandLayout {
   // A few lone rocks a bit further out in the water.
   for (let k = 0; k < 5; k++) addRock(rng() * Math.PI * 2, -1.8 - rng() * 1.5, 0.9 + rng() * 1.0);
 
-  return { house, umbrella, boat, rocks, clearings, trail: new Trail(hm, house) };
+  return { house, umbrella, boat, kayak, rocks, clearings, trail: new Trail(hm, house) };
 }

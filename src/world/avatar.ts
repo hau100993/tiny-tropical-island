@@ -682,6 +682,24 @@ export interface AvatarPose {
   running: boolean;
 }
 
+/** Sitting in a boat and holding a paddle (the kayak). */
+export interface SeatedPose {
+  /** World transform of the seat: origin where the paddler sits, −Z forward. */
+  seat: THREE.Matrix4;
+  /** World positions of the left and right grips on the paddle shaft. */
+  hands: readonly [THREE.Vector3, THREE.Vector3];
+  /** Torso turn (rad, positive brings the right shoulder forward) and forward lean (rad). */
+  twist: number;
+  lean: number;
+  /** Where the head looks, relative to the boat (rad). */
+  lookYaw: number;
+  lookPitch: number;
+  /** Where the ankles go, in the seat's frame (x mirrored for the left foot). */
+  feet: { x: number; y: number; z: number };
+  /** Seen through the eyes: the head is folded away so the camera sees the arms, not the skull. */
+  firstPerson: boolean;
+}
+
 /** One leg's joint angles (rad) at gait cycle position `s` (0 = heel strike). */
 interface LegAngles {
   hip: number;
@@ -775,9 +793,17 @@ const SHIN = 0.375 * LEG_SCALE;
 const ANKLE_H = HIP_Y - 0.03 - THIGH - SHIN;
 /** From the ankle to the ball of the foot (where the heel lifts around at toe-off). */
 const TOE = 0.12;
+const UPPER_ARM = 0.27;
+/** Elbow to the middle of the palm. */
+const FOREARM = 0.225 + 0.045;
+/** Seated: hip joint height above the seat. */
+const SIT_H = 0.13;
 const tmpA = new THREE.Vector3();
 const tmpB = new THREE.Vector3();
+const tmpC = new THREE.Vector3();
+const tmpD = new THREE.Vector3();
 const tmpInv = new THREE.Matrix4();
+const tmpBasis = new THREE.Matrix4();
 
 export class Avatar {
   readonly group = new THREE.Group();
@@ -806,6 +832,8 @@ export class Avatar {
   private rootY = Number.NaN;
   private drop = 0;
   private yaw = 0;
+  /** The last update was seated (bones then need a reset before walking again). */
+  private seated = false;
   private gait = 0;
   private run = 0;
   private time = 0;
@@ -1055,6 +1083,7 @@ export class Avatar {
    */
   update(dt: number, p: Readonly<AvatarPose>): void {
     this.time += dt;
+    if (this.seated) this.stand();
     // Face the walking direction (shortest way round); keep the last facing when standing.
     if (p.speed > 0.2) {
       const target = Math.atan2(-p.vx, -p.vz);
@@ -1159,30 +1188,18 @@ export class Avatar {
     root.updateMatrixWorld(true);
 
     // ---- 3. Two-bone IK per leg, in the pelvis's frame ----
-    tmpInv.copy(this.hips.matrixWorld).invert();
-    for (let i = 0; i < 2; i++) {
-      const d = tmpA.copy(this.target[i]).applyMatrix4(tmpInv).sub(this.hipJoints[i].position);
-      const len = Math.min(THIGH + SHIN - 1e-4, Math.max(Math.abs(THIGH - SHIN) + 1e-3, d.length()));
-      d.normalize();
-      // Leg direction after roll (z) then pitch (x): (sin z, −cos z·cos x, −cos z·sin x).
-      const roll = Math.asin(clamp(d.x, -1, 1));
-      const pitch = Math.atan2(-d.z, -d.y);
-      const knee = Math.PI - Math.acos(clamp((THIGH * THIGH + SHIN * SHIN - len * len) / (2 * THIGH * SHIN), -1, 1));
-      // The thigh points ahead of the hip→ankle line by this much (the knee bends backward).
-      const ahead = Math.acos(clamp((THIGH * THIGH + len * len - SHIN * SHIN) / (2 * THIGH * len), -1, 1));
-      const hipX = pitch + ahead;
-      this.hipJoints[i].rotation.set(hipX, 0, roll);
-      this.knees[i].rotation.x = -knee;
-      // Sole against the ground: the gait's pitch, minus what the leg already tilts it.
-      this.ankles[i].rotation.x = this.sole[i] - (hipX - knee);
-    }
+    for (let i = 0; i < 2; i++) this.reachLeg(i, this.target[i], this.sole[i]);
 
     // Head stays level (counters the torso), looks around slowly when standing still.
     const idle = 1 - g;
     this.head.rotation.x = 0.16 * r + 0.04 * g + 0.05 * idle * Math.sin(this.time * 0.23);
     this.head.rotation.y = 0.12 * g * Math.cos(sL) + idle * 0.3 * Math.sin(this.time * 0.31) * Math.sin(this.time * 0.13 + 1);
 
-    // Blink every few seconds (a quick close and open).
+    this.blinkEyes(dt);
+  }
+
+  /** Blink every few seconds (a quick close and open). */
+  private blinkEyes(dt: number): void {
     this.blink -= dt;
     let closed = 0;
     if (this.blink < 0) {
@@ -1195,6 +1212,108 @@ export class Avatar {
     const lid = 0.12 + 0.88 * Math.max(0, closed);
     for (const h of this.lids) h.scale.y = lid;
 
+  }
+
+  /**
+   * Sitting in the kayak: legs stretched forward with the knees a little up, the torso turning
+   * with each stroke, both hands on the paddle (two-bone IK per arm: shoulder → elbow → palm).
+   */
+  updateSeated(dt: number, p: Readonly<SeatedPose>): void {
+    this.time += dt;
+    this.seated = true;
+    this.rootY = Number.NaN;
+    const root = this.group;
+    p.seat.decompose(root.position, root.quaternion, tmpC);
+    this.hips.position.set(0, SIT_H, 0.02);
+    this.hips.rotation.set(0.04, p.twist * 0.3, 0);
+    this.torso.rotation.set(-p.lean, p.twist * 0.7, 0);
+    this.torso.scale.y = 1;
+    root.updateMatrixWorld(true);
+    // Feet braced in the footwells (seat frame: −Z forward), knees a little bent.
+    for (let i = 0; i < 2; i++) {
+      const foot = tmpD.set((i === 0 ? -1 : 1) * p.feet.x, p.feet.y, p.feet.z).applyMatrix4(p.seat);
+      this.reachLeg(i, foot, 0.45);
+    }
+    root.updateMatrixWorld(true);
+    for (let i = 0; i < 2; i++) this.reachArm(i, p.hands[i]);
+    // The head keeps looking where the camera looks (within what a neck allows).
+    this.head.rotation.set(
+      clamp(p.lookPitch * 0.6, -0.5, 0.4) + p.lean * 0.8,
+      clamp(p.lookYaw, -1.2, 1.2) - p.twist,
+      0,
+    );
+    // Skinned vertices follow their bone's scale: a near-zero head collapses the head and hair
+    // into one point inside the neck.
+    this.head.scale.setScalar(p.firstPerson ? 0.001 : 1);
+    this.blinkEyes(dt);
+  }
+
+  /**
+   * Two-bone arm IK in the torso's frame: the palm reaches `target` (world), the elbow bends
+   * out, down and back. The shoulder gets a full orientation (basis matrix), the elbow a hinge
+   * angle (law of cosines); the forearm twists so the palm wraps over the shaft.
+   */
+  private reachArm(i: number, target: THREE.Vector3): void {
+    const side = i === 0 ? -1 : 1;
+    const sh = this.shoulders[i];
+    tmpInv.copy(this.torso.matrixWorld).invert();
+    const t = tmpA.copy(target).applyMatrix4(tmpInv);
+    const d = tmpB.subVectors(t, sh.position);
+    const a = UPPER_ARM;
+    const b = FOREARM;
+    const len = clamp(d.length(), Math.abs(a - b) + 1e-3, a + b - 1e-3);
+    d.normalize();
+    const pole = tmpC.set(side * 0.55, -0.55, 0.5).normalize();
+    const perp = tmpD.copy(pole).addScaledVector(d, -pole.dot(d)).normalize();
+    const cosA = clamp((a * a + len * len - b * b) / (2 * a * len), -1, 1);
+    // Upper arm direction, rotated from the shoulder→palm line toward the pole.
+    const u = d.multiplyScalar(cosA).addScaledVector(perp, Math.sqrt(1 - cosA * cosA));
+    // Bone frame: −Y along the upper arm, −Z where the forearm folds (away from the pole).
+    const zb = perp.copy(pole).addScaledVector(u, -pole.dot(u)).normalize();
+    const yb = tmpA.copy(u).negate();
+    const xb = tmpC.crossVectors(yb, zb);
+    tmpBasis.makeBasis(xb, yb, zb);
+    sh.quaternion.setFromRotationMatrix(tmpBasis);
+    const bend = Math.PI - Math.acos(clamp((a * a + b * b - len * len) / (2 * a * b), -1, 1));
+    this.elbows[i].rotation.set(bend, 0, 0);
+    // Palm over the shaft: its normal (rest: facing the body, −side·X) turns toward the
+    // paddler and down, about the forearm's axis.
+    this.elbows[i].updateMatrixWorld(true);
+    tmpInv.copy(this.elbows[i].matrixWorld).invert();
+    const want = tmpA.set(0, -0.8, 0.6).applyQuaternion(this.group.quaternion).add(this.elbows[i].getWorldPosition(tmpB)).applyMatrix4(tmpInv);
+    this.wrists[i].rotation.set(0, Math.atan2(side * want.z, -side * want.x), 0);
+  }
+
+  /**
+   * Two-bone leg IK in the pelvis's frame: the ankle reaches `target` (world), the knee bends
+   * forward; `sole` is the foot's pitch against the ground (> 0 toes up).
+   */
+  private reachLeg(i: number, target: THREE.Vector3, sole: number): void {
+    tmpInv.copy(this.hips.matrixWorld).invert();
+    const d = tmpA.copy(target).applyMatrix4(tmpInv).sub(this.hipJoints[i].position);
+    const len = Math.min(THIGH + SHIN - 1e-4, Math.max(Math.abs(THIGH - SHIN) + 1e-3, d.length()));
+    d.normalize();
+    // Leg direction after roll (z) then pitch (x): (sin z, −cos z·cos x, −cos z·sin x).
+    const roll = Math.asin(clamp(d.x, -1, 1));
+    const pitch = Math.atan2(-d.z, -d.y);
+    const knee = Math.PI - Math.acos(clamp((THIGH * THIGH + SHIN * SHIN - len * len) / (2 * THIGH * SHIN), -1, 1));
+    // The thigh points ahead of the hip→ankle line by this much (the knee bends backward).
+    const ahead = Math.acos(clamp((THIGH * THIGH + len * len - SHIN * SHIN) / (2 * THIGH * len), -1, 1));
+    const hipX = pitch + ahead;
+    this.hipJoints[i].rotation.set(hipX, 0, roll);
+    this.knees[i].rotation.x = -knee;
+    // Sole against the ground: the wanted pitch, minus what the leg already tilts it.
+    this.ankles[i].rotation.x = sole - (hipX - knee);
+  }
+
+  /** Back on the feet after sitting: rest orientation for every bone (walking sets the rest). */
+  private stand(): void {
+    this.seated = false;
+    this.hips.traverse((o) => {
+      if (o instanceof THREE.Bone) o.quaternion.identity();
+    });
+    this.hips.position.set(0, HIP_Y, 0);
+    this.head.scale.setScalar(1);
   }
 
   /** Faces a direction immediately (when walking starts). */

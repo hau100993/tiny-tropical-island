@@ -19,6 +19,7 @@ import { patchWorldMaterial, type WorldMaterialFeatures } from './patchMaterial'
 import { Weather } from '../weather/Weather';
 import { DayNight } from './dayNight';
 import { Fireflies } from './fireflies';
+import { createKayak, type KayakModel } from './kayak';
 import { createNoise2D } from '../core/noise';
 import { createRng } from '../core/rng';
 import type { SharedUniforms } from '../core/uniforms';
@@ -42,6 +43,7 @@ export interface World {
   fireflies: Fireflies;
   boat: FloatingObject;
   fishingTrip: FishingTrip;
+  kayak: KayakModel;
   update(dt: number, time: number, camera: THREE.Camera, waveStrength: number): void;
 }
 
@@ -130,6 +132,11 @@ export function createWorld(
   patchTree(fishingMesh, { wet: true, porosity: 0.3 }, shared);
   const fishingTrip = new FishingTrip(fishingMesh, layout.house, { x: DESK.seatX - 62, z: 160 }, { x: 34, z: 16 });
 
+  // The kayak (moved by the kayak activity, not here).
+  const kayak = createKayak(WORLD_SEED + 13);
+  scene.add(kayak.group);
+  patchTree(kayak.group, { wet: true, porosity: 0.1 }, shared);
+
   const heightTexture = createHeightTexture(heightmap);
   if (!renderer.extensions.has('OES_texture_float_linear')) {
     // Without linear filtering of float textures, fall back to nearest (slightly blockier foam).
@@ -169,6 +176,7 @@ export function createWorld(
     fireflies,
     boat,
     fishingTrip,
+    kayak,
     update(dt, time, camera, waveStrength) {
       sky.follow(camera);
       boat.update(time, waveStrength, camera, dt);

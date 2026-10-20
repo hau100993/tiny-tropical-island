@@ -21,6 +21,12 @@
 | 7c++ Open bath (user request) | ✅ Done (2026-10-18), awaiting feedback | Shoji screens removed; big back window (1.7 × 1.6 m) onto the forest; hinoki tub under it with spout, rain shower (pipe, arm, square head, mixer, drain) on the side wall, slate tile floor, stool and bucket, towel rail, a fern on the sill. |
 | 7c+++ Bath seat (user request) | ✅ Done (2026-10-18), awaiting feedback | Seated mode generalized to several seats (`CameraManager.sit(id)`, mode 'seat'): desk and bathtub. In the tub the eyes are 0.86 m above the floor, looking at the forest through the back window; `E` next to the tub or the panel button "Ngâm bồn tắm". |
 | 7b New scene effects | ⏳ Next | Lightning (flash + bolts), campfire on the beach (shader flames, embers, flickering light, smoke), mist, drizzle ↔ downpour, falling leaves/petals, house lanterns, night fishing-boat lights, bright full moon. Each added to scene presets and shown for approval. Later phase: animals. Later: per-file "sound type" (thunder-synced flashes, positional campfire, indoor muffle for rain). |
+| 8a Activities base (user request) | ✅ Done (2026-10-20), awaiting feedback | `CameraMode` gains `'kayak'`; `C` from the overview returns to whichever you were doing (walk or kayak). `ui/ActivityMenu.ts`: card "Hoạt động biển" with key caps while walking on sand within ~9 m of the shore or in the water, plus short notes. New folder `src/activities/`. Buoyancy is per activity (kayak: 4-point `sampleWaves`); a shared helper waits for swimming (8c). |
+| 8b Kayak | ✅ Done (2026-10-20), awaiting feedback | `world/kayak.ts` (3.8 m sit-on-top, lofted hull with smooth normals, moulded seat/footwells/backrest, hatch, bungees, handles; 2.2 m paddle with asymmetric blades) on the sand by the house (`layout.kayak`, bow down the beach). `activities/kayakPhysics.ts`: 2D rigid body (110 kg, I = 120), hull drag lengthwise 3v + 6.5v², sideways per end 20v + 80v² (stern ×1.3: tracking), stroke keyframes (forward 0.95 s, reverse 1.2 s, sweep 1.5 s), blade drag 70·wet·v² on the face normal applied at the blade (≤ 260 N), grounding friction and downhill push, rock/stilt/rowboat circles, current back past 280 m. Tests: cruise 1.5 m/s, reverse −0.8 m/s, forward stroke ≈ 11°, sweep ≈ 20°, glides, grounds. `KayakActivity.ts`: A/D (+ tap latch 0.6 s), W, S, Shift, mouse look relative to the boat, 3rd/1st person (head bone scaled to ~0 so the arms show), launch spot search (0.35–0.85 m deep, bow downhill), step-out spot (≤ 0.9 m, shallower side). Avatar `updateSeated`: arm two-bone IK with an elbow pole and forearm twist, leg IK to the footwells (walking IK refactored into `reachLeg`), torso twist with the shaft. Ripples at catches and the bow; synthesized paddle splash/drips. |
+| 8c Swimming | ⏳ Planned | |
+| 8d Diving | ⏳ Planned | |
+| 8e Journal | ⏳ Planned | |
+| 8f Surfing | ⏳ Planned (last, user choice) | |
 
 **Deviations from the plan so far**
 - Vitest 5.0.5 instead of 4.x/3.x: npm 10.9 crashes resolving vitest 4.1's optional peers, and vitest 3.2 has published advisories (dev-only, but avoided anyway).
@@ -283,6 +289,35 @@ Checked via the debug overlay (fps, frame ms, `renderer.info` draw calls/triangl
 | **5** First-person            | Pointer lock, WASD/Shift, terrain following, collision, house interior/porch, deep-water limit, footsteps by surface, spatial audio, indoor rain muffle                                          | `C` → walk; can't pass trunks/walls/deep water; footsteps change on sand/grass/wood/shallows; waves louder at the shore; rain muffled indoors; Esc → orbit                                     |
 | **6** Files, Pomodoro, polish | Audio config + manifest plugin + crossfades, Pomodoro overlay + chime + "storm calms", final quality presets, low power, reduced motion, hide-UI, shortcuts, README, perf pass                   | Drop an OGG into `public/audio`, edit config → real sound; delete it → synth, no red errors; Pomodoro chimes while the tab is hidden; `H` gives a clean wallpaper view; Low power holds 30 fps |
 
+### Phase 8 — Sea activities (user request, 2026-10-20)
+
+The island becomes a calm role-play sandbox while walking: kayaking, swimming, diving and (last) surfing, plus a journal of small goals. No fail states, no health, no timers. Orbit and seat views stay the wallpaper; activities only exist in walk mode. Code lives in a new `src/activities/` folder.
+
+User decisions (2026-10-20): surfing comes last; surfing is the arcade style below; the role-play layer is a journal only (no NPCs, no collectibles shop); near the sea a small menu shows the shortcut key of each activity; kayak controls "as realistic as possible".
+
+| Phase | Deliverable | What you test |
+| --- | --- | --- |
+| **8a** Base | Activity modes next to walk (camera manager), shore menu ("gần biển": key per activity), shared wave-buoyancy helper (4-point sampling of `sampleWaves`) | Walk to the water's edge → the menu with the keys shows; walk inland → it hides |
+| **8b** Kayak | Sit-on-top kayak on the beach by the house; real paddling (below); waves heave/pitch/roll it; runs aground in the shallows; rocks and the moored boat block it; ripples at the blade and the bow; paddle splash sounds; seated avatar whose hands hold the paddle (arm IK) and whose torso turns with each stroke | `K` at the shore → seated in the kayak; alternate `A`/`D` → glides straight; one side only → turns; `S` → brakes/backs; waves rock it; paddle into the beach → grounds; `K`/`E` in shallow water → step out |
+| **8c** Swimming | Wade → swim past ~1.1 m depth; breaststroke (slow) and front crawl (Shift) from joint tables like the gait; floats on the waves; low camera at the surface | Walk into the sea → starts swimming; Shift → crawl; back to the beach → walks again |
+| **8d** Diving | `Space`/`Ctrl` dive and rise; underwater rendering (surface seen from below with Snell's window, depth fog/absorption, caustics on the seabed, light rays, bubbles); muffled audio; a reef zone (instanced corals, swaying seaweed, schools of fish moved in the shader); breath meter that floats you up when empty | Dive in the reef → corals, fish, caustics; sound goes muffled; breath runs out → you rise |
+| **8e** Journal | `J` opens "Nhật ký": a short list of goals per activity (paddle to the fishing boat, round the headland, find the reef…), ticked automatically, saved in localStorage | Do a goal → a quiet toast and a tick in the journal; reload → still ticked |
+| **8f** Surfing (arcade) | A surf break: a dedicated swell train running toward one beach, steeper, with a white-water band at the lip (same formula on the GPU and in the CPU twin); board physics: paddle out lying down, `Space` at the right moment to catch the wave, stand up, slide down the face (slope from `sampleWaves`), `A`/`D` carve along it; leaning too far → wipe out into the water | Paddle out, catch a wave, ride it along the beach, fall off when carving too hard |
+
+**Kayak controls (realistic).** A real kayak has one double-bladed paddle and no rudder: you steer only with strokes, and the shaft is one piece, so the two sides alternate.
+- `A` / `D`: one forward stroke on the left / right side (catch near the feet, pull to the hip, lift out). Alternating gives a straight line; strokes on one side turn the boat away from that side. Holding a key repeats strokes on that side.
+- `W` (hold): steady cruising rhythm, alternating by itself (the same strokes, for comfort).
+- `S` (+ `A`/`D` or alone): reverse strokes (brake, back up).
+- `Shift` + `A`/`D`: sweep stroke (a wide arc far from the hull: turns a lot, pushes little).
+- Mouse: look around freely (the head turns, the boat does not); `V`: first / third person.
+- `K` or `E` in water up to 0.9 m deep: step out beside the kayak; it stays where you left it.
+
+**Kayak physics (no physics engine; small 2D rigid body).** Mass ~110 kg (boat + paddler), yaw inertia from a 3.8 m hull. The hull has low drag along its length and high drag sideways (the keel effect: it goes where it points). The paddle is kinematic (its motion comes from the stroke curves); each frame the blade's velocity relative to the water is computed, and the force on the submerged part of the blade (drag ∝ speed², along the blade's face normal) is applied at the blade's position: it gives thrust and turning torque. So strokes give less when the boat is already fast, a sweep far from the hull turns more, a reverse stroke brakes, all without special cases. Heave, pitch and roll come from the waves sampled at bow, stern and both sides, smoothed (the boat feels heavy). Ground under the hull adds friction and pushes it toward deeper water.
+
+**Underwater rendering (8d), cost control.** Only when the camera is below the surface: the water surface is drawn from below (back faces, its own shader), reflection is skipped, fog replaces the sky. Corals and fish are instanced; fish move in the vertex shader. Target stays 60 fps at Medium.
+
+**Limits.** The ripples of the GPU water are visual only (reading them back to the CPU would stall the GPU); boats and swimmers float on the Gerstner waves. The seabed exists only on the 300 m terrain, so diving is limited to the reef around the island; open water past ~280 m from the island gently pushes you back.
+
 After each phase: `npm run build` passes, PLAN.md status updated, README updated, and I give you exact run/test steps, then wait for your feedback.
 
 ---
@@ -305,7 +340,7 @@ After each phase: `npm run build` passes, PLAN.md status updated, README updated
 - No backend, accounts, network calls, CDN, analytics, or telemetry.
 - No Lively/Wallpaper Engine/Electron packaging (possible later as a separate mode).
 - No WebGPU, no FFT/Tessendorf ocean, no volumetric clouds, no bloom/post-processing stack.
-- No swimming, jumping, visible animals/NPCs (birds are audio-only), and no physics engine.
+- No jumping, NPCs, or physics engine. (Swimming, diving and fish were added in Phase 8 on request; other visible animals stay out.)
 - No shipped audio files, textures, or 3D models: everything is procedural.
 - No mobile/touch tuning beyond what OrbitControls gives for free (pinch works, not optimized).
 - No i18n framework: Vietnamese strings live in `ui/strings.vi.ts`.

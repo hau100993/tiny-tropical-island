@@ -192,6 +192,16 @@ export const vi = {
     controls: 'W A S D: đi · Shift: chạy · Chuột: nhìn · V: đổi góc nhìn · Nhấp: té nước · Esc: thoát',
     clickToLook: 'Nhấp vào cảnh để điều khiển bằng chuột · C: thoát',
   },
+  sea: {
+    menuTitle: 'Hoạt động biển',
+    kayak: 'Chèo kayak',
+  },
+  kayak: {
+    controls: 'A / D: chèo trái / phải · W: chèo đều · S: chèo lùi · Shift + A/D: chèo quét · Chuột: nhìn · K: lên bờ · Esc: thoát',
+    land: 'K: Lên bờ',
+    tooDeep: 'Nước còn sâu: chèo vào chỗ nông hơn để lên bờ',
+    noLaunch: 'Ra sát mép nước để hạ thuyền',
+  },
   layers: {
     waves: 'Sóng biển',
     birds: 'Chim hót',
@@ -226,9 +236,11 @@ export const vi = {
     desk: 'Góc làm việc: ngồi vào bàn / rời bàn',
     sit: 'Đứng gần bàn hoặc bồn tắm: ngồi vào / đứng dậy',
     leaveDesk: 'Đứng dậy (bàn làm việc, bồn tắm)',
+    kayak: 'Gần biển: chèo kayak / lên bờ',
     mouse: 'Kéo: xoay · Cuộn: thu phóng · Chuột phải: dời · Nhấp vào nước: gợn sóng',
     sliderWheel: 'Thanh trượt: lăn chuột để chỉnh 5% (giờ: 15 phút) · giữ Shift để chỉnh mịn · nhấp đúp: về mặc định',
     sceneKeys: '1 – 9: chọn cảnh theo thứ tự trên bảng',
     walkKeys: 'Khi đi bộ: W A S D đi · Shift chạy · chuột nhìn · V đổi góc nhìn · Esc thoát',
+    kayakKeys: 'Kayak: A / D chèo trái / phải · W chèo đều · S chèo lùi · Shift + A/D chèo quét',
   },
 } as const;

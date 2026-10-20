@@ -48,7 +48,7 @@ export class WalkHint {
    * walking + locked: dot, controls reminder that fades out.
    * walking, not locked: the "click to look" message stays until the mouse is captured.
    */
-  update(walking: boolean, locked: boolean, failed: boolean): void {
+  update(walking: boolean, locked: boolean, failed: boolean, controls: string = vi.walk.controls): void {
     window.clearTimeout(this.timer);
     this.dot.hidden = !walking || !locked;
     this.hint.hidden = !walking;
@@ -58,7 +58,7 @@ export class WalkHint {
       this.hint.textContent = vi.walk.clickToLook;
       return;
     }
-    this.hint.textContent = vi.walk.controls;
+    this.hint.textContent = controls;
     this.timer = window.setTimeout(() => this.hint.classList.add('faded'), SHOW_MS);
   }
 }

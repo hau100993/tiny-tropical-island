@@ -61,7 +61,8 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `V` | While walking: character view (third person) ↔ eyes view (first person) |
 | `T` | Pomodoro: show the timer and start / pause it |
 | `B` | Work desk: sit down at the desk in the house (from anywhere) / get up |
-| `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up |
+| `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up; in the kayak: step out |
+| `K` | Walking on the beach or in the shallows: get into the kayak; in the kayak: step out (see *Kayak*) |
 | `Esc` | Seated (desk or bathtub): get up |
 | `` ` `` (backquote) | Show/hide the stats overlay (FPS, CPU/GPU ms, draw calls) |
 
@@ -326,6 +327,38 @@ behind you, so it works inside the small room too.
   falls under the roof, and the floor stays dry.
 - Head bob is off when Windows' "Animation effects" is disabled (`prefers-reduced-motion`).
 
+## Kayak (`K` at the sea)
+
+Walk onto the beach or into the shallows and a small card **Hoạt động biển** appears at the
+bottom right with the key of each activity you can start there. For now that is **K – Chèo
+kayak**; swimming, diving, a journal and surfing come next (see PLAN.md, Phase 8).
+
+The kayak is a yellow sit-on-top, pulled up on the sand beside the house. Press `K` and it is
+put in the water in front of you (from the sand, or wherever you left it) and you sit in it.
+It has no rudder: like a real kayak you steer only with your strokes, and the paddle is one
+piece, so the two sides take turns.
+
+| Input | Action |
+|---|---|
+| `A` / `D` | One forward stroke on the left / right side (tap, or hold to keep stroking that side). Alternating goes straight; one side only turns the boat **away** from that side |
+| `W` (hold) | Steady cruising rhythm, left and right by itself (~1.5 m/s, a relaxed touring pace) |
+| `S` (hold) | Reverse strokes: brake, then back up (~0.8 m/s) |
+| `Shift` + `A` / `D` | Sweep stroke: a wide arc from the bow to the stern far from the hull; turns about twice as much as a forward stroke |
+| Mouse | Look around (the head turns, the boat doesn't) |
+| `V` | Character view ↔ eyes view (you see your arms, legs and the paddle) |
+| `K` or `E` | Step out, where the water beside the kayak is no deeper than 0.9 m (otherwise a note says to paddle closer to the beach) |
+| `Esc` / `C` | Back to the orbit view; `C` again puts you back in the kayak |
+
+How it moves: the kayak is a small simulated body, no physics library. The water drags on the
+hull a little lengthwise and a lot sideways (that's why it goes where it points and glides a
+long way after the last stroke). Each stroke moves the blade through the water; the drag on the
+wet part of the blade, applied where the blade is, pushes and turns the boat, so a stroke helps
+less when you're already fast, and a stroke far out turns more. The waves (the same ones the
+water draws) lift, pitch and roll the boat; it runs aground on the sand and is stopped by rocks
+and the rowboat. Blade catches make ripples and a soft splash (left or right ear by the side),
+the bow pushes small ripples while moving. The empty kayak keeps floating where you left it.
+The paddle sounds follow **Tiếng bước chân**.
+
 ## Day, night and sky
 
 **The clock** (*Thời gian* in the panel):
@@ -514,6 +547,7 @@ src/
     file/      public/audio config parsing and the file layer (crossfades)
     library/   the user's recordings: IndexedDB storage, streaming players, scene mapping
   controls/  orbit camera, walking (first person), collision, water clicks, keyboard shortcuts
+  activities/  sea activities: kayak physics (paddle strokes, blade forces, hull drag) and control
   ui/        Vietnamese strings, control panel, Pomodoro (state machine + card), stats overlay, styles
 tests/       unit tests for pure logic
 vite-plugins/  audio-manifest plugin (lists files in public/audio)

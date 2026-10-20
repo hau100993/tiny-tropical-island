@@ -2,13 +2,14 @@ import * as THREE from 'three';
 import type { OrbitCamera } from './orbit';
 import type { Walker } from './walker';
 import type { DeskPose, DeskView } from './deskView';
+import type { KayakActivity } from '../activities/KayakActivity';
 
-/** 'seat': sitting somewhere in the house (the desk or the bathtub). */
-export type CameraMode = 'orbit' | 'walk' | 'seat';
+/** 'seat': sitting somewhere in the house (the desk or the bathtub). 'kayak': paddling. */
+export type CameraMode = 'orbit' | 'walk' | 'seat' | 'kayak';
 export type SeatId = 'desk' | 'bath';
 
 /** Near plane per mode: close enough not to clip walls (or the monitors) indoors. */
-const NEAR = { orbit: 0.3, walk: 0.08, seat: 0.05 } as const;
+const NEAR = { orbit: 0.3, walk: 0.08, seat: 0.05, kayak: 0.08 } as const;
 
 export interface SeatSpot {
   /** Where the eyes are when seated, and the look direction. */
@@ -26,6 +27,8 @@ export class CameraManager {
   mode: CameraMode = 'orbit';
   /** Which seat, while mode is 'seat'. */
   seat: SeatId = 'desk';
+  /** Where `C` returns to from the overview: walking, or the kayak you were paddling. */
+  private play: 'walk' | 'kayak' = 'walk';
   private readonly savedPos = new THREE.Vector3();
   private readonly savedTarget = new THREE.Vector3();
   private readonly listeners: Array<(mode: CameraMode) => void> = [];
@@ -35,6 +38,7 @@ export class CameraManager {
     private readonly orbit: OrbitCamera,
     private readonly walker: Walker,
     private readonly sitter: DeskView,
+    private readonly kayak: KayakActivity,
     private readonly spawn: { x: number; z: number; yaw: number },
     private readonly seats: Record<SeatId, SeatSpot>,
   ) {}
@@ -44,7 +48,7 @@ export class CameraManager {
   }
 
   toggle(): void {
-    this.setMode(this.mode === 'orbit' ? 'walk' : 'orbit');
+    this.setMode(this.mode === 'orbit' ? this.play : 'orbit');
   }
 
   /** Sit down at `id` (from anywhere, or move from the other seat). `animate`: glide there. */
@@ -79,12 +83,17 @@ export class CameraManager {
       this.orbit.controls.enabled = false;
     } else if (from === 'walk') {
       this.walker.exit();
+    } else if (from === 'kayak') {
+      this.kayak.exit();
     } else {
       this.sitter.exit();
     }
     // Enter the new one.
+    if (mode === 'walk' || mode === 'kayak') this.play = mode;
     if (mode === 'seat') {
       this.sitter.enter(this.seats[this.seat].seat, animate);
+    } else if (mode === 'kayak') {
+      this.kayak.enter();
     } else if (mode === 'walk') {
       if (from === 'seat') {
         const s = this.seats[this.seat].stand;
@@ -105,6 +114,8 @@ export class CameraManager {
   update(dt: number): void {
     if (this.mode === 'walk') this.walker.update(dt);
     else if (this.mode === 'seat') this.sitter.update(dt);
-    else this.orbit.update(dt);
+    else if (this.mode === 'orbit') this.orbit.update(dt);
+    // The kayak floats (and is paddled) in every mode.
+    this.kayak.update(dt);
   }
 }
