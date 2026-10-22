@@ -1176,10 +1176,31 @@ class Spring {
 /** Ground height under (x, z) for feet near `nearY` (terrain, the house floor, the steps). */
 export type GroundQuery = (x: number, z: number, nearY: number) => number;
 
+/**
+ * The procedural skeleton, read by a loaded character that copies its pose (world/character.ts).
+ * In the rest pose every bone has an identity rotation: arms hanging straight down, legs
+ * straight, facing −Z.
+ */
+export interface AvatarRig {
+  readonly group: THREE.Object3D;
+  readonly hips: THREE.Bone;
+  readonly torso: THREE.Bone;
+  readonly head: THREE.Bone;
+  readonly shoulders: readonly THREE.Bone[];
+  readonly elbows: readonly THREE.Bone[];
+  readonly wrists: readonly THREE.Bone[];
+  readonly hipJoints: readonly THREE.Bone[];
+  readonly knees: readonly THREE.Bone[];
+  readonly ankles: readonly THREE.Bone[];
+}
+
 const THIGH = 0.41 * LEG_SCALE;
 const SHIN = 0.375 * LEG_SCALE;
 /** Ankle joint height above the ground when standing. */
 const ANKLE_H = HIP_Y - 0.03 - THIGH - SHIN;
+/** Built-in body, at scale 1: hip joint to ankle, and the pelvis bone's rest height. */
+export const AVATAR_LEG = THIGH + SHIN;
+export const AVATAR_HIP_Y = HIP_Y;
 /** From the ankle to the ball of the foot (where the heel lifts around at toe-off). */
 const TOE = 0.12;
 const UPPER_ARM = 0.27;
@@ -1256,6 +1277,14 @@ export class Avatar {
   private gait = 0;
   private run = 0;
   private time = 0;
+  /**
+   * Body scale: 1 for the built-in body. A loaded character scales the skeleton so its legs are
+   * as long as the character's (the feet then land right); every length in metres used against
+   * the world below is multiplied by it.
+   */
+  private k = 1;
+  /** The built-in body's meshes (hidden while a loaded character wears the skeleton). */
+  private readonly ownMeshes: THREE.Object3D[] = [];
   /** Seconds until the next blink; negative while the eyes are closing/opening. */
   private blink = 2;
 
@@ -1384,6 +1413,7 @@ export class Avatar {
       hinge.scale.y = 0.12;
       this.head.add(hinge);
       this.lids.push(hinge);
+      this.ownMeshes.push(hinge);
     }
 
     // ---- Arms: one continuous skin from shoulder to wrist (bends smoothly at the elbow) ----
@@ -1483,6 +1513,7 @@ export class Avatar {
       // The bones move the vertices far from the rest-pose bounds; the body is small, never cull.
       mesh.frustumCulled = false;
       this.group.add(mesh);
+      this.ownMeshes.push(mesh);
     }
     this.group.name = 'avatar';
     this.group.visible = false;
@@ -1583,8 +1614,8 @@ export class Avatar {
       root.localToWorld(nominal);
       const ground = this.groundAt ? this.groundAt(nominal.x, nominal.z, p.feetY) : p.feetY;
       // Heel up at toe-off: the foot pivots on its ball, lifting the ankle.
-      const lift = this.sole[i] < 0 ? TOE * Math.sin(-this.sole[i]) : 0.03 * Math.sin(this.sole[i]);
-      const onGround = ground + ANKLE_H + lift;
+      const lift = (this.sole[i] < 0 ? TOE * Math.sin(-this.sole[i]) : 0.03 * Math.sin(this.sole[i])) * this.k;
+      const onGround = ground + ANKLE_H * this.k + lift;
       const st = this.stanceW[i];
       if (st > 0.5) {
         // Pin where the foot lands; re-pin if the body got far from it (turning on the spot,
@@ -1600,15 +1631,16 @@ export class Avatar {
       this.settleFoot(i, idle, dt, tmpC.set(nominal.x, onGround, nominal.z));
       this.plant[i] = fresh ? (this.locked[i] ? 1 : 0) : this.plant[i] + ((this.locked[i] ? 1 : 0) - this.plant[i]) * damp(this.locked[i] ? 40 : 14, dt);
       // Swing: the gait's path, lifted by the same clearance above the real ground.
-      const clearance = Math.max(0, nominal.y - (this.rootY + ANKLE_H));
+      const clearance = Math.max(0, nominal.y - (this.rootY + ANKLE_H * this.k));
       const t = this.target[i].set(nominal.x, onGround + clearance * (1 - st), nominal.z);
       t.lerp(this.lock[i], this.plant[i]);
       // How far the pelvis must come down for this leg to reach.
       const hipPos = this.hipJoints[i].getWorldPosition(tmpB);
-      need = Math.max(need, hipPos.distanceTo(t) - (THIGH + SHIN - REACH_SLACK));
+      need = Math.max(need, hipPos.distanceTo(t) - (THIGH + SHIN - REACH_SLACK) * this.k);
     }
     this.drop += (Math.max(0, need) - this.drop) * (fresh ? 1 : damp(16, dt));
-    this.hips.position.y = HIP_Y - this.drop;
+    // (`drop` is in metres; the pelvis moves in the scaled body's units.)
+    this.hips.position.y = HIP_Y - this.drop / this.k;
     root.updateMatrixWorld(true);
 
     // ---- 3. Two-bone IK per leg, in the pelvis's frame ----
@@ -1672,6 +1704,7 @@ export class Avatar {
     this.rootY = Number.NaN;
     const root = this.group;
     p.seat.decompose(root.position, root.quaternion, tmpC);
+    root.scale.setScalar(this.k);
     this.hips.position.set(0, SIT_H, 0.02);
     this.hips.rotation.set(0.04, p.twist * 0.3, 0);
     this.torso.rotation.set(-p.lean, p.twist * 0.7, 0);
@@ -1805,7 +1838,7 @@ export class Avatar {
     const root = this.group;
     root.rotation.set(pitch, this.yaw, 0, 'YXZ');
     // The chest sits just under the surface (deeper when treading: only the head is out).
-    const chest = 1.25;
+    const chest = 1.25 * this.k;
     const depth = 0.24 + (0.12 + 0.06 * (1 - cr) - 0.24) * mv;
     const sp = Math.sin(pitch);
     const chestY = Number.isNaN(p.chestY) ? p.surfaceY - depth : p.chestY;
@@ -1856,6 +1889,7 @@ export class Avatar {
     this.rootY = Number.NaN;
     const root = this.group;
     p.board.decompose(root.position, root.quaternion, tmpS);
+    root.scale.setScalar(this.k);
     this.torso.scale.y = 1;
     this.head.scale.setScalar(p.firstPerson ? 0.001 : 1);
     if (p.stand < 0.5) {
@@ -1875,7 +1909,7 @@ export class Avatar {
       // Face down, head toward the nose: body +Y → board −Z. The spine lies ~0.11 m above the
       // deck, the feet just past the tail.
       root.quaternion.multiply(tmpQ.setFromAxisAngle(tmpP.set(1, 0, 0), -Math.PI / 2));
-      tmpP.set(0, 0.11, 1.12).applyMatrix4(p.board);
+      tmpP.set(0, 0.11 * this.k, 1.12 * this.k).applyMatrix4(p.board);
       root.position.copy(tmpP);
       root.updateMatrixWorld(true);
       // Arms: paddling, each hand reaching in past the rail ahead and pulling back to the hip,
@@ -1910,7 +1944,7 @@ export class Avatar {
     // Feet on the deck, about shoulder width and a half apart: left (front) foot toward the
     // nose, right foot over the fins.
     for (let i = 0; i < 2; i++) {
-      tmpD.set(0, ANKLE_H, i === 0 ? -0.33 : 0.37).applyMatrix4(p.board);
+      tmpD.set(0, ANKLE_H * this.k, i === 0 ? -0.33 : 0.37).applyMatrix4(p.board);
       this.reachLeg(i, tmpD, 0);
     }
     this.blinkEyes(dt);
@@ -1930,5 +1964,39 @@ export class Avatar {
   /** Faces a direction immediately (when walking starts). */
   setYaw(yaw: number): void {
     this.yaw = yaw;
+  }
+
+  /** The skeleton, for a loaded character that copies its pose. */
+  get rig(): AvatarRig {
+    return {
+      group: this.group,
+      hips: this.hips,
+      torso: this.torso,
+      head: this.head,
+      shoulders: this.shoulders,
+      elbows: this.elbows,
+      wrists: this.wrists,
+      hipJoints: this.hipJoints,
+      knees: this.knees,
+      ankles: this.ankles,
+    };
+  }
+
+  /** Body scale (see `k`); 1 is the built-in body. */
+  get bodyScale(): number {
+    return this.k;
+  }
+
+  setBodyScale(k: number): void {
+    this.k = k;
+    this.group.scale.setScalar(k);
+    // Re-plant the feet from scratch at the new size.
+    this.rootY = Number.NaN;
+    this.drop = 0;
+  }
+
+  /** Shows or hides the built-in body (its skeleton keeps moving either way). */
+  setOwnBodyVisible(on: boolean): void {
+    for (const m of this.ownMeshes) m.visible = on;
   }
 }

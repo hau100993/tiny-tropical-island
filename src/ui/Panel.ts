@@ -9,7 +9,7 @@ import type { SoundLibrary } from '../audio/library/SoundLibrary';
 import type { Keymap } from '../controls/keymap';
 import { QUALITY_LEVELS, type QualityLevel } from '../core/quality';
 import type { ScenePresetStore } from '../core/scenePresets';
-import { PANEL_SECTIONS, type PanelSection, type Settings, type SettingsStore } from '../core/settings';
+import { CHARACTER_IDS, PANEL_SECTIONS, type CharacterId, type PanelSection, type Settings, type SettingsStore } from '../core/settings';
 import { formatClock, formatClockSeconds } from '../world/celestial';
 import { nextSpeed } from './timeSpeed';
 import type { Fullscreen } from './fullscreen';
@@ -100,6 +100,7 @@ export class Panel {
   private readonly synthFallback: ToggleControl;
   private readonly synthStatus: HTMLElement;
   private readonly qualityBtns = new Map<QualityLevel, HTMLButtonElement>();
+  private readonly characterBtns = new Map<CharacterId, HTMLButtonElement>();
   private readonly qualityNote: HTMLElement;
   private readonly autoRotate: ToggleControl;
   private readonly footsteps: ToggleControl;
@@ -252,7 +253,13 @@ export class Panel {
     this.autoRotate = toggle(vi.panel.autoRotate, s.autoRotate, (on) => settings.update({ autoRotate: on }));
     const viewOpts = el('div', 'option-list');
     viewOpts.append(withKey(this.thirdPerson.root, 'V'), this.footsteps.root, this.autoRotate.root);
-    view.body.append(tiles, el('div', 'subhead', vi.panel.viewOptions), viewOpts);
+    const characters = el('div', 'seg-group three');
+    for (const id of CHARACTER_IDS) {
+      const b = button(vi.panel.characterNames[id], () => settings.update({ character: id }), 'seg');
+      this.characterBtns.set(id, b);
+      characters.append(b);
+    }
+    view.body.append(tiles, el('div', 'subhead', vi.panel.viewOptions), viewOpts, el('div', 'subhead', vi.panel.character), characters);
 
     // --- Cài đặt ---
     const conf = this.section('settings');
@@ -435,6 +442,7 @@ export class Panel {
       if (sec && sec.root.open !== open) sec.root.open = open;
     }
     for (const [level, b] of this.qualityBtns) b.setAttribute('aria-pressed', String(level === s.quality));
+    for (const [id, b] of this.characterBtns) b.setAttribute('aria-pressed', String(id === s.character));
     const msaaChanged = (s.quality === 'low') !== (this.startQuality === 'low');
     this.qualityNote.textContent = msaaChanged ? vi.panel.msaaReload : '';
     this.autoRotate.set(s.autoRotate);

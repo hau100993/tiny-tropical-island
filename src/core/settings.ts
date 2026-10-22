@@ -6,6 +6,10 @@ import type { WalkView } from '../controls/walker';
 export const SETTINGS_KEY = 'tsw.settings';
 export const SETTINGS_VERSION = 2;
 
+/** Who you walk around as: the built-in (code) body or a character from a .glb file. */
+export const CHARACTER_IDS = ['default', 'man', 'woman'] as const;
+export type CharacterId = (typeof CHARACTER_IDS)[number];
+
 export interface Settings {
   version: number;
   quality: QualityLevel;
@@ -55,6 +59,8 @@ export interface Settings {
   footsteps: boolean;
   /** Walk mode view: through the eyes, or behind the character. */
   walkView: WalkView;
+  /** Your character (third person, swimming, kayak, surfing). */
+  character: CharacterId;
   /** Scene preset last applied ('' = none); its mapped recordings play. */
   activeScene: string;
   /** Play the synthesized soundscape while no recording is playing. */
@@ -102,6 +108,7 @@ export function defaultSettings(): Settings {
     fireflies: true,
     footsteps: false,
     walkView: 'third',
+    character: 'default',
     activeScene: 'b-sunny',
     synthFallback: true,
     startAtDesk: false,
@@ -196,6 +203,7 @@ export function parseSettings(json: string | null): Settings {
     fireflies: bool(raw.fireflies, defaults.fireflies),
     footsteps: bool(raw.footsteps, defaults.footsteps),
     walkView: raw.walkView === 'first' || raw.walkView === 'third' ? raw.walkView : defaults.walkView,
+    character: (CHARACTER_IDS as readonly unknown[]).includes(raw.character) ? (raw.character as CharacterId) : defaults.character,
     activeScene: typeof raw.activeScene === 'string' ? raw.activeScene.slice(0, 64) : defaults.activeScene,
     // The old one-open accordion (`panelSection`) is dropped: everyone starts from the new default.
     panelSections: Array.isArray(raw.panelSections)

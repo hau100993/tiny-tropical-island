@@ -100,7 +100,8 @@ also take the wheel when the pointer is over their row (±1, Shift ±5).
 - **Góc nhìn:** tiles for **Toàn cảnh**, **Đi bộ**, **Góc làm việc**, **Bồn tắm**, **Nằm võng**
   (the current one is highlighted, each shows its key), and switches: character view (`V`),
   **Âm thanh hoạt động** (footsteps, paddle and swim splashes, the surf's crash and rush; off by
-  default), camera auto-rotate.
+  default), camera auto-rotate, and **Nhân vật**: **Mặc định** (the built-in body), **Nam** or
+  **Nữ** (see *Characters* below).
 - **Cài đặt:** quality (Thấp / Vừa / Cao; anti-aliasing changes between Low and the others
   apply after a reload), **Mở app ở góc làm việc**, **Nhấp vào cảnh 3D để thu gọn bảng** (off by
   default: a click on the island without dragging collapses the panel), and the keyboard
@@ -334,6 +335,18 @@ the hips dip as the legs reach. Walking slower means shorter, slower steps (as p
 when wading), and when he stops mid-stride he steps his feet back together instead of standing
 with one leg out and the knees bent. He breathes, blinks
 and looks around slowly when standing.
+
+**Characters (Góc nhìn → Nhân vật).** Besides the built-in body you can walk around as a man or a
+woman from Quaternius' low-poly character pack (`src/assets/characters/*.glb`, CC0). They load
+the first time you pick them (about a second) and wear the same motion as the built-in body:
+walking with planted feet, stopping, swimming, the kayak and the surfboard all work. How: the
+procedural skeleton keeps posing itself as before (its own meshes hidden), and every frame each
+of its joints' turn from rest is copied onto the character's matching bone (retargeting; their
+rest pose is a T-pose, so the arms are first swung down to ours; their longer spine shares our
+one torso bend; their feet are IK bones, placed at the end of the shin). The skeleton is scaled
+so its legs are as long as the character's, which keeps the feet on the ground. They wear
+shoes, so their footprints in the sand are shoe soles. Their materials get wet and catch cloud
+shadows like everything else.
 In the character view the camera pulls in when a wall, the roof, a trunk or the ground is
 behind you, so it works inside the small room too.
 
@@ -751,5 +764,6 @@ audio files in the repo.
 | [WebGL Water](https://madebyevan.com/webgl-water/) by Evan Wallace | MIT | the heightfield ripple simulation (drop + update passes) and the caustics-by-area-ratio technique are reimplemented after it in `src/water/` |
 | Planar reflection camera (`src/water/PlanarReflection.ts`) | MIT | mirrored camera and oblique near plane adapted from three.js `examples/jsm/objects/Reflector.js` |
 | YouTube logo on the desk's right monitor (`YT_LOGO` in `src/ui/youtube.ts`) | path data from [Simple Icons](https://simpleicons.org/), CC0; the logo is a trademark of Google | drawn as the button that opens the YouTube player |
+| `src/assets/characters/man.glb` ("Hoodie Character") and `woman.glb` (a woman from the same pack) by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/gKLBoRsyKe) | CC0 1.0 (public domain) | rigged low-poly characters; their own animations are not used (they wear the procedural motion) |
 | `src/assets/decor/mug-logo.png` (TMA logo) | trademark of its owner, not covered by this project's license | added at the repository owner's request, for the desk mug only |
 | `public/audio/library/island-day.mp3`, `island-night.mp3` | redistribution permitted (confirmed by the repository owner) | built-in recordings, 15 min each; source: *TODO, add the original source and exact license* |

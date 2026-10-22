@@ -16,13 +16,14 @@ const FOOT_W = 0.13;
 
 const VERT = /* glsl */ `
 attribute vec4 iPos;    // x, y, z, yaw
-attribute vec4 iInfo;   // side (−1 left, 1 right), birth time, life (s), snow (0/1)
+attribute vec4 iInfo;   // side (−1 left, 1 right; ×2 for a shoe), birth time, life (s), snow (0/1)
 attribute vec2 iSlope;  // dy/dx, dy/dz of the ground
 uniform float uClock;
 uniform float uRain;
 varying vec2 vFoot;     // across (−1..1, mirrored for the left foot), along (0 heel … 1 toes)
 varying float vFade;
 varying float vSnow;
+varying float vShoe;
 #include <fog_pars_vertex>
 void main() {
   float yaw = iPos.w;
@@ -32,7 +33,8 @@ void main() {
   vec2 d = xz - iPos.xz;
   // On the ground's slope, a hair above it (polygon offset does the rest).
   float y = iPos.y + d.x * iSlope.x + d.y * iSlope.y + 0.01;
-  vFoot = vec2(position.x * 2.0 * iInfo.x, position.y + 0.5);
+  vFoot = vec2(position.x * 2.0 * sign(iInfo.x), position.y + 0.5);
+  vShoe = step(1.5, abs(iInfo.x));
   // Rain wears prints down three times faster; they fade over their last 40 %.
   float age = (uClock - iInfo.y) * (1.0 + 2.0 * uRain * (1.0 - iInfo.w));
   vFade = (1.0 - smoothstep(0.6, 1.0, age / iInfo.z)) * step(0.0, age) * step(0.001, iInfo.z);
@@ -52,6 +54,7 @@ uniform float uDayLight;
 varying vec2 vFoot;
 varying float vFade;
 varying float vSnow;
+varying float vShoe;
 #include <fog_pars_fragment>
 // Ellipse "inside" measure: < 1 inside.
 float ell(vec2 p, vec2 c, vec2 r) { vec2 q = (p - c) / r; return dot(q, q); }
@@ -72,8 +75,17 @@ void main() {
     toes = max(toes, 1.0 - smoothstep(0.35, 1.0, ell(p, c, vec2(r, r * 0.224))));
   }
   float press = max(max(heel, arch * 0.8), max(ball, toes * 0.85));
+  float shape = max(max(heel, arch), max(ball, toes));
+  if (vShoe > 0.5) {
+    // A shoe: one sole (rounded heel, a waist, a broad forefoot) with a ribbed tread.
+    float sh = 1.0 - smoothstep(0.55, 1.0, ell(p, vec2(0.0, 0.17), vec2(0.66, 0.18)));
+    float sw = 1.0 - smoothstep(0.55, 1.0, ell(p, vec2(0.12, 0.42), vec2(0.52, 0.26)));
+    float sf = 1.0 - smoothstep(0.55, 1.0, ell(p, vec2(0.0, 0.7), vec2(0.86, 0.29)));
+    shape = max(sh, max(sw, sf));
+    press = shape * (0.72 + 0.28 * step(0.5, fract(p.y * 13.0)));
+  }
   // Sand pushed up round the print catches a little light; the hollow is in shade.
-  float rim = smoothstep(0.0, 0.35, max(max(heel, arch), max(ball, toes))) * (1.0 - press);
+  float rim = smoothstep(0.0, 0.35, shape) * (1.0 - press);
   float a = (press * mix(0.55, 0.6, vSnow) + rim * 0.08) * vFade;
   if (a < 0.003) discard;
   // Darker hollow in sand; blue-grey shade in snow. Rim slightly lighter.
@@ -153,7 +165,8 @@ export class Footprints {
    * A footfall at the body's position (x, z) facing `yaw` (walker convention: forward is
    * (−sin, −cos)). `side` −1 left, 1 right; the foot lands ~9 cm to that side.
    */
-  add(x: number, z: number, yaw: number, side: number, snow: boolean): void {
+  /** `shoe`: a shod sole instead of a bare foot. */
+  add(x: number, z: number, yaw: number, side: number, snow: boolean, shoe = false): void {
     const fx = x + Math.cos(yaw) * 0.09 * side;
     const fz = z - Math.sin(yaw) * 0.09 * side;
     const h = this.hm.heightAt(fx, fz);
@@ -162,7 +175,7 @@ export class Footprints {
     this.next = (this.next + 1) % MAX;
     this.count = Math.min(MAX, this.count + 1);
     this.iPos.setXYZW(i, fx, h, fz, yaw + (Math.random() - 0.5) * 0.12);
-    this.iInfo.setXYZW(i, side, this.clock.value, life, snow ? 1 : 0);
+    this.iInfo.setXYZW(i, side * (shoe ? 2 : 1), this.clock.value, life, snow ? 1 : 0);
     const e = 0.25;
     this.iSlope.setXY(
       i,

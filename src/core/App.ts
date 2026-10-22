@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Loop } from './loop';
-import { SettingsStore, safeLocalStorage, type Settings, type SettingsPatch } from './settings';
+import { SettingsStore, safeLocalStorage, type CharacterId, type Settings, type SettingsPatch } from './settings';
 import { NORMAL_FPS, QUALITY_PROFILES, VIDEO_FPS } from './quality';
 import { sharedUniforms } from './uniforms';
 import { EnvState } from './envState';
@@ -28,7 +28,10 @@ import type { BladeEvent, WaterSample } from '../activities/kayakPhysics';
 import { SwimEffects } from '../activities/swimEffects';
 import { SurfActivity } from '../activities/SurfActivity';
 import type { PopUp, SurfEvent } from '../activities/surfPhysics';
-import { Avatar, type AvatarPose, type SwimPose } from '../world/avatar';
+import { Avatar, type AvatarPose, type AvatarRig, type SwimPose } from '../world/avatar';
+import { GlbCharacter, type CharacterSpec } from '../world/character';
+import manUrl from '../assets/characters/man.glb?url';
+import womanUrl from '../assets/characters/woman.glb?url';
 import type { ListenerState } from '../audio/spatial';
 import type { FootSurface } from '../audio/synth/footsteps';
 import type { LayerId } from '../audio/types';
@@ -69,6 +72,15 @@ const HIDDEN_CLOCK_MS = 5000;
 const CALM_LEVEL = 0.3;
 /** Time constant of the calm-down, seconds (≈ 20 s to settle). */
 const CALM_EASE = 6;
+
+/**
+ * Characters from .glb files (Quaternius, CC0; see README), scaled to these standing heights.
+ * They load the first time they are chosen.
+ */
+const CHARACTERS: Record<Exclude<CharacterId, 'default'>, CharacterSpec> = {
+  man: { url: manUrl, height: 1.76 },
+  woman: { url: womanUrl, height: 1.68 },
+};
 
 export class App {
   private readonly renderer: THREE.WebGLRenderer;
@@ -118,6 +130,12 @@ export class App {
   private readonly fullscreen = new Fullscreen();
   /** YouTube on the left desk monitor (U while seated at the desk). */
   private readonly deskVideo: DeskVideo;
+  private readonly avatarRig: AvatarRig;
+  private character: GlbCharacter | null = null;
+  private characterId: CharacterId = 'default';
+  /** Bumped per switch, so a slow load doesn't override a later choice. */
+  private characterToken = 0;
+  private readonly characterCache = new Map<CharacterId, GlbCharacter>();
   private readonly pomodoro: PomodoroOverlay;
   /** Pomodoro storm calm: target and the eased value the visuals use. */
   private calmTarget = 1;
@@ -254,6 +272,7 @@ export class App {
       this.colliders.world.supportAt(x, z, nearY, support) ? support.y : nearY,
     );
     this.scene.add(this.avatar.group);
+    this.avatarRig = this.avatar.rig;
     this.walker.setView(s.walkView);
     this.kayak.setView(s.walkView);
     this.surf.setView(s.walkView);
@@ -681,6 +700,52 @@ export class App {
     this.library.setActivePreset(s.activeScene);
     this.updateSynth();
     this.overlay.setVisible(s.showDebug);
+    if (s.character !== this.characterId) this.setCharacter(s.character);
+  }
+
+  /**
+   * Switches who you walk around as. A .glb character loads on first use (a moment); until then
+   * the current body stays. It wears the same skeleton: see world/character.ts.
+   */
+  private setCharacter(id: CharacterId): void {
+    this.characterId = id;
+    const token = ++this.characterToken;
+    const spec = id === 'default' ? null : CHARACTERS[id];
+    if (!spec) {
+      this.wearCharacter(null);
+      return;
+    }
+    const cached = this.characterCache.get(id);
+    if (cached) {
+      this.wearCharacter(cached);
+      return;
+    }
+    this.activityMenu.flash(vi.panel.characterLoading);
+    GlbCharacter.load(spec, { ...sharedUniforms, uWetness: this.avatar.wetness })
+      .then((c) => {
+        this.characterCache.set(id, c);
+        // Chosen something else meanwhile: keep it for later, don't wear it.
+        if (token === this.characterToken) this.wearCharacter(c);
+      })
+      .catch((err: unknown) => {
+        console.warn('character load failed', err);
+        if (token !== this.characterToken) return;
+        this.activityMenu.flash(vi.panel.characterFailed);
+        this.settings.update({ character: 'default' });
+      });
+  }
+
+  private wearCharacter(c: GlbCharacter | null): void {
+    this.character?.root.removeFromParent();
+    this.character = c;
+    this.avatar.setBodyScale(c ? c.bodyScale : 1);
+    this.avatar.setOwnBodyVisible(!c);
+    if (c) this.avatar.group.add(c.root);
+  }
+
+  /** After the procedural body is posed: a worn character copies the pose. */
+  private syncCharacter(): void {
+    this.character?.sync(this.avatarRig);
   }
 
   /**
@@ -1048,7 +1113,7 @@ export class App {
     this.stepSide = -this.stepSide;
     if (e.depth === 0 && w.shelter === 'none') {
       const onSnow = snowy && e.surface !== 'wood' && e.surface !== 'water';
-      if (onSnow || e.surface === 'sand') this.world.footprints.add(w.x, w.z, w.yaw, this.stepSide, onSnow);
+      if (onSnow || e.surface === 'sand') this.world.footprints.add(w.x, w.z, w.yaw, this.stepSide, onSnow, this.character !== null);
     }
     if (!this.settings.get().footsteps) return;
     let surface: FootSurface = e.surface;
@@ -1110,14 +1175,20 @@ export class App {
     if (this.cameras.mode === 'surf') {
       const show = (this.surf.view === 'first' || this.surf.arm > 0.7) && !this.surf.riderHidden;
       this.avatar.group.visible = show;
-      if (show) this.avatar.updateSurfing(dt, this.surf.pose);
+      if (show) {
+        this.avatar.updateSurfing(dt, this.surf.pose);
+        this.syncCharacter();
+      }
       return;
     }
     if (this.cameras.mode === 'kayak') {
       // Through the eyes too: your arms and legs are in view while paddling.
       const show = this.kayak.view === 'first' || this.kayak.arm > 0.7;
       this.avatar.group.visible = show;
-      if (show) this.avatar.updateSeated(dt, this.kayak.seated);
+      if (show) {
+        this.avatar.updateSeated(dt, this.kayak.seated);
+        this.syncCharacter();
+      }
       return;
     }
     const w = this.walker;
@@ -1148,6 +1219,7 @@ export class App {
         sp.chestY = Number.NaN;
       }
       this.avatar.updateSwimming(dt, sp);
+      this.syncCharacter();
       return;
     }
     const show = this.cameras.mode === 'walk' && w.view === 'third' && w.arm > 0.7;
@@ -1164,6 +1236,7 @@ export class App {
     p.stride = w.stride;
     p.running = w.running;
     this.avatar.update(dt, p);
+    this.syncCharacter();
   }
 
   private readonly avatarPose: AvatarPose = { x: 0, z: 0, feetY: 0, vx: 0, vz: 0, speed: 0, phase: 0, stride: 0, running: false };
