@@ -108,6 +108,79 @@ export class Footsteps {
     }
   }
 
+  /**
+   * The dog's paws: a light pad on sand, grass or snow, the claws' quick tick-tick on wood or
+   * rock. `gain` already includes the distance; `pan` −1 left … 1 right.
+   */
+  paw(surface: FootSurface, gain: number, pan: number): void {
+    const ctx = this.engine.ctx;
+    const t = ctx.currentTime + 0.005;
+    const p = ctx.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan)) * 0.8;
+    p.connect(this.out);
+    window.setTimeout(() => p.disconnect(), 800);
+    const v = gain * (0.8 + Math.random() * 0.4);
+    const r = 0.9 + Math.random() * 0.2;
+    const n = this.engine.noise;
+    if (surface === 'wood' || surface === 'rock') {
+      this.burst(p, n.white, t, 'bandpass', 3800 * r, 2, 0.001, 0.012, 0.35 * v);
+      this.burst(p, n.white, t + 0.03 + Math.random() * 0.02, 'bandpass', 4200 * r, 2, 0.001, 0.01, 0.22 * v);
+      this.blip(p, 'sine', 300 * r, 200 * r, t, 0.04, 0.12 * v);
+    } else if (surface === 'water') {
+      this.burst(p, n.white, t, 'bandpass', 1400 * r, 1, 0.005, 0.07, 0.3 * v, 2600);
+    } else {
+      this.burst(p, n.pink, t, 'lowpass', 900 * r, 0.7, 0.006, 0.05, 0.35 * v);
+    }
+  }
+
+  /**
+   * The dog's voice. `woof`: a short, friendly double bark; `yip`: one high happy yelp. A
+   * sawtooth (the vocal folds) through two resonances (the mouth), the pitch falling, plus a
+   * breath of noise.
+   */
+  bark(kind: 'woof' | 'yip', gain: number, pan: number): void {
+    const ctx = this.engine.ctx;
+    const t = ctx.currentTime + 0.01;
+    const p = ctx.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan)) * 0.8;
+    p.connect(this.out);
+    window.setTimeout(() => p.disconnect(), 2000);
+    const r = 0.94 + Math.random() * 0.12;
+    if (kind === 'yip') {
+      this.voice(p, 950 * r, 1250 * r, t, 0.09, 0.35 * gain, 1800, 3200);
+      return;
+    }
+    for (const [dt, f] of [[0, 1], [0.24, 0.94]] as const) {
+      this.voice(p, 430 * r * f, 300 * r * f, t + dt, 0.16, 0.5 * gain, 750, 1600);
+      this.burst(p, this.engine.noise.pink, t + dt, 'bandpass', 900, 0.8, 0.008, 0.12, 0.25 * gain);
+    }
+  }
+
+  private voice(dest: AudioNode, f0: number, f1: number, t: number, dur: number, gain: number, formant1: number, formant2: number): void {
+    const ctx = this.engine.ctx;
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(f0, t);
+    osc.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(gain, t + 0.012);
+    g.gain.setTargetAtTime(0, t + dur * 0.4, dur / 3);
+    const a = makeFilter(ctx, 'bandpass', formant1, 3);
+    const b = makeFilter(ctx, 'bandpass', formant2, 4);
+    osc.connect(a).connect(g);
+    osc.connect(b).connect(g);
+    g.connect(dest);
+    osc.start(t);
+    osc.stop(t + dur * 2);
+    osc.onended = () => {
+      osc.disconnect();
+      a.disconnect();
+      b.disconnect();
+      g.disconnect();
+    };
+  }
+
   /** Filtered noise burst: attack, then exponential decay. Optional filter sweep to `freqEnd`. */
   private burst(
     dest: AudioNode,

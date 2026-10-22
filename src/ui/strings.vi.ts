@@ -320,6 +320,10 @@ export const vi = {
   slider: {
     resetHint: (v: string) => `Lăn chuột để chỉnh · nhấp đúp: về mặc định (${v})`,
   },
+  dog: {
+    toggle: 'Mochi đi theo',
+    pet: 'E: Vuốt ve Mochi',
+  },
   shortcuts: {
     debug: 'Ẩn/hiện thông số',
     muteAll: 'Tắt/bật toàn bộ âm thanh',
@@ -327,6 +331,7 @@ export const vi = {
     hideUI: 'Ẩn toàn bộ giao diện',
     fullscreen: 'Bật/tắt toàn màn hình',
     video: 'Ở bàn làm việc: phát video YouTube · nơi khác: tạm dừng/phát tiếp video',
+    callDog: 'Gọi Mochi chạy lại',
     pauseTime: 'Dừng/chạy thời gian',
     walk: 'Đi bộ / xem từ trên cao',
     view: 'Khi đi bộ: thấy nhân vật / nhìn bằng mắt',

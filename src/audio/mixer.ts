@@ -215,6 +215,16 @@ export class Mixer {
     this.footsteps?.play(surface, strength, depth);
   }
 
+  /** Mochi's paws (see Footsteps.paw). */
+  playPaw(surface: FootSurface, gain: number, pan: number): void {
+    this.footsteps?.paw(surface, gain, pan);
+  }
+
+  /** Mochi's bark (see Footsteps.bark). */
+  playBark(kind: 'woof' | 'yip', gain: number, pan: number): void {
+    this.footsteps?.bark(kind, gain, pan);
+  }
+
   /** Kayak paddle splash (see Footsteps.paddle); follows the footsteps on/off setting. */
   playPaddle(kind: 'catch' | 'exit', strength: number, pan: number): void {
     this.footsteps?.paddle(kind, strength, pan);

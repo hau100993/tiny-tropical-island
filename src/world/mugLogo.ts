@@ -13,6 +13,12 @@ const found = {
   ...import.meta.glob<string>('../assets/decor/mug-logo.{png,jpg,jpeg,webp}', { eager: true, query: '?url', import: 'default' }),
 };
 
+/**
+ * The print is hidden for now, at the repository owner's request (2026-10-22): set to true to
+ * show it again (the image stays in the repo).
+ */
+const MUG_LOGO_ON = false;
+
 /** The mug body's radius at height h (see `mug()` in houseInterior.ts). */
 const radiusAt = (h: number): number => MUG.r0 + ((MUG.r1 - MUG.r0) * h) / MUG.h;
 /** Printed band: most of the height, ~100° of the circumference wide. */
@@ -25,6 +31,7 @@ const ARC = 1.75;
  * (0 = +Z, π/2 = +X). Returns null when there is no logo file.
  */
 export function createMugLogo(x: number, y: number, z: number, yaw: number): THREE.Mesh | null {
+  if (!MUG_LOGO_ON) return null;
   const url = Object.values(found)[0];
   // No file, or no DOM to load it in (unit tests run in Node).
   if (!url || typeof Image === 'undefined') return null;

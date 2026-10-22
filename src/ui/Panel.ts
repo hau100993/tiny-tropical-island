@@ -104,6 +104,7 @@ export class Panel {
   private readonly qualityNote: HTMLElement;
   private readonly autoRotate: ToggleControl;
   private readonly footsteps: ToggleControl;
+  private readonly dog: ToggleControl;
   private readonly thirdPerson: ToggleControl;
   private readonly startAtDesk: ToggleControl;
   private readonly startQuality: QualityLevel;
@@ -252,7 +253,8 @@ export class Panel {
     this.footsteps = toggle(vi.panel.footsteps, s.footsteps, (on) => settings.update({ footsteps: on }));
     this.autoRotate = toggle(vi.panel.autoRotate, s.autoRotate, (on) => settings.update({ autoRotate: on }));
     const viewOpts = el('div', 'option-list');
-    viewOpts.append(withKey(this.thirdPerson.root, 'V'), this.footsteps.root, this.autoRotate.root);
+    this.dog = toggle(vi.dog.toggle, s.dog, (on) => settings.update({ dog: on }));
+    viewOpts.append(withKey(this.thirdPerson.root, 'V'), this.footsteps.root, this.autoRotate.root, withKey(this.dog.root, 'G'));
     const characters = el('div', 'seg-group three');
     for (const id of CHARACTER_IDS) {
       const b = button(vi.panel.characterNames[id], () => settings.update({ character: id }), 'seg');
@@ -447,6 +449,7 @@ export class Panel {
     this.qualityNote.textContent = msaaChanged ? vi.panel.msaaReload : '';
     this.autoRotate.set(s.autoRotate);
     this.footsteps.set(s.footsteps);
+    this.dog.set(s.dog);
     this.synthFallback.set(s.synthFallback);
     this.thirdPerson.set(s.walkView === 'third');
     this.startAtDesk.set(s.startAtDesk);

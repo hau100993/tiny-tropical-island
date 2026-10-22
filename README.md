@@ -62,6 +62,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `V` | While walking: character view (third person) ↔ eyes view (first person) |
 | `T` | Pomodoro: show the timer and start / pause it |
 | `B` | Work desk: sit down at the desk in the house (from anywhere) / get up |
+| `G` | Call Mochi the dog: it runs straight to you |
 | `U` | Seated at the desk: play a YouTube link on the left monitor, same as clicking the YouTube logo on the right monitor (see *The house and the work desk*). Elsewhere: pause / resume that video |
 | `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up |
 | `K` | Walking on the beach or in the shallows: get into the kayak; in the kayak: step out (see *Kayak*) |
@@ -196,7 +197,8 @@ white moth orchid (Phalaenopsis) in bloom on a bamboo stake, and a mug. The lamp
 left end of the desk, the orchid and the mug at the right end; soft contact shadows under the
 monitor feet, keyboard, mouse, mug, pot and lamp set them down on the desk.
 
-**The print on the mug:** the TMA logo, `src/assets/decor/mug-logo.png`. Its white background
+**The print on the mug:** hidden for now (`MUG_LOGO_ON = false` in `src/world/mugLogo.ts`; set it
+to `true` to show it again). When on: the TMA logo, `src/assets/decor/mug-logo.png`. Its white background
 is dropped and the rest is wrapped around the side of the mug that faces the chair. To print
 something else, put your own image at `src/assets/local/mug-logo.png` (or `.jpg`/`.webp`;
 that folder is git-ignored and takes precedence) and restart `npm run dev`. Wood has a procedural grain (shader, no textures); cushions, futon, chair and
@@ -335,6 +337,20 @@ the hips dip as the legs reach. Walking slower means shorter, slower steps (as p
 when wading), and when he stops mid-stride he steps his feet back together instead of standing
 with one leg out and the knees bent. He breathes, blinks
 and looks around slowly when standing.
+
+**Mochi the dog (Góc nhìn → Mochi đi theo, on by default).** A Shiba Inu keeps you company. It
+follows your own path a couple of metres behind (breadcrumbs of where you walked, so it goes
+round trees and rocks and up the steps without any path finding), walking or galloping to keep
+up; when you stand about it looks at you, wags, sniffs the sand now and then and, after a while,
+lies down. It comes into the house with you (through the door, along your path); while you work
+at the desk it sits beside the chair looking up at you, while you're in the bath it lies by the
+tub (if you jumped to a seat with `B` while it was outside, it is simply there); while you're in
+the hammock it lies beside it; while you swim, paddle or surf it
+waits at the water's edge watching you, and greets you with a bark when you're back. `G` calls
+it; standing next to it, `E` pets it (it hops, wags hard and yips). Its paws leave prints in the
+sand and snow, and with **Âm thanh hoạt động** on you hear its paws on the deck and its bark
+(synthesized). Its walk and gallop are the model's own clips, played faster or slower with its
+speed so the paws don't slide; lying down and sitting are poses built in code (the file has none).
 
 **Characters (Góc nhìn → Nhân vật).** Besides the built-in body you can walk around as a man or a
 woman from Quaternius' low-poly character pack (`src/assets/characters/*.glb`, CC0). They load
@@ -764,6 +780,7 @@ audio files in the repo.
 | [WebGL Water](https://madebyevan.com/webgl-water/) by Evan Wallace | MIT | the heightfield ripple simulation (drop + update passes) and the caustics-by-area-ratio technique are reimplemented after it in `src/water/` |
 | Planar reflection camera (`src/water/PlanarReflection.ts`) | MIT | mirrored camera and oblique near plane adapted from three.js `examples/jsm/objects/Reflector.js` |
 | YouTube logo on the desk's right monitor (`YT_LOGO` in `src/ui/youtube.ts`) | path data from [Simple Icons](https://simpleicons.org/), CC0; the logo is a trademark of Google | drawn as the button that opens the YouTube player |
+| `src/assets/animals/shiba.glb` ("Shiba Inu") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/y4wdQpg767) | CC0 1.0 (public domain) | Mochi the dog; its walk, gallop, idle, sniff and jump clips are used |
 | `src/assets/characters/man.glb` ("Hoodie Character") and `woman.glb` (a woman from the same pack) by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/gKLBoRsyKe) | CC0 1.0 (public domain) | rigged low-poly characters; their own animations are not used (they wear the procedural motion) |
 | `src/assets/decor/mug-logo.png` (TMA logo) | trademark of its owner, not covered by this project's license | added at the repository owner's request, for the desk mug only |
 | `public/audio/library/island-day.mp3`, `island-night.mp3` | redistribution permitted (confirmed by the repository owner) | built-in recordings, 15 min each; source: *TODO, add the original source and exact license* |

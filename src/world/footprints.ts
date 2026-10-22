@@ -3,7 +3,8 @@ import type { Heightmap } from './heightmap';
 import type { SharedUniforms } from '../core/uniforms';
 
 /** Footprints kept at once (a ring buffer: the oldest one is reused). */
-const MAX = 256;
+/** Prints alive at once (yours and the dog's). */
+const MAX = 384;
 /** Seconds a print lasts on dry sand, in the wet band near the water, and in snow. */
 const LIFE_DRY = 150;
 const LIFE_WET = 25;
@@ -16,7 +17,7 @@ const FOOT_W = 0.13;
 
 const VERT = /* glsl */ `
 attribute vec4 iPos;    // x, y, z, yaw
-attribute vec4 iInfo;   // side (−1 left, 1 right; ×2 for a shoe), birth time, life (s), snow (0/1)
+attribute vec4 iInfo;   // side (−1 left, 1 right; ×2 a shoe, ×3 a dog's paw), birth time, life (s), snow (0/1)
 attribute vec2 iSlope;  // dy/dx, dy/dz of the ground
 uniform float uClock;
 uniform float uRain;
@@ -24,17 +25,21 @@ varying vec2 vFoot;     // across (−1..1, mirrored for the left foot), along (
 varying float vFade;
 varying float vSnow;
 varying float vShoe;
+varying float vPaw;
 #include <fog_pars_vertex>
 void main() {
   float yaw = iPos.w;
   vec2 fwd = vec2(-sin(yaw), -cos(yaw));
   vec2 right = vec2(cos(yaw), -sin(yaw));
-  vec2 xz = iPos.xz + right * position.x * ${FOOT_W.toFixed(3)} + fwd * position.y * ${FOOT_L.toFixed(3)};
+  vPaw = step(2.5, abs(iInfo.x));
+  // A paw is a small decal (~6 × 7 cm).
+  vec2 size = mix(vec2(1.0), vec2(0.45, 0.25), vPaw);
+  vec2 xz = iPos.xz + right * position.x * size.x * ${FOOT_W.toFixed(3)} + fwd * position.y * size.y * ${FOOT_L.toFixed(3)};
   vec2 d = xz - iPos.xz;
   // On the ground's slope, a hair above it (polygon offset does the rest).
   float y = iPos.y + d.x * iSlope.x + d.y * iSlope.y + 0.01;
   vFoot = vec2(position.x * 2.0 * sign(iInfo.x), position.y + 0.5);
-  vShoe = step(1.5, abs(iInfo.x));
+  vShoe = step(1.5, abs(iInfo.x)) * (1.0 - vPaw);
   // Rain wears prints down three times faster; they fade over their last 40 %.
   float age = (uClock - iInfo.y) * (1.0 + 2.0 * uRain * (1.0 - iInfo.w));
   vFade = (1.0 - smoothstep(0.6, 1.0, age / iInfo.z)) * step(0.0, age) * step(0.001, iInfo.z);
@@ -55,6 +60,7 @@ varying vec2 vFoot;
 varying float vFade;
 varying float vSnow;
 varying float vShoe;
+varying float vPaw;
 #include <fog_pars_fragment>
 // Ellipse "inside" measure: < 1 inside.
 float ell(vec2 p, vec2 c, vec2 r) { vec2 q = (p - c) / r; return dot(q, q); }
@@ -83,6 +89,18 @@ void main() {
     float sf = 1.0 - smoothstep(0.55, 1.0, ell(p, vec2(0.0, 0.7), vec2(0.86, 0.29)));
     shape = max(sh, max(sw, sf));
     press = shape * (0.72 + 0.28 * step(0.5, fract(p.y * 13.0)));
+  }
+  if (vPaw > 0.5) {
+    // A dog's paw: the main pad and four toe pads in an arc ahead of it.
+    float pad = 1.0 - smoothstep(0.45, 1.0, ell(p, vec2(0.0, 0.33), vec2(0.5, 0.2)));
+    float toe = 0.0;
+    for (int i = 0; i < 4; i++) {
+      float t = float(i) / 3.0;
+      vec2 c = vec2(mix(-0.62, 0.62, t), 0.72 + 0.08 * (1.0 - abs(t * 2.0 - 1.0)));
+      toe = max(toe, 1.0 - smoothstep(0.4, 1.0, ell(p, c, vec2(0.2, 0.11))));
+    }
+    shape = max(pad, toe);
+    press = shape;
   }
   // Sand pushed up round the print catches a little light; the hollow is in shade.
   float rim = smoothstep(0.0, 0.35, shape) * (1.0 - press);
@@ -165,17 +183,18 @@ export class Footprints {
    * A footfall at the body's position (x, z) facing `yaw` (walker convention: forward is
    * (−sin, −cos)). `side` −1 left, 1 right; the foot lands ~9 cm to that side.
    */
-  /** `shoe`: a shod sole instead of a bare foot. */
-  add(x: number, z: number, yaw: number, side: number, snow: boolean, shoe = false): void {
-    const fx = x + Math.cos(yaw) * 0.09 * side;
-    const fz = z - Math.sin(yaw) * 0.09 * side;
+  /** `shoe`: a shod sole instead of a bare foot; `paw`: a dog's paw (closer to the body's line). */
+  add(x: number, z: number, yaw: number, side: number, snow: boolean, shoe = false, paw = false): void {
+    const off = paw ? 0.06 : 0.09;
+    const fx = x + Math.cos(yaw) * off * side;
+    const fz = z - Math.sin(yaw) * off * side;
     const h = this.hm.heightAt(fx, fz);
     const life = snow ? LIFE_SNOW : h < WET_BAND ? LIFE_WET : LIFE_DRY;
     const i = this.next;
     this.next = (this.next + 1) % MAX;
     this.count = Math.min(MAX, this.count + 1);
     this.iPos.setXYZW(i, fx, h, fz, yaw + (Math.random() - 0.5) * 0.12);
-    this.iInfo.setXYZW(i, side * (shoe ? 2 : 1), this.clock.value, life, snow ? 1 : 0);
+    this.iInfo.setXYZW(i, side * (paw ? 3 : shoe ? 2 : 1), this.clock.value, life, snow ? 1 : 0);
     const e = 0.25;
     this.iSlope.setXY(
       i,

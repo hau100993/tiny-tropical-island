@@ -32,6 +32,9 @@ import { Avatar, type AvatarPose, type AvatarRig, type SwimPose } from '../world
 import { GlbCharacter, type CharacterSpec } from '../world/character';
 import manUrl from '../assets/characters/man.glb?url';
 import womanUrl from '../assets/characters/woman.glb?url';
+import shibaUrl from '../assets/animals/shiba.glb?url';
+import { DogModel } from '../world/dog';
+import { DogCompanion, type DogPlayer, type DogSpot } from '../activities/dogCompanion';
 import type { ListenerState } from '../audio/spatial';
 import type { FootSurface } from '../audio/synth/footsteps';
 import type { LayerId } from '../audio/types';
@@ -136,6 +139,13 @@ export class App {
   /** Bumped per switch, so a slow load doesn't override a later choice. */
   private characterToken = 0;
   private readonly characterCache = new Map<CharacterId, GlbCharacter>();
+  private dogModel: DogModel | null = null;
+  private dog: DogCompanion | null = null;
+  private dogLoading = false;
+  private readonly dogPlayer: DogPlayer = { x: 0, z: 0, y: 0, speed: 0, onFoot: true, atSea: false, seat: null };
+  private readonly dogLook = new THREE.Vector3();
+  private readonly dogSupport = { y: 0, surface: 'sand' as WalkSurface, onPlatform: false };
+  private readonly earRight = new THREE.Vector3();
   private readonly pomodoro: PomodoroOverlay;
   /** Pomodoro storm calm: target and the eased value the visuals use. */
   private calmTarget = 1;
@@ -558,6 +568,14 @@ export class App {
     });
     this.keymap.register({ code: 'KeyF', keyLabel: 'F', label: vi.shortcuts.fullscreen, action: () => this.fullscreen.toggle() });
     this.keymap.register({
+      code: 'KeyG',
+      keyLabel: 'G',
+      label: vi.shortcuts.callDog,
+      action: () => {
+        if (this.settings.get().dog) this.dog?.call();
+      },
+    });
+    this.keymap.register({
       code: 'KeyN',
       keyLabel: 'N',
       label: vi.shortcuts.pauseTime,
@@ -578,6 +596,10 @@ export class App {
         if (this.cameras.mode === 'kayak') return;
         const near = this.nearSeat();
         if (near) this.cameras.sit(near, true);
+        else if (this.nearDog()) {
+          this.dog?.pet();
+          this.dogModel?.hop();
+        }
       },
     });
     this.keymap.register({
@@ -701,6 +723,105 @@ export class App {
     this.updateSynth();
     this.overlay.setVisible(s.showDebug);
     if (s.character !== this.characterId) this.setCharacter(s.character);
+    if (s.dog && !this.dogModel && !this.dogLoading) this.loadDog();
+    if (this.dogModel) this.dogModel.root.visible = s.dog;
+  }
+
+  /** Mochi the dog: loaded on first use (a .glb, ~0.8 MB). See activities/dogCompanion.ts. */
+  private loadDog(): void {
+    this.dogLoading = true;
+    DogModel.load(shibaUrl, sharedUniforms)
+      .then((model) => {
+        this.dogModel = model;
+        this.scene.add(model.root);
+        model.root.visible = this.settings.get().dog;
+        const h = this.world.house;
+        const c = this.colliders;
+        // A spot in the room (house-local), facing a house-local point; on the floor.
+        const roomSpot = (lx: number, lz: number, fx: number, fz: number): DogSpot => {
+          const p = c.houseToWorld(lx, lz, { x: 0, z: 0 });
+          const f = c.houseToWorld(fx, fz, { x: 0, z: 0 });
+          return { x: p.x, y: h.floorY, z: p.z, yaw: Math.atan2(f.x - p.x, f.z - p.z) };
+        };
+        // Beside the hammock, facing it.
+        const hm = this.world.hammock;
+        const hx = hm.center.x - hm.dir.z * 1.4;
+        const hz = hm.center.z + hm.dir.x * 1.4;
+        const w = this.walker;
+        this.dog = new DogCompanion(
+          {
+            groundAt: (x, z, nearY) => (c.world.supportAt(x, z, nearY, this.dogSupport) ? this.dogSupport.y : this.world.heightmap.heightAt(x, z)),
+            terrainAt: (x, z) => this.world.heightmap.heightAt(x, z),
+            // Sitting by the desk chair, looking up at you; lying by the bath's open side.
+            deskSpot: roomSpot(h.desk.seatX + 0.7, h.desk.seatZ - 0.35, h.desk.seatX, h.desk.seatZ),
+            bathSpot: roomSpot(h.bath.standX - 0.5, h.bath.standZ + 0.35, h.bath.seatX, h.bath.seatZ),
+            hammockSpot: { x: hx, y: this.world.heightmap.heightAt(hx, hz), z: hz, yaw: Math.atan2(hm.center.x - hx, hm.center.z - hz) },
+            inRoom: (x, z, y) => c.shelterAt(x, z, y) === 'room',
+          },
+          {
+            onStep: (x, z, y, yaw, side, speed) => this.onDogStep(x, z, y, yaw, side, speed),
+            onBark: (kind) => {
+              if (!this.dog || !this.settings.get().footsteps) return;
+              const ear = this.dogEar(this.dog.x, this.dog.y, this.dog.z);
+              if (ear) this.mixer.playBark(kind, ear.gain, ear.pan);
+            },
+          },
+          { x: w.x + 1.5, z: w.z + 1.5 },
+        );
+      })
+      .catch((err: unknown) => console.warn('dog load failed', err))
+      .finally(() => {
+        this.dogLoading = false;
+      });
+  }
+
+  /** Every frame: where you are for Mochi, its move, then its animation. */
+  private updateDog(dt: number): void {
+    const model = this.dogModel;
+    const dog = this.dog;
+    if (!model || !dog || !model.root.visible) return;
+    const w = this.walker;
+    const mode = this.cameras.mode;
+    const p = this.dogPlayer;
+    p.seat = mode === 'seat' ? this.cameras.seat : null;
+    p.atSea = mode === 'kayak' || mode === 'surf' || ((mode === 'walk' || mode === 'orbit') && w.swimming);
+    p.onFoot = (mode === 'walk' || mode === 'orbit') && !w.swimming;
+    const body = mode === 'kayak' ? this.kayak.body : mode === 'surf' ? this.surf.body : null;
+    p.x = body ? body.x : w.x;
+    p.z = body ? body.z : w.z;
+    p.y = w.feetY;
+    p.speed = p.onFoot ? w.speed : 0;
+    dog.update(dt, p);
+    model.root.position.set(dog.x, dog.y, dog.z);
+    model.root.rotation.y = dog.yaw;
+    // It looks at you when you're close.
+    const near = Math.hypot(p.x - dog.x, p.z - dog.z) < 6;
+    model.update(dt, dog.action, dog.speed, dog.wag, near ? this.dogLook.set(p.x, p.y + 1.4, p.z) : null);
+  }
+
+  /** A paw down: a print on sand or snow, and the patter when activity sounds are on. */
+  private onDogStep(x: number, z: number, y: number, yaw: number, side: number, speed: number): void {
+    const sup = this.dogSupport;
+    const surface: WalkSurface = this.colliders.world.supportAt(x, z, y, sup) ? sup.surface : 'sand';
+    const snowy = sharedUniforms.uSnowCover.value > 0.45;
+    const onSnow = snowy && surface !== 'wood' && surface !== 'water';
+    // The footprints use the walker's yaw (forward is (−sin, −cos)); the dog's forward is (sin, cos).
+    if (!sup.onPlatform && (onSnow || surface === 'sand')) this.world.footprints.add(x, z, yaw + Math.PI, side, onSnow, false, true);
+    if (!this.settings.get().footsteps) return;
+    const ear = this.dogEar(x, y, z);
+    if (ear) this.mixer.playPaw(onSnow ? 'snow' : surface, ear.gain * (0.5 + 0.15 * Math.min(4, speed)), ear.pan);
+  }
+
+  /** How a sound at (x, y, z) reaches you: quieter with distance, panned to its side. */
+  private dogEar(x: number, y: number, z: number): { gain: number; pan: number } | null {
+    const cam = this.camera.position;
+    const dx = x - cam.x;
+    const dz = z - cam.z;
+    const d = Math.hypot(dx, y - cam.y, dz);
+    if (d > 25) return null;
+    this.earRight.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    const pan = d > 0.01 ? (dx * this.earRight.x + dz * this.earRight.z) / d : 0;
+    return { gain: 1 / (1 + d * 0.35), pan };
   }
 
   /**
@@ -1085,6 +1206,14 @@ export class App {
 
   private readonly tmpLocal = { x: 0, z: 0 };
 
+  /** Standing next to Mochi (on foot, out of the water). */
+  private nearDog(): boolean {
+    const w = this.walker;
+    return (
+      this.cameras.mode === 'walk' && !w.swimming && this.settings.get().dog && this.dog !== null && this.dog.distanceTo(w.x, w.z) < 2.2
+    );
+  }
+
   /** What the right-hand desk monitor shows. */
   private screenInfo(): ScreenInfo {
     const s = this.settings.get();
@@ -1250,7 +1379,9 @@ export class App {
     if (mode === 'orbit') return;
     if (mode === 'walk') {
       const near = this.nearSeat();
-      this.walkHint.setPrompt(near === 'desk' ? vi.desk.sit : near === 'bath' ? vi.bath.enter : near === 'hammock' ? vi.hammock.enter : null);
+      this.walkHint.setPrompt(
+        near === 'desk' ? vi.desk.sit : near === 'bath' ? vi.bath.enter : near === 'hammock' ? vi.hammock.enter : this.nearDog() ? vi.dog.pet : null,
+      );
       this.activityMenu.set(this.nearSea() ? this.seaOffer() : null);
     }
     this.listenerTimer -= dt;
@@ -1357,6 +1488,7 @@ export class App {
     this.updateListener(dt);
     this.updateSurfing();
     this.updateAvatar(dt);
+    this.updateDog(dt);
     this.updateWetness(dt);
     this.world.footprints.setClock(elapsed);
     const onFoot = this.cameras.mode === 'walk' && !this.walker.swimming;

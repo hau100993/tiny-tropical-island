@@ -57,6 +57,8 @@ export interface Settings {
    * and rush. Off by default (2026-10-20); version 2 turned it off once for everyone.
    */
   footsteps: boolean;
+  /** Mochi the dog keeps you company. */
+  dog: boolean;
   /** Walk mode view: through the eyes, or behind the character. */
   walkView: WalkView;
   /** Your character (third person, swimming, kayak, surfing). */
@@ -107,6 +109,7 @@ export function defaultSettings(): Settings {
     sunSize: 0.5,
     fireflies: true,
     footsteps: false,
+    dog: true,
     walkView: 'third',
     character: 'default',
     activeScene: 'b-sunny',
@@ -202,6 +205,7 @@ export function parseSettings(json: string | null): Settings {
     sunSize: unit(raw.sunSize, defaults.sunSize),
     fireflies: bool(raw.fireflies, defaults.fireflies),
     footsteps: bool(raw.footsteps, defaults.footsteps),
+    dog: bool(raw.dog, defaults.dog),
     walkView: raw.walkView === 'first' || raw.walkView === 'third' ? raw.walkView : defaults.walkView,
     character: (CHARACTER_IDS as readonly unknown[]).includes(raw.character) ? (raw.character as CharacterId) : defaults.character,
     activeScene: typeof raw.activeScene === 'string' ? raw.activeScene.slice(0, 64) : defaults.activeScene,
