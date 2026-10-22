@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Loop } from './loop';
 import { SettingsStore, safeLocalStorage, type Settings, type SettingsPatch } from './settings';
-import { NORMAL_FPS, QUALITY_PROFILES } from './quality';
+import { NORMAL_FPS, QUALITY_PROFILES, VIDEO_FPS } from './quality';
 import { sharedUniforms } from './uniforms';
 import { EnvState } from './envState';
 import { GpuTimer } from './gpuTimer';
@@ -37,6 +37,7 @@ import { Panel, type ViewId } from '../ui/Panel';
 import { AudioPrompt } from '../ui/AudioPrompt';
 import { PomodoroOverlay } from '../ui/PomodoroOverlay';
 import { Fullscreen } from '../ui/fullscreen';
+import { DeskVideo } from '../ui/DeskVideo';
 import { vi } from '../ui/strings.vi';
 import { Mixer } from '../audio/mixer';
 import { SoundLibrary } from '../audio/library/SoundLibrary';
@@ -115,6 +116,8 @@ export class App {
   private readonly library = new SoundLibrary();
   private readonly panel: Panel;
   private readonly fullscreen = new Fullscreen();
+  /** YouTube on the left desk monitor (U while seated at the desk). */
+  private readonly deskVideo: DeskVideo;
   private readonly pomodoro: PomodoroOverlay;
   /** Pomodoro storm calm: target and the eased value the visuals use. */
   private calmTarget = 1;
@@ -130,7 +133,11 @@ export class App {
       // MSAA can only be chosen at context creation (see quality.ts).
       antialias: QUALITY_PROFILES[s.quality].msaa,
       powerPreference: 'high-performance',
+      // The canvas can be see-through where the desk video's screen is (DeskVideo.punchHole).
+      alpha: true,
     });
+    // Same clears as an opaque canvas (render targets included); only that hole is transparent.
+    this.renderer.setClearAlpha(1);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -314,6 +321,11 @@ export class App {
       },
     });
     this.audioPrompt = new AudioPrompt(ui);
+    this.deskVideo = new DeskVideo(container, ui, this.camera, w.house.screens[0], w.house.screens[1], {
+      onPlaying: (playing) => this.mixer.setAmbienceMuted(playing),
+      master: () => this.mixer.current.master,
+    });
+    this.mixer.onChange(() => this.deskVideo.syncVolume());
     // No start screen: sound starts with the first click or key press anywhere (browsers
     // don't allow audio before that).
     for (const type of ['pointerdown', 'keydown'] as const) {
@@ -333,6 +345,7 @@ export class App {
       const surfing = mode === 'surf';
       document.body.classList.toggle('walking', walking || paddling || surfing);
       document.body.classList.toggle('at-desk', mode === 'seat');
+      this.deskVideo.setSeated(mode === 'seat' && this.cameras.seat === 'desk');
       if (paddling) this.walkHint.update(true, this.kayak.locked, false, vi.kayak.controls);
       else if (surfing) this.walkHint.update(true, this.surf.locked, false, this.surfControls());
       else this.walkHint.update(walking, this.walker.locked, false, this.walkControls());
@@ -514,6 +527,15 @@ export class App {
       keyLabel: 'H',
       label: vi.shortcuts.hideUI,
       action: () => document.body.classList.toggle('ui-hidden'),
+    });
+    this.keymap.register({
+      code: 'KeyU',
+      keyLabel: 'U',
+      label: vi.shortcuts.video,
+      action: () => {
+        if (this.cameras.mode === 'seat' && this.cameras.seat === 'desk') this.deskVideo.toggleCard();
+        else if (!this.deskVideo.togglePlayback()) this.activityMenu.flash(vi.video.atDeskOnly);
+      },
     });
     this.keymap.register({ code: 'KeyF', keyLabel: 'F', label: vi.shortcuts.fullscreen, action: () => this.fullscreen.toggle() });
     this.keymap.register({
@@ -1139,11 +1161,12 @@ export class App {
     p.vz = w.vel.y;
     p.speed = w.speed;
     p.phase = w.phase;
+    p.stride = w.stride;
     p.running = w.running;
     this.avatar.update(dt, p);
   }
 
-  private readonly avatarPose: AvatarPose = { x: 0, z: 0, feetY: 0, vx: 0, vz: 0, speed: 0, phase: 0, running: false };
+  private readonly avatarPose: AvatarPose = { x: 0, z: 0, feetY: 0, vx: 0, vz: 0, speed: 0, phase: 0, stride: 0, running: false };
   private readonly swimPose: SwimPose = {
     x: 0, z: 0, surfaceY: 0, vx: 0, vz: 0, speed: 0, phase: 0, crawl: 0, move: 0, firstPerson: false, chestY: Number.NaN, lift: Number.NaN,
   };
@@ -1209,6 +1232,7 @@ export class App {
     this.renderer.setSize(w, h, false);
     this.renderer.getDrawingBufferSize(this.drawingBuffer);
     this.world.water.setSize(this.drawingBuffer.x, this.drawingBuffer.y);
+    this.deskVideo?.setSize(w, h);
     this.world.spray.setViewport(this.drawingBuffer.y, this.camera.fov);
     this.bubbles.setViewport(this.drawingBuffer.y, this.camera.fov);
   };
@@ -1264,7 +1288,11 @@ export class App {
     this.world.footprints.setClock(elapsed);
     const onFoot = this.cameras.mode === 'walk' && !this.walker.swimming;
     this.world.update(dt, elapsed, this.camera, sea, onFoot ? this.walker : null);
+    this.deskScreens.setVideo(this.deskVideo.label);
     this.deskScreens.update(dt, this.camera);
+    this.deskVideo.update();
+    // The video is decoded and composited on the same GPU: give it room while it plays.
+    this.loop.targetFps = this.deskVideo.watching ? VIDEO_FPS : NORMAL_FPS;
     this.gpuTimer.begin();
     // The wake map follows the kayak (it only has marks while the kayak moves).
     if (this.cameras.mode === 'walk') this.swimFx.update(dt, this.walker);
@@ -1280,6 +1308,7 @@ export class App {
     this.renderer.shadowMap.needsUpdate = true;
     this.world.water.captureScene(this.scene, this.camera);
     this.renderer.render(this.scene, this.camera);
+    this.deskVideo.punchHole(this.renderer);
     this.gpuTimer.end();
     this.maybeResetTimeVisible();
     const cpuMs = performance.now() - cpuStart;

@@ -62,6 +62,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `V` | While walking: character view (third person) ↔ eyes view (first person) |
 | `T` | Pomodoro: show the timer and start / pause it |
 | `B` | Work desk: sit down at the desk in the house (from anywhere) / get up |
+| `U` | Seated at the desk: play a YouTube link on the left monitor, same as clicking the YouTube logo on the right monitor (see *The house and the work desk*). Elsewhere: pause / resume that video |
 | `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up |
 | `K` | Walking on the beach or in the shallows: get into the kayak; in the kayak: step out (see *Kayak*) |
 | `L` | Walking on the beach or in the shallows: go surfing (see *Surfing*); on the board: slip off |
@@ -200,6 +201,27 @@ something else, put your own image at `src/assets/local/mug-logo.png` (or `.jpg`
 that folder is git-ignored and takes precedence) and restart `npm run dev`. Wood has a procedural grain (shader, no textures); cushions, futon, chair and
 ceramics are rounded and smooth-shaded. Trees are kept out of the view from the glass to the sea.
 
+**YouTube on the left monitor.** Seated at the desk, click the YouTube logo on the right
+monitor (or press `U`). Paste a YouTube link (a video, a live stream, a Short or a playlist) into
+the little card, or pick one of the last five, and it plays on the left screen, sitting on it in
+3D as you look around or lean in. With a video loaded, clicking the logo plays or pauses it; a
+dot in its corner shows the state. Hover the logo for the video's menu: **Tạm dừng / Phát tiếp**,
+**Âm nền** (the island's sound is switched off while a video plays; this turns it back on),
+**Đổi video** and **Tắt video** (back to the code editor). The menu also shows itself for a few
+seconds when a video starts. Master volume and `M` also set the video's volume. Getting up
+leaves the video playing: you still see it on the monitor as you walk around the house, and `U`
+anywhere away from the desk pauses or resumes it. Notes:
+
+- This needs the internet (the only part of the app that does) and only connects when you paste
+  a link. It uses YouTube's privacy-enhanced embed (`youtube-nocookie.com`), but YouTube's own
+  page inside the player can still set cookies once you play.
+- Some videos don't allow playing outside YouTube; the card then says so.
+- The YouTube logo is a trademark of Google; its shape comes from Simple Icons (CC0).
+- While the video plays and you sit at the desk, the island is drawn at 30 frames per second
+  instead of 60, so the GPU has room to decode the video smoothly.
+- After you click inside the video, the keyboard belongs to YouTube: click the scene to use the
+  app's shortcuts again.
+
 **Out at sea:** a Vietnamese fishing boat (blue hull, red bottom, high bow, white-and-blue cabin,
 the red flag with the yellow star on both masts and a line of coloured pennants) cruises a slow
 loop about 150–200 m out, in the upper right of the view from the desk. It rides the same waves
@@ -299,14 +321,18 @@ pale linen shirt with an open collar, board shorts, bare feet, a bead bracelet, 
 friendly face). The head is a sculpted sphere (jaw, cheekbones, nose, eye sockets, ears); the hair
 grows from a hairline and is made of tapered locks; chest, arms and calves have muscle shape; hands
 have fingers, feet have toes. The body is a skinned mesh on a 15-bone skeleton, so knees and
-elbows bend smoothly. The walk follows measured human gait curves (heel strike with the toes up,
+elbows bend smoothly; each leg, foot included, is one surface (the shin bends forward into
+the instep and swells into the heel, so there is no seam at the ankle), the forearm runs on into
+the palm, and the fingers are tapered tubes. The walk follows measured human gait curves (heel strike with the toes up,
 the knee giving under the weight, the heel lifting and the toes pushing off, the knee folding as
 the leg swings through, hips turning against the shoulders); running adds a flight phase, a deep
 knee fold and arms bent at about 90°. The arms swing a beat behind the legs with the elbows
 always a little bent, and the forearms, hands and chest trail the motion (springs). The feet are
 planted with inverse kinematics: a foot carrying weight stays put on the ground (no sliding), each
 foot finds the real ground under it (on the steps one foot is a tread higher than the other), and
-the hips dip as the legs reach. He breathes, blinks
+the hips dip as the legs reach. Walking slower means shorter, slower steps (as people do, e.g.
+when wading), and when he stops mid-stride he steps his feet back together instead of standing
+with one leg out and the knees bent. He breathes, blinks
 and looks around slowly when standing.
 In the character view the camera pulls in when a wall, the roof, a trunk or the ground is
 behind you, so it works inside the small room too.
@@ -724,5 +750,6 @@ audio files in the repo.
 | Gerstner waves | — | technique from *GPU Gems* (2004), ch. 1 |
 | [WebGL Water](https://madebyevan.com/webgl-water/) by Evan Wallace | MIT | the heightfield ripple simulation (drop + update passes) and the caustics-by-area-ratio technique are reimplemented after it in `src/water/` |
 | Planar reflection camera (`src/water/PlanarReflection.ts`) | MIT | mirrored camera and oblique near plane adapted from three.js `examples/jsm/objects/Reflector.js` |
+| YouTube logo on the desk's right monitor (`YT_LOGO` in `src/ui/youtube.ts`) | path data from [Simple Icons](https://simpleicons.org/), CC0; the logo is a trademark of Google | drawn as the button that opens the YouTube player |
 | `src/assets/decor/mug-logo.png` (TMA logo) | trademark of its owner, not covered by this project's license | added at the repository owner's request, for the desk mug only |
 | `public/audio/library/island-day.mp3`, `island-night.mp3` | redistribution permitted (confirmed by the repository owner) | built-in recordings, 15 min each; source: *TODO, add the original source and exact license* |

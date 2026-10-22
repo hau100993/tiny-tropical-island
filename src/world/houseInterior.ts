@@ -37,9 +37,10 @@ const MONSTERA = ['#2b5a2c', '#336a33', '#2f6230', '#3b7538'];
 export const DESK = { seatX: -0.8, seatZ: 1.1 } as const;
 /**
  * Things on the desk top (house-local x, z). Seated, the user's right is −X: the paper lamp at
- * the left end balances the orchid and the mug at the right end.
+ * the left end balances the orchid and the mug at the right end. The lamp stands clear of the
+ * left monitor as seen from the chair (the YouTube overlay is drawn over that screen).
  */
-export const LAMP = { x: -0.02, z: 2.2 } as const;
+export const LAMP = { x: 0.07, z: 2.2 } as const;
 export const ORCHID = { x: -1.6, z: 1.86 } as const;
 /** The mug (by the orchid), and the yaw its printed side faces: the chair. */
 export const MUG = {

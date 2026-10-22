@@ -4,6 +4,7 @@ import { GeoBuilder } from './geoBuilder';
 import { patchWorldMaterial } from './patchMaterial';
 import { createRng, type Rng } from '../core/rng';
 import { clamp, damp, smoothstep } from '../core/math';
+import { RUN_GAIT_MIN, RUN_STEP, WALK_STEP } from '../core/gait';
 import type { SharedUniforms } from '../core/uniforms';
 
 /**
@@ -82,16 +83,6 @@ function place(
 }
 
 const ball = (r: number, w = 12, h = 8): THREE.BufferGeometry => new THREE.SphereGeometry(r, w, h);
-
-/** A capsule of radius `r` from point a to point b (fingers, straps). */
-function capsule(r: number, ax: number, ay: number, az: number, bx: number, by: number, bz: number, seg = 8): THREE.BufferGeometry {
-  const d = new THREE.Vector3(bx - ax, by - ay, bz - az);
-  const len = d.length();
-  const g = new THREE.CapsuleGeometry(r, Math.max(0.001, len), 3, seg);
-  tmpQ.setFromUnitVectors(UP, d.normalize());
-  tmpM.compose(tmpP.set((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2), tmpQ, tmpS.set(1, 1, 1));
-  return g.applyMatrix4(tmpM);
-}
 
 /** A cross-section of a tube: height, half-width, depth to the front (−Z) and to the back. */
 type Ring = readonly [y: number, rx: number, front: number, back: number];
@@ -190,7 +181,9 @@ function headPoint(dx: number, dy: number, dz: number, out: THREE.Vector3): THRE
   z *= r;
   // Jaw narrower than the skull; fuller back of the head, flatter face.
   const low = smoothstep(0.15, -0.95, y);
-  x *= 1 - 0.18 * low;
+  // Jaw angle: the lower sides stay a little fuller toward the back, under the ears.
+  const jaw = smoothstep(-0.25, -0.6, y) * smoothstep(-0.95, -0.7, y) * smoothstep(-0.7, -0.1, z) * smoothstep(0.5, 0.1, z);
+  x *= 1 - 0.18 * low + 0.07 * jaw;
   z *= z > 0 ? 1.1 - 0.2 * low : 0.96 - 0.06 * low;
   return out.set(x * HEAD.w, y * HEAD.h, z * HEAD.d);
 }
@@ -430,10 +423,12 @@ const TORSO: readonly Ring[] = [
   [0.15, 0.136, 0.098, 0.09],
   [0.24, 0.15, 0.107, 0.095],
   [0.31, 0.161, 0.11, 0.1],
-  [0.36, 0.176, 0.104, 0.1],
-  [0.4, 0.178, 0.09, 0.094],
-  [0.425, 0.152, 0.074, 0.08],
-  [0.448, 0.095, 0.049, 0.062],
+  [0.36, 0.175, 0.104, 0.1],
+  [0.39, 0.176, 0.094, 0.096],
+  [0.41, 0.166, 0.084, 0.088],
+  [0.428, 0.142, 0.07, 0.077],
+  [0.442, 0.112, 0.056, 0.066],
+  [0.452, 0.08, 0.046, 0.058],
   [0.46, 0.05, 0.039, 0.05],
 ];
 const TORSO_N = 2.4;
@@ -492,10 +487,12 @@ function buildHand(skin: GeoBuilder, s: number): void {
     place(
       sculpt(16, 12, (v) => {
         const sq = (a: number): number => Math.sign(a) * Math.abs(a) ** 0.7;
-        v.set(sq(v.x) * 0.0125 * (1.15 - 0.3 * v.y), v.y * 0.044, sq(v.z) * 0.037);
+        // Narrower at the top, where it runs up inside the wrist.
+        const up = smoothstep(0.2, 1, v.y);
+        v.set(sq(v.x) * 0.0125 * (1.15 - 0.3 * v.y), v.y * 0.05, sq(v.z) * 0.037 * (1 - 0.35 * up));
       }),
       0,
-      -0.044,
+      -0.04,
       0,
     ),
     C.skin,
@@ -513,36 +510,253 @@ function buildHand(skin: GeoBuilder, s: number): void {
     const y1 = -0.082 - Math.cos(a1) * L * 0.5;
     const x2 = x1 - s * Math.sin(a2) * L * 0.55;
     const y2 = y1 - Math.cos(a2) * L * 0.55;
-    skin.add(capsule(r, 0, -0.08, z, x1, y1, z), C.skin);
-    skin.add(capsule(r * 0.92, x1, y1, z, x2, y2, z * 0.95), C.skin);
+    // One tapered tube per finger from inside the palm, bending at the knuckle, round tip.
+    skin.add(sweep([[0, -0.07, z], [0, -0.08, z], [x1, y1, z], [x2, y2, z * 0.95]], [r * 1.05, r, r * 0.92, r * 0.78]), C.skin);
   }
   // Thumb: from the base of the palm at the front, forward and in.
-  skin.add(capsule(0.0095, -s * 0.006, -0.03, -0.034, -s * 0.016, -0.062, -0.05), C.skin);
-  skin.add(capsule(0.0088, -s * 0.016, -0.062, -0.05, -s * 0.022, -0.084, -0.046), C.skin);
+  // (It starts well inside the palm, so its root never shows.)
+  skin.add(sweep([[-s * 0.001, -0.024, -0.026], [-s * 0.006, -0.036, -0.034], [-s * 0.016, -0.062, -0.05], [-s * 0.022, -0.084, -0.046]], [0.0075, 0.0098, 0.009, 0.0078]), C.skin);
 }
 
-/** Bare foot, pointing forward (−Z), hanging from the ankle; the sole at −0.08. */
-function buildFoot(skin: GeoBuilder, s: number): void {
-  skin.add(
-    place(
-      sculpt(20, 14, (v) => {
-        const front = smoothstep(0.3, -1, v.z);
-        v.x *= 0.033 + 0.013 * front;
-        // A fuller sole, flat underneath (heel and ball on the ground).
-        v.y *= v.y < 0 ? 0.026 : 0.04 * (1 - 0.6 * front);
-        v.z *= 0.11;
-      }),
-      -s * 0.004,
-      -0.054,
-      -0.052,
-    ),
-    C.skin,
-  );
-  // Toes, big toe on the inside (−s), resting on the ground.
-  for (let k = 0; k < 5; k++) {
-    const r = 0.0095 - k * 0.0011;
-    skin.add(place(ball(r, 8, 6), -s * 0.02 + s * k * 0.0105, -0.072 + r * 0.4, -0.155 + k * 0.008, 0, 0, 0, 1, 0.75, 1.3), C.skin);
+/**
+ * A smooth tube along a path (fingers): circular sections of the given radii at each point,
+ * densified with Catmull-Rom between them, a rounded tip at the end and a plain cap at the
+ * start (hidden inside the palm).
+ */
+function sweep(path: readonly (readonly [number, number, number])[], radii: readonly number[], seg = 10): THREE.BufferGeometry {
+  const pts: THREE.Vector3[] = [];
+  const rs: number[] = [];
+  const P = path.map(([x, y, z]) => new THREE.Vector3(x, y, z));
+  const at = (i: number): THREE.Vector3 => P[Math.max(0, Math.min(P.length - 1, i))];
+  const sub = 4;
+  for (let i = 0; i < P.length - 1; i++) {
+    for (let k = 0; k < sub; k++) {
+      const t = k / sub;
+      const p0 = at(i - 1);
+      const p1 = at(i);
+      const p2 = at(i + 1);
+      const p3 = at(i + 2);
+      const t2 = t * t;
+      const t3 = t2 * t;
+      pts.push(
+        new THREE.Vector3()
+          .addScaledVector(p0, -0.5 * t3 + t2 - 0.5 * t)
+          .addScaledVector(p1, 1.5 * t3 - 2.5 * t2 + 1)
+          .addScaledVector(p2, -1.5 * t3 + 2 * t2 + 0.5 * t)
+          .addScaledVector(p3, 0.5 * t3 - 0.5 * t2),
+      );
+      rs.push(radii[i] + (radii[i + 1] - radii[i]) * t);
+    }
   }
+  pts.push(P[P.length - 1].clone());
+  rs.push(radii[radii.length - 1]);
+  // Round tip: a few shrinking sections past the last point.
+  const end = pts[pts.length - 1];
+  const dir = end.clone().sub(pts[pts.length - 2]).normalize();
+  const rEnd = rs[rs.length - 1];
+  for (const k of [0.45, 0.75, 0.93]) {
+    pts.push(end.clone().addScaledVector(dir, rEnd * k));
+    rs.push(rEnd * Math.sqrt(1 - k * k));
+  }
+  const pos: number[] = [];
+  const index: number[] = [];
+  const t = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const ref = new THREE.Vector3(0, 0, 1);
+  for (let j = 0; j < pts.length; j++) {
+    t.copy(pts[Math.min(pts.length - 1, j + 1)]).sub(pts[Math.max(0, j - 1)]).normalize();
+    n.crossVectors(t, ref);
+    if (n.lengthSq() < 1e-6) n.crossVectors(t, b.set(1, 0, 0));
+    n.normalize();
+    b.crossVectors(t, n).normalize();
+    for (let i = 0; i < seg; i++) {
+      const a = (i / seg) * Math.PI * 2;
+      const c = Math.cos(a) * rs[j];
+      const sn = Math.sin(a) * rs[j];
+      pos.push(pts[j].x + n.x * c + b.x * sn, pts[j].y + n.y * c + b.y * sn, pts[j].z + n.z * c + b.z * sn);
+    }
+  }
+  for (let j = 0; j < pts.length - 1; j++) {
+    for (let i = 0; i < seg; i++) {
+      const p = j * seg + i;
+      const q = j * seg + ((i + 1) % seg);
+      index.push(p, q, p + seg, q, q + seg, p + seg);
+    }
+  }
+  const startC = pos.length / 3;
+  pos.push(pts[0].x, pts[0].y, pts[0].z);
+  const endC = startC + 1;
+  pos.push(...end.clone().addScaledVector(dir, rEnd).toArray());
+  const last = (pts.length - 1) * seg;
+  for (let i = 0; i < seg; i++) {
+    index.push(startC, (i + 1) % seg, i);
+    index.push(endC, last + i, last + ((i + 1) % seg));
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(index);
+  g.computeVertexNormals();
+  return g;
+}
+
+/** The leg's rings from mid thigh to the ankle: y, half-width, front, back (before the leg scale). */
+const LEG: readonly Ring[] = [
+  [-0.28, 0.068, 0.07, 0.068], [-0.36, 0.059, 0.061, 0.058], [-0.41, 0.052, 0.055, 0.047], [-0.45, 0.05, 0.049, 0.05],
+  [-0.52, 0.05, 0.045, 0.062], [-0.58, 0.046, 0.041, 0.058], [-0.66, 0.037, 0.034, 0.04], [-0.74, 0.029, 0.029, 0.029],
+  [-0.785, 0.028, 0.029, 0.03],
+];
+/** Ankle joint height and the sole, in the thigh's frame (before the leg scale). */
+const ANKLE_Y = -0.785;
+const SOLE = ANKLE_Y - 0.08;
+/**
+ * The shin turns into the foot round a bend of this radius, starting at the ankle, so the path
+ * runs on along the foot 2 cm above the sole. The bend's inside (the instep) has radius
+ * BEND_R minus the instep's reach: kept well above zero, or the instep folds into a crease.
+ */
+const BEND_R = 0.075;
+const BEND_Y = SOLE + 0.02 + BEND_R;
+/**
+ * Sections round that bend, by its angle (0 = still the shin, 90° = along the foot): angle,
+ * half-width, reach toward the front/top, reach toward the back/bottom. The back reach swells
+ * at 15–45° and comes back in: that bulge is the heel, below and behind the Achilles.
+ */
+const BEND: readonly Ring[] = [
+  [0, 0.029, 0.031, 0.032],
+  [15, 0.031, 0.034, 0.05],
+  [30, 0.033, 0.037, 0.068],
+  [45, 0.035, 0.04, 0.05],
+  [60, 0.037, 0.042, 0.03],
+  [75, 0.039, 0.043, 0.022],
+  [90, 0.04, 0.044, 0.02],
+];
+/** The foot ahead of the bend: z (−Z forward), half-width, top's height above the sole. */
+const FOOT: readonly Ring[] = [
+  [-BEND_R, 0.04, 0.064, 0],
+  [-0.098, 0.046, 0.049, 0],
+  [-0.124, 0.047, 0.034, 0],
+  [-0.15, 0.045, 0.025, 0],
+  [-0.166, 0.041, 0.02, 0],
+  [-0.177, 0.031, 0.015, 0],
+  [-0.184, 0.012, 0.009, 0],
+];
+
+/**
+ * The whole bare leg (side `s`: −1 left, +1 right) as ONE surface, in the thigh's frame: a tube
+ * swept down a path that runs straight down the thigh and shin, bends forward under the ankle
+ * and runs along the foot to the toes. Each section is an oval across the path: round on the
+ * leg, flat underneath along the foot (a sole). Round the bend the front of the shin becomes
+ * the instep and the back swells into the heel, so there is no seam anywhere between leg and
+ * foot (two separate shapes always showed one, like a shoe). Along the foot: the arch lifted on
+ * the inside, the toe line slanting back from the big toe, grooves between the toes and rounded
+ * tips.
+ */
+function legGeometry(s: number): THREE.BufferGeometry {
+  const seg = 32;
+  const pos: number[] = [];
+  const index: number[] = [];
+  let sections = 0;
+  // One section: centre (y, z) on the path, the path's "front" direction v = (0, vy, vz) (the
+  // front of the shin, the top of the foot), its half-width a and reaches f (front) and b
+  // (back); `flat` 0..1 squares the lower half off into a sole; `shape` moves each point.
+  const section = (
+    cy: number,
+    cz: number,
+    vy: number,
+    vz: number,
+    a: number,
+    f: number,
+    b: number,
+    flat: number,
+    shape?: (x: number, y: number, z: number, top: boolean, sn: number) => [number, number, number],
+  ): void => {
+    for (let i = 0; i < seg; i++) {
+      const ang = (i / seg) * Math.PI * 2;
+      const c = Math.cos(ang);
+      const sn = Math.sin(ang);
+      const top = sn > 0;
+      // Round on the leg; along the foot a fuller dome on top and a flat sole underneath.
+      const ex = top ? 1 - 0.2 * flat : 1 - 0.45 * flat;
+      const x = a * Math.sign(c) * Math.abs(c) ** ex;
+      const r = top ? f * sn : b * Math.sign(sn) * Math.abs(sn) ** (1 - 0.55 * flat);
+      let y = cy + vy * r;
+      let z = cz + vz * r;
+      let px = x;
+      if (shape) [px, y, z] = shape(x, y, z, top, sn);
+      pos.push(px, y, z);
+    }
+    sections++;
+  };
+
+  // ---- Thigh and shin, straight down ----
+  // (Only down to where the bend begins: a ring below it would fold back over it.)
+  for (const [y, a, f, b] of rings(LEG)) if (y > BEND_Y + 0.004) section(y, 0, 0, -1, a, f, b, 0);
+  // ---- The bend: centre of the turn at (BEND_Y, −BEND_R); the path turns from down to forward ----
+  for (const [deg, a, f, b] of rings(BEND, 5)) {
+    const phi = (deg * Math.PI) / 180;
+    const cy = BEND_Y - BEND_R * Math.sin(phi);
+    const cz = -BEND_R + BEND_R * Math.cos(phi);
+    section(cy, cz, Math.sin(phi), -Math.cos(phi), a, f, b, smoothstep(30, 80, deg));
+  }
+  // ---- Along the foot ----
+  const toeX = [-0.0215, -0.0045, 0.0065, 0.017, 0.0275].map((t) => s * t);
+  const toeLen = [1, 0.8, 0.65, 0.5, 0.35];
+  const gaps = toeX.slice(1).map((t, k) => (t + toeX[k]) / 2);
+  for (const [z0, w, h] of rings(FOOT, 0.008).slice(1)) {
+    // The path drops toward the toes so the sole stays on the ground as the foot thins.
+    const d = Math.min(0.02, h * 0.45);
+    const toes = smoothstep(-0.124, -0.146, z0);
+    const front = smoothstep(-0.15, -0.176, z0);
+    const arch = smoothstep(-0.04, -0.06, z0) * smoothstep(-0.115, -0.085, z0);
+    const shift = -s * 0.004 * smoothstep(-0.05, -0.1, z0);
+    section(SOLE + d, z0, 1, 0, w, h - d, d, 1, (x, y, _z, top, sn) => {
+      const inner = smoothstep(-w, w, -s * x);
+      // The arch: the inside of the sole lifts between the heel and the ball.
+      if (!top) y += 0.012 * arch * inner * -sn;
+      if (top && toes > 0) {
+        let dip = 0;
+        for (let k = 0; k < gaps.length; k++) dip += (k === 0 ? 0.45 : 0.3) * Math.exp(-(((x - gaps[k]) / 0.0032) ** 2));
+        y -= (h - d) * sn * Math.min(0.6, dip) * toes;
+      }
+      // Toe line: the big toe reaches furthest, the little toe least; each tip rounds forward.
+      let tip = 0;
+      for (let k = 0; k < toeX.length; k++) tip = Math.max(tip, toeLen[k] * Math.exp(-(((x - toeX[k]) / (k === 0 ? 0.008 : 0.0045)) ** 2)));
+      return [x + shift, y, z0 - 0.012 * toes * (inner - 0.5) - 0.007 * front * tip];
+    });
+  }
+
+  for (let j = 0; j < sections - 1; j++) {
+    for (let i = 0; i < seg; i++) {
+      const p = j * seg + i;
+      const q = j * seg + ((i + 1) % seg);
+      // (p, next section, next around) faces outward for this section layout.
+      index.push(p, p + seg, q, q, p + seg, q + seg);
+    }
+  }
+  // Close both ends: the top inside the shorts, the toe tip (tiny there).
+  for (const [ring, up] of [[0, true], [sections - 1, false]] as const) {
+    let cx = 0;
+    let cy = 0;
+    let cz = 0;
+    for (let i = 0; i < seg; i++) {
+      cx += pos[(ring * seg + i) * 3];
+      cy += pos[(ring * seg + i) * 3 + 1];
+      cz += pos[(ring * seg + i) * 3 + 2];
+    }
+    const center = pos.length / 3;
+    pos.push(cx / seg, cy / seg, cz / seg);
+    for (let i = 0; i < seg; i++) {
+      const p = ring * seg + i;
+      const q = ring * seg + ((i + 1) % seg);
+      if (up) index.push(center, p, q);
+      else index.push(center, q, p);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(index);
+  g.computeVertexNormals();
+  return g;
 }
 
 /** Influences on one vertex: up to four (bone, weight) pairs. */
@@ -661,6 +875,8 @@ export interface AvatarPose {
   speed: number;
   /** Footfall counter: +1 per step (the gait phase). */
   phase: number;
+  /** Current step length (m) the phase counts in (the walker's `stride`). */
+  stride: number;
   running: boolean;
 }
 
@@ -971,6 +1187,17 @@ const UPPER_ARM = 0.27;
 const FOREARM = 0.225 + 0.045;
 /** Seated: hip joint height above the seat. */
 const SIT_H = 0.13;
+/**
+ * The pelvis lowers until the longer leg is this much (m) short of straight. Near full extension
+ * the knee angle is very sensitive: 4 mm short is already a 12° bend (a crouch when standing);
+ * 1 mm is ~6°, a relaxed stance.
+ */
+const REACH_SLACK = 0.001;
+/** Stopped with the feet apart: a foot further than this (m) from its standing spot steps back. */
+const SETTLE_MIN = 0.06;
+/** Duration (s) and foot lift (m) of that small step. */
+const SETTLE_TIME = 0.3;
+const SETTLE_LIFT = 0.05;
 const tmpA = new THREE.Vector3();
 const tmpB = new THREE.Vector3();
 const tmpC = new THREE.Vector3();
@@ -1017,6 +1244,9 @@ export class Avatar {
   private readonly target = [new THREE.Vector3(), new THREE.Vector3()];
   private readonly sole = [0, 0];
   private readonly stanceW = [1, 1];
+  /** Stopping: progress (0..1) of a foot stepping back under the body; −1 when not. */
+  private readonly settle = [-1, -1];
+  private readonly settleFrom = [new THREE.Vector3(), new THREE.Vector3()];
   private rootY = Number.NaN;
   private drop = 0;
   private yaw = 0;
@@ -1128,7 +1358,12 @@ export class Avatar {
     cloth.add(place(new THREE.BoxGeometry(0.058, 0.064, 0.003), -0.068, 0.29, torsoFront(0.29, -0.068) - 0.0012, 0, 0.32, 0), C.shirtDark, T);
     cloth.add(place(new THREE.BoxGeometry(0.06, 0.012, 0.004), -0.068, 0.318, torsoFront(0.318, -0.068) - 0.002, 0, 0.32, 0), C.shirt, T);
     // Neck: bends between the shoulders and the head.
-    skin.add(tube(rings([[0.4, 0.044, 0.043, 0.046], [0.48, 0.041, 0.04, 0.044], [0.57, 0.04, 0.038, 0.042]]), 18), C.skin, T, blendY(T, this.head, 0.47, 0.56));
+    skin.add(
+      tube(rings([[0.4, 0.05, 0.046, 0.053], [0.45, 0.044, 0.042, 0.048], [0.5, 0.041, 0.04, 0.044], [0.57, 0.043, 0.042, 0.045]]), 20),
+      C.skin,
+      T,
+      blendY(T, this.head, 0.47, 0.56),
+    );
 
     // ---- Head ----
     const headSkin = new GeoBuilder(rng, 0);
@@ -1157,15 +1392,16 @@ export class Avatar {
       const sh = this.shoulders[i];
       const el = this.elbows[i];
       const wr = this.wrists[i];
-      // Shoulder and sleeve in one piece: a deltoid dome whose top tucks into the shirt's
-      // shoulder line, then the sleeve. The dome is weighted between the chest and the arm, so
+      // Shoulder and sleeve in one piece: a rounded cap whose top tucks into the shirt's
+      // sloping shoulder line, then the sleeve, a little wider toward the hem (it hangs, it
+      // isn't padded). The dome is weighted between the chest and the arm, so
       // it bends like a shoulder when the arm swings instead of pivoting as a separate can.
       const sleeve = blendY(T, sh, 0.035, -0.07);
       cloth.add(
         tube(
           rings([
-            [-0.15, 0.056, 0.06, 0.058], [-0.08, 0.055, 0.059, 0.058], [-0.03, 0.056, 0.06, 0.058], [0.0, 0.052, 0.057, 0.055],
-            [0.025, 0.038, 0.046, 0.044], [0.042, 0.012, 0.018, 0.018],
+            [-0.15, 0.057, 0.061, 0.059], [-0.08, 0.053, 0.057, 0.055], [-0.03, 0.05, 0.054, 0.052], [-0.005, 0.047, 0.051, 0.049],
+            [0.015, 0.041, 0.045, 0.043], [0.03, 0.031, 0.035, 0.034], [0.04, 0.018, 0.022, 0.021], [0.045, 0.006, 0.008, 0.008],
           ], 0.008),
           22,
         ),
@@ -1173,7 +1409,7 @@ export class Avatar {
         sh,
         sleeve,
       );
-      cloth.add(tube([[-0.155, 0.057, 0.061, 0.059], [-0.14, 0.057, 0.061, 0.059]], 20), C.shirtDark, sh);
+      cloth.add(tube([[-0.155, 0.059, 0.063, 0.061], [-0.14, 0.059, 0.063, 0.061]], 20), C.shirtDark, sh);
       const arm: Weigher = (_x, y) => {
         const e = smoothstep(-0.23, -0.31, y);
         const w = smoothstep(-0.47, -0.5, y);
@@ -1183,7 +1419,8 @@ export class Avatar {
         tube(
           rings([
             [-0.08, 0.044, 0.044, 0.043], [-0.16, 0.044, 0.047, 0.041], [-0.22, 0.039, 0.04, 0.037], [-0.27, 0.034, 0.033, 0.037],
-            [-0.31, 0.035, 0.037, 0.036], [-0.39, 0.03, 0.031, 0.03], [-0.47, 0.02, 0.025, 0.024], [-0.505, 0.019, 0.024, 0.023],
+            [-0.31, 0.035, 0.037, 0.036], [-0.39, 0.03, 0.031, 0.03], [-0.47, 0.02, 0.025, 0.024], [-0.505, 0.018, 0.024, 0.023],
+            [-0.53, 0.014, 0.02, 0.019], [-0.545, 0.008, 0.012, 0.012],
           ]),
           18,
         ),
@@ -1197,7 +1434,11 @@ export class Avatar {
           gloss.add(place(ball(0.0058, 8, 6), Math.cos(a) * 0.025, -0.205, Math.sin(a) * 0.029), k % 4 ? C.bead : C.beadLight, el);
         }
       }
-      skin.add(built((b) => buildHand(b, s), rng), C.skin, wr);
+      // Same wrist blend as the forearm's (here in the wrist's frame), where the two overlap.
+      skin.add(built((b) => buildHand(b, s), rng), C.skin, wr, (_x, y) => {
+        const w = smoothstep(0.025, -0.005, y);
+        return [[el, 1 - w], [wr, w]];
+      });
     }
 
     // ---- Legs: one continuous skin from mid thigh to ankle (a real knee), shorts, feet ----
@@ -1218,29 +1459,16 @@ export class Avatar {
       const kneeY = -0.41 * L;
       const ankleY = kneeY - 0.375 * L;
       const legW: Weigher = (_x, y) => {
-        const k = smoothstep(kneeY + 0.045, kneeY - 0.045, y);
+        // A wide blend over the knee: it folds in a smooth curve, not a crease. The foot (all
+        // below the ankle) follows the ankle; the blend into it sits just above the joint.
+        const k = smoothstep(kneeY + 0.07, kneeY - 0.07, y);
         const a = smoothstep(ankleY + 0.04, ankleY - 0.005, y);
         return [[hp, 1 - k], [kn, k * (1 - a)], [an, a]];
       };
-      // Thigh → knee (a slight bony narrowing, kneecap in front) → calf → ankle.
-      skin.add(
-        scaleL(
-          tube(
-            rings([
-              [-0.28, 0.068, 0.07, 0.068], [-0.36, 0.06, 0.062, 0.06], [-0.41, 0.05, 0.054, 0.05], [-0.45, 0.047, 0.048, 0.052],
-              [-0.5, 0.05, 0.046, 0.06], [-0.57, 0.047, 0.042, 0.06], [-0.65, 0.038, 0.034, 0.042], [-0.74, 0.029, 0.028, 0.03],
-              [-0.79, 0.03, 0.03, 0.032],
-            ]),
-            20,
-          ),
-        ),
-        C.skin,
-        hp,
-        legW,
-      );
-      const footSkin = new GeoBuilder(rng, 0);
-      buildFoot(footSkin, s);
-      skin.add(scaleL(footSkin.build()), null, an);
+      // Thigh → knee (kneecap in front, a hollow behind; no narrowing all round, which read as
+      // a joint ring) → calf belly high at the back → Achilles → ankle → heel and instep → toes,
+      // one surface.
+      skin.add(scaleL(legGeometry(s)), C.skin, hp, legW);
     }
 
     // One skinned mesh per material, all sharing the skeleton: the GPU bends each vertex by
@@ -1281,11 +1509,16 @@ export class Avatar {
       d = Math.atan2(Math.sin(d), Math.cos(d));
       this.yaw += d * damp(10, dt);
     }
-    // Blend between standing, walking and running so stopping never snaps.
-    this.gait += (clamp(p.speed / 1.6, 0, 1) - this.gait) * damp(8, dt);
-    this.run += ((p.running && p.speed > 2 ? 1 : 0) - this.run) * damp(6, dt);
-    const g = this.gait;
+    // Blend between standing, walking and running so stopping never snaps. The stride's size
+    // follows the walker's step length (short steps when slow), so planted feet never drag:
+    // a full-size cycle covers WALK_STEP (RUN_STEP running) per step.
+    this.run += ((p.running && p.speed > RUN_GAIT_MIN ? 1 : 0) - this.run) * damp(6, dt);
     const r = this.run;
+    const size = clamp(p.stride / (WALK_STEP + (RUN_STEP - WALK_STEP) * r), 0, 1.15);
+    this.gait += (size - this.gait) * damp(8, dt);
+    const g = this.gait;
+    // Standing still: feet left apart by the last stride step back together (below).
+    const idle = g < 0.1 && p.speed < 0.1;
     // The body rides a smoothed ground height (steps would make it jump); the legs reach the
     // real ground under each foot.
     const fresh = Number.isNaN(this.rootY) || Math.abs(p.feetY - this.rootY) > 1;
@@ -1364,6 +1597,7 @@ export class Avatar {
       } else {
         this.locked[i] = false;
       }
+      this.settleFoot(i, idle, dt, tmpC.set(nominal.x, onGround, nominal.z));
       this.plant[i] = fresh ? (this.locked[i] ? 1 : 0) : this.plant[i] + ((this.locked[i] ? 1 : 0) - this.plant[i]) * damp(this.locked[i] ? 40 : 14, dt);
       // Swing: the gait's path, lifted by the same clearance above the real ground.
       const clearance = Math.max(0, nominal.y - (this.rootY + ANKLE_H));
@@ -1371,7 +1605,7 @@ export class Avatar {
       t.lerp(this.lock[i], this.plant[i]);
       // How far the pelvis must come down for this leg to reach.
       const hipPos = this.hipJoints[i].getWorldPosition(tmpB);
-      need = Math.max(need, hipPos.distanceTo(t) - (THIGH + SHIN - 0.004));
+      need = Math.max(need, hipPos.distanceTo(t) - (THIGH + SHIN - REACH_SLACK));
     }
     this.drop += (Math.max(0, need) - this.drop) * (fresh ? 1 : damp(16, dt));
     this.hips.position.y = HIP_Y - this.drop;
@@ -1381,11 +1615,35 @@ export class Avatar {
     for (let i = 0; i < 2; i++) this.reachLeg(i, this.target[i], this.sole[i]);
 
     // Head stays level (counters the torso), looks around slowly when standing still.
-    const idle = 1 - g;
-    this.head.rotation.x = 0.16 * r + 0.04 * g + 0.05 * idle * Math.sin(this.time * 0.23);
-    this.head.rotation.y = 0.12 * g * Math.cos(sL) + idle * 0.3 * Math.sin(this.time * 0.31) * Math.sin(this.time * 0.13 + 1);
+    const still = 1 - g;
+    this.head.rotation.x = 0.16 * r + 0.04 * g + 0.05 * still * Math.sin(this.time * 0.23);
+    this.head.rotation.y = 0.12 * g * Math.cos(sL) + still * 0.3 * Math.sin(this.time * 0.31) * Math.sin(this.time * 0.13 + 1);
 
     this.blinkEyes(dt);
+  }
+
+  /**
+   * Stopping mid-stride leaves one foot ahead and one behind, the knees bent to reach them. Like
+   * a person settling, step each foot back under the body, one at a time: a short lift and
+   * place over SETTLE_TIME. Also how the feet follow when turning on the spot.
+   */
+  private settleFoot(i: number, idle: boolean, dt: number, spot: THREE.Vector3): void {
+    const lock = this.lock[i];
+    if (this.settle[i] < 0) {
+      if (!idle || !this.locked[i] || this.settle[1 - i] >= 0) return;
+      if (Math.hypot(lock.x - spot.x, lock.z - spot.z) < SETTLE_MIN) return;
+      this.settle[i] = 0;
+      this.settleFrom[i].copy(lock);
+    }
+    if (!idle) {
+      // Walking again: the foot stays where it got to, the gait takes it from there.
+      this.settle[i] = -1;
+      return;
+    }
+    const t = Math.min(1, this.settle[i] + dt / SETTLE_TIME);
+    lock.lerpVectors(this.settleFrom[i], spot, smoothstep(0, 1, t));
+    lock.y += SETTLE_LIFT * Math.sin(Math.PI * t);
+    this.settle[i] = t < 1 ? t : -1;
   }
 
   /** Blink every few seconds (a quick close and open). */

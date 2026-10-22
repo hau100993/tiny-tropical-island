@@ -110,6 +110,17 @@ export class AudioEngine {
     this.applyMuffle(0.06);
   }
 
+  /**
+   * Silences the soundscape (layers, recordings, footsteps) but not the Pomodoro bell, e.g.
+   * while a video plays at the desk. Fades over ~0.5 s.
+   */
+  setAmbienceMuted(muted: boolean): void {
+    for (const bus of [this.ambience, this.direct]) {
+      bus.gain.cancelScheduledValues(this.now);
+      bus.gain.setTargetAtTime(muted ? 0 : 1, this.now, 0.15);
+    }
+  }
+
   private muffleAmount = 0;
   private underwater = false;
 

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Support } from './collision';
 import type { IslandColliders, Shelter, WalkSurface } from './islandColliders';
 import { clamp, damp } from '../core/math';
+import { RUN_GAIT_MIN, stepLength } from '../core/gait';
 
 /** Eye height above the feet (m). */
 export const EYE_HEIGHT = 1.65;
@@ -103,6 +104,8 @@ export class Walker {
   view: WalkView = 'third';
   /** Footfall counter: +1 per step (drives the avatar's gait). */
   phase = 0;
+  /** Current step length (m): shorter when walking slowly, 0 standing still. */
+  stride = 0;
   /** Third person: current camera distance (shorter when something is in the way). */
   arm = ARM;
   /** In deep water: swimming instead of walking (feetY is then the seabed below). */
@@ -282,11 +285,12 @@ export class Walker {
       this.events.onSwim(true);
     }
 
-    // A footfall every stride; longer strides when running.
-    // Matched to the avatar's gait (its planted feet would otherwise drag behind).
-    const stride = run ? 0.8 : 0.52;
+    // A footfall every step: shorter, slower steps when walking slowly, longer when running.
+    // The avatar scales its stride to the same length (its planted feet would otherwise drag).
+    const runGait = run && this.speed > RUN_GAIT_MIN;
+    this.stride = stepLength(this.speed, runGait ? RUN_SPEED : WALK_SPEED, runGait);
     const before = Math.floor(this.phase);
-    this.phase += moved / stride;
+    if (this.stride > 0.01) this.phase += moved / this.stride;
     if (Math.floor(this.phase) !== before) {
       this.events.onStep({
         surface: this.surface,

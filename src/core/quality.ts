@@ -47,3 +47,5 @@ export const QUALITY_PROFILES: Record<QualityLevel, QualityProfile> = {
 export const GRASS_MAX = 40000;
 
 export const NORMAL_FPS = 60;
+/** While a desk video plays: the scene behind it gets half the GPU time, so the video stays smooth. */
+export const VIDEO_FPS = 30;

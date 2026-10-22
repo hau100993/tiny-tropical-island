@@ -36,13 +36,17 @@
 | Time section redesign (user request, 2026-10-20) | ✅ Done (2026-10-20), awaiting feedback | From 7 rows (~230 px) to 2 (~95 px). Row 1: a state dot (filled running / ring real clock / grey stopped; tooltip says which) + hh:mm:ss + three tools: pause/play icon, one speed button, a monitor icon for the computer's clock (lit like the Pomodoro button when on; text on hover). Speed button: click ×1 → ×10 → ×60 → ×240 → ×1 (user's choice; ×30 dropped from the cycle but still read from old settings and steps to its neighbours), Shift + click back, mouse wheel up/down (stops at the ends); on real time it shows the island speed dimmed and a click switches to the island clock. `ui/timeSpeed.ts` (`nextSpeed`, unit-tested). Row 2: the hour slider without label or value, its track a night → dawn → day → dusk → night gradient at the right hours, a sun handle by day and a crescent moon at night. Removed: the real-time switch row, the state line, the "Tốc độ" heading, the five speed buttons and the hint line. Closed section title: "10:14 · ×60" / "21:30 · đã dừng" / "09:38 · giờ thật". |
 | Fishing boat night lights (user request, 2026-10-20) | ✅ Done (2026-10-20), awaiting feedback | `world/boatLights.ts` (`BoatLights`, children of the boat, 4 draw calls, no three.js lights so no scene shader changes): two lines of 8 squid-fishing bulbs under white pipe rails over the foredeck (new in the boat model), white masthead and stern lights, red port / green starboard sidelights on the wheelhouse, warm lit cabin and wheelhouse windows (panes just outside the dark glass); dark glass by day, bright (> 1, whitened by the tone mapper) at night. Additive halos per lamp (camera-facing, never under ~0.5° so a far boat still glows from the desk). Reflections: per lamp a shimmering column on the sea running toward the viewer, longer and more broken with the wave slider (glint bands from value noise), at least ~0.25° wide; pulled 2.5 m toward the eye in view space so wave crests don't swallow it. A soft Gaussian pool of cool light on the water under the fishing lamps. On by the sun's height (from e = 0.08 to −0.04, i.e. at dusk), all but the bulbs not drawn by day. Streaks and pool are hidden from the refraction capture and the planar reflection; halos from the capture. |
 | Full screen (user request, 2026-10-20) | ✅ Done (2026-10-20), awaiting feedback | `F` (video-player convention; free in every mode) and a maximize/minimize icon button in the panel header toggle the Fullscreen API on the whole page (`ui/fullscreen.ts`), so the panel and Pomodoro stay usable. In full screen the cursor hides over the 3D canvas after 3 s without moving (`body.cursor-idle`), back on any movement. Not remembered across launches (browsers require a gesture). `Esc` is taken by the browser to leave full screen first. Not done (user's choice): hiding the panel automatically in full screen. |
+| 10 Basic tier + PC detection (user request, 2026-10-21) | 📝 Proposed, awaiting user review (open questions in §7 Phase 10) | Measured on an Intel UHD 770 (i7-12700, Linux, Chrome 149, 1600×900) at High: 11 fps, GPU 61.5 ms vs CPU 8.8 ms per frame, 4.6 M triangles over 4 scene passes. Plan: a "Cơ bản" tier that keeps every feature but renders it cheaply, GPU-name detection + start-screen benchmark + runtime watchdog. |
+| YouTube on the desk monitor (user request, 2026-10-21) | ✅ Done (2026-10-21), awaiting feedback | Seated at the desk, the YouTube logo on the right monitor (or `U`) opens a small card: paste a YouTube link (watch, youtu.be, live, shorts, embed, playlist; `ui/youtube.ts`, unit-tested), or pick one of the last 5 (`tsw.videoRecent`). The video plays on the left monitor: a real iframe (cross-origin pixels can't become a WebGL texture) laid exactly on the 3D screen with three's `CSS3DRenderer` (examples/jsm, MIT, no new dependency), following look and zoom; the desk lamp moved 9 cm left so nothing stands between the chair and that screen (the overlay is drawn on top of the canvas). Player driven by postMessage only (`youtube-nocookie.com` embed with `enablejsapi=1`, the "listening" handshake, state/error events; no YouTube script in our page); referrer policy set (YouTube refuses embeds without one, error 153). While it plays the soundscape is silenced (`AudioEngine.setAmbienceMuted`: ambience + direct buses; the Pomodoro bell still rings); the menu under the logo (shows on hover, and by itself for 3 s when a video first starts) has **Tạm dừng/Phát tiếp**, **Âm nền** (turns it back on), **Đổi video**, **Tắt video**; it returns on pause, end or close. Getting up leaves the video playing (user request, 2026-10-22; `U` away from the desk plays/pauses it): the CSS layer moves under the canvas (`z-index: -1`, `#app` isolated), the renderer has an alpha channel, and after the main render `DeskVideo.punchHole` clears alpha to 1 everywhere, then redraws the left screen writing (0,0,0,0) with a depth test, so the video shows only where nothing covers that screen (avatar, chair, walls hide it correctly). Master volume and `M` reach the video. Errors in Vietnamese (embedding disabled, not found, offline). The logo is a real button laid on the right screen with the same CSS3D layer and also drawn into the screen's canvas (seen from afar); clicking it with a video loaded plays/pauses; a corner badge shows playing (pulse) or paused. While a video plays and you sit at the desk, the scene renders at 30 fps (`VIDEO_FPS`) so the GPU has room to decode it. **Deviation (user-approved):** this is the first feature using the network; only when you paste a link. |
+| Avatar gait polish (user request, 2026-10-22) | ✅ Done (2026-10-22), awaiting feedback | Slow walking bent the knees like running: the walker counted a fixed 0.52 m per step while the avatar's stride shrank with speed, so a planted foot dragged behind and the pelvis dropped to reach it. Now one step length for both (`core/gait.ts`, unit-tested): step ∝ speed^0.6, cadence ∝ speed^0.4, as in people; the avatar's stride size is that step over the full cycle's step. Standing still: feet left apart by the last stride step back under the body one at a time (0.3 s lift and place; also when turning on the spot). The IK reach slack went from 4 mm to 1 mm: near full extension 4 mm short was a 12° knee bend (a crouch), 1 mm is ~6°. |
+| Avatar body review (user request, 2026-10-22) | ✅ Done (2026-10-22), awaiting feedback | Wave 1, legs: the shin ended in a flat round cap above a separate oval foot (a doll's peg). Two separate shapes (shin + foot) always left a visible crease where they met: a shade step at first, then a rim round the heel like a shoe from behind. Now the whole bare leg is ONE swept surface (`legGeometry`): a tube down the thigh and shin that bends forward under the ankle (radius 7.5 cm) and runs along the foot; the front of the shin becomes the instep, the back of the bend swells into the heel, sections go from round (leg) to a flat sole (foot), with the arch lifted inside, a slanted toe line, grooves and rounded toe tips. Knee: no all-round narrowing (it read as a joint ring), kneecap in front and a hollow behind, a wider blend (±7 cm); calf belly high at the back. Wave 2: the forearm runs on into the palm with the same kind of shared blend; fingers and thumb are tapered swept tubes with round tips (`sweep`) instead of capsule segments; a sloping shoulder line and a rounder sleeve cap that hangs a little wider at the hem; a neck wider at its base; a slight jaw angle. Same 15 bones and 3 draw calls; all animations unchanged. |
 
 **To do later (user, 2026-10-20: proposed in the review, not now)**
 1. Cinematic camera: slow automatic camera moves between viewpoints every few minutes (wallpaper mode).
 2. Sound by time of day: a day track and a night track per scene, crossfading with the clock.
 3. Sleep timer for the sound (fade out after 15/30/60 min).
 4. Changing weather: rain, wind and clouds drifting slowly at random within a chosen range.
-5. Play music from a URL (analysed 2026-10-20, postponed by the user). Needs the "no network" rule relaxed (opt-in: only links you add; offline → silent fallback to recordings/synth). Proposed order: (a) direct MP3/OGG and internet radio in "Âm thanh của tôi" via **+ Thêm từ link**: `<audio>` with `crossOrigin` through the mixer when the server sends CORS (all effects), otherwise played directly (volume and crossfades only); no HLS (would need hls.js). (b) SoundCloud Widget API and optionally YouTube IFrame API in a small visible mini-player card (play/pause/volume/crossfade via their APIs, no muffle/underwater effects; loads their scripts and cookies). (c) Spotify: skip, or embed only (30 s previews unless logged in; the Web Playback SDK needs Premium, an app registration and OAuth). Open questions: allow network, which sources, accept a visible mini-player.
+5. Play music from a URL (analysed 2026-10-20, postponed by the user; YouTube at the desk was done separately on 2026-10-21, see the status table). Needs the "no network" rule relaxed (opt-in: only links you add; offline → silent fallback to recordings/synth). Proposed order: (a) direct MP3/OGG and internet radio in "Âm thanh của tôi" via **+ Thêm từ link**: `<audio>` with `crossOrigin` through the mixer when the server sends CORS (all effects), otherwise played directly (volume and crossfades only); no HLS (would need hls.js). (b) SoundCloud Widget API and optionally YouTube IFrame API in a small visible mini-player card (play/pause/volume/crossfade via their APIs, no muffle/underwater effects; loads their scripts and cookies). (c) Spotify: skip, or embed only (30 s previews unless logged in; the Web Playback SDK needs Premium, an app registration and OAuth). Open questions: allow network, which sources, accept a visible mini-player.
 
 **Deviations from the plan so far**
 - Vitest 5.0.5 instead of 4.x/3.x: npm 10.9 crashes resolving vitest 4.1's optional peers, and vitest 3.2 has published advisories (dev-only, but avoided anyway).
@@ -336,6 +340,60 @@ User decisions (2026-10-20): surfing comes last; surfing is the arcade style bel
 **Limits.** The ripples of the GPU water are visual only (reading them back to the CPU would stall the GPU); boats and swimmers float on the Gerstner waves. The seabed exists only on the 300 m terrain, so diving is limited to the reef around the island; open water past ~280 m from the island gently pushes you back.
 
 After each phase: `npm run build` passes, PLAN.md status updated, README updated, and I give you exact run/test steps, then wait for your feedback.
+
+### Phase 10 — Basic tier + PC detection (proposed 2026-10-21, awaiting user review)
+
+**Why.** On a weak PC the app ran at 11 fps. Measured with the debug overlay on an Intel UHD 770 (integrated, shared RAM; i7-12700, Linux, Chrome 149, 1600×900) at **High**: GPU 61.5 ms, CPU 8.8 ms per frame, 232 draw calls, 4.6 M triangles. The CPU is fine; the GPU is ~4× over budget.
+
+**Where the triangles go** (counted per object in a throwaway test, one scene pass):
+
+| Object | Triangles | Note |
+| --- | --- | --- |
+| Forest | 1,121k | canopy 452k, shrubs 276k, emergent 78k, ferns 76k |
+| Ground flowers (10k) | 480k | 48 tris per clump; a few pixels each in orbit view |
+| Reef | 281k | under water |
+| Grass (40k) | 200k | |
+| Terrain + house | 143k | |
+
+High draws the scene ~4 times a frame (estimated split): main ~2.3 M, shadow map ~1.1 M (trees + house), planar reflection ~1.3 M, refraction capture ~0.4 M. On top: per-pixel cost of MSAA, PCF shadows, the water shader (refraction + reflection + caustics) and the cloud sky.
+
+**Principle.** Cut what the GPU draws every frame, not what is idle. Activities (kayak, surf, swim, diving, hammock, desk) cost ~nothing until used, so they all stay. Basic keeps every feature and renders it cheaply; only pure decoration nobody interacts with is removed.
+
+**Tier "Cơ bản" (Basic)**
+
+| Kept (core) | Off or reduced |
+| --- | --- |
+| Island, forest trees, house, water with ripples, sky, day/night, weather, all sound, Pomodoro, orbit + first-person, all activities | **Off:** shadows, planar reflection, refraction, caustics, MSAA, light shafts, ground flowers. **Reef:** off, or only while swimming/diving near it (open question). **Forest:** trees kept, undergrowth (shrubs, ferns) ~30%. **Grass** ~2k. **Rain/snow** ~1.5k / 1k. **Water sim** 128². **Pixel ratio** 0.75–1.0. **Sky:** fewer cloud fbm octaves. |
+
+Estimate: ~0.9 M triangles in a single pass (vs 4.6 M in 4). Expected 40–60 fps on the UHD 770 (to be measured, not promised).
+
+**Detection (three layers)**
+1. **GPU name** at first launch (`WEBGL_debug_renderer_info`): software renderer (SwiftShader, llvmpipe) → Basic + warning; Intel UHD/HD/Iris, AMD APU ("Radeon Graphics" without a model number) → Basic or Low; NVIDIA / AMD dedicated → Medium. A heuristic: the name can be masked, and one name covers different chips.
+2. **Benchmark** (2–3 s behind the start screen, GPU timer query; frame time if the extension is missing): over budget → one tier down. The ground truth.
+3. **Runtime watchdog**: dynamic resolution (pixel ratio steps down to 0.75× when GPU time stays > ~18 ms, back up with headroom; invisible); FPS < ~40 for 10 s → hint "Máy hơi chậm — chuyển sang Cơ bản?".
+
+**Rules.** A preset chosen by hand always wins: detection only picks the first tier, later it only suggests. MSAA is fixed at WebGL context creation, so detection runs before the renderer is created; a later MSAA change applies after reload (as today).
+
+**Other optimizations, any tier** (from the same analysis, ordered by gain):
+1. Shadow map redrawn every 4–8 frames, or only when the sun/camera moved (now every frame: ~1.1 M tris).
+2. Ground flower clump 48 → ~8 tris, plus a distance cutoff.
+3. Forest LOD: simpler tree variants when the camera is far (orbit view): fewer triangles and less leaf shimmer.
+4. Planar reflection: low-LOD trees, or sky-only on Medium.
+
+**Steps (proposed)**
+
+| Step | Deliverable | What you test |
+| --- | --- | --- |
+| **10a** | Basic tier in `core/quality.ts` + panel button "Cơ bản"; per-tier switches for flowers, undergrowth, reef, light shafts, cloud octaves | Pick "Cơ bản" on the UHD 770 → fps in the debug overlay (`` ` ``) |
+| **10b** | Detection: GPU name + start-screen benchmark, first launch only; dynamic resolution; slow-PC hint | Clear site data → first launch picks Basic on the weak PC, Medium on the RX 6600 |
+| **10c** | Shadow map throttling, cheaper flower clumps, forest LOD | Same view, before/after GPU ms at every tier |
+
+**Open questions for the user**
+1. A 4th tier "Cơ bản" under "Thấp", or turn "Thấp" into Basic? (Proposal: 4 tiers.)
+2. When the PC is slow: auto-switch, or suggest? (Proposal: auto on first launch only, then suggest.)
+3. Reef in Basic: removed, or only while diving?
+4. A 30 fps cap while Basic is active? ("Low power" was removed on request on 2026-10-19, so not without your OK.)
+5. Anything in the "off" list that must stay (e.g. shadows)?
 
 ---
 

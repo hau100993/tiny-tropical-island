@@ -145,6 +145,14 @@ export class Mixer {
     this.applyMuffle();
   }
 
+  /** The soundscape off (a video plays at the desk); the bell still rings. */
+  setAmbienceMuted(muted: boolean): void {
+    this.ambienceMuted = muted;
+    this.engine?.setAmbienceMuted(muted);
+  }
+
+  private ambienceMuted = false;
+
   /** Head under water: everything heard through the water (see AudioEngine.setUnderwater). */
   setUnderwater(on: boolean): void {
     this.underwater = on;
@@ -242,6 +250,7 @@ export class Mixer {
   }
 
   private applyMuffle(): void {
+    this.engine?.setAmbienceMuted(this.ambienceMuted);
     this.engine?.setMuffle(this.muffle);
     this.engine?.setUnderwater(this.underwater);
   }

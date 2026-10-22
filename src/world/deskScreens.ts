@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { YT_LOGO } from '../ui/youtube';
 
 /** What the right-hand monitor shows (filled by the app once a second). */
 export interface ScreenInfo {
@@ -12,10 +13,20 @@ export interface ScreenInfo {
 
 const W = 1024;
 const H = 576;
+/** Canvas size of both screens, in pixels. */
+export const SCREEN_PX = { w: W, h: H } as const;
+/**
+ * Where the YouTube logo sits on the right screen (canvas pixels): top right, beside the clock.
+ * DeskVideo lays a real button exactly over it while you sit at the desk.
+ */
+export const DASH_LOGO = { x: 846, y: 56, w: 130, h: 92 } as const;
 /** Redraw rate of the code editor (typing animation). */
 const EDITOR_FPS = 8;
 /** Beyond this distance (m) from the desk the screens are too small to read: don't redraw. */
 const NEAR_ENOUGH = 14;
+
+/** Under the video's title on the left screen's canvas (the live video covers it; reflections show it). */
+const PAUSED_TEXT = 'YouTube';
 
 const FONT = '"Cascadia Code", Consolas, "Courier New", monospace';
 const UI_FONT = '"Segoe UI", system-ui, sans-serif';
@@ -160,6 +171,10 @@ export class DeskScreens {
   private dashTimer = 0;
   private blink = 0;
   private readonly center = new THREE.Vector3();
+  private readonly logoBody = new Path2D(YT_LOGO.body);
+  private readonly logoPlay = new Path2D(YT_LOGO.play);
+  /** A video loaded on the left screen (its title), shown there while you're away from the desk. */
+  private videoLabel: string | null = null;
 
   constructor(
     screens: ReadonlyArray<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>,
@@ -187,6 +202,13 @@ export class DeskScreens {
     this.drawEditor();
   }
 
+  /** The left screen shows the paused video's title instead of the editor (null: editor). */
+  setVideo(label: string | null): void {
+    if (label === this.videoLabel) return;
+    this.videoLabel = label;
+    this.editorTimer = 0;
+  }
+
   update(dt: number, camera: THREE.Camera): void {
     if (camera.position.distanceTo(this.center) > NEAR_ENOUGH) return;
     this.editorTimer -= dt;
@@ -200,6 +222,33 @@ export class DeskScreens {
       this.dashTimer = 1;
       this.drawDash();
     }
+  }
+
+  /** The left screen while a video waits: dark, a play mark, the title, how to go on. */
+  private drawVideoCard(title: string): void {
+    const g = this.editor;
+    g.fillStyle = '#0f0f10';
+    g.fillRect(0, 0, W, H);
+    g.fillStyle = '#ff0033';
+    g.beginPath();
+    g.roundRect(W / 2 - 60, H / 2 - 110, 120, 84, 22);
+    g.fill();
+    g.fillStyle = '#ffffff';
+    g.beginPath();
+    g.moveTo(W / 2 - 16, H / 2 - 92);
+    g.lineTo(W / 2 + 24, H / 2 - 68);
+    g.lineTo(W / 2 - 16, H / 2 - 44);
+    g.closePath();
+    g.fill();
+    g.textAlign = 'center';
+    g.font = `600 30px ${UI_FONT}`;
+    const t = title.length > 52 ? `${title.slice(0, 50)}…` : title;
+    g.fillText(t, W / 2, H / 2 + 30);
+    g.fillStyle = '#9aa0a6';
+    g.font = `22px ${UI_FONT}`;
+    g.fillText(PAUSED_TEXT, W / 2, H / 2 + 72);
+    g.textAlign = 'left';
+    this.editorTex.needsUpdate = true;
   }
 
   /** Types a few characters (bursts, like a person), pausing at the end of each file. */
@@ -223,6 +272,10 @@ export class DeskScreens {
   }
 
   private drawEditor(): void {
+    if (this.videoLabel !== null) {
+      this.drawVideoCard(this.videoLabel);
+      return;
+    }
     const g = this.editor;
     const { file, code } = SNIPPETS[this.snippet];
     g.fillStyle = C.bg;
@@ -302,6 +355,7 @@ export class DeskScreens {
     g.fillStyle = '#a7c4cc';
     const days = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
     g.fillText(`${days[now.getDay()]}, ${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`, 52, 196);
+    this.drawLogo(g);
 
     // Pomodoro card.
     const p = i.pomodoro;
@@ -344,6 +398,25 @@ export class DeskScreens {
     g.font = `26px ${UI_FONT}`;
     g.fillText(ellipsize(g, `♪  ${i.playing}`, 880), 72, 500);
     this.dashTex.needsUpdate = true;
+  }
+
+  /** The YouTube "app icon" with its name under it (seated, a real button covers the icon). */
+  private drawLogo(g: CanvasRenderingContext2D): void {
+    const r = DASH_LOGO;
+    g.save();
+    g.translate(r.x, r.y);
+    g.scale(r.w / 24, r.h / 17);
+    g.translate(0, -3.5);
+    g.fillStyle = YT_LOGO.red;
+    g.fill(this.logoBody);
+    g.fillStyle = '#ffffff';
+    g.fill(this.logoPlay);
+    g.restore();
+    g.font = `20px ${UI_FONT}`;
+    g.fillStyle = '#a7c4cc';
+    g.textAlign = 'center';
+    g.fillText('YouTube', r.x + r.w / 2, r.y + r.h + 32);
+    g.textAlign = 'left';
   }
 
   dispose(): void {
