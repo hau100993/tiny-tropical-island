@@ -56,6 +56,11 @@ const TELEPORT = 35;
 const LIE_AFTER = 40;
 /** Distance between paw prints (m). */
 const STEP = 0.32;
+/** Being stroked: it sits this far (m, its centre from your feet) in front of you. */
+const PET_GAP = 0.72;
+/** After a pat, or after the stroking stops, it stays a moment before following again (s). */
+const PAT_LINGER = 2.4;
+const PET_LINGER = 1.2;
 
 type Mode = 'follow' | 'come' | 'wait' | 'pet';
 
@@ -65,7 +70,8 @@ type Mode = 'follow' | 'come' | 'wait' | 'pet';
  * path finding), walking or galloping to keep up; idles, sniffs the ground and lies down when
  * you stand still a while; waits at the water's edge while you're at sea; comes into the house
  * with you, sits beside the chair while you work and lies by the bath or the hammock. G calls it
- * straight to you; E pets it.
+ * straight to you. Pressing on it with the mouse pets it (activities/petting.ts): a click is a
+ * pat; held, it comes to sit in front of you for the stroking.
  */
 export class DogCompanion {
   x: number;
@@ -76,7 +82,17 @@ export class DogCompanion {
   action: DogAction = 'idle';
   /** How hard the tail wags (0..1). */
   wag = 0.3;
+  /** How content it is (0..1, from the petting): wags harder while you stroke it. */
+  affection = 0;
+  /** Sitting in front of you, within reach of your hand, while you stroke it. */
+  petReady = false;
   private mode: Mode = 'follow';
+  /** The press is held (stroking), and whether it should come to you for it. */
+  private petHold = false;
+  private petToYou = false;
+  /** Where it sits for the stroking, as a direction from you (NaN: along its own line). */
+  private petDirX = Number.NaN;
+  private petDirZ = Number.NaN;
   private readonly crumbs: { x: number; z: number }[] = [];
   /** Next breadcrumb the dog walks to. */
   private cursor = 0;
@@ -110,11 +126,35 @@ export class DogCompanion {
     this.events.onBark('woof');
   }
 
-  /** E nearby: a pat. It hops, wags hard and yips. */
+  /** A pat (a click on it). It hops, wags hard and yips. */
   pet(): void {
     this.mode = 'pet';
     this.modeTime = 0;
+    this.petHold = false;
+    this.petToYou = false;
     this.events.onBark('yip');
+  }
+
+  /**
+   * The press on it is held: stroking. `toYou`: it comes to sit just in front of you (you're
+   * walking, your hand reaches it), on the side (dirX, dirZ) from you if given (unit; where the
+   * camera sees it past your body), else along the line it is on; otherwise it stays where it
+   * is (seen from above).
+   */
+  startPetting(toYou: boolean, dirX = Number.NaN, dirZ = Number.NaN): void {
+    this.mode = 'pet';
+    this.modeTime = 0;
+    this.petHold = true;
+    this.petToYou = toYou;
+    this.petDirX = dirX;
+    this.petDirZ = dirZ;
+  }
+
+  /** The press was let go: it stays a moment, then follows again. */
+  stopPetting(): void {
+    if (this.mode !== 'pet' || !this.petHold) return;
+    this.petHold = false;
+    this.modeTime = 0;
   }
 
   /** Close enough to pet (m). */
@@ -133,14 +173,18 @@ export class DogCompanion {
     let pose: DogAction = 'lie';
     let alone = false;
 
+    this.petReady = false;
     if (this.mode === 'pet') {
-      if (this.modeTime > 2.4) this.mode = 'follow';
-      this.steer(dt, p.x, p.z, 0, 0);
-      this.face(dt, p.x, p.z);
-      this.action = 'idle';
-      this.wag += (1 - this.wag) * Math.min(1, dt * 6);
-      this.settleY(p);
-      return;
+      const linger = this.petHold ? Infinity : this.petToYou ? PET_LINGER : PAT_LINGER;
+      if (this.modeTime > linger || !p.onFoot || p.seat) {
+        this.mode = 'follow';
+        this.petHold = false;
+        this.snapCursor();
+      } else {
+        this.petting(dt, p);
+        this.settleY(p);
+        return;
+      }
     }
     if (this.mode === 'come') {
       if (this.distanceTo(p.x, p.z) < FOLLOW + 0.3 || this.modeTime > 12 || !p.onFoot) {
@@ -222,6 +266,29 @@ export class DogCompanion {
       this.wag += ((rest ? 0.15 : 0.35) - this.wag) * Math.min(1, dt * 2);
     }
     this.settleY(p);
+  }
+
+  /** Being petted: comes to sit in front of you (or stays put), facing you, wagging. */
+  private petting(dt: number, p: Readonly<DogPlayer>): void {
+    if (this.petToYou) {
+      // PET_GAP from you: on the asked side, or along the line it is on now.
+      const side = !Number.isNaN(this.petDirX);
+      const dx = side ? this.petDirX : this.x - p.x;
+      const dz = side ? this.petDirZ : this.z - p.z;
+      const d = Math.hypot(dx, dz) || 1;
+      const left = this.steer(dt, p.x + (dx / d) * PET_GAP, p.z + (dz / d) * PET_GAP, 0.04, 3);
+      const arrived = left < 0.12 && this.speed < 0.05;
+      if (arrived) this.turnTo(dt * 0.6, Math.atan2(p.x - this.x, p.z - this.z));
+      this.action = this.speed > 0.05 ? 'move' : this.petHold ? 'sit' : 'idle';
+      this.petReady = this.petHold && arrived;
+    } else {
+      this.steer(dt, p.x, p.z, 0, 0);
+      // A long stroke: it sits down for it.
+      this.action = this.petHold && this.modeTime > 0.6 ? 'sit' : 'idle';
+    }
+    const wagTo = this.petHold ? 0.6 + 0.4 * this.affection : 1;
+    this.wag += (wagTo - this.wag) * Math.min(1, dt * 6);
+    this.still = 0;
   }
 
   /** On foot: along your path, a couple of metres behind; idles, sniffs, lies down when you stop. */

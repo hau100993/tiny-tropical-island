@@ -10,10 +10,8 @@ uniform vec3 uUnderColor;
 uniform float uCamUnder; // 1 while the camera is under the surface
 uniform float uWaveStrength;
 uniform float uRain;
-uniform vec3 uLightDir;
 uniform vec3 uLightColor;
 uniform vec3 uShallowColor;
-uniform vec3 uDeepColor;
 
 #ifdef REFRACTION
 uniform sampler2D uSceneColor;
@@ -136,17 +134,16 @@ void main() {
   float depth = max(vWorldPos.y - terrainHeight(xz), 0.0);
 
   // Fresnel (Schlick, water F0 ≈ 0.02): grazing angles reflect more sky.
+  // Far away it is capped like the open sea beyond (FAR_SEA_FRESNEL, farSea.glsl), so the far
+  // water stays a little darker than the sky and the horizon reads as a line.
   float fres = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
+  fres = min(fres, mix(1.0, FAR_SEA_FRESNEL, far));
   vec3 R = reflect(-V, N);
   R.y = abs(R.y);
-  // The sky, aurora included: its ribbons shimmer on the waves as green streaks.
-  vec3 refl = skyColor(R) + aurora(R, uTime) * uAurora;
-  // Golden hour: away from the sun the sea stays a clear blue (its sky reflections cooled);
-  // toward the sun it carries the golden light.
-  float golden = (1.0 - smoothstep(0.0, 0.25, abs(uSunDir.y))) * smoothstep(-0.03, 0.02, uSunDir.y);
-  float sunSide = pow(max(dot(normalize(R.xz + 1e-4), normalize(uSunDir.xz + 1e-4)), 0.0), 4.0);
-  vec3 coolRefl = vec3(dot(refl, vec3(0.2126, 0.7152, 0.0722))) * vec3(0.55, 0.85, 1.25);
-  refl = mix(refl, coolRefl, golden * (1.0 - sunSide) * 0.55);
+  // The sky (seaSkyReflection: rougher far away, cooler away from a low sun), aurora
+  // included: its ribbons shimmer on the waves as green streaks.
+  vec3 refl = seaSkyReflection(R, far) + aurora(R, uTime) * uAurora;
+  float golden = goldenHour();
 #ifdef REFLECTION
   // Mirror image of the scene (alpha 0 where only sky would be reflected). Waves bend it; far
   // away the distortion fades with the flattened normal.
@@ -202,21 +199,27 @@ void main() {
   // The thin face of a standing wave glows turquoise with the light coming through it.
   vec3 faceGlow = mix(uShallowColor, uDeepColor, 0.35) * lit * 1.25;
 
-  // Glint of the main light (sun, or the moon's silver path at night); widens and dims with
-  // distance like a rougher surface. No glint under a cloud.
-  vec3 H = normalize(V + uLightDir);
-  float spec = pow(max(dot(N, H), 0.0), mix(350.0, 120.0, far)) * mix(3.0, 0.5, far) * step(0.0, uLightDir.y);
+  // Glint of the light (uGlintDir: the sun while any of its disc shows, else the moon's silver
+  // path); widens and dims with distance like a rougher surface. No glint under a cloud.
+  vec3 H = normalize(V + uGlintDir);
+  float spec = pow(max(dot(N, H), 0.0), mix(350.0, 120.0, far)) * mix(3.0, 0.5, far) * step(0.0, uGlintDir.y);
   // Glitter path: in a wider cone around the mirror direction, single wave facets catch the
   // light and flash (a moving sparkle pattern), so the moon or sun lays a road of glints on the
   // sea. More waves give a wider, more broken road. Far away the sparkles would be smaller
   // than a pixel and flicker, so they blend into their average there.
-  float lobe = pow(max(dot(N, H), 0.0), mix(45.0, 18.0, far)) * step(0.0, uLightDir.y);
+  float lobe = pow(max(dot(N, H), 0.0), mix(45.0, 18.0, far)) * step(0.0, uGlintDir.y);
   vec2 gp = xz * 2.3;
   float sp = valueNoise(gp + vec2(t * 1.9, -t * 1.4)) * valueNoise(gp * 1.7 - vec2(t * 1.2, t * 2.1));
   float sparkle = mix(smoothstep(0.4, 0.75, sp) * 3.0, 0.35, smoothstep(30.0, 140.0, dist));
   // A low sun lays a strong golden road of sparkles.
   spec += lobe * sparkle * (0.35 + 0.9 * uWaveStrength) * mix(1.4, 0.3, uDayLight) * (1.0 + 2.5 * golden);
-  spec *= 1.0 - vCloudShadow;
+  // Further out the waves are no longer drawn and the flattened normal would shrink the road
+  // to a thin line: there it is statistical, as on the open sea beyond (farSea.glsl).
+  float sigma = seaRoughness(uWaveStrength);
+  float roadFar = smoothstep(120.0, 450.0, dist);
+  vec3 glint = mix(uGlintColor * spec, farGlint(-V, sigma, t), roadFar) * (1.0 - vCloudShadow);
+  // Glint fades in with water thickness so the waterline blends into the sand.
+  float glintMask = 1.0;
 
 #ifdef REFRACTION
   vec2 screenUV = gl_FragCoord.xy / uResolution;
@@ -258,24 +261,38 @@ void main() {
   vec3 body = mix(behind * tint, deep, absorb);
   // Reflection fades in with water thickness so the waterline blends into the sand.
   float reflAmount = fres * smoothstep(0.0, 0.3, thickness);
-  vec3 col = mix(body, refl, reflAmount) + uLightColor * spec * smoothstep(0.0, 0.3, thickness);
+  vec3 col = mix(body, refl, reflAmount);
+  glintMask = smoothstep(0.0, 0.3, thickness);
   col = mix(col, faceGlow, vSurf.y * 0.3);
   col = mix(col, foamColor, foam);
-  gl_FragColor = vec4(col, 1.0);
+  float alpha = 1.0;
 #else
   float absorb = 1.0 - exp(-depth * 0.22);
   vec3 body = mix(shallow, deep, absorb);
-  vec3 col = mix(body, refl, fres) + uLightColor * spec;
+  vec3 col = mix(body, refl, fres);
   col = mix(col, faceGlow, vSurf.y * 0.3);
   col = mix(col, foamColor, foam);
   // Opacity saturates faster than color, so deep water fully hides the end of the seabed patch.
   float alpha = mix(0.5, 1.0, 1.0 - exp(-depth * 0.6)) + fres * 0.3;
   alpha *= smoothstep(0.0, 0.1, depth);
   alpha = clamp(max(alpha, foam * 0.9), 0.0, 1.0);
-  gl_FragColor = vec4(col, alpha);
 #endif
 
+  // Haze instead of three's one-colour fog: the far sea melts into the sky right over the
+  // horizon in the direction you look (orange under a low sun, blue-lilac away from it),
+  // before tone mapping like the sky dome, so it meets the open sea drawn there (farSea.glsl).
+  // The glint shines through it.
+  float haze = 0.0;
+#ifdef USE_FOG
+  haze = smoothstep(fogNear, fogFar, vFogDepth) * FAR_SEA_HAZE;
+  if (haze > 0.0) col = mix(col, seaHaze(-V), haze);
+#endif
+  col += glint * glintMask * (1.0 - foam) * (1.0 - 0.4 * haze);
+  gl_FragColor = vec4(col, alpha);
+
   #include <tonemapping_fragment>
+  // The low sun's road in the disc's own colour, after tone mapping like the disc (sky.frag).
+  vec3 road = sunRoadDisplay(-V, sigma, t) * roadFar * glintMask * (1.0 - foam) * (1.0 - vCloudShadow) * (1.0 - 0.4 * haze);
+  gl_FragColor.rgb = 1.0 - (1.0 - gl_FragColor.rgb) * (1.0 - road);
   #include <colorspace_fragment>
-  #include <fog_fragment>
 }

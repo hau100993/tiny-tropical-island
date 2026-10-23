@@ -140,6 +140,39 @@ export function createPalette(): SkyPalette {
   };
 }
 
+/** The sun disc's angular radius at size 1 (radians); must match sunRadius() in skyCommon.glsl. */
+export const SUN_RADIUS = 0.0265;
+
+/**
+ * Fraction (0..1) of the sun's disc above the sea horizon: the area of the circle segment
+ * above y = 0. `elevation` is sin(altitude), ≈ the altitude for a low sun; `radius` in radians
+ * (the disc's vertical radius: refraction squashes it near the horizon).
+ */
+export function sunVisibleFraction(elevation: number, radius: number): number {
+  const h = Math.min(1, Math.max(-1, elevation / radius)); // disc centre height, in radii
+  return (Math.acos(-h) + h * Math.sqrt(1 - h * h)) / Math.PI;
+}
+
+/**
+ * Strength of the sun's glitter road on the sea (scales the sun colour). The scene light
+ * fades out while the sun sinks into the sea (it hands over to the moon), but the road stays
+ * strong as long as any of the disc shows: a low sun against a dim sky still dominates the
+ * sea. High up it matches the scene light (`sunIntensity` / 2.6, see DayNight).
+ */
+export function sunGlintScale(elevation: number, sunIntensity: number, visible: number): number {
+  const low = 1 - smoothstep(0.02, 0.15, elevation);
+  const day = Math.min(1, sunIntensity / 2.6);
+  return visible * (day + (1 - day) * low);
+}
+
+/**
+ * Elevation to aim the glitter road at while the sun is cut by the horizon: about the middle
+ * of the part still showing (the road then starts right under the visible sliver).
+ */
+export function sunGlintElevation(elevation: number, radius: number): number {
+  return elevation < radius ? Math.max(0, (elevation + radius) / 2) : elevation;
+}
+
 /** 0 = night … 1 = day, with a floor so moonlit scenes stay readable. */
 export function dayLight(elevation: number): number {
   return 0.1 + 0.9 * smoothstep(-0.12, 0.25, elevation);

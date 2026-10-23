@@ -878,6 +878,13 @@ export interface AvatarPose {
   /** Current step length (m) the phase counts in (the walker's `stride`). */
   stride: number;
   running: boolean;
+  /**
+   * Petting the dog (1) or not (0; eased in and out here): crouches facing `petYaw`, the right
+   * hand on the fur at `petHand` (world), the left on the knee.
+   */
+  pet?: number;
+  petYaw?: number;
+  petHand?: THREE.Vector3;
 }
 
 /** Sitting in a boat and holding a paddle (the kayak). */
@@ -1235,6 +1242,25 @@ const palmB = new THREE.Vector3();
 /** Elbow pole for swimming (torso frame, right arm): out to the side and up toward the back. */
 const SWIM_POLE = new THREE.Vector3(0.75, 0.05, 0.65).normalize();
 const poleTmp = new THREE.Vector3();
+/** Petting: how far (m) the pelvis comes down and back, and the forward lean (rad). */
+const PET_CROUCH = 0.36;
+const PET_BACK = 0.09;
+const PET_HIP_TILT = 0.22;
+const PET_LEAN = 0.45;
+/**
+ * Petting is a half kneel: the left foot steps forward (m) so its knee comes up and the left
+ * hand can rest on it; the right foot goes back, heel up and toes tucked under (sole pitch,
+ * rad), so the right knee comes down near the ground.
+ */
+const PET_STEP = 0.3;
+const PET_KNEEL_BACK = 0.12;
+const PET_HEEL_UP = 0.07;
+const PET_TOES = -0.9;
+/** Palm down on the fur. */
+const PALM_DOWN = new THREE.Vector3(0, -1, 0);
+const armQ = [new THREE.Quaternion(), new THREE.Quaternion()];
+const elbowQ = [new THREE.Quaternion(), new THREE.Quaternion()];
+const wristQ = [new THREE.Quaternion(), new THREE.Quaternion()];
 
 export class Avatar {
   readonly group = new THREE.Group();
@@ -1277,6 +1303,8 @@ export class Avatar {
   private gait = 0;
   private run = 0;
   private time = 0;
+  /** Petting the dog, eased (0..1). */
+  private petW = 0;
   /**
    * Body scale: 1 for the built-in body. A loaded character scales the skeleton so its legs are
    * as long as the character's (the feet then land right); every length in metres used against
@@ -1534,11 +1562,14 @@ export class Avatar {
     this.time += dt;
     if (this.seated) this.stand();
     // Face the walking direction (shortest way round); keep the last facing when standing.
-    if (p.speed > 0.2) {
-      const target = Math.atan2(-p.vx, -p.vz);
+    // Petting: turn to the dog.
+    this.petW += ((p.pet ?? 0) - this.petW) * damp(3.5, dt);
+    const pw = smoothstep(0, 1, this.petW);
+    if (p.speed > 0.2 || (pw > 0.01 && p.petYaw !== undefined)) {
+      const target = p.speed > 0.2 ? Math.atan2(-p.vx, -p.vz) : (p.petYaw ?? 0);
       let d = target - this.yaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));
-      this.yaw += d * damp(10, dt);
+      this.yaw += d * damp(p.speed > 0.2 ? 10 : 5, dt);
     }
     // Blend between standing, walking and running so stopping never snaps. The stride's size
     // follows the walker's step length (short steps when slow), so planted feet never drag:
@@ -1578,7 +1609,7 @@ export class Avatar {
     if (fresh) this.chestS.snap(0);
     this.torso.rotation.y = this.chestS.step(-(0.14 + 0.06 * r) * g * Math.cos(sL), dt);
     this.torso.rotation.z = -0.03 * g * Math.sin(sL);
-    this.torso.rotation.x = -(0.05 * g + 0.17 * r);
+    this.torso.rotation.x = -(0.05 * g + 0.17 * r) - PET_LEAN * pw;
     this.torso.scale.y = 1 + 0.008 * breathe * (1 - g);
 
     // Arms swing against the leg on the same side (right arm back as the right leg comes
@@ -1634,24 +1665,57 @@ export class Avatar {
       const clearance = Math.max(0, nominal.y - (this.rootY + ANKLE_H * this.k));
       const t = this.target[i].set(nominal.x, onGround + clearance * (1 - st), nominal.z);
       t.lerp(this.lock[i], this.plant[i]);
+      if (pw > 0.001) {
+        tmpD.set(0, i === 0 ? 0 : PET_HEEL_UP, i === 0 ? -PET_STEP : PET_KNEEL_BACK).applyQuaternion(root.quaternion);
+        t.addScaledVector(tmpD, pw * this.k);
+      }
       // How far the pelvis must come down for this leg to reach.
       const hipPos = this.hipJoints[i].getWorldPosition(tmpB);
       need = Math.max(need, hipPos.distanceTo(t) - (THIGH + SHIN - REACH_SLACK) * this.k);
     }
     this.drop += (Math.max(0, need) - this.drop) * (fresh ? 1 : damp(16, dt));
-    // (`drop` is in metres; the pelvis moves in the scaled body's units.)
-    this.hips.position.y = HIP_Y - this.drop / this.k;
+    // (`drop` is in metres; the pelvis moves in the scaled body's units.) Petting: a crouch,
+    // the pelvis down and back, tipped forward; the planted feet make the knees bend (IK below).
+    this.hips.position.y = HIP_Y - this.drop / this.k - PET_CROUCH * pw;
+    this.hips.position.z = PET_BACK * pw;
+    this.hips.rotation.x = -PET_HIP_TILT * pw;
     root.updateMatrixWorld(true);
 
     // ---- 3. Two-bone IK per leg, in the pelvis's frame ----
-    for (let i = 0; i < 2; i++) this.reachLeg(i, this.target[i], this.sole[i]);
+    for (let i = 0; i < 2; i++) this.reachLeg(i, this.target[i], i === 1 ? this.sole[i] + (PET_TOES - this.sole[i]) * pw : this.sole[i]);
+    if (pw > 0.001 && p.petHand) this.petArms(pw, p.petHand);
 
-    // Head stays level (counters the torso), looks around slowly when standing still.
-    const still = 1 - g;
-    this.head.rotation.x = 0.16 * r + 0.04 * g + 0.05 * still * Math.sin(this.time * 0.23);
+    // Head stays level (counters the torso), looks around slowly when standing still. Petting:
+    // looks down at the dog.
+    const still = (1 - g) * (1 - pw);
+    this.head.rotation.x = 0.16 * r + 0.04 * g + 0.05 * still * Math.sin(this.time * 0.23) + 0.12 * pw;
     this.head.rotation.y = 0.12 * g * Math.cos(sL) + still * 0.3 * Math.sin(this.time * 0.31) * Math.sin(this.time * 0.13 + 1);
 
     this.blinkEyes(dt);
+  }
+
+  /**
+   * Petting: the right hand reaches the fur at `hand` (world, two-bone IK, palm down), the left
+   * rests on the raised left knee (see PET_STEP); blended by `w` from the walking arms.
+   */
+  private petArms(w: number, hand: THREE.Vector3): void {
+    for (let i = 0; i < 2; i++) {
+      armQ[i].copy(this.shoulders[i].quaternion);
+      elbowQ[i].copy(this.elbows[i].quaternion);
+      wristQ[i].copy(this.wrists[i].quaternion);
+    }
+    this.group.updateMatrixWorld(true);
+    // Left knee: a little above the kneecap and toward the outside.
+    const knee = this.knees[0].getWorldPosition(handA);
+    tmpD.set(-0.03, 0.07, -0.05).applyQuaternion(this.group.quaternion).multiplyScalar(this.k);
+    knee.add(tmpD);
+    this.reachArm(0, knee, null, PALM_DOWN);
+    this.reachArm(1, hand, null, PALM_DOWN);
+    for (let i = 0; i < 2; i++) {
+      this.shoulders[i].quaternion.copy(armQ[i].slerp(this.shoulders[i].quaternion, w));
+      this.elbows[i].quaternion.copy(elbowQ[i].slerp(this.elbows[i].quaternion, w));
+      this.wrists[i].quaternion.copy(wristQ[i].slerp(this.wrists[i].quaternion, w));
+    }
   }
 
   /**
@@ -1759,8 +1823,9 @@ export class Avatar {
     const bend = Math.PI - Math.acos(clamp((a * a + b * b - len * len) / (2 * a * b), -1, 1));
     this.elbows[i].rotation.set(bend, 0, 0);
     // Palm over the shaft: its normal (rest: facing the body, −side·X) turns toward the
-    // paddler and down, about the forearm's axis.
-    this.elbows[i].updateMatrixWorld(true);
+    // paddler and down, about the forearm's axis. From the shoulder: its world matrix still
+    // held the pose from before the IK, which put the forearm's frame (and the palm) wrong.
+    sh.updateMatrixWorld(true);
     tmpInv.copy(this.elbows[i].matrixWorld).invert();
     const dir = palmWorld ? tmpA.copy(palmWorld) : tmpA.set(0, -0.8, 0.6).applyQuaternion(this.group.quaternion);
     const want = dir.add(this.elbows[i].getWorldPosition(tmpB)).applyMatrix4(tmpInv);

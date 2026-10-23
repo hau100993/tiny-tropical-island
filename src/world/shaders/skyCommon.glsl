@@ -9,6 +9,34 @@ uniform float uNight;
 uniform float uMoonGlow;
 uniform float uDawn;
 uniform float uDayLight;
+/** Sun disc brightness and size multipliers (1 = normal). */
+uniform float uSunBright;
+uniform float uSunSize;
+
+// The sun disc's angular radius (radians); must match SUN_RADIUS in celestial.ts.
+float sunRadius() {
+  return 0.0265 * uSunSize;
+}
+
+// The sun disc's colour by its height, in display colours (it is drawn after tone mapping):
+// deep orange-red on the sea, golden a little higher, near white high up; mornings a touch
+// more yellow.
+vec3 sunDiscBase(float se) {
+  vec3 base = mix(vec3(1.0, 0.5, 0.13), vec3(1.0, 0.7, 0.26), smoothstep(0.0, 0.08, se));
+  base = mix(base, vec3(1.0, 0.8, 0.45), smoothstep(0.08, 0.2, se));
+  base = mix(base, vec3(1.0, 0.97, 0.9), smoothstep(0.2, 0.4, se));
+  base = mix(base, base * vec3(1.0, 1.12, 1.3), 0.35 * uDawn * (1.0 - smoothstep(0.2, 0.4, se)));
+  return min(base, vec3(1.0));
+}
+
+// The disc colour with the brightness setting: dimmer is darker; brighter pushes it toward
+// white (display colours can't exceed 1, so the excess bleeds into the other channels, like
+// real overexposure). `over` says how far it is burnt out.
+vec3 sunDiscExposed(vec3 base, out float over) {
+  vec3 lifted = base * uSunBright;
+  over = max(max(lifted.r, max(lifted.g, lifted.b)) - 1.0, 0.0);
+  return min(lifted + over * 0.6, vec3(1.0));
+}
 
 // The moon's color by its height: low over the horizon its light crosses much more air and
 // turns orange (like a sunset), high up it is silver-white.

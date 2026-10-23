@@ -3,6 +3,7 @@ import type { SharedUniforms } from '../core/uniforms';
 import skyCommon from './shaders/skyCommon.glsl?raw';
 import clouds from './shaders/clouds.glsl?raw';
 import aurora from './shaders/aurora.glsl?raw';
+import farSea from './shaders/farSea.glsl?raw';
 import skyVert from './shaders/sky.vert.glsl?raw';
 import skyFrag from './shaders/sky.frag.glsl?raw';
 
@@ -36,13 +37,19 @@ export function createSky(shared: SharedUniforms): Sky {
       uCirrus: u.uCirrus,
       uSunBright: u.uSunBright,
       uSunSize: u.uSunSize,
+      uWaveStrength: u.uWaveStrength,
+      uDeepColor: u.uDeepColor,
+      uGlintDir: u.uGlintDir,
+      uGlintColor: u.uGlintColor,
+      uGlintSize: u.uGlintSize,
+      uSunGlint: u.uSunGlint,
       uMeteorA: u.uMeteorA,
       uMeteorB: u.uMeteorB,
       uCloudCover: u.uCloudCover,
       uCloudOffset: u.uCloudOffset,
     },
     vertexShader: skyVert,
-    fragmentShader: `${skyCommon}\n${clouds}\n${aurora}\n${skyFrag}`,
+    fragmentShader: `${skyCommon}\n${farSea}\n${clouds}\n${aurora}\n${skyFrag}`,
     side: THREE.BackSide,
     depthWrite: false,
     depthTest: false,

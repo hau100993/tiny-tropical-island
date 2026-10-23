@@ -6,7 +6,7 @@ import { SceneView } from './SceneView';
 import type { Mixer } from '../audio/mixer';
 import type { MixerState } from '../audio/types';
 import type { SoundLibrary } from '../audio/library/SoundLibrary';
-import type { Keymap } from '../controls/keymap';
+import { isTyping, type Keymap } from '../controls/keymap';
 import { QUALITY_LEVELS, type QualityLevel } from '../core/quality';
 import type { ScenePresetStore } from '../core/scenePresets';
 import { CHARACTER_IDS, PANEL_SECTIONS, type CharacterId, type PanelSection, type Settings, type SettingsStore } from '../core/settings';
@@ -68,6 +68,15 @@ const VIEWS: ReadonlyArray<[ViewId, string, string]> = [
 ];
 /** Status line and header clock refresh rate (ms). */
 const TICK_MS = 500;
+/**
+ * Tucked away (walking, or the UI hidden with H): it closes this long (ms) after the pointer
+ * leaves; walking, the faded panel then fades out completely after SLEEP_MS more. Pointing at
+ * the top-right corner (CORNER_W × CORNER_H px) brings it back.
+ */
+const CLOSE_MS = 600;
+const SLEEP_MS = 5000;
+const CORNER_W = 200;
+const CORNER_H = 120;
 
 interface Section {
   root: HTMLDetailsElement;
@@ -119,6 +128,19 @@ export class Panel {
   private readonly clock: SliderControl;
   private shownMinute = -1;
   private lastTick = -Infinity;
+  /** Walking, paddling or surfing: collapsed and faded unless pointed at (`peek`). */
+  private walking = false;
+  /** The UI is hidden (H): the panel only shows while pointed at, from the top-right corner. */
+  private uiHidden = false;
+  private peek = false;
+  /** Walking, left alone SLEEP_MS: faded out completely until the corner is pointed at. */
+  private asleep = false;
+  /** A press inside the panel is held (dragging a slider): it stays open. */
+  private held = false;
+  private closeTimer = 0;
+  private sleepTimer = 0;
+  /** Called whenever it opens, closes or fades (what sits under it follows: dockRect). */
+  onLayout: (() => void) | null = null;
 
   constructor(parent: HTMLElement, private readonly deps: PanelDeps) {
     const { mixer, settings } = deps;
@@ -127,6 +149,30 @@ export class Panel {
 
     this.root = el('aside', 'panel');
     this.root.setAttribute('aria-label', vi.appTitle);
+    // Tucked away: pointing at the panel (or at the top-right corner, where it waits even when
+    // out of sight) opens it; leaving closes it again after a moment, unless a slider is still
+    // being dragged or you are typing in it.
+    this.root.addEventListener('pointerenter', () => this.open());
+    window.addEventListener('pointermove', (e) => {
+      if (!this.tucked || this.peek || e.buttons !== 0) return;
+      // Over the activity card under the menu bar: that isn't the corner.
+      if (e.target instanceof Element && e.target.closest('[data-no-corner]')) return;
+      if (e.clientX > window.innerWidth - CORNER_W && e.clientY < CORNER_H) {
+        this.open();
+        // Opened from the corner without entering it: it closes again unless pointed at.
+        this.scheduleClose();
+      }
+    });
+    this.root.addEventListener('pointerleave', () => this.scheduleClose());
+    this.root.addEventListener('focusout', () => this.scheduleClose());
+    this.root.addEventListener('pointerdown', () => {
+      this.held = true;
+    });
+    window.addEventListener('pointerup', () => {
+      if (!this.held) return;
+      this.held = false;
+      this.scheduleClose();
+    });
 
     // --- Fixed top ---
     const header = el('div', 'panel-header');
@@ -287,6 +333,11 @@ export class Panel {
 
     content.append(...[...this.sections.values()].map((x) => x.root));
     this.root.append(header, top, content);
+    // Out of sight (walking and left alone, or the UI hidden with H): only a small round handle
+    // stays where the bar was (styles: .panel.handle); pointing at it opens the panel.
+    const handle = el('span', 'panel-handle');
+    handle.innerHTML = icons.menu;
+    this.root.append(handle);
     parent.append(this.root);
 
     mixer.onChange((state) => this.syncMixer(state));
@@ -330,6 +381,89 @@ export class Panel {
     }
     const next = nextSpeed(s.timeSpeed, dir, wrap);
     if (next !== s.timeSpeed || s.timePaused) settings.update({ timeSpeed: next, timePaused: false });
+  }
+
+  /**
+   * Walking, paddling or surfing (`on`): the panel stays out of the scene, collapsed and faded
+   * in its corner (styles: body.walking .panel), and out of sight after SLEEP_MS, until you
+   * point at it or at the corner. Your own collapsed setting is kept for the overview.
+   */
+  setWalking(on: boolean): void {
+    if (on === this.walking) return;
+    this.walking = on;
+    this.retuck();
+  }
+
+  /** The UI hidden with H (`on`): the panel shows only while pointed at, from the top-right corner. */
+  setUiHidden(on: boolean): void {
+    if (on === this.uiHidden) return;
+    this.uiHidden = on;
+    this.retuck();
+  }
+
+  private get tucked(): boolean {
+    return this.walking || this.uiHidden;
+  }
+
+  private retuck(): void {
+    this.peek = false;
+    this.asleep = false;
+    window.clearTimeout(this.closeTimer);
+    this.syncCollapsed();
+    this.scheduleSleep();
+  }
+
+  private open(): void {
+    if (!this.tucked) return;
+    window.clearTimeout(this.closeTimer);
+    window.clearTimeout(this.sleepTimer);
+    this.asleep = false;
+    this.peek = true;
+    this.syncCollapsed();
+  }
+
+  private scheduleClose(): void {
+    if (!this.tucked || !this.peek) return;
+    window.clearTimeout(this.closeTimer);
+    this.closeTimer = window.setTimeout(() => {
+      if (this.held || this.root.matches(':hover') || (isTyping(document.activeElement) && this.root.contains(document.activeElement))) return;
+      this.peek = false;
+      this.syncCollapsed();
+      this.scheduleSleep();
+    }, CLOSE_MS);
+  }
+
+  /** Walking: the faded panel goes out of sight after SLEEP_MS left alone. */
+  private scheduleSleep(): void {
+    window.clearTimeout(this.sleepTimer);
+    if (!this.walking || this.peek) return;
+    this.sleepTimer = window.setTimeout(() => {
+      if (!this.walking || this.peek) return;
+      this.asleep = true;
+      this.syncCollapsed();
+    }, SLEEP_MS);
+  }
+
+  /** Collapsed: your setting in the overview; tucked away, unless pointed at. */
+  private syncCollapsed(): void {
+    const tucked = this.tucked;
+    this.root.classList.toggle('collapsed', tucked ? !this.peek : this.deps.settings.get().panelCollapsed);
+    this.root.classList.toggle('peek', tucked && this.peek);
+    this.root.classList.toggle('handle', tucked && !this.peek && (this.asleep || this.uiHidden));
+    this.onLayout?.();
+  }
+
+  /**
+   * Where something can sit (px): under the menu bar or the handle, as wide as the bar (width 0:
+   * keep the last); in the overview, beside the open panel at the top; null while the panel is
+   * open over it.
+   */
+  dockRect(): { top: number; right: number; width: number } | null {
+    if (this.tucked && this.peek) return null;
+    const r = this.root.getBoundingClientRect();
+    if (!this.tucked) return { top: 12, right: window.innerWidth - r.left + 12, width: 0 };
+    const handle = this.asleep || this.uiHidden;
+    return { top: r.bottom + 8, right: 12, width: handle ? 0 : r.width };
   }
 
   private toggleCollapsed(): void {
@@ -430,7 +564,7 @@ export class Panel {
   }
 
   private syncSettings(s: Readonly<Settings>): void {
-    this.root.classList.toggle('collapsed', s.panelCollapsed);
+    this.syncCollapsed();
     this.collapseBtn.innerHTML = s.panelCollapsed ? icons.chevronLeft : icons.chevronRight;
     const label = s.panelCollapsed ? vi.panel.expand : vi.panel.collapse;
     this.collapseBtn.title = label;

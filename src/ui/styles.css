@@ -47,7 +47,9 @@ body {
   isolation: isolate;
 }
 
-body.ui-hidden .ui-layer,
+/* H hides the UI: everything but the panel, which stays as a small handle in its corner and
+   opens from there (Panel.setUiHidden). */
+body.ui-hidden .ui-layer > :not(.panel),
 body.ui-hidden .debug-overlay {
   display: none;
 }
@@ -530,9 +532,55 @@ body.ui-hidden .debug-overlay {
 
 /* ---------- Walk mode ---------- */
 
-/* The panel needs the mouse, which walking captures: hide it until you leave walk mode. */
+/* Walking, paddling, surfing: the panel waits collapsed and faded in its corner, out of the
+   scene; pointing at it opens it (Panel.setWalking). */
 body.walking .panel {
+  opacity: 0.35;
+  transition: opacity 0.2s, transform 0.4s;
+}
+
+body.walking .panel:hover,
+body.walking .panel.peek {
+  opacity: 1;
+}
+
+/* Out of sight (walking and left alone, or H): only a small round handle where the bar was,
+   faint; it lights up as it appears (that's where the menu went) and when pointed at. */
+body:is(.walking, .ui-hidden) .panel.handle {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  opacity: 0.25;
+  animation: panel-handle-in 1.8s ease-out;
+}
+
+body:is(.walking, .ui-hidden) .panel.handle:hover {
+  opacity: 0.9;
+}
+
+.panel.handle > :not(.panel-handle) {
   display: none;
+}
+
+.panel-handle {
+  display: none;
+  color: var(--panel-fg);
+}
+
+.panel.handle .panel-handle {
+  display: inline-flex;
+}
+
+@keyframes panel-handle-in {
+  from {
+    opacity: 0.95;
+  }
+  to {
+    opacity: 0.25;
+  }
 }
 
 .walk-hint {
@@ -553,15 +601,18 @@ body.walking .panel {
   transition: opacity 0.8s ease;
 }
 
+/* A cue in the middle (surfing: "Sóng tới!"), in the panel's style. */
 .desk-prompt {
   position: fixed;
   left: 50%;
   top: 58%;
   transform: translateX(-50%);
   padding: 6px 14px;
-  color: #fff;
-  background: rgba(16, 28, 36, 0.62);
+  color: var(--panel-fg);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
   border-radius: 999px;
+  backdrop-filter: blur(14px);
   font-size: 14px;
   pointer-events: none;
 }
@@ -742,61 +793,152 @@ body.walking .panel {
   }
 }
 
-/* Near the sea: the activities you can start here, with their keys. */
+/* What you can do here (ui/ActivityMenu.ts): a card under the menu bar, top right, in the
+   panel's style; the top follows the panel (set inline). Rows are buttons, keys on the right. */
 .activity-menu {
   position: fixed;
-  right: 20px;
-  bottom: 84px;
-  min-width: 170px;
-  padding: 10px 14px 12px;
-  color: #fff;
-  background: rgba(16, 28, 36, 0.62);
-  border-radius: 12px;
-  font-size: 14px;
+  top: 66px;
+  right: 12px;
+  z-index: 5;
+  box-sizing: border-box;
+  width: 250px; /* then the menu bar's width (inline) */
+  max-width: calc(100vw - 24px);
+  padding: 8px;
+  color: var(--panel-fg);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  font-size: 13.5px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px);
   pointer-events: none;
-  backdrop-filter: blur(6px);
+  transition: opacity 0.25s, transform 0.25s, top 0.25s, visibility 0s 0.25s;
+}
+
+.activity-menu.show {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  pointer-events: auto;
+  transition: opacity 0.25s, transform 0.25s, top 0.25s;
 }
 
 .activity-title {
-  margin-bottom: 6px;
-  font-size: 11px;
-  letter-spacing: 0.06em;
+  margin: 2px 10px 6px;
+  color: var(--panel-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  opacity: 0.75;
+}
+
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .activity-item {
   display: flex;
+  box-sizing: border-box;
   align-items: center;
   gap: 10px;
-  line-height: 26px;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
-.activity-item kbd {
+.activity-item:hover {
+  background: var(--control-bg-hover);
+}
+
+.activity-item:active {
+  background: var(--control-bg);
+}
+
+/* A hint, not an action (a key you hold: W, Space). */
+.activity-item.hint {
+  color: var(--panel-muted);
+  cursor: default;
+}
+
+.activity-item.hint:hover {
+  background: transparent;
+}
+
+.activity-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--accent);
+}
+
+.activity-item.hint .activity-icon {
+  color: inherit;
+}
+
+.activity-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.activity-label {
+  flex: 1;
+  line-height: 1.35;
+}
+
+/* Key caps a little bigger than in the panel's lists; one-letter keys all the same width. */
+.activity-item kbd.key {
+  flex: none;
   min-width: 22px;
-  padding: 0 6px;
-  font: 700 12px Consolas, monospace;
-  line-height: 20px;
-  text-align: center;
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  border-bottom-width: 3px;
-  border-radius: 5px;
+  padding: 0 5px;
+  font-size: 11px;
+  line-height: 18px;
 }
 
+/* A short note as the card's last row (with no card on offer, the card shows just the note). */
 .activity-note {
-  position: fixed;
-  left: 50%;
-  top: 32%;
-  transform: translateX(-50%);
-  max-width: calc(100vw - 32px);
-  padding: 6px 14px;
-  color: #fff;
-  background: rgba(16, 28, 36, 0.7);
-  border-radius: 999px;
-  font-size: 14px;
-  text-align: center;
-  pointer-events: none;
+  display: none;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  padding: 8px 10px 4px;
+  border-top: 1px solid var(--panel-border);
+  line-height: 1.4;
+}
+
+.activity-menu.noting .activity-note {
+  display: flex;
+}
+
+.activity-menu.note-only .activity-title,
+.activity-menu.note-only .activity-list {
+  display: none;
+}
+
+.activity-menu.note-only .activity-note {
+  margin-top: 0;
+  padding-top: 4px;
+  border-top: 0;
+}
+
+.activity-note .activity-icon {
+  color: var(--panel-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-menu {
+    transform: none;
+  }
 }
 
 .fader {
@@ -814,19 +956,6 @@ body.walking .panel {
 
 .walk-hint.faded {
   opacity: 0;
-}
-
-.crosshair {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  width: 4px;
-  height: 4px;
-  margin: -2px 0 0 -2px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.8);
-  box-shadow: 0 0 2px rgba(0, 0, 0, 0.7);
-  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -969,7 +1098,14 @@ body.walking .panel {
 
 body.walking .pomo-controls,
 body.walking .pomo-settings {
-  display: none;
+  opacity: 0.35;
+  transition: opacity 0.2s;
+}
+
+body.walking .pomo-controls:hover,
+body.walking .pomo-settings:hover,
+body.walking .pomo-settings:focus-within {
+  opacity: 1;
 }
 
 /* ---------- Sound library ("Âm thanh của tôi") ---------- */
@@ -1806,9 +1942,21 @@ kbd.key {
   font-size: 12.5px;
 }
 
+/* Pointing at Mochi (ui/PetCursor.ts): a paw cursor. These canvas cursors need !important: the
+   orbit camera (three's OrbitControls) sets the canvas's inline cursor style. */
+body.pet-hover canvas,
+body.pet-grab canvas {
+  cursor: var(--paw-cursor), pointer !important;
+}
+
+/* Moving: the mouse steers and the cursor hides over the scene (controls/dragLook.ts). */
+body.steering canvas {
+  cursor: none !important;
+}
+
 /* Full screen: the cursor hides over the 3D scene after a few still seconds (ui/fullscreen.ts). */
 body.cursor-idle canvas {
-  cursor: none;
+  cursor: none !important;
 }
 
 /* ---------- YouTube on the desk monitor (ui/DeskVideo.ts) ---------- */

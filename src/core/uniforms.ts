@@ -16,6 +16,18 @@ export const sharedUniforms = {
   /** Main light (sun by day, moon by night): drives water glints and caustics. */
   uLightDir: { value: new THREE.Vector3(0.55, 0.62, 0.42).normalize() },
   uLightColor: { value: new THREE.Color('#fff0d4') },
+  /**
+   * The light whose glitter road lies on the sea: the sun as long as any of its disc shows
+   * (the main light hands over to the moon earlier), else the main light. Colour is linear
+   * (before tone mapping); size is the disc's angular radius (radians).
+   */
+  uGlintDir: { value: new THREE.Vector3(0.55, 0.62, 0.42).normalize() },
+  uGlintColor: { value: new THREE.Color('#fff0d4') },
+  uGlintSize: { value: 0.0265 },
+  /** 0..1: how much of the sun's road is drawn in the sun disc's own colour (low sun only). */
+  uSunGlint: { value: 0 },
+  /** Deep sea colour: the water body and the open sea beyond the water mesh (sky dome). */
+  uDeepColor: { value: new THREE.Color('#0a4a78') },
   uSkyTop: { value: new THREE.Color('#2f7fd6') },
   uSkyHorizon: { value: new THREE.Color('#bfe2f5') },
   /** 0 = deep night … 1 = full daylight (with a small floor so night stays readable). */

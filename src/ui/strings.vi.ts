@@ -189,7 +189,7 @@ export const vi = {
     noSound: 'Âm thanh đang tắt nên chuông không kêu.',
   },
   bath: {
-    enter: 'E: Vào bồn tắm',
+    enter: 'Vào bồn tắm',
     controls: 'Kéo chuột: nhìn quanh · Cuộn: nhìn gần · E hoặc Esc: ra khỏi bồn',
     button: 'Ngâm bồn tắm',
   },
@@ -219,11 +219,11 @@ export const vi = {
     atDeskOnly: 'Ngồi vào bàn làm việc (B) để phát video',
   },
   hammock: {
-    enter: 'E: Nằm võng',
+    enter: 'Nằm võng',
     controls: 'Kéo chuột: nhìn quanh · Cuộn: nhìn gần · E hoặc Esc: đứng dậy',
   },
   desk: {
-    sit: 'E: Ngồi làm việc',
+    sit: 'Ngồi làm việc',
     controls: 'Kéo chuột: nhìn quanh · Cuộn: nhìn gần màn hình · Logo YouTube trên màn hình phải (U): phát video · E hoặc Esc: đứng dậy',
     button: 'Góc làm việc (B)',
     startAtDesk: 'Mở app ở góc làm việc',
@@ -231,8 +231,7 @@ export const vi = {
     synth: 'Âm nền tự tạo',
   },
   walk: {
-    controls: 'W A S D: đi · Shift: chạy · Chuột: nhìn · V: đổi góc nhìn · Nhấp: té nước · Esc: thoát',
-    clickToLook: 'Nhấp vào cảnh để điều khiển bằng chuột · C: thoát',
+    controls: 'W A S D: đi · Shift: chạy · Chuột: lái hướng khi đi · Đứng lại: kéo chuột để xoay, rê lên Mochi để vuốt · V: đổi góc nhìn · Nhấp: té nước · C: toàn cảnh',
   },
   sea: {
     menuTitle: 'Hoạt động biển',
@@ -242,7 +241,7 @@ export const vi = {
   },
   dive: {
     breath: 'Dưỡng khí',
-    controls: 'W: bơi theo hướng nhìn (nhìn xuống để lặn sâu) · A / D: sang ngang · Space: trồi lên · Shift: bơi nhanh · Esc: thoát',
+    controls: 'W: bơi theo hướng nhìn (nhìn xuống để lặn sâu) · A / D: sang ngang · Space: trồi lên · Shift: bơi nhanh · C: toàn cảnh',
     menu: 'Lặn',
     out: 'Hết hơi, nổi lên thôi!',
   },
@@ -273,8 +272,8 @@ export const vi = {
   surf: {
     menu: 'Lướt ván (ra bãi sóng)',
     mount: 'Leo lên ván (bơi sát vào cũng tự lên)',
-    controlsProne: 'W: chèo (Shift: chèo mạnh) · A / D: quay ván · S: phanh · Space: bắt sóng khi hiện "Sóng tới!" · L: rời ván · Chuột: nhìn · Esc: thoát',
-    controlsRide: 'A / D: ôm cua dọc sóng (Shift: gắt hơn, dễ ngã) · W: lấy đà · S: hãm cho sóng đuổi kịp · Chuột: nhìn · Esc: thoát',
+    controlsProne: 'W: chèo (Shift: chèo mạnh) · A / D: quay ván · S: phanh · Space: bắt sóng khi hiện "Sóng tới!" · L: rời ván · Chuột: lái hướng · C: toàn cảnh',
+    controlsRide: 'A / D: ôm cua dọc sóng (Shift: gắt hơn, dễ ngã) · W: lấy đà · S: hãm cho sóng đuổi kịp · Chuột: lái hướng · C: toàn cảnh',
     cue: 'Sóng tới! Nhấn Space để bắt sóng',
     popUp: {
       catching: 'Bắt sóng!',
@@ -290,12 +289,13 @@ export const vi = {
     beach: 'Vào tới bờ',
   },
   swim: {
-    controls: 'W A S D: bơi ếch · Shift: bơi sải · Space: lặn · Chuột: nhìn · V: đổi góc nhìn · Vào chỗ nông: đứng dậy · Esc: thoát',
+    controls: 'W A S D: bơi ếch · Shift: bơi sải · Space: lặn · Chuột: lái hướng · V: đổi góc nhìn · Vào chỗ nông: đứng dậy · C: toàn cảnh',
   },
   kayak: {
-    controls: 'W: chèo tới · A / D: rẽ trái / phải · S: chèo lùi · Q / E: chèo tay trái / phải · Chuột: nhìn · Space: nhảy xuống bơi · K: lên bờ · Esc: thoát',
-    land: 'K: Lên bờ',
-    jump: 'Space: Nhảy xuống bơi',
+    controls: 'W: chèo tới · A / D: rẽ trái / phải · S: chèo lùi · Q / E: chèo tay trái / phải · Chuột: lái hướng · Space: nhảy xuống bơi · K: lên bờ · C: toàn cảnh',
+    title: 'Kayak',
+    land: 'Lên bờ',
+    jump: 'Nhảy xuống bơi',
     noLaunch: 'Ra sát mép nước để hạ thuyền',
   },
   layers: {
@@ -322,13 +322,12 @@ export const vi = {
   },
   dog: {
     toggle: 'Mochi đi theo',
-    pet: 'E: Vuốt ve Mochi',
   },
   shortcuts: {
     debug: 'Ẩn/hiện thông số',
     muteAll: 'Tắt/bật toàn bộ âm thanh',
     panel: 'Thu gọn/mở bảng',
-    hideUI: 'Ẩn toàn bộ giao diện',
+    hideUI: 'Ẩn toàn bộ giao diện (menu còn nút ☰ nhỏ ở góc phải trên)',
     fullscreen: 'Bật/tắt toàn màn hình',
     video: 'Ở bàn làm việc: phát video YouTube · nơi khác: tạm dừng/phát tiếp video',
     callDog: 'Gọi Mochi chạy lại',
@@ -345,7 +344,7 @@ export const vi = {
     mouse: 'Kéo: xoay · Cuộn: thu phóng · Chuột phải: dời · Nhấp vào nước: gợn sóng',
     sliderWheel: 'Thanh trượt: lăn chuột để chỉnh 5% (giờ: 15 phút) · giữ Shift để chỉnh mịn · nhấp đúp: về mặc định',
     sceneKeys: '1 – 9: chọn cảnh theo thứ tự trên bảng',
-    walkKeys: 'Khi đi bộ: W A S D đi · Shift chạy · chuột nhìn · V đổi góc nhìn · Esc thoát',
+    walkKeys: 'Khi đi bộ: W A S D đi · Shift chạy · chuột lái hướng khi đi · đứng lại: kéo chuột để xoay, rê lên Mochi để vuốt · V đổi góc nhìn · C toàn cảnh',
     swimKeys: 'Bơi: đi ra chỗ sâu ngang ngực · W A S D bơi ếch · giữ Shift bơi sải · vào chỗ nông là đứng dậy',
     diveKeys: 'Lặn: đang bơi nhấn Space · W bơi theo hướng nhìn · Space trồi lên · dưỡng khí ~45 giây, hết thì tự nổi',
     surfKeys: 'Lướt ván: nằm chèo W, A / D quay ván · hiện "Sóng tới!" thì nhấn Space: ván tự quay vào bờ, tự chèo và đứng lên · đứng: A / D ôm cua dọc sóng (Shift gắt, nghiêng quá là ngã, ngã thì tự leo lại lên ván) · W lấy đà · S hãm · L rời ván',

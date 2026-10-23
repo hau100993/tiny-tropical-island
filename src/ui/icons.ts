@@ -44,6 +44,15 @@ export const icons = {
   // Views.
   globe: svg('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'),
   walk: svg('<circle cx="13" cy="4" r="2"/><path d="m9 21 2.5-6 2.5 2v4M7 12l3-4 3 2 3 2M11.5 15 10 8"/>'),
+  /** The panel's handle while it is out of sight. */
+  menu: svg('<path d="M4 7h16M4 12h16M4 17h16"/>'),
+  info: svg('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>'),
+  // Activity card (ui/ActivityMenu.ts).
+  kayak: svg('<path d="M2 14c3 3.5 17 3.5 20 0z"/><path d="m6 6 12 12"/><path d="m4.5 4.5 2.5 1.5-1 1zM19.5 19.5 17 18l1-1z" fill="currentColor"/>'),
+  surf: svg('<path d="M6 18C8 12 13 6 19 4c.5 5-3.5 11-10 14.5z"/><path d="M8 15 17 6"/><path d="M2 21c2 0 2.5-1 4.5-1s2.5 1 4.5 1 2.5-1 4.5-1 2.5 1 4.5 1"/>'),
+  swim: svg('<circle cx="17" cy="6" r="2"/><path d="m4 13 5-4 4 3 3-2"/><path d="M2 18c2 0 2.5-1.5 4.5-1.5S9 18 11 18s2.5-1.5 4.5-1.5S18 18 20 18"/>'),
+  dive: svg('<path d="M12 3v9M8.5 8.5 12 12l3.5-3.5"/><path d="M2 17c2 0 2.5-1.5 4.5-1.5S9 17 11 17s2.5-1.5 4.5-1.5S18 17 20 17"/><path d="M5 21h14"/>'),
+  shore: svg('<path d="M2 20h20"/><path d="M4 20c3-4 8-6 16-6"/><path d="M15 3v8M12 6l3-3 3 3"/>'),
   desk: svg('<rect x="3" y="4" width="18" height="11" rx="1.5"/><path d="M12 15v4M8 21h8"/>'),
   bath: svg('<path d="M3 12h18v2a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5z"/><path d="M6 12V5a2 2 0 0 1 4 0M7 19l-1 2M17 19l1 2"/>'),
   hammock: svg('<path d="M4 21V5M20 21V5M4 8l3 3h10l3-3M7 11c1 4 9 4 10 0"/><path d="M2 21h20"/>'),

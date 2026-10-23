@@ -8,7 +8,11 @@ import {
   moonDirection,
   nightness,
   paletteFor,
+  SUN_RADIUS,
   sunDirection,
+  sunGlintElevation,
+  sunGlintScale,
+  sunVisibleFraction,
   windowSkyTurn,
 } from '../src/world/celestial';
 
@@ -99,5 +103,36 @@ describe('time', () => {
   it('formats hours as hh:mm', () => {
     expect(formatClock(6.5)).toBe('06:30');
     expect(formatClock(23.99)).toBe('23:59');
+  });
+});
+
+describe('sun glitter road', () => {
+  const r = SUN_RADIUS;
+
+  it('counts the part of the disc above the horizon', () => {
+    expect(sunVisibleFraction(r, r)).toBeCloseTo(1, 6);
+    expect(sunVisibleFraction(0.5, r)).toBe(1);
+    expect(sunVisibleFraction(0, r)).toBeCloseTo(0.5, 6);
+    expect(sunVisibleFraction(-r, r)).toBeCloseTo(0, 6);
+    expect(sunVisibleFraction(-0.2, r)).toBe(0);
+    // Symmetric: half a radius up shows as much as half a radius down hides.
+    expect(sunVisibleFraction(r / 2, r) + sunVisibleFraction(-r / 2, r)).toBeCloseTo(1, 6);
+    expect(sunVisibleFraction(r / 2, r)).toBeGreaterThan(0.5);
+  });
+
+  it('stays strong while the sun touches the sea, and matches the scene light high up', () => {
+    // At the horizon the scene light is ~0.1 of noon (sunIntensity 0.6 / 2.6, faded); the road
+    // keeps the full sun colour, halved because half the disc is gone.
+    expect(sunGlintScale(0, 0.6, 0.5)).toBeCloseTo(0.5, 6);
+    expect(sunGlintScale(0.3, 2.6, 1)).toBeCloseTo(1, 6);
+    expect(sunGlintScale(0.2, 1.3, 1)).toBeCloseTo(0.5, 6);
+    expect(sunGlintScale(-0.1, 0, 0)).toBe(0);
+  });
+
+  it('aims at the visible sliver while the sun is cut by the horizon', () => {
+    expect(sunGlintElevation(0.2, r)).toBe(0.2);
+    expect(sunGlintElevation(r, r)).toBeCloseTo(r, 9);
+    expect(sunGlintElevation(0, r)).toBeCloseTo(r / 2, 9);
+    expect(sunGlintElevation(-r, r)).toBeCloseTo(0, 9);
   });
 });

@@ -9,6 +9,7 @@ import waterFrag from './shaders/water.frag.glsl?raw';
 import skyCommon from '../world/shaders/skyCommon.glsl?raw';
 import clouds from '../world/shaders/clouds.glsl?raw';
 import aurora from '../world/shaders/aurora.glsl?raw';
+import farSea from '../world/shaders/farSea.glsl?raw';
 
 /**
  * Radial grid centered on the island: ~1.2 m spacing out to 150 m (where waves and foam
@@ -94,8 +95,13 @@ export class WaterSurface {
         uNight: shared.uNight,
         uDawn: shared.uDawn,
         uDayLight: shared.uDayLight,
-        uLightDir: shared.uLightDir,
         uLightColor: shared.uLightColor,
+        uGlintDir: shared.uGlintDir,
+        uGlintColor: shared.uGlintColor,
+        uGlintSize: shared.uGlintSize,
+        uSunGlint: shared.uSunGlint,
+        uSunBright: shared.uSunBright,
+        uSunSize: shared.uSunSize,
         uCloudCover: shared.uCloudCover,
         uCloudOffset: shared.uCloudOffset,
         uTerrainHeight: { value: inputs.terrain.texture },
@@ -119,11 +125,11 @@ export class WaterSurface {
         uCameraNear: { value: camera.near },
         uCameraFar: { value: camera.far },
         uShallowColor: { value: new THREE.Color('#3cc8c4') },
-        uDeepColor: { value: new THREE.Color('#0a4a78') },
+        uDeepColor: shared.uDeepColor,
       },
       vertexShader: `${waterCommon}\n${swash}\n${clouds}\n${surfGlsl}\n${waterVert}`,
       // One aurora ribbon is enough in the reflection (cheaper per water pixel).
-      fragmentShader: `${waterCommon}\n${swash}\n${skyCommon}\n#define AURORA_LAYERS 1\n${aurora}\n${waterFrag}`,
+      fragmentShader: `${waterCommon}\n${swash}\n${skyCommon}\n${farSea}\n#define AURORA_LAYERS 1\n${aurora}\n${waterFrag}`,
       fog: true,
       // Both faces: the underside is what you see when diving.
       side: THREE.DoubleSide,

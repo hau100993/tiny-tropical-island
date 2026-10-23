@@ -4,6 +4,8 @@ import type { SurfPose } from '../world/avatar';
 import type { IslandColliders } from '../controls/islandColliders';
 import type { WalkView } from '../controls/walker';
 import { clamp, damp } from '../core/math';
+import { DragLook } from '../controls/dragLook';
+import { isTyping } from '../controls/keymap';
 import { SURF, createSurfSample, crestX, surfPeelSpeed, type SurfFrame } from '../water/surf';
 import { WakeKind } from '../water/WakeMap';
 import type { KayakEffects } from './KayakActivity';
@@ -32,9 +34,6 @@ const CRASH_TAUS = [0, 2.5, 5, 7.5, CLOSE_TAU] as const;
 const CRASH_RANGE = 140;
 
 export interface SurfEvents {
-  /** The pointer lock was released (Esc) after having been active. */
-  onUnlock(): void;
-  onLockState(locked: boolean, failed: boolean): void;
   /** Space: the pop-up's outcome. */
   onPopUp(result: PopUp): void;
   /** Wiped out, the wave left you, or the board touched the beach. */
@@ -71,7 +70,8 @@ export class SurfActivity {
   readonly pose: SurfPose = { board: new THREE.Matrix4(), stand: 0, stroke: 0, paddling: 0, crouch: 0, lean: 0, firstPerson: false };
   private readonly keys = new Set<string>();
   private readonly ctl: SurfControls = { forward: false, back: false, steer: 0, hard: false };
-  private wasLocked = false;
+  /** Mouse look: drag on the scene (see DragLook). */
+  readonly look: DragLook;
   private camYaw = 0;
   private mouseIdle = 0;
   private wakeTimer = 0;
@@ -96,7 +96,7 @@ export class SurfActivity {
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
-    private readonly dom: HTMLElement,
+    dom: HTMLElement,
     private readonly model: THREE.Group,
     private readonly env: SurfEnv,
     private readonly frame: SurfFrame,
@@ -109,7 +109,7 @@ export class SurfActivity {
   ) {
     this.body = new SurfBody(env);
     window.addEventListener('keydown', (e) => {
-      if (!this.active || e.ctrlKey || e.altKey || e.metaKey) return;
+      if (!this.active || e.ctrlKey || e.altKey || e.metaKey || isTyping(e.target)) return;
       if (e.code === 'Space') {
         e.preventDefault();
         if (!e.repeat && this.body.state === 'prone') this.events.onPopUp(this.body.popUp());
@@ -121,32 +121,17 @@ export class SurfActivity {
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
-    document.addEventListener('mousemove', (e) => {
-      if (!this.active || !this.locked) return;
-      if (Math.abs(e.movementX) > 300 || Math.abs(e.movementY) > 300) return;
-      this.lookYaw -= e.movementX * LOOK_SPEED;
-      if (e.movementX !== 0) this.mouseIdle = 0;
-      this.lookYaw = Math.atan2(Math.sin(this.lookYaw), Math.cos(this.lookYaw));
-      const [lo, hi] = PITCH[this.view];
-      this.pitch = clamp(this.pitch - e.movementY * LOOK_SPEED, lo, hi);
-    });
-    document.addEventListener('pointerlockchange', () => {
-      if (!this.active) return;
-      const locked = this.locked;
-      if (locked) this.wasLocked = true;
-      this.events.onLockState(locked, false);
-      if (!locked && this.wasLocked) this.events.onUnlock();
-    });
-    document.addEventListener('pointerlockerror', () => {
-      if (this.active) this.events.onLockState(false, true);
-    });
-    dom.addEventListener('click', () => {
-      if (this.active && !this.locked) this.requestLock();
-    });
-  }
-
-  get locked(): boolean {
-    return document.pointerLockElement === this.dom;
+    this.look = new DragLook(
+      dom,
+      (dx, dy) => {
+        this.lookYaw -= dx * LOOK_SPEED;
+        if (dx !== 0) this.mouseIdle = 0;
+        this.lookYaw = Math.atan2(Math.sin(this.lookYaw), Math.cos(this.lookYaw));
+        const [lo, hi] = PITCH[this.view];
+        this.pitch = clamp(this.pitch - dy * LOOK_SPEED, lo, hi);
+      },
+      LOOK_SPEED,
+    );
   }
 
   /** Where the board waits at first: on the sand above the break. */
@@ -199,7 +184,6 @@ export class SurfActivity {
 
   enter(): void {
     this.active = true;
-    this.wasLocked = false;
     this.keys.clear();
     this.body.state = 'prone';
     this.pose.stand = 0;
@@ -216,7 +200,7 @@ export class SurfActivity {
     this.camera.rotation.order = 'YXZ';
     this.syncModel(0);
     this.applyCamera(0);
-    this.requestLock();
+    this.look.start();
   }
 
   exit(): void {
@@ -224,20 +208,13 @@ export class SurfActivity {
     this.keys.clear();
     if (this.body.state !== 'idle') this.body.state = 'idle';
     this.camera.rotation.order = 'XYZ';
-    if (this.locked) document.exitPointerLock();
+    this.look.stop();
   }
 
   setView(view: WalkView): void {
     this.view = view;
     const [lo, hi] = PITCH[view];
     this.pitch = clamp(this.pitch, lo, hi);
-  }
-
-  private requestLock(): void {
-    this.dom
-      .requestPointerLock({ unadjustedMovement: true })
-      .catch(() => this.dom.requestPointerLock())
-      .catch(() => this.events.onLockState(false, true));
   }
 
   /** A wave coming in behind the board: time to paddle (for the hint). */
@@ -283,6 +260,8 @@ export class SurfActivity {
       c.steer = (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0) - (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0);
       c.hard = k.has('ShiftLeft') || k.has('ShiftRight');
       const moving = c.forward || c.back || c.steer !== 0;
+      // Paddling, or riding a wave (fast even with no key held): the mouse steers (DragLook).
+      this.look.update(dt, moving || this.body.state === 'ride');
       this.idle = moving ? 0 : this.idle + dt;
       if (moving) this.returning = false;
       // Washed in close to the beach and left alone: head back out too.

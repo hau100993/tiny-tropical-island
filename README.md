@@ -55,7 +55,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `M` | Mute / unmute everything |
 | `P` | Collapse / expand the control panel (or click its title) |
 | `1` – `9` | Pick a scene, in the order of the panel's cards (the key shows on each card) |
-| `H` | Hide all UI (clean wallpaper view); press again to show |
+| `H` | Hide all UI (clean wallpaper view); press again to show. While hidden, the panel stays as a small faint **☰ handle** in the top-right corner: point at it (or the corner) to open it |
 | `F` | Full screen on / off (also the ⛶ button in the panel header; `Esc` leaves it too). In full screen the mouse cursor hides over the scene after 3 s without moving. `F11` (the browser's own full screen) works as well. |
 | `N` | Stop / run the clock (stopping the real-time clock freezes the island at that moment) |
 | `C` | Walk around the island; press again to go back to the orbit view |
@@ -347,7 +347,13 @@ at the desk it sits beside the chair looking up at you, while you're in the bath
 tub (if you jumped to a seat with `B` while it was outside, it is simply there); while you're in
 the hammock it lies beside it; while you swim, paddle or surf it
 waits at the water's edge watching you, and greets you with a bark when you're back. `G` calls
-it; standing next to it, `E` pets it (it hops, wags hard and yips). Its paws leave prints in the
+it. **Petting, with the mouse** (no key, no text prompt): point at Mochi (from above the cursor
+turns into a paw; walking, a paw appears at the screen centre when you aim at it). A click is a
+pat (it hops, wags hard and yips). Press and hold to stroke it: walking, it comes to sit in
+front of you, your character crouches and strokes its head and neck with the right hand (the
+left on the knee) while you move the mouse (the view holds still meanwhile); it tilts its head
+into your hand, wags harder the longer you pet it, and little hearts float up. Let go and it
+follows again. Walking off ends it. Its paws leave prints in the
 sand and snow, and with **Âm thanh hoạt động** on you hear its paws on the deck and its bark
 (synthesized). Its walk and gallop are the model's own clips, played faster or slower with its
 speed so the paws don't slide; lying down and sitting are poses built in code (the file has none).
@@ -368,21 +374,27 @@ behind you, so it works inside the small room too.
 
 | Input | Action |
 |---|---|
-| Mouse | Look around (the browser captures the mouse and briefly says how to release it with Esc) |
+| Mouse, while moving | Steers, no button needed (as in a game); the cursor hides meanwhile. With the cursor at the left or right edge of the screen the view keeps turning that way. The mouse is never captured, so there is no browser "press Esc" notice |
+| Mouse, standing still | The cursor is back: **drag** on the scene to turn the view, point at Mochi to pet it, use the menu |
 | `W` `A` `S` `D` / arrow keys | Walk |
 | `Shift` (hold) | Run |
-| Click | Splash: a ripple where you look, if that is water |
+| Click | Splash: a ripple at the cursor, if that is water |
 | `V` | Switch between the character view and the eyes view |
-| `Esc` | Stop walking and return to the orbit view (also `C`) |
+| `C` | Stop walking and return to the orbit view |
 
 - You start at the foot of the porch steps, looking out to sea; next time you continue where you
-  left off. The control panel hides while walking (the mouse is captured); `H` hides the hint too.
+  left off. The control panel waits collapsed and faded in its corner; point at it and it opens,
+  move away and it closes again. Left alone for 5 s it shrinks to a small faint **☰ handle** in
+  the corner (it lights up for a moment as it does): point at it to bring the menu back. `H` hides it and the
+  hint.
+- **Hoạt động card:** under the menu bar, what you can do right where you stand (by the sea: kayak,
+  surfboard, swimming; at the desk, the bath, the hammock; in the kayak: land, jump in). Click a
+  row, or press its key (shown on the right). It fades after 5 s and comes back when you stand still.
+  Short notes (e.g. why you can't land here) appear as its last row.
 - You follow the ground, can climb the steps onto the porch and walk into the room; trunks, rocks,
   walls, railings and furniture block you (you slide along them).
 - You can wade into the sea; the deeper, the slower. Chest deep (1.2 m) you start swimming
   (see *Swimming*).
-- If the mouse is not captured (e.g. right after pressing `Esc`, the browser waits a moment),
-  the hint says **Nhấp vào cảnh…**: click the scene.
 - **Footprints:** bare footprints stay behind you on the sand (and on anything under settled
   snow). They fade by themselves: a couple of minutes on dry sand, much sooner where the waves
   reach, faster in the rain, longer in snow.
@@ -541,7 +553,7 @@ piece, so the two sides take turns. You steer like in a game; the paddler picks 
 | `V` | Character view ↔ eyes view (you see your arms, legs and the paddle) |
 | `Space` | Jump over the side and swim; swim back within ~1.4 m of the kayak and you climb back in automatically (after you have first swum a few meters away) |
 | `K` | Get out: where the water beside the kayak is no deeper than 0.9 m you step out; in deeper water you slip in and swim |
-| `Esc` / `C` | Back to the orbit view; `C` again puts you back in the kayak |
+| `C` | Back to the orbit view; `C` again puts you back in the kayak |
 
 How it moves: the kayak is a small simulated body, no physics library. The water drags on the
 hull a little lengthwise and a lot sideways (that's why it goes where it points and glides a

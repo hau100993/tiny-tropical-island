@@ -7,7 +7,11 @@ import {
   moonDirection,
   nightness,
   paletteFor,
+  SUN_RADIUS,
   sunDirection,
+  sunGlintElevation,
+  sunGlintScale,
+  sunVisibleFraction,
   type SkyPalette,
   type ClockOptions,
 } from './celestial';
@@ -185,6 +189,26 @@ export class DayNight {
     this.lighting.setMain(dir, this.tmp, useSun ? sunI * sunUp : moonI);
     u.uLightDir.value.copy(dir);
     u.uLightColor.value.copy(this.tmp).multiplyScalar(useSun ? Math.min(1, sunI / 2.6) : moonI * 2.2);
+    // The sea's glitter road follows the sun until its disc has fully set (×0.82: the disc's
+    // vertical radius, squashed by refraction near the horizon; see sky.frag.glsl).
+    const sunR = SUN_RADIUS * u.uSunSize.value;
+    const visible = sunVisibleFraction(e, sunR * 0.82);
+    if (visible > 0) {
+      const g = u.uGlintDir.value.copy(this.sun);
+      g.y = sunGlintElevation(e, sunR * 0.82);
+      g.normalize();
+      const glint = sunGlintScale(e, p.sunIntensity, visible) * (1 - 0.65 * oc);
+      u.uGlintColor.value.copy(u.uSunColor.value).multiplyScalar(glint);
+      u.uGlintSize.value = sunR;
+      // Its display-colour core only while the sun is low (orange road under the disc).
+      u.uSunGlint.value = visible * (1 - smoothstep(0.08, 0.25, e)) * (1 - 0.85 * oc);
+    } else {
+      u.uGlintDir.value.copy(u.uLightDir.value);
+      u.uGlintColor.value.copy(u.uLightColor.value);
+      // Moon disc radius, as in sky.frag.glsl.
+      u.uGlintSize.value = 0.0277 + (0.0424 - 0.0277) * smoothstep(0.3, 1, u.uMoonGlow.value);
+      u.uSunGlint.value = 0;
+    }
     // A bright moon also lifts the night ambient a little (silvery island, readable shadows).
     const moonAmbient = 1 + 0.6 * Math.max(0, opts.moonlight - 0.3) * u.uNight.value * (1 - oc);
     this.lighting.setHemi(p.hemiSky, p.hemiGround, p.hemiIntensity * (1 - 0.25 * oc) * moonAmbient);

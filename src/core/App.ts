@@ -9,7 +9,11 @@ import { createWorld, type World } from '../world/World';
 import { ISLAND_SHADOW_HALF } from '../world/lighting';
 import { createOrbitCamera, type OrbitCamera } from '../controls/orbit';
 import { Keymap } from '../controls/keymap';
-import { onWaterClick } from '../controls/waterClick';
+import { onWaterClick, type ClickAim } from '../controls/waterClick';
+import { PetPointer } from '../controls/petPointer';
+import { Petting } from '../activities/petting';
+import { Hearts } from '../world/hearts';
+import { PetCursor } from '../ui/PetCursor';
 import { IslandColliders, type WalkSurface } from '../controls/islandColliders';
 import { Walker, type StepEvent, type SwimStroke } from '../controls/walker';
 import { CameraManager, type SeatId, type SeatSpot } from '../controls/CameraManager';
@@ -18,7 +22,7 @@ import { DeskView } from '../controls/deskView';
 import { DeskScreens, type ScreenInfo } from '../world/deskScreens';
 import { formatClock, windowSkyTurn } from '../world/celestial';
 import { WalkHint } from '../ui/WalkHint';
-import { ActivityMenu, type ActivityItem } from '../ui/ActivityMenu';
+import { ActivityMenu, type ActivityCard } from '../ui/ActivityMenu';
 import { BreathMeter } from '../ui/BreathMeter';
 import { WaveMeter } from '../ui/WaveMeter';
 import { Spray } from '../water/Spray';
@@ -144,6 +148,16 @@ export class App {
   private dogLoading = false;
   private readonly dogPlayer: DogPlayer = { x: 0, z: 0, y: 0, speed: 0, onFoot: true, atSea: false, seat: null };
   private readonly dogLook = new THREE.Vector3();
+  /** Petting Mochi with the mouse (activities/petting.ts, controls/petPointer.ts). */
+  private readonly petting = new Petting();
+  private readonly petPointer: PetPointer;
+  private readonly petCursor: PetCursor;
+  private readonly hearts: Hearts;
+  /** Where the hand strokes the fur (world), and the far end of a stroke. */
+  private readonly petHand = new THREE.Vector3();
+  private readonly petBack = new THREE.Vector3();
+  private readonly heartAt = new THREE.Vector3();
+  private heartCount = 0;
   private readonly dogSupport = { y: 0, surface: 'sand' as WalkSurface, onPlatform: false };
   private readonly earRight = new THREE.Vector3();
   private readonly pomodoro: PomodoroOverlay;
@@ -193,10 +207,6 @@ export class App {
       this.colliders,
       {
         onStep: (e) => this.onStep(e),
-        onUnlock: () => this.cameras.setMode('orbit'),
-        onLockState: (locked, failed) => {
-          this.walkHint.update(this.cameras.mode === 'walk', locked, failed, this.walkControls());
-        },
         onSwim: (swimming) => this.onSwim(swimming),
         onStroke: (e) => this.onSwimStroke(e),
         onDive: (under) => this.onDive(under),
@@ -219,8 +229,6 @@ export class App {
       seaEnv,
       this.colliders,
       {
-        onUnlock: () => this.cameras.setMode('orbit'),
-        onLockState: (locked, failed) => this.walkHint.update(this.cameras.mode === 'kayak', locked, failed, vi.kayak.controls),
         onBlade: (e) => this.onBlade(e),
         onJump: () => this.jumpFromKayak(),
       },
@@ -236,8 +244,6 @@ export class App {
       w.layout.surf.frame,
       this.colliders,
       {
-        onUnlock: () => this.cameras.setMode('orbit'),
-        onLockState: (locked, failed) => this.walkHint.update(this.cameras.mode === 'surf', locked, failed, this.surfControls()),
         onPopUp: (r) => this.onPopUp(r),
         onEvent: (e) => this.onSurfEvent(e),
         onStroke: (side, strength) => {
@@ -290,8 +296,22 @@ export class App {
       this.renderer.domElement,
       this.camera,
       (x, z) => this.world.water.addRipple(x, z, 3, -1.0),
-      () => (this.cameras.mode === 'orbit' ? 'cursor' : this.walker.locked ? 'center' : 'none'),
+      // A click on Mochi pets it instead.
+      () => (this.petPointer.active || this.petPointer.hover ? 'none' : this.cameras.mode === 'orbit' ? 'cursor' : this.walkClickAim()),
     );
+    this.hearts = new Hearts(() => this.reducedMotion.matches);
+    this.scene.add(this.hearts.group);
+    this.petPointer = new PetPointer(this.renderer.domElement, this.camera, {
+      aim: () => this.petAim(),
+      // Walking, within a few steps (it comes to you); from above, wherever it is.
+      hit: (ray) => {
+        const d = this.dogModel?.hitTest(ray) ?? null;
+        return d !== null && (this.cameras.mode !== 'walk' || d < 14);
+      },
+      onStart: () => this.startPetting(),
+      onMove: (dx, dy) => this.petting.move(dx, dy),
+      onEnd: (cancelled) => this.endPetting(cancelled),
+    });
 
     this.overlay = new DebugOverlay(container, s.showDebug);
     this.settings.onChange((next) => this.applySettings(next));
@@ -362,7 +382,17 @@ export class App {
     }
     // The panel offers a "Bật âm thanh" button; the prompt only reports a failed start.
     this.walkHint = new WalkHint(ui);
+    this.petCursor = new PetCursor();
     this.activityMenu = new ActivityMenu(ui);
+    // The card sits under the menu bar; it follows the panel (opened over it, faded out of sight).
+    const dock = (): void => this.activityMenu.dock(this.panel.dockRect());
+    this.panel.onLayout = () => {
+      dock();
+      // Again once the panel's own transition has settled.
+      window.setTimeout(dock, 320);
+    };
+    window.addEventListener('resize', dock);
+    dock();
     this.breathMeter = new BreathMeter(ui);
     this.waveMeter = new WaveMeter(ui);
     this.fader = document.createElement('div');
@@ -373,12 +403,13 @@ export class App {
       const paddling = mode === 'kayak';
       const surfing = mode === 'surf';
       document.body.classList.toggle('walking', walking || paddling || surfing);
+      this.panel.setWalking(walking || paddling || surfing);
       document.body.classList.toggle('at-desk', mode === 'seat');
       this.deskVideo.setSeated(mode === 'seat' && this.cameras.seat === 'desk');
-      if (paddling) this.walkHint.update(true, this.kayak.locked, false, vi.kayak.controls);
-      else if (surfing) this.walkHint.update(true, this.surf.locked, false, this.surfControls());
-      else this.walkHint.update(walking, this.walker.locked, false, this.walkControls());
-      if (!walking) this.activityMenu.set(null);
+      if (paddling) this.walkHint.update(true, vi.kayak.controls);
+      else if (surfing) this.walkHint.update(true, this.surfControls());
+      else this.walkHint.update(walking, this.walkControls());
+      if (!walking && !paddling) this.activityMenu.set(null);
       const seat = this.cameras.seat;
       this.walkHint.showSeat(mode === 'seat', seat === 'bath' ? vi.bath.controls : seat === 'hammock' ? vi.hammock.controls : vi.desk.controls);
       this.listenerTimer = 0;
@@ -555,7 +586,10 @@ export class App {
       code: 'KeyH',
       keyLabel: 'H',
       label: vi.shortcuts.hideUI,
-      action: () => document.body.classList.toggle('ui-hidden'),
+      action: () => {
+        // The panel stays as a small handle in its corner (Panel.setUiHidden).
+        this.panel.setUiHidden(document.body.classList.toggle('ui-hidden'));
+      },
     });
     this.keymap.register({
       code: 'KeyU',
@@ -596,10 +630,6 @@ export class App {
         if (this.cameras.mode === 'kayak') return;
         const near = this.nearSeat();
         if (near) this.cameras.sit(near, true);
-        else if (this.nearDog()) {
-          this.dog?.pet();
-          this.dogModel?.hop();
-        }
       },
     });
     this.keymap.register({
@@ -775,11 +805,58 @@ export class App {
       });
   }
 
-  /** Every frame: where you are for Mochi, its move, then its animation. */
+  /**
+   * Where the pointer aims at Mochi: the cursor, from above or walking (not swimming).
+   */
+  private petAim(): ClickAim {
+    if (!this.dog || !this.dogModel?.root.visible) return 'none';
+    const m = this.cameras.mode;
+    if (m === 'orbit') return 'cursor';
+    if (m !== 'walk' || this.walker.swimming) return 'none';
+    return 'cursor';
+  }
+
+  /** Walking, paddling or surfing: a click splashes at the cursor. */
+  private walkClickAim(): ClickAim {
+    const m = this.cameras.mode;
+    return m === 'walk' || m === 'kayak' || m === 'surf' ? 'cursor' : 'none';
+  }
+
+  /** Pressed on Mochi: walking, it comes to sit in front of you for your hand; from above it stays put. */
+  private startPetting(): void {
+    if (!this.dog) return;
+    const walking = this.cameras.mode === 'walk';
+    this.petting.start();
+    // It sits ahead of you, seen from behind a little to the right (so your body doesn't hide
+    // it from the camera); through the eyes, straight ahead.
+    const yaw = this.walker.yaw;
+    const fx = -Math.sin(yaw);
+    const fz = -Math.cos(yaw);
+    const side = this.walker.view === 'third' ? 0.83 : 0;
+    const ahead = this.walker.view === 'third' ? 0.55 : 1;
+    this.dog.startPetting(walking, fx * ahead - fz * side, fz * ahead + fx * side);
+  }
+
+  private endPetting(cancelled: boolean): void {
+    if (cancelled) this.petting.cancel();
+    else this.petting.end();
+    this.dog?.stopPetting();
+    if (this.petting.takePat()) {
+      this.dog?.pet();
+      this.dogModel?.hop();
+    }
+  }
+
+  /** Every frame: where you are for Mochi, its move, then its animation; petting and hearts. */
   private updateDog(dt: number): void {
     const model = this.dogModel;
     const dog = this.dog;
-    if (!model || !dog || !model.root.visible) return;
+    this.hearts.update(dt);
+    if (!model || !dog || !model.root.visible) {
+      this.petPointer.cancel();
+      this.petCursor.set('none');
+      return;
+    }
     const w = this.walker;
     const mode = this.cameras.mode;
     const p = this.dogPlayer;
@@ -791,12 +868,35 @@ export class App {
     p.z = body ? body.z : w.z;
     p.y = w.feetY;
     p.speed = p.onFoot ? w.speed : 0;
+    const pp = this.petPointer;
+    pp.update();
+    // Walking off (or swimming, sitting, another view) ends the stroking.
+    if (pp.active && (!p.onFoot || p.seat !== null || w.speed > 0.6 || this.petAim() === 'none')) pp.cancel();
+    this.petting.update(dt);
+    dog.affection = this.petting.affection;
+    this.petCursor.set(pp.active ? 'grab' : pp.hover ? 'hover' : 'none');
     dog.update(dt, p);
     model.root.position.set(dog.x, dog.y, dog.z);
     model.root.rotation.y = dog.yaw;
-    // It looks at you when you're close.
+    // It looks at you when you're close (at the camera while stroked from above).
+    const stroking = this.petting.stroking;
     const near = Math.hypot(p.x - dog.x, p.z - dog.z) < 6;
-    model.update(dt, dog.action, dog.speed, dog.wag, near ? this.dogLook.set(p.x, p.y + 1.4, p.z) : null);
+    const look = stroking && this.cameras.mode === 'orbit' ? this.dogLook.copy(this.camera.position) : near ? this.dogLook.set(p.x, p.y + 1.4, p.z) : null;
+    model.update(dt, dog.action, dog.speed, dog.wag, look, stroking ? 1 : 0);
+    // The hand on the fur: from the head down the back with the strokes, lifted on the way back.
+    model.petPoints(this.petHand, this.petBack);
+    this.petHand.lerp(this.petBack, this.petting.stroke);
+    if (this.petting.returning) this.petHand.y += 0.04;
+    // Hearts rise from its head; now and then a happy little yip.
+    const hearts = this.petting.takeHearts();
+    for (let i = 0; i < hearts; i++) {
+      this.hearts.spawn(model.headTop(this.heartAt));
+      this.heartCount++;
+      if (this.heartCount % 5 === 0 && this.settings.get().footsteps) {
+        const ear = this.dogEar(dog.x, dog.y, dog.z);
+        if (ear) this.mixer.playBark('yip', ear.gain * 0.5, ear.pan);
+      }
+    }
   }
 
   /** A paw down: a print on sand or snow, and the patter when activity sounds are on. */
@@ -918,23 +1018,53 @@ export class App {
     return w.depth > 0 || (this.world.heightmap.distanceToShore(w.x, w.z) < 9 && w.surface === 'sand');
   }
 
-  /** What the activity card offers right now. */
-  private seaOffer(): readonly ActivityItem[] {
+  /** What the activity card offers by the sea right now. */
+  private seaOffer(): ActivityCard {
     const w = this.walker;
-    if (!w.swimming) return this.seaItems;
-    if (this.surf.afloat && this.surf.distanceTo(w.x, w.z) < 4.5) return this.diveSurfItems;
+    if (!w.swimming) return this.seaCard;
+    if (this.surf.afloat && this.surf.distanceTo(w.x, w.z) < 4.5) return this.diveSurfCard;
     const nearKayak = this.kayak.distanceTo(w.x, w.z) < 4.5;
-    return nearKayak ? this.diveKayakItems : this.diveItems;
+    return nearKayak ? this.diveKayakCard : this.diveCard;
   }
 
-  private readonly seaItems: readonly ActivityItem[] = [
-    { key: 'K', label: vi.sea.kayak },
-    { key: 'L', label: vi.surf.menu },
-    { key: 'W', label: vi.sea.swim },
-  ];
-  private readonly diveItems: readonly ActivityItem[] = [{ key: 'Space', label: vi.dive.menu }];
-  private readonly diveKayakItems: readonly ActivityItem[] = [{ key: 'Space', label: vi.dive.menu }, { key: 'K', label: vi.sea.reboard }];
-  private readonly diveSurfItems: readonly ActivityItem[] = [{ key: 'Space', label: vi.dive.menu }, { key: 'L', label: vi.surf.mount }];
+  // The activity card's rows (ui/ActivityMenu.ts): a click does what the key does, through the
+  // keymap where the key is a shortcut. Rows without `run` are hints (held keys: W, Space).
+  private readonly diveRow = { key: 'Space', label: vi.dive.menu, icon: 'dive' } as const;
+  private readonly seaCard: ActivityCard = {
+    title: vi.sea.menuTitle,
+    items: [
+      { key: 'K', label: vi.sea.kayak, icon: 'kayak', run: () => this.keymap.run('KeyK') },
+      { key: 'L', label: vi.surf.menu, icon: 'surf', run: () => this.keymap.run('KeyL') },
+      { key: 'W', label: vi.sea.swim, icon: 'swim' },
+    ],
+  };
+  private readonly diveCard: ActivityCard = { title: vi.sea.menuTitle, items: [this.diveRow] };
+  private readonly diveKayakCard: ActivityCard = {
+    title: vi.sea.menuTitle,
+    items: [this.diveRow, { key: 'K', label: vi.sea.reboard, icon: 'kayak', run: () => this.keymap.run('KeyK') }],
+  };
+  private readonly diveSurfCard: ActivityCard = {
+    title: vi.sea.menuTitle,
+    items: [this.diveRow, { key: 'L', label: vi.surf.mount, icon: 'surf', run: () => this.keymap.run('KeyL') }],
+  };
+  private readonly jumpRow = { key: 'Space', label: vi.kayak.jump, icon: 'dive', run: () => this.jumpFromKayak() } as const;
+  private readonly kayakCard: ActivityCard = { title: vi.kayak.title, items: [this.jumpRow] };
+  private readonly kayakLandCard: ActivityCard = {
+    title: vi.kayak.title,
+    items: [{ key: 'K', label: vi.kayak.land, icon: 'shore', run: () => this.keymap.run('KeyK') }, this.jumpRow],
+  };
+  private readonly deskCard: ActivityCard = {
+    title: vi.panel.views.desk,
+    items: [{ key: 'E', label: vi.desk.sit, icon: 'desk', run: () => this.keymap.run('KeyE') }],
+  };
+  private readonly bathCard: ActivityCard = {
+    title: vi.panel.views.bath,
+    items: [{ key: 'E', label: vi.bath.enter, icon: 'bath', run: () => this.keymap.run('KeyE') }],
+  };
+  private readonly hammockCard: ActivityCard = {
+    title: vi.panel.views.hammock,
+    items: [{ key: 'E', label: vi.hammock.enter, icon: 'hammock', run: () => this.keymap.run('KeyE') }],
+  };
 
   /** The controls line on the surfboard: lying (paddling) or standing (riding). */
   private surfControls(): string {
@@ -976,7 +1106,7 @@ export class App {
   private onSurfEvent(e: SurfEvent): void {
     if (this.cameras.mode !== 'surf') return;
     if (e === 'stand') {
-      this.walkHint.update(true, this.surf.locked, false, vi.surf.controlsRide);
+      this.walkHint.update(true, vi.surf.controlsRide);
       return;
     }
     if (e === 'wipeout') {
@@ -986,7 +1116,7 @@ export class App {
       return;
     }
     if (e === 'waveGone' || e === 'missed' || e === 'remount') {
-      this.walkHint.update(true, this.surf.locked, false, vi.surf.controlsProne);
+      this.walkHint.update(true, vi.surf.controlsProne);
       if (e !== 'remount') this.activityMenu.flash(e === 'missed' ? vi.surf.missed : vi.surf.waveGone);
       return;
     }
@@ -1039,7 +1169,7 @@ export class App {
 
   /** Going under: a splash and a burst of bubbles; coming up: a gasp of air (a splash). */
   private onDive(under: boolean): void {
-    this.walkHint.update(true, this.walker.locked, false, this.walkControls());
+    this.walkHint.update(true, this.walkControls());
     if (under) this.exhale(14, 0.4);
     if (this.settings.get().footsteps) this.mixer.playFootstep('water', under ? 0.9 : 0.6, 1.2);
   }
@@ -1091,7 +1221,7 @@ export class App {
 
   /** Into deep water / back on your feet: the controls line changes, a splash as you go in. */
   private onSwim(swimming: boolean): void {
-    this.walkHint.update(true, this.walker.locked, false, this.walkControls());
+    this.walkHint.update(true, this.walkControls());
     if (swimming && this.settings.get().footsteps) this.mixer.playFootstep('water', 1, 1.2);
   }
 
@@ -1205,14 +1335,6 @@ export class App {
   }
 
   private readonly tmpLocal = { x: 0, z: 0 };
-
-  /** Standing next to Mochi (on foot, out of the water). */
-  private nearDog(): boolean {
-    const w = this.walker;
-    return (
-      this.cameras.mode === 'walk' && !w.swimming && this.settings.get().dog && this.dog !== null && this.dog.distanceTo(w.x, w.z) < 2.2
-    );
-  }
 
   /** What the right-hand desk monitor shows. */
   private screenInfo(): ScreenInfo {
@@ -1364,11 +1486,17 @@ export class App {
     p.phase = w.phase;
     p.stride = w.stride;
     p.running = w.running;
+    // Stroking Mochi once it sits in front of you: crouch, the hand on its fur.
+    const dog = this.dog;
+    p.pet = this.petting.stroking && dog?.petReady ? 1 : 0;
+    if (dog) p.petYaw = Math.atan2(-(dog.x - w.x), -(dog.z - w.z));
     this.avatar.update(dt, p);
     this.syncCharacter();
   }
 
-  private readonly avatarPose: AvatarPose = { x: 0, z: 0, feetY: 0, vx: 0, vz: 0, speed: 0, phase: 0, stride: 0, running: false };
+  private readonly avatarPose: AvatarPose = {
+    x: 0, z: 0, feetY: 0, vx: 0, vz: 0, speed: 0, phase: 0, stride: 0, running: false, pet: 0, petYaw: 0, petHand: this.petHand,
+  };
   private readonly swimPose: SwimPose = {
     x: 0, z: 0, surfaceY: 0, vx: 0, vz: 0, speed: 0, phase: 0, crawl: 0, move: 0, firstPerson: false, chestY: Number.NaN, lift: Number.NaN,
   };
@@ -1378,11 +1506,13 @@ export class App {
     const mode = this.cameras.mode;
     if (mode === 'orbit') return;
     if (mode === 'walk') {
+      // What you can do here: sit at the desk, the bath, the hammock; the sea's activities.
       const near = this.nearSeat();
-      this.walkHint.setPrompt(
-        near === 'desk' ? vi.desk.sit : near === 'bath' ? vi.bath.enter : near === 'hammock' ? vi.hammock.enter : this.nearDog() ? vi.dog.pet : null,
-      );
-      this.activityMenu.set(this.nearSea() ? this.seaOffer() : null);
+      const seatCard = near === 'desk' ? this.deskCard : near === 'bath' ? this.bathCard : near === 'hammock' ? this.hammockCard : null;
+      this.activityMenu.set(seatCard ?? (this.nearSea() ? this.seaOffer() : null));
+      this.activityMenu.update(dt, this.walker.speed > 0.15);
+    } else if (mode === 'kayak') {
+      this.activityMenu.update(dt, Math.abs(this.kayak.body.speed) > 0.3);
     }
     this.listenerTimer -= dt;
     if (this.listenerTimer > 0) return;
@@ -1393,7 +1523,7 @@ export class App {
     const paddling = mode === 'kayak';
     const surfing = mode === 'surf';
     const sb = this.surf.body;
-    if (paddling) this.walkHint.setPrompt(k.landingSpot(this.tmpSpot) ? `${vi.kayak.land} · ${vi.kayak.jump}` : vi.kayak.jump);
+    if (paddling) this.activityMenu.set(k.landingSpot(this.tmpSpot) ? this.kayakLandCard : this.kayakCard);
     if (surfing) this.walkHint.setPrompt(this.surf.waveComing ? vi.surf.cue : null);
     const x = atDesk ? seat.x : paddling ? k.body.x : surfing ? sb.x : this.walker.x;
     const z = atDesk ? seat.z : paddling ? k.body.z : surfing ? sb.z : this.walker.z;

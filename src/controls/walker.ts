@@ -3,6 +3,8 @@ import type { Support } from './collision';
 import type { IslandColliders, Shelter, WalkSurface } from './islandColliders';
 import { clamp, damp } from '../core/math';
 import { RUN_GAIT_MIN, stepLength } from '../core/gait';
+import { isTyping } from './keymap';
+import { DragLook } from './dragLook';
 
 /** Eye height above the feet (m). */
 export const EYE_HEIGHT = 1.65;
@@ -60,10 +62,6 @@ export interface StepEvent {
 export interface WalkerEvents {
   /** Each footfall. */
   onStep(e: StepEvent): void;
-  /** The pointer lock was released (Esc) after having been active. */
-  onUnlock(): void;
-  /** Pointer lock state changed or could not be obtained (`failed`), for the on-screen hint. */
-  onLockState(locked: boolean, failed: boolean): void;
   /** Started swimming (deep water) or stood up again. */
   onSwim(swimming: boolean): void;
   /** A swim stroke (splash). */
@@ -72,13 +70,16 @@ export interface WalkerEvents {
   onDive(under: boolean): void;
 }
 
+/** The keys that move you: held, the mouse steers (DragLook). */
+const STEER_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 const MOVE_KEYS = new Set([
   'Space',
   'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight',
 ]);
 
 /**
- * Walking on the island: pointer-lock mouse look, WASD/arrows, Shift to run. Movement follows
+ * Walking on the island: the mouse steers while you move, drag it to look while standing (the
+ * cursor is never captured), WASD/arrows, Shift to run. Movement follows
  * the terrain and the house floor/steps, slides along trunks and walls, wades into shallow
  * water (slower) and stops at chest-deep water. Footfalls are reported every stride.
  *
@@ -129,49 +130,36 @@ export class Walker {
   private eyeY = 0;
   readonly vel = new THREE.Vector2();
   private readonly keys = new Set<string>();
-  private wasLocked = false;
+  /** Mouse look: drag on the scene (see DragLook). */
+  readonly look: DragLook;
   private readonly tmp = { x: 0, z: 0 };
   private readonly sup: Support<WalkSurface> = { y: 0, surface: 'sand', onPlatform: false };
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
-    private readonly dom: HTMLElement,
+    dom: HTMLElement,
     private readonly colliders: IslandColliders,
     private readonly events: WalkerEvents,
     private readonly reducedMotion: () => boolean,
   ) {
     window.addEventListener('keydown', (e) => {
       if (!this.active || !MOVE_KEYS.has(e.code) || e.ctrlKey || e.altKey || e.metaKey) return;
+      // The cursor is free: typing in the panel isn't walking.
+      if (isTyping(e.target)) return;
       this.keys.add(e.code);
       e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
-    document.addEventListener('mousemove', (e) => {
-      if (!this.active || !this.locked) return;
-      // Chrome sometimes reports a huge jump right after locking; ignore it.
-      if (Math.abs(e.movementX) > 300 || Math.abs(e.movementY) > 300) return;
-      this.yaw -= e.movementX * LOOK_SPEED;
-      const [lo, hi] = PITCH[this.view];
-      this.pitch = clamp(this.pitch - e.movementY * LOOK_SPEED, lo, hi);
-    });
-    document.addEventListener('pointerlockchange', () => {
-      const locked = this.locked;
-      if (locked) this.wasLocked = true;
-      this.events.onLockState(locked, false);
-      if (!locked && this.active && this.wasLocked) this.events.onUnlock();
-    });
-    document.addEventListener('pointerlockerror', () => {
-      if (this.active) this.events.onLockState(false, true);
-    });
-    // Click the scene to (re)gain the mouse, e.g. when the browser refused the first request.
-    dom.addEventListener('click', () => {
-      if (this.active && !this.locked) this.requestLock();
-    });
-  }
-
-  get locked(): boolean {
-    return document.pointerLockElement === this.dom;
+    this.look = new DragLook(
+      dom,
+      (dx, dy) => {
+        this.yaw -= dx * LOOK_SPEED;
+        const [lo, hi] = PITCH[this.view];
+        this.pitch = clamp(this.pitch - dy * LOOK_SPEED, lo, hi);
+      },
+      LOOK_SPEED,
+    );
   }
 
   /** Starts walking: at the last position, or at `spawn` the first time. */
@@ -185,7 +173,6 @@ export class Walker {
       this.placed = true;
     }
     this.active = true;
-    this.wasLocked = false;
     this.keys.clear();
     this.vel.set(0, 0);
     this.eyeY = this.feetY + EYE_HEIGHT;
@@ -193,7 +180,7 @@ export class Walker {
     this.setView(this.view);
     this.camera.rotation.order = 'YXZ';
     this.applyCamera(0);
-    this.requestLock();
+    this.look.start();
   }
 
   /** Puts the walker at (x, z) facing `yaw` (e.g. next to the chair after getting up). */
@@ -217,15 +204,13 @@ export class Walker {
     this.keys.clear();
     this.speed = 0;
     this.camera.rotation.order = 'XYZ';
-    if (this.locked) document.exitPointerLock();
+    this.look.stop();
   }
 
-  private requestLock(): void {
-    // Raw mouse input (no OS acceleration) where supported; plain lock otherwise.
-    this.dom
-      .requestPointerLock({ unadjustedMovement: true })
-      .catch(() => this.dom.requestPointerLock())
-      .catch(() => this.events.onLockState(false, true));
+  /** A key that moves you is held (Shift alone doesn't). */
+  private steering(): boolean {
+    for (const k of this.keys) if (STEER_KEYS.has(k)) return true;
+    return false;
   }
 
   setSea(fn: (x: number, z: number) => number): void {
@@ -235,6 +220,8 @@ export class Walker {
   update(dt: number): void {
     if (!this.active) return;
     dt = Math.min(dt, 0.05);
+    // Moving: the mouse steers (DragLook).
+    this.look.update(dt, this.steering());
     if (this.swimming) {
       if (this.diving) this.dive(dt);
       else this.swim(dt);

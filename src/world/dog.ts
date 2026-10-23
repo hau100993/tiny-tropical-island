@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { patchWorldMaterial } from './patchMaterial';
 import type { SharedUniforms } from '../core/uniforms';
+import { rayEllipsoid } from '../activities/petting';
 
 /** Height of the top of the head (m) for a Shiba Inu; the model is scaled to it. */
 const HEAD_HEIGHT = 0.55;
@@ -21,6 +22,16 @@ const tmpQ = new THREE.Quaternion();
 const tmpQ2 = new THREE.Quaternion();
 const tmpV = new THREE.Vector3();
 const tmpV2 = new THREE.Vector3();
+const tmpV3 = new THREE.Vector3();
+const tmpM = new THREE.Matrix4();
+/**
+ * What the pointer can hit (m, around the bones, in the dog's own frame): an ellipsoid round
+ * the body (centred a little under the spine) and a ball round the head. Generous, so the dog
+ * is easy to point at.
+ */
+const BODY_DROP = 0.07;
+const BODY_RADII = [0.13, 0.18, 0.32] as const;
+const HEAD_RADIUS = 0.14;
 
 interface PosePart {
   bone: THREE.Object3D;
@@ -89,6 +100,10 @@ export class DogModel {
   private readonly sit: PosePart[] = [];
   private readonly tail: THREE.Object3D[] = [];
   private readonly neck: THREE.Object3D[] = [];
+  /** Mid-back spine bone: the body's hit ellipsoid and the end of a stroke follow it. */
+  private readonly torso: THREE.Object3D;
+  /** Being petted (0..1, smoothed): the head tilts into the hand. */
+  private nuzzle = 0;
   private readonly materials: THREE.Material[] = [];
   /**
    * Bones this class turns itself (lying pose, tail, head), with their rest pose: put back
@@ -145,6 +160,7 @@ export class DogModel {
     };
     for (const n of ['Tail1', 'Tail2', 'Tail3']) this.tail.push(find(n));
     for (const n of ['Neck1', 'Neck2', 'Head']) this.neck.push(find(n));
+    this.torso = find('Torso2');
 
     // The lying pose, built once from the standing (Idle) pose: lower the body, then aim each
     // leg bone at where its joint should be (a Blender bone points along its own +Y).
@@ -266,10 +282,48 @@ export class DogModel {
   }
 
   /**
-   * Animates one frame. `speed` (m/s) picks and paces walk/gallop; `wag` 0..1 how hard the tail
-   * wags; `look` a world point the head turns toward (or null).
+   * Distance along `ray` (world, unit direction) to the dog, or null if it misses: for pointing
+   * at it with the mouse. Analytic (ellipsoid and ball, see BODY_RADII), no mesh raycast.
    */
-  update(dt: number, action: DogAction, speed: number, wag: number, look: THREE.Vector3 | null): void {
+  hitTest(ray: THREE.Ray): number | null {
+    if (!this.root.visible) return null;
+    tmpM.copy(this.root.matrixWorld).invert();
+    // The root only turns and moves (no scale): distances stay in metres.
+    const o = tmpV.copy(ray.origin).applyMatrix4(tmpM);
+    const d = tmpV2.copy(ray.direction).transformDirection(tmpM);
+    const b = this.root.worldToLocal(this.torso.getWorldPosition(tmpV3));
+    const [rx, ry, rz] = BODY_RADII;
+    const body = rayEllipsoid(o.x, o.y, o.z, d.x, d.y, d.z, b.x, b.y - BODY_DROP, b.z, rx, ry, rz);
+    const h = this.root.worldToLocal(this.neck[2].getWorldPosition(tmpV3));
+    const head = rayEllipsoid(o.x, o.y, o.z, d.x, d.y, d.z, h.x, h.y, h.z, HEAD_RADIUS, HEAD_RADIUS, HEAD_RADIUS);
+    if (body === null) return head;
+    return head === null ? body : Math.min(body, head);
+  }
+
+  /**
+   * Where a hand strokes the fur (world): from the top of the head (`head`) down the neck to
+   * the middle of the back (`back`). Both follow the bones, so sitting or lying works too.
+   */
+  petPoints(head: THREE.Vector3, back: THREE.Vector3): void {
+    this.neck[2].getWorldPosition(head);
+    head.y += 0.075;
+    this.torso.getWorldPosition(back);
+    back.y += 0.075;
+  }
+
+  /** The top of the head (world), where hearts rise from. */
+  headTop(out: THREE.Vector3): THREE.Vector3 {
+    this.neck[2].getWorldPosition(out);
+    out.y += 0.12;
+    return out;
+  }
+
+  /**
+   * Animates one frame. `speed` (m/s) picks and paces walk/gallop; `wag` 0..1 how hard the tail
+   * wags; `look` a world point the head turns toward (or null); `petted` 0..1 while a hand
+   * strokes it (the head tilts and lifts into the hand).
+   */
+  update(dt: number, action: DogAction, speed: number, wag: number, look: THREE.Vector3 | null, petted = 0): void {
     const k = (rate: number): number => 1 - Math.exp(-dt * rate);
     const moving = action === 'move' && speed > 0.05;
     this.wMove += ((moving ? 1 : 0) - this.wMove) * k(8);
@@ -317,6 +371,16 @@ export class DogModel {
     }
     this.lookYaw += (want - this.lookYaw) * k(4);
     this.neck.forEach((b, i) => this.turnWorld(b, UP, this.lookYaw * [0.3, 0.3, 0.4][i]));
+    // Leaning into the hand: the head tilts to one side and the nose comes up a little, with
+    // a slow sway.
+    this.nuzzle += (petted - this.nuzzle) * k(3);
+    if (this.nuzzle > 0.001) {
+      const fwd = tmpV.set(0, 0, 1).transformDirection(this.root.matrixWorld);
+      const side = tmpV2.set(1, 0, 0).transformDirection(this.root.matrixWorld);
+      const sway = Math.sin(this.wagPhase * 0.08);
+      this.turnWorld(this.neck[2], fwd, this.nuzzle * (0.28 + 0.08 * sway));
+      this.turnWorld(this.neck[1], side, -this.nuzzle * 0.18);
+    }
   }
 
   /** Turns a bone by `angle` about a world axis (around its own joint). */

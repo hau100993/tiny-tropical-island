@@ -35,6 +35,11 @@ export class Keymap {
     });
   }
 
+  /** Runs a shortcut's action as its key would (a click on the same action elsewhere). */
+  run(code: string): void {
+    this.shortcuts.get(code)?.action();
+  }
+
   register(shortcut: Shortcut): void {
     this.shortcuts.set(shortcut.code, shortcut);
   }

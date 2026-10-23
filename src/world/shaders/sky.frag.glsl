@@ -7,9 +7,7 @@ uniform float uStarRotation;
 uniform float uSkyTurn;
 /** Cirrus: 0 = puffy clouds, 1 = thin streaks across the desk window's view. */
 uniform float uCirrus;
-/** Sun disc brightness and size multipliers (1 = normal). */
-uniform float uSunBright;
-uniform float uSunSize;
+uniform float uWaveStrength;
 // Size must match METEOR_SLOTS in core/uniforms.ts.
 #define METEOR_SLOTS 8
 uniform vec4 uMeteorA[METEOR_SLOTS];
@@ -210,7 +208,7 @@ void main() {
   float se = uSunDir.y;
   float sunA = 0.0;
   float cloudHere = 0.0;
-  float sunR = 0.0265 * uSunSize; // radians
+  float sunR = sunRadius();
   vec3 sR = normalize(cross(uSunDir, vec3(0.0, 1.0, 0.0)) + vec3(1e-5, 0.0, 0.0));
   vec3 sU = cross(sR, uSunDir);
   vec2 spp = vec2(dot(dir, sR), dot(dir, sU)) / sunR;
@@ -218,23 +216,16 @@ void main() {
   float sr = length(spp);
   // The disc and its glare are drawn after tone mapping, in display colours (see the end of
   // main): through ACES a bright disc bleaches to cream and a dim one turns olive. One colour
-  // across the disc, set by the sun's height (deep orange-red on the sea, golden a little
-  // higher, near white high up; mornings a touch more yellow), only slightly darker and redder
-  // toward the rim (limb darkening), with a soft edge that melts into the glare around it.
+  // across the disc, set by the sun's height (sunDiscBase in skyCommon.glsl), only slightly
+  // darker and redder toward the rim (limb darkening), with a soft edge that melts into the
+  // glare around it.
   vec3 sunDisplay = vec3(0.0);
   vec3 sunGlareCol = vec3(0.0);
   float sunGlare = 0.0;
   if (dot(dir, uSunDir) > 0.95) {
-    vec3 base = mix(vec3(1.0, 0.5, 0.13), vec3(1.0, 0.7, 0.26), smoothstep(0.0, 0.08, se));
-    base = mix(base, vec3(1.0, 0.8, 0.45), smoothstep(0.08, 0.2, se));
-    base = mix(base, vec3(1.0, 0.97, 0.9), smoothstep(0.2, 0.4, se));
-    base = mix(base, base * vec3(1.0, 1.12, 1.3), 0.35 * uDawn * (1.0 - smoothstep(0.2, 0.4, se)));
-    base = min(base, vec3(1.0));
-    // Brightness: dimmer is darker; brighter pushes the disc toward white (display colours
-    // can't exceed 1, so the excess bleeds into the other channels, like real overexposure).
-    vec3 lifted = base * uSunBright;
-    float over = max(max(lifted.r, max(lifted.g, lifted.b)) - 1.0, 0.0);
-    vec3 exposed = min(lifted + over * 0.6, vec3(1.0));
+    vec3 base = sunDiscBase(se);
+    float over;
+    vec3 exposed = sunDiscExposed(base, over);
     // Limb darkening fades out as the disc burns out, or its rim would stay an orange ring.
     float mu = sqrt(max(1.0 - sr * sr, 0.0));
     vec3 limb = vec3(1.0, mix(0.86, 1.0, mu), mix(0.75, 1.0, mu)) * mix(0.86, 1.0, mu);
@@ -335,8 +326,24 @@ void main() {
   }
 
 
+  // Below the horizon: the open sea beyond the water mesh, out to the true horizon (seen from
+  // high up it is a wide band). Shaded like the far end of the water (farSea.glsl), so the two
+  // meet without a seam. Antialiased over one pixel at the horizon line.
+  float seaA = clamp(-dir.y / max(fwidth(dir.y), 1e-5) + 0.5, 0.0, 1.0);
+  float sigma = seaRoughness(uWaveStrength);
+  if (seaA > 0.0) {
+    vec3 R = vec3(dir.x, -dir.y, dir.z);
+    vec3 auroraRefl = uAurora > 0.0 ? aurora(R, uTime) * uAurora : vec3(0.0);
+    col = mix(col, farSea(dir, sigma, uTime, auroraRefl), seaA);
+  }
+
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
+  // The low sun's road on that sea, in the disc's own colour (as on the water).
+  if (seaA > 0.0) {
+    vec3 road = sunRoadDisplay(dir, sigma, uTime) * seaA * (1.0 - 0.4 * FAR_SEA_HAZE);
+    gl_FragColor.rgb = 1.0 - (1.0 - gl_FragColor.rgb) * (1.0 - road);
+  }
   // Disc over the sky; glare added like light (screen blend), so the disc melts into it.
   gl_FragColor.rgb = 1.0 - (1.0 - gl_FragColor.rgb) * (1.0 - sunGlareCol * sunGlare);
   gl_FragColor.rgb = mix(gl_FragColor.rgb, sunDisplay, sunVis);

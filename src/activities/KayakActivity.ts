@@ -5,6 +5,8 @@ import type { SeatedPose } from '../world/avatar';
 import type { IslandColliders } from '../controls/islandColliders';
 import type { WalkView } from '../controls/walker';
 import { clamp, damp } from '../core/math';
+import { DragLook } from '../controls/dragLook';
+import { isTyping } from '../controls/keymap';
 import { WakeKind, type WakeSink } from '../water/WakeMap';
 import type { SpraySink } from '../water/Spray';
 
@@ -23,9 +25,6 @@ const KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp',
 const RECENTER_AFTER = 1.2;
 
 export interface KayakEvents {
-  /** The pointer lock was released (Esc) after having been active. */
-  onUnlock(): void;
-  onLockState(locked: boolean, failed: boolean): void;
   /** A blade entered or left the water. */
   onBlade(e: BladeEvent): void;
   /** Space: jump over the side into the sea. */
@@ -71,7 +70,8 @@ export class KayakActivity {
   private readonly keys = new Set<string>();
   private readonly latch = { left: 0, right: 0 };
   private readonly ctl: PaddleControls = { left: false, right: false, steer: 0, cruise: false, back: false, sweep: false };
-  private wasLocked = false;
+  /** Mouse look: drag on the scene (see DragLook). */
+  readonly look: DragLook;
   private wakeTimer = 0;
   private readonly bladeTimer = [0, 0];
   /** Seconds since each blade left the water (it drips for a while). */
@@ -92,7 +92,7 @@ export class KayakActivity {
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
-    private readonly dom: HTMLElement,
+    dom: HTMLElement,
     private readonly model: KayakModel,
     private readonly env: KayakEnv,
     private readonly colliders: IslandColliders,
@@ -107,7 +107,7 @@ export class KayakActivity {
         this.events.onJump();
         return;
       }
-      if (!this.active || !KEYS.has(e.code) || e.ctrlKey || e.altKey || e.metaKey) return;
+      if (!this.active || !KEYS.has(e.code) || e.ctrlKey || e.altKey || e.metaKey || isTyping(e.target)) return;
       if (!e.repeat) {
         if (e.code === 'KeyQ') this.latch.left = LATCH;
         if (e.code === 'KeyE') this.latch.right = LATCH;
@@ -117,32 +117,17 @@ export class KayakActivity {
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
-    document.addEventListener('mousemove', (e) => {
-      if (!this.active || !this.locked) return;
-      if (Math.abs(e.movementX) > 300 || Math.abs(e.movementY) > 300) return;
-      this.lookYaw -= e.movementX * LOOK_SPEED;
-      if (e.movementX !== 0) this.mouseIdle = 0;
-      this.lookYaw = Math.atan2(Math.sin(this.lookYaw), Math.cos(this.lookYaw));
-      const [lo, hi] = PITCH[this.view];
-      this.pitch = clamp(this.pitch - e.movementY * LOOK_SPEED, lo, hi);
-    });
-    document.addEventListener('pointerlockchange', () => {
-      if (!this.active) return;
-      const locked = this.locked;
-      if (locked) this.wasLocked = true;
-      this.events.onLockState(locked, false);
-      if (!locked && this.wasLocked) this.events.onUnlock();
-    });
-    document.addEventListener('pointerlockerror', () => {
-      if (this.active) this.events.onLockState(false, true);
-    });
-    dom.addEventListener('click', () => {
-      if (this.active && !this.locked) this.requestLock();
-    });
-  }
-
-  get locked(): boolean {
-    return document.pointerLockElement === this.dom;
+    this.look = new DragLook(
+      dom,
+      (dx, dy) => {
+        this.lookYaw -= dx * LOOK_SPEED;
+        if (dx !== 0) this.mouseIdle = 0;
+        this.lookYaw = Math.atan2(Math.sin(this.lookYaw), Math.cos(this.lookYaw));
+        const [lo, hi] = PITCH[this.view];
+        this.pitch = clamp(this.pitch - dy * LOOK_SPEED, lo, hi);
+      },
+      LOOK_SPEED,
+    );
   }
 
   /** Where the kayak waits at first: pulled up on the sand. */
@@ -223,7 +208,6 @@ export class KayakActivity {
 
   enter(): void {
     this.active = true;
-    this.wasLocked = false;
     this.keys.clear();
     this.latch.left = this.latch.right = 0;
     this.lookYaw = 0;
@@ -233,14 +217,14 @@ export class KayakActivity {
     this.arm = ARM;
     this.camera.rotation.order = 'YXZ';
     this.applyCamera(0);
-    this.requestLock();
+    this.look.start();
   }
 
   exit(): void {
     this.active = false;
     this.keys.clear();
     this.camera.rotation.order = 'XYZ';
-    if (this.locked) document.exitPointerLock();
+    this.look.stop();
   }
 
   setView(view: WalkView): void {
@@ -249,18 +233,15 @@ export class KayakActivity {
     this.pitch = clamp(this.pitch, lo, hi);
   }
 
-  private requestLock(): void {
-    this.dom
-      .requestPointerLock({ unadjustedMovement: true })
-      .catch(() => this.dom.requestPointerLock())
-      .catch(() => this.events.onLockState(false, true));
-  }
-
   /** Every frame, paddled or not (an empty kayak still floats on the waves). */
   update(dt: number): void {
     dt = Math.min(dt, 0.05);
     if (this.active) {
       const k = this.keys;
+      // Paddling (a key held, or a Q/E stroke running): the mouse steers (DragLook).
+      let paddling = this.latch.left > 0 || this.latch.right > 0;
+      for (const key of k) if (!key.startsWith('Shift')) paddling = true;
+      this.look.update(dt, paddling);
       this.latch.left = Math.max(0, this.latch.left - dt);
       this.latch.right = Math.max(0, this.latch.right - dt);
       const c = this.ctl;
