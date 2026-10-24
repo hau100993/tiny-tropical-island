@@ -2,20 +2,26 @@ import * as THREE from 'three';
 import type { SharedUniforms } from '../../core/uniforms';
 import { FIRE_BLENDING, FIRE_BLEND_GLSL } from './fireBlend';
 
+/** Pool sizes: a rainbow arc is drawn with many motes at once. */
 const MAX = 400;
+const MAX_RAINBOW = 3000;
 
 /** Anything that throws embers (or puffs of steam). */
 export interface EmberSink {
-  /** One particle at (x, y, z), thrown at (vx, vy, vz) m/s, radius in metres. */
-  emit(x: number, y: number, z: number, vx: number, vy: number, vz: number, radius: number): void;
+  /**
+   * One particle at (x, y, z), thrown at (vx, vy, vz) m/s, radius in metres. `seed` (0..1,
+   * random if left out): a rainbow mote's hue (0 red … 0.8 violet).
+   */
+  emit(x: number, y: number, z: number, vx: number, vy: number, vz: number, radius: number, seed?: number): void;
 }
 
 /**
  * Glowing sparks that rise and wink out; soft white steam that swells and thins away; or pollen
  * (Mầm's spores): little yellow-green motes that drift up slowly and twinkle; or sea sparkle
- * (Bé Mập's fin at night): cyan glints that stay on the water and fade.
+ * (Bé Mập's fin at night): cyan glints that stay on the water and fade; or rainbow motes (Bé
+ * Mập's celebration): glittering drops in every colour that hang in the air and sink slowly.
  */
-export type EmberKind = 'ember' | 'steam' | 'spore' | 'sea';
+export type EmberKind = 'ember' | 'steam' | 'spore' | 'sea' | 'rainbow';
 
 const VERT = /* glsl */ `
 attribute float aSize;
@@ -65,6 +71,16 @@ void main() {
   vec3 col = mix(vec3(0.2, 0.9, 1.0), vec3(0.45, 1.0, 0.85), vSeed);
   float a = glow * tw * smoothstep(0.0, 0.08, vLife) * (1.0 - vLife) * 0.9;
   gl_FragColor = vec4(col * (1.0 + exp(-r2 * 10.0)) * a, 0.0);
+#elif defined(RAINBOW)
+  // A rainbow mote: its hue from the seed (the band of the arc it belongs to), a soft glow with
+  // a white glint, twinkling; fades in fast and out slowly.
+  vec3 hue = clamp(abs(mod(vSeed * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+  float glow = exp(-r2 * 3.0);
+  float glint = exp(-r2 * 14.0);
+  float tw = 0.75 + 0.25 * sin(uTime * 11.0 + vSeed * 90.0 + vLife * 20.0);
+  vec3 col = mix(hue, vec3(1.0), glint * 0.7);
+  float a = glow * tw * smoothstep(0.0, 0.06, vLife) * (1.0 - vLife * vLife);
+  gl_FragColor = fireBlend(col * 1.3, a, uDayLight);
 #else
   // A spark: white-hot centre, orange glow, cooling to red as it dies; it flickers.
   float core = exp(-r2 * 9.0);
@@ -89,10 +105,11 @@ export class Embers implements EmberSink {
   private readonly size: THREE.BufferAttribute;
   private readonly lifeAttr: THREE.BufferAttribute;
   private readonly seed: THREE.BufferAttribute;
-  private readonly vel = new Float32Array(MAX * 3);
-  private readonly age = new Float32Array(MAX).fill(Infinity);
-  private readonly life = new Float32Array(MAX);
-  private readonly radius = new Float32Array(MAX);
+  private readonly max: number;
+  private readonly vel: Float32Array;
+  private readonly age: Float32Array;
+  private readonly life: Float32Array;
+  private readonly radius: Float32Array;
   private next = 0;
   private live = false;
   private readonly scale = { value: 600 };
@@ -101,11 +118,16 @@ export class Embers implements EmberSink {
     shared: SharedUniforms,
     private readonly kind: EmberKind,
   ) {
+    const max = (this.max = kind === 'rainbow' ? MAX_RAINBOW : MAX);
+    this.vel = new Float32Array(max * 3);
+    this.age = new Float32Array(max).fill(Infinity);
+    this.life = new Float32Array(max);
+    this.radius = new Float32Array(max);
     const geo = new THREE.BufferGeometry();
-    this.pos = new THREE.BufferAttribute(new Float32Array(MAX * 3), 3).setUsage(THREE.DynamicDrawUsage);
-    this.size = new THREE.BufferAttribute(new Float32Array(MAX), 1).setUsage(THREE.DynamicDrawUsage);
-    this.lifeAttr = new THREE.BufferAttribute(new Float32Array(MAX), 1).setUsage(THREE.DynamicDrawUsage);
-    this.seed = new THREE.BufferAttribute(new Float32Array(MAX), 1).setUsage(THREE.DynamicDrawUsage);
+    this.pos = new THREE.BufferAttribute(new Float32Array(max * 3), 3).setUsage(THREE.DynamicDrawUsage);
+    this.size = new THREE.BufferAttribute(new Float32Array(max), 1).setUsage(THREE.DynamicDrawUsage);
+    this.lifeAttr = new THREE.BufferAttribute(new Float32Array(max), 1).setUsage(THREE.DynamicDrawUsage);
+    this.seed = new THREE.BufferAttribute(new Float32Array(max), 1).setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute('position', this.pos);
     geo.setAttribute('aSize', this.size);
     geo.setAttribute('aLife', this.lifeAttr);
@@ -115,7 +137,7 @@ export class Embers implements EmberSink {
       uniforms: { uScale: this.scale, uTime: shared.uTime, uDayLight: shared.uDayLight },
       vertexShader: VERT,
       fragmentShader: FRAG,
-      defines: kind === 'steam' ? { STEAM: '' } : kind === 'spore' ? { SPORE: '' } : kind === 'sea' ? { SEA: '' } : {},
+      defines: kind === 'steam' ? { STEAM: '' } : kind === 'spore' ? { SPORE: '' } : kind === 'sea' ? { SEA: '' } : kind === 'rainbow' ? { RAINBOW: '' } : {},
       transparent: true,
       depthWrite: false,
       ...(kind === 'steam' ? { blending: THREE.NormalBlending } : FIRE_BLENDING),
@@ -131,9 +153,9 @@ export class Embers implements EmberSink {
     this.scale.value = heightPx / (2 * Math.tan((fovDeg * Math.PI) / 360));
   }
 
-  emit(x: number, y: number, z: number, vx: number, vy: number, vz: number, radius: number): void {
+  emit(x: number, y: number, z: number, vx: number, vy: number, vz: number, radius: number, seed?: number): void {
     const i = this.next;
-    this.next = (this.next + 1) % MAX;
+    this.next = (this.next + 1) % this.max;
     const p = this.pos.array as Float32Array;
     p[i * 3] = x;
     p[i * 3 + 1] = y;
@@ -142,9 +164,10 @@ export class Embers implements EmberSink {
     this.vel[i * 3 + 1] = vy;
     this.vel[i * 3 + 2] = vz;
     this.age[i] = 0;
-    this.life[i] = this.kind === 'ember' ? 0.5 + Math.random() * 1.1 : this.kind === 'spore' || this.kind === 'sea' ? 2 + Math.random() * 2 : 1.4 + Math.random() * 1.6;
+    const k = this.kind;
+    this.life[i] = k === 'ember' ? 0.5 + Math.random() * 1.1 : k === 'spore' || k === 'sea' ? 2 + Math.random() * 2 : k === 'rainbow' ? 1.8 + Math.random() * 0.9 : 1.4 + Math.random() * 1.6;
     this.radius[i] = radius;
-    (this.seed.array as Float32Array)[i] = Math.random();
+    (this.seed.array as Float32Array)[i] = seed ?? Math.random();
     this.seed.needsUpdate = true;
     this.live = true;
   }
@@ -157,12 +180,13 @@ export class Embers implements EmberSink {
     const ember = this.kind === 'ember';
     const spore = this.kind === 'spore';
     const sea = this.kind === 'sea';
+    const rainbow = this.kind === 'rainbow';
     // Embers: quick drag and a strong lift (hot air); steam: slower on both; pollen: barely lifts.
-    // Sea sparkle stays on the water: strong drag, no lift.
-    const drag = Math.exp(-(ember ? 2.2 : spore ? 1.8 : sea ? 3 : 1.2) * dt);
-    const lift = (ember ? 2.4 : spore ? 0.18 : sea ? 0 : 0.9) * dt;
+    // Sea sparkle stays on the water: strong drag, no lift. Rainbow motes sink slowly.
+    const drag = Math.exp(-(ember ? 2.2 : spore ? 1.8 : sea ? 3 : rainbow ? 1.6 : 1.2) * dt);
+    const lift = (ember ? 2.4 : spore ? 0.18 : sea ? 0 : rainbow ? -1.1 : 0.9) * dt;
     let last = -1;
-    for (let i = 0; i < MAX; i++) {
+    for (let i = 0; i < this.max; i++) {
       if (this.age[i] === Infinity) continue;
       const a = (this.age[i] += dt);
       const k = a / this.life[i];
@@ -179,7 +203,7 @@ export class Embers implements EmberSink {
       p[i * 3 + 1] += v[i * 3 + 1] * dt;
       p[i * 3 + 2] += v[i * 3 + 2] * dt;
       // Sparks shrink as they cool; steam swells as it spreads.
-      s[i] = this.radius[i] * (ember ? 1 - 0.6 * k : spore || sea ? 1 : 1 + 2.2 * k);
+      s[i] = this.radius[i] * (ember ? 1 - 0.6 * k : spore || sea || rainbow ? 1 : 1 + 2.2 * k);
       l[i] = k;
       last = i;
     }

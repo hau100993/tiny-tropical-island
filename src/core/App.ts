@@ -42,7 +42,7 @@ import shibaUrl from '../assets/animals/shiba.glb?url';
 import type { DogModel } from '../world/dog';
 import { DogCompanion, type DogPlayer, type DogSpot } from '../activities/dogCompanion';
 import { Creatures } from '../activities/creatures';
-import { SeaShark } from '../activities/seaShark';
+import { CHEER_AFTER, SeaShark } from '../activities/seaShark';
 import { Embers } from '../world/creatures/embers';
 import seaSharkUrl from '../assets/creatures/sea-shark.glb?url';
 import type { ListenerState } from '../audio/spatial';
@@ -160,6 +160,8 @@ export class App {
   private readonly beMap: SeaShark;
   /** Sea sparkle (Bé Mập's glowing trail at night). */
   private readonly seaGlow: Embers;
+  /** Bé Mập's rainbow (its celebration of a long ride). */
+  private readonly rainbow: Embers;
   /** Petting Mochi with the mouse (activities/petting.ts, controls/petPointer.ts). */
   private readonly petting = new Petting();
   private readonly petPointer: PetPointer;
@@ -332,6 +334,8 @@ export class App {
     this.creatures = this.createCreatures();
     this.seaGlow = new Embers(sharedUniforms, 'sea');
     this.scene.add(this.seaGlow.points);
+    this.rainbow = new Embers(sharedUniforms, 'rainbow');
+    this.scene.add(this.rainbow.points);
     this.beMap = this.createShark();
     this.listenShoo();
 
@@ -900,6 +904,8 @@ export class App {
         splash: (n) => this.kayak.splashBurst(n),
       },
       surfKnock: () => this.surf.knockOff(),
+      rideTime: () => this.surf.body.rideTime,
+      rainbow: this.rainbow,
       swimPush: (vx, vz, vy) => {
         this.walker.vel.x += vx;
         this.walker.vel.y += vz;
@@ -910,7 +916,7 @@ export class App {
       },
       glow: this.seaGlow,
       night: () => 1 - sharedUniforms.uDayLight.value,
-      notify: (kind) => this.activityMenu.flash(kind === 'friend' ? vi.creatures.sharkFriend : vi.creatures.sharkShoo),
+      notify: (kind) => this.activityMenu.flash(kind === 'friend' ? vi.creatures.sharkFriend : kind === 'cheer' ? vi.creatures.sharkCheer(CHEER_AFTER) : vi.creatures.sharkShoo),
       sound: {
         splash: (g, p) => this.mixer.playSurfCrash(g, p),
         giggle: (g, p) => this.mixer.playCrab('dance', g, p),
@@ -1820,6 +1826,7 @@ export class App {
     this.bubbles.setViewport(this.drawingBuffer.y, this.camera.fov);
     this.creatures.setViewport(this.drawingBuffer.y, this.camera.fov);
     this.seaGlow.setViewport(this.drawingBuffer.y, this.camera.fov);
+    this.rainbow.setViewport(this.drawingBuffer.y, this.camera.fov);
   };
 
   private tick = (dt: number, elapsed: number): void => {
@@ -1873,6 +1880,7 @@ export class App {
     this.creatures.update(dt);
     this.beMap.update(dt);
     this.seaGlow.update(dt);
+    this.rainbow.update(dt);
     this.updateWetness(dt);
     this.world.footprints.setClock(elapsed);
     const onFoot = this.cameras.mode === 'walk' && !this.walker.swimming;

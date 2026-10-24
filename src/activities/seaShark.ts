@@ -30,6 +30,10 @@ export interface SharkHost {
     splash(n: number): void;
   };
   surfKnock(): void;
+  /** Seconds the surfer has been riding this wave (0: not riding). */
+  rideTime(): number;
+  /** Rainbow motes in the air (the celebration leap). */
+  rainbow: EmberSink;
   /** Swimming or diving: shoved (m/s; vy up, diving only). */
   swimPush(vx: number, vz: number, vy: number): void;
   soak(): void;
@@ -37,8 +41,8 @@ export interface SharkHost {
   glow: EmberSink;
   /** 0 full day … 1 deep night. */
   night(): number;
-  /** A short note for you: it became your friend, or you shooed it off. */
-  notify(kind: 'friend' | 'shoo'): void;
+  /** A short note for you: it became your friend, you shooed it off, or it cheers your ride. */
+  notify(kind: 'friend' | 'shoo' | 'cheer'): void;
   sound: {
     splash(gain: number, pan: number): void;
     giggle(gain: number, pan: number): void;
@@ -76,11 +80,32 @@ const FRIEND_PRANKS = 0.25;
 /** A friend's visit: how long it swims with you (s), how often it leaps for show (s). */
 const ESCORT = [35, 60] as const;
 const SHOW_JUMP = [8, 14] as const;
+/** Riding one wave this long (s): Bé Mập leaps for you, once a ride (its celebration). */
+export const CHEER_AFTER = 8;
+/** The celebration leap: time in the air (s, a high arc ~4.4 m), barrel rolls on the way. */
+const CHEER_T = 1.9;
+const CHEER_ROLLS = 2;
+/**
+ * Leap lines to try, [ahead, across] of take-off and landing (m, across toward one side; the
+ * landing also gets your travel meanwhile). All well ahead and inside the view of the camera
+ * behind you: across your line, nearer, then (shallow on one side, near the beach) along it on
+ * the deeper side.
+ */
+const CHEER_LINES: readonly (readonly [number, number, number, number])[] = [
+  [11, 4, 9, -4],
+  [8, 3, 6, -3],
+  [10, 3.5, 8, 2.5],
+  [6, 2.5, 5, 2],
+];
+/** Its rainbow: bands across the arc, their spacing (m), motes per band per second. */
+const RAINBOW_BANDS = 7;
+const RAINBOW_GAP = 0.13;
+const RAINBOW_RATE = 120;
 /** Where its friendship is kept (survives reloads). */
 const STORAGE_KEY = 'tsw.beMap';
 
 type Skill = 'breach' | 'bump' | 'whirl';
-type State = 'away' | 'approach' | 'circle' | 'set' | 'breach' | 'rise' | 'whirl' | 'escort' | 'leave';
+type State = 'away' | 'approach' | 'circle' | 'set' | 'breach' | 'rise' | 'whirl' | 'escort' | 'cheerSet' | 'cheer' | 'leave';
 
 function loadPranks(): number {
   try {
@@ -106,7 +131,9 @@ function savePranks(n: number): void {
  * strong): "Cú Nhảy Ùm", a leap over you and a big splash; "Húc Đùa", a bump from below; "Xoáy
  * Nước", a tight whirl round you that spins you. What they do depends on what you are doing:
  * the kayak rocks, spins or capsizes (rolling up again), the surfer is knocked off, a swimmer or
- * diver is shoved; you always get wet. Then it swims off and dives.
+ * diver is shoved; you always get wet. Then it swims off and dives. Ride one wave for
+ * CHEER_AFTER s and it comes to celebrate: "Cầu Vồng Mập", a high leap across your line with
+ * barrel rolls, drawing a rainbow in the air, a burst of coloured sparkles at the top.
  */
 export class SeaShark {
   private enabled = true;
@@ -144,8 +171,13 @@ export class SeaShark {
   private pSpeed = 0;
   private lastX = NaN;
   private lastZ = NaN;
+  /** This ride has been celebrated already. */
+  private cheered = false;
+  private rainbowIn = 0;
   private readonly p: SeaPlayer = { mode: null, x: 0, z: 0, y: 0 };
   private readonly fin = new THREE.Vector3();
+  /** The celebration's take-off (x, y: its x, z) and landing (z, w: its x, z) points. */
+  private readonly cheerAt = new THREE.Vector4();
 
   constructor(private readonly host: SharkHost) {}
 
@@ -186,6 +218,13 @@ export class SeaShark {
     this.lastZ = p.z;
     // You left the sea mid-visit: it leaves too.
     if (!atSea && this.state !== 'away' && this.state !== 'leave') this.go('leave', 4);
+    // A long ride: it drops whatever it was doing to celebrate it.
+    const ride = atSea && p.mode === 'surf' ? h.rideTime() : 0;
+    if (ride === 0) this.cheered = false;
+    else if (ride >= CHEER_AFTER && !this.cheered) {
+      this.cheered = true;
+      this.startCheer();
+    }
 
     if (this.state === 'away') {
       m.root.visible = false;
@@ -238,6 +277,22 @@ export class SeaShark {
         break;
       case 'whirl':
         action = this.whirl(dt, diving);
+        break;
+      case 'cheerSet': {
+        // Up from below to its take-off point, ahead of you and to one side.
+        const f = this.cheerAt;
+        this.swimTo(dt, f.x, h.seaHeight(f.x, f.y) - 1.2, f.y, 7);
+        action = 'fast';
+        if (this.timer <= 0) {
+          this.hit = false;
+          this.launchTo(f.z, f.w, CHEER_T);
+          this.state = 'cheer';
+          this.voice();
+        }
+        break;
+      }
+      case 'cheer':
+        action = this.flyCheer(dt);
         break;
       case 'leave': {
         // Off out to sea and down.
@@ -329,9 +384,120 @@ export class SeaShark {
     this.launchTo(p.x - Math.cos(this.angle) * 2.6, p.z - Math.sin(this.angle) * 2.6);
   }
 
+  /**
+   * The celebration: take-off ahead of you on one side, landing on the other side further on
+   * (where you will be by then), so the arc and its rainbow cross your view; near the beach
+   * (shallow ahead), alongside you on the deeper side instead. False when nowhere is deep enough.
+   */
+  private startCheer(): boolean {
+    const p = this.p;
+    const fx = Math.sin(this.heading);
+    const fz = Math.cos(this.heading);
+    // Right of your heading: (cos h, −sin h).
+    const rx = Math.cos(this.heading);
+    const rz = -Math.sin(this.heading);
+    const side: 1 | -1 = Math.random() < 0.5 ? 1 : -1;
+    const travel = Math.min(12, this.pSpeed * CHEER_T);
+    // [ahead, across] of the take-off and the landing (m; across × side).
+    for (const [a0, c0, a1, c1] of CHEER_LINES) {
+      for (const sd of [side, -side as 1 | -1]) {
+        const ax = p.x + fx * a0 + rx * c0 * sd;
+        const az = p.z + fz * a0 + rz * c0 * sd;
+        const bx = p.x + fx * (a1 + travel) + rx * c1 * sd;
+        const bz = p.z + fz * (a1 + travel) + rz * c1 * sd;
+        if (this.host.ground(ax, az) > -1 || this.host.ground(bx, bz) > -1) continue;
+        this.beginCheer(ax, az, bx, bz, fx, fz, sd);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** To its take-off point (from below, if it wasn't here), leaping on `side`'s line. */
+  private beginCheer(ax: number, az: number, bx: number, bz: number, fx: number, fz: number, side: 1 | -1): void {
+    this.cheerAt.set(ax, az, bx, bz);
+    if (this.state === 'away' || this.state === 'leave') {
+      // Not here yet: it comes up from below, a little behind the take-off point.
+      this.x = ax - fx * 4;
+      this.z = az - fz * 4;
+      this.y = this.host.seaHeight(this.x, this.z) - 2.2;
+      this.yaw = this.heading;
+    }
+    this.side = side;
+    this.roll = 0;
+    this.go('cheerSet', 0.8);
+  }
+
+  /** In the air for the celebration: barrel rolls, a rainbow behind, sparkles at the top. */
+  private flyCheer(dt: number): SharkAction {
+    const h = this.host;
+    const up = this.vy > 0;
+    this.vy -= GRAVITY * dt;
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    this.z += this.vz * dt;
+    const hs = Math.hypot(this.vx, this.vz);
+    this.yaw = Math.atan2(this.vx, this.vz);
+    this.pitch = Math.atan2(this.vy, hs);
+    this.roll += ((Math.PI * 2 * CHEER_ROLLS) / CHEER_T) * dt * this.side;
+    this.speed = Math.hypot(hs, this.vy);
+    const sea = h.seaHeight(this.x, this.z);
+    if (this.y > sea + 0.2) this.drawRainbow(dt, hs);
+    if (up && this.vy <= 0) {
+      // The top: a burst of coloured sparkles, a giggle, the note.
+      for (let k = 0; k < 220; k++) {
+        const a = Math.random() * Math.PI * 2;
+        const c = Math.random() * 2 - 1;
+        const sn = Math.sqrt(1 - c * c);
+        const v = 3.5 + Math.random() * 4;
+        h.rainbow.emit(this.x, this.y, this.z, Math.cos(a) * sn * v, c * v + 1, Math.sin(a) * sn * v, 0.06 + Math.random() * 0.07);
+      }
+      this.voice();
+      h.notify('cheer');
+    }
+    if (this.vy < 0 && this.y < sea - 0.1 && !this.hit) {
+      // Splash down: white water, and a ring of colour spreading on the water.
+      this.hit = true;
+      this.roll = 0;
+      this.splash(this.x, this.z, 90, 1.6);
+      for (let k = 0; k < 48; k++) {
+        const a = (k / 48) * Math.PI * 2;
+        h.rainbow.emit(this.x, sea + 0.15, this.z, Math.cos(a) * 3, 0.8 + Math.random(), Math.sin(a) * 3, 0.08, ((k % RAINBOW_BANDS) / RAINBOW_BANDS) * 0.8);
+      }
+      this.go('leave', 4);
+    }
+    return up ? 'bite' : 'swim';
+  }
+
+  /**
+   * The rainbow it draws: bands of motes stacked across its path (in the arc's own plane), red on
+   * the outside, violet inside; they hang in the air a couple of seconds.
+   */
+  private drawRainbow(dt: number, hs: number): void {
+    this.rainbowIn -= dt * RAINBOW_RATE;
+    const v = Math.max(1e-3, this.speed);
+    const hx = this.vx / (hs || 1);
+    const hz = this.vz / (hs || 1);
+    // Perpendicular to the velocity, in the vertical plane of the leap, away from the arc's centre.
+    const nx = (-this.vy * hx) / v;
+    const ny = hs / v;
+    const nz = (-this.vy * hz) / v;
+    // A row of motes every 1/RATE s, spread back along this frame's path.
+    for (; this.rainbowIn <= 0; this.rainbowIn += 1) {
+      const back = Math.min(dt, -this.rainbowIn / RAINBOW_RATE);
+      const px = this.x - this.vx * back;
+      const py = this.y - this.vy * back + 0.1;
+      const pz = this.z - this.vz * back;
+      for (let k = 0; k < RAINBOW_BANDS; k++) {
+        const o = (RAINBOW_BANDS / 2 - k) * RAINBOW_GAP;
+        const j = (Math.random() - 0.5) * 0.05;
+        this.host.rainbow.emit(px + nx * o + j, py + ny * o, pz + nz * o - j, (Math.random() - 0.5) * 0.2, 0.25, (Math.random() - 0.5) * 0.2, 0.11 + Math.random() * 0.04, (k / RAINBOW_BANDS) * 0.8);
+      }
+    }
+  }
+
   /** A leap from where it is to land at (lx, lz) in T s: a ballistic arc. */
-  private launchTo(lx: number, lz: number): void {
-    const T = 1.3;
+  private launchTo(lx: number, lz: number, T = 1.3): void {
     this.vx = (lx - this.x) / T;
     this.vz = (lz - this.z) / T;
     this.vy = (GRAVITY * T) / 2 + (this.host.seaHeight(lx, lz) - this.y) / T;
@@ -453,7 +619,8 @@ export class SeaShark {
    */
   shoo(ray: THREE.Ray): boolean {
     const m = this.model;
-    if (!m || this.state === 'away' || this.state === 'leave' || this.state === 'breach' || this.state === 'rise') return false;
+    const st = this.state;
+    if (!m || st === 'away' || st === 'leave' || st === 'breach' || st === 'rise' || st === 'cheerSet' || st === 'cheer') return false;
     if (m.hitTest(ray) === null) return false;
     this.splash(this.x, this.z, 10, 0.5);
     this.voice();

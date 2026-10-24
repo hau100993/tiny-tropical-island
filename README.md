@@ -429,7 +429,11 @@ you always end up soaked. Then it swims off and dives. **Shoo it:** click it whi
 or lines up a prank and it swims off in a huff (no prank). **Friends:** after three pranks it
 is your friend (kept between visits): most of its visits it then just swims along beside you,
 keeping pace, and now and then leaps out ahead for show; one visit in four it still plays a
-prank. **At night** the water it stirs glows: a cyan trail of sea sparkle behind its fin and
+prank. **It cheers your rides:** stand on one wave for 8 s and it comes up ahead of you and
+does **Cầu Vồng Mập**, a high leap across your line (~4.4 m) with two barrel rolls, drawing a
+rainbow in the air behind it (seven bands of glittering motes that hang for a couple of
+seconds), a burst of coloured sparkles at the top, a note (**Lướt 8 giây liền!…**) and a big
+splash; once a ride, never a prank. **At night** the water it stirs glows: a cyan trail of sea sparkle behind its fin and
 round its splashes. Its splashes and giggle follow **Âm thanh hoạt động**.
 
 **Characters (Góc nhìn → Nhân vật).** Besides the built-in body you can walk around as a man or a
@@ -507,7 +511,8 @@ follows it in; near the beach every wave closes out and washes up the sand. You 
 the overview too.
 
 `L` anywhere on a beach fades and puts you lying on the board at the lineup (where you wait
-for waves, out past the white water), nose to the beach.
+for waves, just outside the break line, ~48 m out), nose to the beach. A wave caught there
+rides all the way in: ~15 s.
 
 **Difficulty follows the "Sóng biển" slider** (the wind's extra chop doesn't count):
 
@@ -522,22 +527,22 @@ for waves, out past the white water), nose to the beach.
 | `W` (hold) | Paddle (`Shift` + `W`: paddle hard) |
 | `A` / `D` | Turn the board |
 | `S` | Drag a hand (brake) |
-| `Space` | Catch the wave (when **Sóng tới!** shows): the board turns, paddles and stands up by itself |
+| `Space` | Catch the wave (when **Sóng tới!** shows): the board keeps the line its nose points (A/D still adjust it), paddles and stands up by itself |
 | `L` | Slip off the board |
 
 | Standing (riding) | |
 |---|---|
-| `A` / `D` | Carve along the wave |
+| `A` / `D` | Carve along the wave (held, the board turns up to ~83° off straight in and rides along the wave there: it never turns over the wave's back) |
 | `Shift` + `A`/`D` | Hard carve: turns much tighter, but held at speed you lean too far and fall |
 | `W` | Pump (a little speed down the face) |
 | `S` | Stall (lets the wave catch up) |
 
 How to catch a wave: wait at the lineup. While you lie still the view turns out to sea, so you
 see the waves coming, and a bar at the top counts down to the next one (**Sóng tiếp theo: 4 s**).
-When it turns green (**Space!**, and a note says **Sóng tới!**) press `Space`, whichever way
-the board points. It turns for the beach, angled toward the side its nose already leans
-to along the beach (so you choose the direction of the ride; nose straight in or out: the
-side that breaks last), waits for the wave, which picks it up, and you stand up. Then stay on the face, ahead
+When it turns green (**Space!**, and a note says **Sóng tới!**) press `Space`. The board keeps
+the line its nose already points (up to ~57° off straight in; you can still adjust it with
+`A`/`D` while it waits; lying the wrong way round, nose out to sea, it turns in toward the side
+that breaks last), waits for the wave, which picks it up, and you stand up. Then stay on the face, ahead
 of the white water, carving with `A`/`D`: the wave holds you on its face (see the table), so
 riding straight on takes you all the way in; angle along it for speed. The ride ends when the wave passes under you or
 closes out (you lie down again), or at the beach (you step off). Falling (holding a hard carve

@@ -154,8 +154,8 @@ export class SurfActivity {
 
   /**
    * Puts the board in the water on the shoulder of the break (the side the peel reaches last),
-   * out past the close-out (≥ 22 m, ≥ 2.5 m deep): the waves lift it there instead of
-   * washing it straight onto the sand.
+   * just outside the break line (≥ 2.5 m deep): the waves lift it there, and a wave caught there
+   * rides all the way in (~15 s) instead of closing out a few seconds later.
    */
   launch(): void {
     this.findLineup();
@@ -170,8 +170,9 @@ export class SurfActivity {
     const sx = -f.uz;
     const sz = f.ux;
     const l = 25;
-    let d = 22;
-    while (d < 60 && this.env.ground(f.ox - f.ux * d + sx * l, f.oz - f.uz * d + sz * l) > -2.5) d += 0.5;
+    // The break line plus a few metres (a lineup at 22 m, inside the break, gave ~5 s rides).
+    let d = -SURF.breakAt + 6;
+    while (d < 80 && this.env.ground(f.ox - f.ux * d + sx * l, f.oz - f.uz * d + sz * l) > -2.5) d += 0.5;
     this.lineup.x = f.ox - f.ux * d + sx * l;
     this.lineup.z = f.oz - f.uz * d + sz * l;
   }

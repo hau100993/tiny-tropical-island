@@ -138,14 +138,34 @@ describe('surf break', () => {
   });
 
   it('angled along the shoulder, the ride lasts and goes fast', () => {
-    const r = catchWave(3.7);
-    // The catch already angles the board toward the unbroken shoulder (+z here, the far end of
-    // the peel): just ride on.
+    // Nose angled toward the unbroken shoulder (+z here, the far end of the peel): the catch
+    // keeps that line, then just ride on.
+    const r = catchWave(3.7, -55, TO_BEACH - 0.6);
     const body = r.body;
     const long = ride(body, 8, ctl());
     console.info('ride', long, 'state', body.state);
     expect(long.t).toBeGreaterThan(4);
     expect(long.maxSpeed).toBeGreaterThan(SURF.speed + 1);
+    // The ride clock (Bé Mập's celebration waits for it).
+    expect(body.rideTime).toBeGreaterThan(4);
+  });
+
+  it('Space keeps the line the nose points (no swing to a fixed angle)', () => {
+    for (const off of [0, 0.4, -0.4]) {
+      const r = catchWave(3.7, -55, TO_BEACH + off);
+      expect(r.caught).toBe(true);
+      const turned = Math.atan2(Math.sin(r.body.yaw - (TO_BEACH + off)), Math.cos(r.body.yaw - (TO_BEACH + off)));
+      expect(Math.abs(turned)).toBeLessThan(0.15);
+    }
+  });
+
+  it('holding A or D rides along the wave instead of falling over its back', () => {
+    for (const steer of [1, -1]) {
+      const r = catchWave(3.7);
+      const res = ride(r.body, 12, ctl({ steer }));
+      console.info('hold steer', steer, res.event, res.t.toFixed(1));
+      expect(res.t).toBeGreaterThan(10);
+    }
   });
 
   it('a normal carve holds (and keeps its speed)', () => {

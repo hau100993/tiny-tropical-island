@@ -333,6 +333,7 @@ export const vi = {
     sharkToggle: 'Bé Mập trêu bạn ở biển',
     sharkFriend: 'Bé Mập đã thành bạn của bạn! Giờ nó hay bơi cùng bạn.',
     sharkShoo: 'Bé Mập phụng phịu bơi đi…',
+    sharkCheer: (s: number) => `Lướt ${s} giây liền! Bé Mập nhảy lên ăn mừng cho bạn!`,
   },
   shortcuts: {
     debug: 'Ẩn/hiện thông số',
@@ -361,7 +362,7 @@ export const vi = {
     walkKeys: 'Khi đi bộ: W A S D đi · Shift chạy · chuột lái hướng khi đi · đứng lại: kéo chuột để xoay, rê lên Mochi để vuốt · V đổi góc nhìn · C toàn cảnh',
     swimKeys: 'Bơi: đi ra chỗ sâu ngang ngực · W A S D bơi ếch · giữ Shift bơi sải · vào chỗ nông là đứng dậy',
     diveKeys: 'Lặn: đang bơi nhấn Space · W bơi theo hướng nhìn · Space trồi lên · dưỡng khí ~45 giây, hết thì tự nổi',
-    surfKeys: 'Lướt ván: nằm chèo W, A / D quay ván · hiện "Sóng tới!" thì nhấn Space: ván tự quay vào bờ, tự chèo và đứng lên · đứng: A / D ôm cua dọc sóng (Shift gắt, nghiêng quá là ngã, ngã thì tự leo lại lên ván) · W lấy đà · S hãm · L rời ván',
+    surfKeys: 'Lướt ván: nằm chèo W, A / D quay ván · hiện "Sóng tới!" thì nhấn Space: ván giữ hướng mũi đang chỉ (A / D vẫn chỉnh được), tự chèo và đứng lên · lướt 8 giây liền: Bé Mập nhảy lên ăn mừng · đứng: A / D ôm cua dọc sóng (Shift gắt, nghiêng quá là ngã, ngã thì tự leo lại lên ván) · W lấy đà · S hãm · L rời ván',
     journalKeys: 'Nhật ký (J): các việc ở biển, tự đánh dấu khi bạn làm xong, lưu lại cho lần sau',
     kayakKeys: 'Kayak: W chèo tới (giữ Shift: chèo nhanh) · A / D rẽ · S chèo lùi · Q / E chèo tay từng bên (Shift: chèo quét) · Space nhảy xuống bơi (bơi lại sát thuyền là tự leo lên) · K lên bờ',
   },

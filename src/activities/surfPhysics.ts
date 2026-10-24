@@ -1,4 +1,4 @@
-import { clamp, damp } from '../core/math';
+import { clamp, damp, smoothstep } from '../core/math';
 import { SURF, surfDifficulty, type SurfSample } from '../water/surf';
 import type { KayakEnv, WaterSample } from './kayakPhysics';
 
@@ -84,11 +84,21 @@ const CARVE_GRIP = 0.9;
 const BEACH_DEPTH = 0.4;
 /**
  * Catching (Space): the window, in wavelengths from the crest (the face arrives from d = 0.5 down
- * to 0): a crest up to ~13 m behind, or just past. The board heads this far (rad) off straight in,
- * toward the shoulder that breaks last (+l), waits, is grabbed by the face from `grab` on and
- * stands up at `stand`.
+ * to 0): a crest up to ~13 m behind, or just past. The board keeps the line the nose already
+ * points (off straight in, up to `cone` rad either way; A/D still adjust it, `aim` rad/s); lying
+ * the wrong way round it heads `angle` off straight in. It waits, is grabbed by the face from
+ * `grab` on and stands up at `stand`.
  */
-const CATCH = { from: 0.32, to: -0.06, angle: 0.6, grab: 0.14, stand: 0.08, timeout: 8, assist: 1.2 } as const;
+const CATCH = { from: 0.32, to: -0.06, angle: 0.6, cone: 1.0, aim: 0.9, grab: 0.14, stand: 0.08, timeout: 8, assist: 1.2 } as const;
+/**
+ * Riding, the rail of the game: steering past `soft` rad off straight in (toward riding along
+ * the crest) fades out, and by `hard` (~83°) the board can't turn further: holding A or D rides
+ * along the wave instead of turning over its back into the flat water behind (where the ride is
+ * lost). `back` (rad/s per rad) eases it back inside.
+ */
+const RAIL = { soft: 1.0, hard: 1.45, back: 3 } as const;
+/** Seconds off the wave before the ride is over (a moment to get back on it). */
+const LOST_TIME = 1.4;
 /** Seconds in the white water after a wipeout before lying on the board again. */
 const WIPE_TIME = 1.2;
 
@@ -111,13 +121,15 @@ export class SurfBody {
   /** Arm strokes done (lying, for the avatar) and how hard it paddles (0..1). */
   stroke = 0;
   paddling = 0;
+  /** Seconds standing on this wave (0 when not riding). */
+  rideTime = 0;
   /** Standing on a wave that's gone (seconds): the ride ends. */
   private lost = 0;
   /** Seconds in the current catch / wipeout, and since the wave grabbed the board. */
   private timer = 0;
   private grabbed = 0;
-  /** The side of the ride, chosen at Space from where the nose points (+1: +l, −1: −l). */
-  private rideSide = 1;
+  /** The line of the ride (rad off straight in, + toward +l), chosen at Space from the nose. */
+  private rideTheta: number = CATCH.angle;
   readonly water: WaterSample = { height: 0, dhdx: 0, dhdz: 0 };
   readonly wave: SurfSample = { height: 0, dhdx: 0, dhdz: 0, push: 0, broken: 0, d: 0, size: 0, x: 0, l: 0 };
   private readonly tmp = { x: 0, z: 0 };
@@ -168,25 +180,38 @@ export class SurfBody {
     this.state = 'catch';
     this.timer = 0;
     this.grabbed = 0;
-    // Which way along the beach the nose points (+l = (−uz, ux)); straight in or out: the
-    // shoulder that breaks last (+l).
-    const along = -Math.sin(this.yaw) * -this.env.uz + -Math.cos(this.yaw) * this.env.ux;
-    this.rideSide = along < -0.1 ? -1 : 1;
+    // Keep the line the nose points, inside the cone toward the beach; lying the wrong way
+    // round (nose out to sea): the side it leans to, or the shoulder that breaks last (+l).
+    const th = this.heading();
+    if (Math.abs(th) <= Math.PI / 2) this.rideTheta = clamp(th, -CATCH.cone, CATCH.cone);
+    else this.rideTheta = th < -Math.PI / 2 - 0.1 ? -CATCH.angle : CATCH.angle;
     return 'catching';
   }
 
-  /**
-   * The heading of the ride line: toward the beach, angled along it to `side` (+1: +l, the
-   * shoulder that breaks last; −1: the other way).
-   */
-  rideYaw(side = this.rideSide): number {
-    const c = Math.cos(CATCH.angle);
-    const sn = Math.sin(CATCH.angle) * side;
+  /** Where the nose points (rad): 0 straight to the beach, + toward +l = (−uz, ux), ±π out to sea. */
+  heading(): number {
+    const fx = -Math.sin(this.yaw);
+    const fz = -Math.cos(this.yaw);
+    return Math.atan2(-fx * this.env.uz + fz * this.env.ux, fx * this.env.ux + fz * this.env.uz);
+  }
+
+  /** The yaw that points `theta` rad off straight in (+ toward +l). */
+  private yawFor(theta: number): number {
+    const c = Math.cos(theta);
+    const sn = Math.sin(theta);
     // u toward the beach, +l = (−uz, ux) along it.
     const dx = this.env.ux * c - this.env.uz * sn;
     const dz = this.env.uz * c + this.env.ux * sn;
     // Forward is (−sin yaw, −cos yaw).
     return Math.atan2(-dx, -dz);
+  }
+
+  /**
+   * The heading of a ride line: toward the beach, angled along it to `side` (+1: +l, the
+   * shoulder that breaks last; −1: the other way). Waiting in the lineup the board faces it.
+   */
+  rideYaw(side = 1): number {
+    return this.yawFor(CATCH.angle * side);
   }
 
   /**
@@ -209,6 +234,7 @@ export class SurfBody {
     const n = Math.max(1, Math.ceil(dt / (1 / 120)));
     const h = dt / n;
     for (let i = 0; i < n && ev === 'none'; i++) ev = this.substep(h, ctl);
+    this.rideTime = this.state === 'ride' ? this.rideTime + dt : 0;
     this.attitude(dt);
     return ev;
   }
@@ -249,7 +275,10 @@ export class SurfBody {
       // Turning for the ride line and paddling hard; as the face comes under the board, the wave
       // grabs it (pulled up to the wave's speed toward the beach).
       this.timer += dt;
-      const turn = Math.atan2(Math.sin(this.rideYaw() - this.yaw), Math.cos(this.rideYaw() - this.yaw));
+      // A/D still adjust the line (steer +1 turns left: toward −θ).
+      this.rideTheta = clamp(this.rideTheta - ctl.steer * CATCH.aim * dt, -CATCH.cone, CATCH.cone);
+      const want = this.yawFor(this.rideTheta);
+      const turn = Math.atan2(Math.sin(want - this.yaw), Math.cos(want - this.yaw));
       steer = clamp(turn * 4, -2.5, 2.5);
       // Wait for it (the board turned, a few easy strokes), then paddle hard as it gets close:
       // paddling early would just run away from the wave.
@@ -292,7 +321,7 @@ export class SurfBody {
       }
       // Held on the face (more on small waves, see FACE).
       const help = surfDifficulty(this.env.level()).assist;
-      if (s.size > 0.2 && s.d > -0.25 && s.d < 0.4) {
+      if (s.size > 0.2 && s.d > -0.3 && s.d < 0.45) {
         const toBeach = this.vx * this.env.ux + this.vz * this.env.uz;
         const a = clamp(help * (FACE.pull * (FACE.spot - s.d) + FACE.match * (SURF.speed - toBeach)), -FACE.max, FACE.max);
         ax += this.env.ux * a;
@@ -308,6 +337,10 @@ export class SurfBody {
       // (Shift) ~57°, past what the rail holds if kept up; slow, both just turn tightly.
       const v = Math.max(1, Math.abs(this.speed));
       steer = ctl.steer * (ctl.hard ? Math.min(3.0, HARD_TURN / v) : Math.min(1.7, TURN / v));
+      // The rail (see RAIL): no turning over the wave's back. Yaw up is θ down.
+      const th = this.heading();
+      if (steer * th < 0) steer *= 1 - smoothstep(RAIL.soft, RAIL.hard, Math.abs(th));
+      if (Math.abs(th) > RAIL.hard) steer += Math.sign(th) * RAIL.back * (Math.abs(th) - RAIL.hard);
       this.paddling += (0 - this.paddling) * damp(6, dt);
     } else {
       this.paddling = 0;
@@ -393,7 +426,7 @@ export class SurfBody {
     // The wave has passed (or died): the ride is over.
     const gone = s.size < 0.08 || s.d < -0.15 || s.broken > 0.85;
     this.lost = gone && Math.abs(this.speed) < 3 ? this.lost + dt : gone ? this.lost + dt * 0.3 : 0;
-    if (this.lost > 0.8) {
+    if (this.lost > LOST_TIME) {
       this.state = 'prone';
       this.lean = 0;
       return 'waveGone';
