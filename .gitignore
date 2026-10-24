@@ -2,6 +2,8 @@ node_modules/
 dist/
 *.log
 .vite/
+# Playwright MCP screenshots and logs (debugging only).
+.playwright-mcp/
 
 # Local reference image (third-party character art, not licensed for the repo)
 avatar.png

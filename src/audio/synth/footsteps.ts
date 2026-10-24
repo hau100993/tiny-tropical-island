@@ -156,6 +156,115 @@ export class Footsteps {
     }
   }
 
+  /**
+   * Bọt's water jet: a hiss of water through a narrow mouth for `dur` s (band-passed noise
+   * held, then let go), with a gurgle at the start. `gain` includes the distance.
+   */
+  squirt(dur: number, gain: number, pan: number): void {
+    const ctx = this.engine.ctx;
+    const t = ctx.currentTime + 0.01;
+    const p = ctx.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan)) * 0.8;
+    p.connect(this.out);
+    window.setTimeout(() => p.disconnect(), (dur + 1.5) * 1000);
+    const buffer = this.engine.noise.white;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const f = makeFilter(ctx, 'bandpass', 2400, 0.9);
+    f.frequency.setValueAtTime(1600, t);
+    f.frequency.linearRampToValueAtTime(2600, t + 0.15);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.4 * gain, t + 0.05);
+    g.gain.setTargetAtTime(0, t + dur, 0.08);
+    src.connect(f).connect(g).connect(p);
+    const length = dur + 0.4;
+    src.start(t, Math.random() * Math.max(0, buffer.duration - length - 0.1), length);
+    src.onended = () => {
+      src.disconnect();
+      f.disconnect();
+      g.disconnect();
+    };
+    this.blip(p, 'sine', 320, 180, t, 0.1, 0.25 * gain);
+  }
+
+  /**
+   * Bọt's voice: a run of bubbly "blub" blips (a crab blowing bubbles). `greet`: three rising;
+   * `dance`: five, quicker and higher.
+   */
+  crab(kind: 'greet' | 'dance', gain: number, pan: number): void {
+    const ctx = this.engine.ctx;
+    const t = ctx.currentTime + 0.01;
+    const p = ctx.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan)) * 0.8;
+    p.connect(this.out);
+    window.setTimeout(() => p.disconnect(), 2000);
+    const n = kind === 'greet' ? 3 : 5;
+    const step = kind === 'greet' ? 0.11 : 0.08;
+    const base = kind === 'greet' ? 520 : 700;
+    for (let i = 0; i < n; i++) {
+      const f = base * (1 + i * 0.18) * (0.95 + Math.random() * 0.1);
+      this.blip(p, 'sine', f * 0.7, f * 1.3, t + i * step, 0.07, 0.3 * gain);
+    }
+  }
+
+  /**
+   * Hỏa Long's fire breath for `dur` s: a low roar (brown noise, low-passed, swelling then let
+   * go) with crackles (short bright bursts) through it.
+   */
+  flame(dur: number, gain: number, pan: number): void {
+    const ctx = this.engine.ctx;
+    const t = ctx.currentTime + 0.01;
+    const p = ctx.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan)) * 0.8;
+    p.connect(this.out);
+    window.setTimeout(() => p.disconnect(), (dur + 1.5) * 1000);
+    const buffer = this.engine.noise.brown;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const f = makeFilter(ctx, 'lowpass', 500, 0.7);
+    f.frequency.setValueAtTime(300, t);
+    f.frequency.linearRampToValueAtTime(1100, t + 0.12);
+    f.frequency.setTargetAtTime(700, t + 0.2, 0.3);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.9 * gain, t + 0.08);
+    g.gain.setTargetAtTime(0, t + dur, 0.12);
+    src.connect(f).connect(g).connect(p);
+    const length = dur + 0.6;
+    src.start(t, Math.random() * Math.max(0, buffer.duration - length - 0.1), length);
+    src.onended = () => {
+      src.disconnect();
+      f.disconnect();
+      g.disconnect();
+    };
+    const crackles = Math.round(dur * 14);
+    for (let i = 0; i < crackles; i++) {
+      this.burst(p, this.engine.noise.white, t + Math.random() * dur, 'bandpass', 2500 + Math.random() * 2500, 2, 0.001, 0.012, 0.12 * gain);
+    }
+  }
+
+  /**
+   * Hỏa Long's voice: a small growly chirrup. `greet`: one rising call; `dance`: two quick ones.
+   */
+  dragon(kind: 'greet' | 'dance', gain: number, pan: number): void {
+    const ctx = this.engine.ctx;
+    const t = ctx.currentTime + 0.01;
+    const p = ctx.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan)) * 0.8;
+    p.connect(this.out);
+    window.setTimeout(() => p.disconnect(), 2000);
+    const r = 0.94 + Math.random() * 0.12;
+    if (kind === 'greet') {
+      this.voice(p, 260 * r, 420 * r, t, 0.28, 0.4 * gain, 650, 1500);
+      this.burst(p, this.engine.noise.pink, t, 'bandpass', 800, 0.8, 0.02, 0.2, 0.15 * gain);
+      return;
+    }
+    for (const [dt, f] of [[0, 1], [0.18, 1.25]] as const) {
+      this.voice(p, 320 * r * f, 520 * r * f, t + dt, 0.14, 0.38 * gain, 750, 1700);
+    }
+  }
+
   private voice(dest: AudioNode, f0: number, f1: number, t: number, dur: number, gain: number, formant1: number, formant2: number): void {
     const ctx = this.engine.ctx;
     const osc = ctx.createOscillator();

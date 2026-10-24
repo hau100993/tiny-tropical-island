@@ -322,6 +322,12 @@ export const vi = {
   dog: {
     toggle: 'Mochi đi theo',
   },
+  creatures: {
+    toggle: 'Bọt (cua hệ Nước)',
+    off: 'Bật “Bọt” trong Góc nhìn trước',
+    dragonToggle: 'Hỏa Long (rồng hệ Lửa)',
+    dragonOff: 'Bật “Hỏa Long” trong Góc nhìn trước',
+  },
   shortcuts: {
     debug: 'Ẩn/hiện thông số',
     muteAll: 'Tắt/bật toàn bộ âm thanh',
@@ -330,6 +336,8 @@ export const vi = {
     fullscreen: 'Bật/tắt toàn màn hình',
     video: 'Ở bàn làm việc: phát video YouTube · nơi khác: tạm dừng/phát tiếp video',
     callDog: 'Gọi Mochi chạy lại',
+    waterSkill: 'Bọt phun nước (bạn đứng gần: phun vào bạn)',
+    fireSkill: 'Hỏa Long phun lửa (bạn đứng gần: hong khô người bạn)',
     pauseTime: 'Dừng/chạy thời gian',
     walk: 'Đi bộ / xem từ trên cao',
     view: 'Khi đi bộ: thấy nhân vật / nhìn bằng mắt',

@@ -38,6 +38,10 @@ void main() {
 #ifdef BUBBLE
   // An air bubble: a silvery rim (the light bent at its edge) around a clear middle.
   float a = smoothstep(0.45, 0.95, r2) * 0.85 + glint * 0.6;
+#elif defined(JET)
+  // A creature's water jet: deeper blue and nearly opaque, so the stream reads on bright sand.
+  col = mix(vec3(0.22, 0.55, 0.9), vec3(1.0), glint * 0.8) * (0.15 + 0.85 * uDayLight) * mix(vec3(1.0), uSunColor, 0.2);
+  float a = (1.0 - 0.5 * r2) * 0.92;
 #else
   float a = (1.0 - r2) * 0.75;
 #endif
@@ -45,8 +49,8 @@ void main() {
 }
 `;
 
-/** Droplets fall (spray); bubbles rise and wobble until they reach the surface. */
-export type SprayKind = 'spray' | 'bubbles';
+/** Droplets fall (spray, and jet: the same, in a stronger blue); bubbles rise and wobble until they reach the surface. */
+export type SprayKind = 'spray' | 'jet' | 'bubbles';
 
 /**
  * Water droplets thrown by the paddle (or air bubbles under water, kind 'bubbles'): a few hundred points with ballistic motion (CPU, tiny
@@ -84,7 +88,7 @@ export class Spray implements SpraySink {
       uniforms: { uScale: this.scale, uDayLight: shared.uDayLight, uSunColor: shared.uSunColor },
       vertexShader: VERT,
       fragmentShader: FRAG,
-      defines: kind === 'bubbles' ? { BUBBLE: '' } : {},
+      defines: kind === 'bubbles' ? { BUBBLE: '' } : kind === 'jet' ? { JET: '' } : {},
       transparent: true,
       depthWrite: false,
     });

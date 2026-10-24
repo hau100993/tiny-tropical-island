@@ -63,6 +63,8 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `T` | Pomodoro: show the timer and start / pause it |
 | `B` | Work desk: sit down at the desk in the house (from anywhere) / get up |
 | `G` | Call Mochi the dog: it runs straight to you |
+| `R` | Bọt the water crab fires its water jet (at you if you stand within 10 m, else out to sea) |
+| `X` | Hỏa Long the fire dragon breathes fire (at you if you stand within 12 m: it dries you; else onto the sea) |
 | `U` | Seated at the desk: play a YouTube link on the left monitor, same as clicking the YouTube logo on the right monitor (see *The house and the work desk*). Elsewhere: pause / resume that video |
 | `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up |
 | `K` | Walking on the beach or in the shallows: get into the kayak; in the kayak: step out (see *Kayak*) |
@@ -358,6 +360,34 @@ follows again. Walking off ends it. Its paws leave prints in the
 sand and snow, and with **Âm thanh hoạt động** on you hear its paws on the deck and its bark
 (synthesized). Its walk and gallop are the model's own clips, played faster or slower with its
 speed so the paws don't slide; lying down and sitting are poses built in code (the file has none).
+
+**Bọt, the water creature (Góc nhìn → Bọt (cua hệ Nước), on by default; trial of an elemental
+trio).** A small blue crab (~0.4 m) lives on the hammock's beach. It potters about the damp
+sand, comes over to greet you when you walk near (a "yes" nod and a bubbly blub-blub), and now
+and then turns to the sea and fires a **water jet**: one glassy stream bent along its ballistic
+arc, fraying into drops at the end, shedding soap bubbles on the way and splashing and rippling
+the water where it lands. `R` orders the jet: standing within 10 m of it you are the target, and
+if the water hits you, your character is soaked like after a swim (it drips and dries the same
+way) and Bọt does a little dance. **With the mouse:** rest the pointer on Bọt (the cursor turns
+into a paw) and it turns to you and blows rainbow soap bubbles that float off on the wind and
+pop; click it and, at random, it either dances in a burst of bubbles or fires its water jet your
+way (at you if you are walking within 10 m, else onto the ground between it and the camera).
+The jet flies hard and flat (up to ~10 m out to sea), a wide stream with a big splash. Sounds (the jet's hiss, its voice) follow
+**Âm thanh hoạt động**. Loaded on first use (0.2 MB), its shaders compiled in the background.
+
+**Hỏa Long, the fire creature (Góc nhìn → Hỏa Long (rồng hệ Lửa), on by default).** A small red
+dragon (~1.5 m wingspan) always on the wing, looping lazily over the beach in front of the house,
+a flame burning at the tip of its tail (smaller in the rain). Its fire lights the sand below it,
+faintly by day and warmly at night (a faked glow, no real light). It flies over to greet you when
+you walk near, and now and then flies out over the water's edge and **breathes fire**: from its
+mouth, straight ahead the way it faces, the whole body tipping nose-down toward the sea; a long
+(up to 6.5 m), widening, flickering tongue of flame with embers that stops where it meets the
+water (steam) or the sand (sparks). `X`
+orders it: standing within 12 m of it you are the target, and the fire **dries you** at once
+(steam rises off you), the opposite of Bọt's jet. **With the mouse:** rest the pointer on it and
+it hovers, turns to you, its tail flame flares and it puffs embers; click it and it does an
+excited dance with a burst of fire straight up. Sounds (the roar and crackle of the flame, its
+chirrup) follow **Âm thanh hoạt động**. Loaded on first use (0.44 MB).
 
 **Characters (Góc nhìn → Nhân vật).** Besides the built-in body you can walk around as a man or a
 woman from Quaternius' low-poly character pack (`src/assets/characters/*.glb`, CC0). They load
@@ -794,6 +824,8 @@ audio files in the repo.
 | Planar reflection camera (`src/water/PlanarReflection.ts`) | MIT | mirrored camera and oblique near plane adapted from three.js `examples/jsm/objects/Reflector.js` |
 | YouTube logo on the desk's right monitor (`YT_LOGO` in `src/ui/youtube.ts`) | path data from [Simple Icons](https://simpleicons.org/), CC0; the logo is a trademark of Google | drawn as the button that opens the YouTube player |
 | `src/assets/animals/shiba.glb` ("Shiba Inu") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/y4wdQpg767) | CC0 1.0 (public domain) | Mochi the dog; its walk, gallop, idle, sniff and jump clips are used |
+| `src/assets/creatures/water-crab.glb` ("Crab Enemy") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/Gs3yfsV5lB) | CC0 1.0 (public domain) | Bọt the water crab, recoloured blue in code; its idle, walk, bite, yes and dance clips are used. The file has 6 vertices with NaN skin weights (an export fault), repaired at load |
+| `src/assets/creatures/fire-dragon.glb` ("Dragon Evolved") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/LlwD0QNUPj) | CC0 1.0 (public domain) | Hỏa Long the fire dragon, recoloured red and gold in code; its flying idle, fast flying, headbutt, yes and punch clips are used |
 | `src/assets/characters/man.glb` ("Hoodie Character") and `woman.glb` (a woman from the same pack) by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/gKLBoRsyKe) | CC0 1.0 (public domain) | rigged low-poly characters; their own animations are not used (they wear the procedural motion) |
 | `src/assets/decor/mug-logo.png` (TMA logo) | trademark of its owner, not covered by this project's license | added at the repository owner's request, for the desk mug only |
 | `public/audio/library/island-day.mp3`, `island-night.mp3` | redistribution permitted (confirmed by the repository owner) | built-in recordings, 15 min each; source: *TODO, add the original source and exact license* |

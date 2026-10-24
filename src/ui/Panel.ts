@@ -113,6 +113,8 @@ export class Panel {
   private readonly autoRotate: ToggleControl;
   private readonly footsteps: ToggleControl;
   private readonly dog: ToggleControl;
+  private readonly creatures: ToggleControl;
+  private readonly dragon: ToggleControl;
   private readonly thirdPerson: ToggleControl;
   private readonly startAtDesk: ToggleControl;
   private readonly startQuality: QualityLevel;
@@ -306,7 +308,16 @@ export class Panel {
     this.autoRotate = toggle(vi.panel.autoRotate, s.autoRotate, (on) => settings.update({ autoRotate: on }));
     const viewOpts = el('div', 'option-list');
     this.dog = toggle(vi.dog.toggle, s.dog, (on) => settings.update({ dog: on }));
-    viewOpts.append(withKey(this.thirdPerson.root, 'V'), this.footsteps.root, this.autoRotate.root, withKey(this.dog.root, 'G'));
+    this.creatures = toggle(vi.creatures.toggle, s.creatures, (on) => settings.update({ creatures: on }));
+    this.dragon = toggle(vi.creatures.dragonToggle, s.dragon, (on) => settings.update({ dragon: on }));
+    viewOpts.append(
+      withKey(this.thirdPerson.root, 'V'),
+      this.footsteps.root,
+      this.autoRotate.root,
+      withKey(this.dog.root, 'G'),
+      withKey(this.creatures.root, 'R'),
+      withKey(this.dragon.root, 'X'),
+    );
     const characters = el('div', 'seg-group three');
     for (const id of CHARACTER_IDS) {
       const b = button(vi.panel.characterNames[id], () => settings.update({ character: id }), 'seg');
@@ -600,6 +611,8 @@ export class Panel {
     this.autoRotate.set(s.autoRotate);
     this.footsteps.set(s.footsteps);
     this.dog.set(s.dog);
+    this.creatures.set(s.creatures);
+    this.dragon.set(s.dragon);
     this.synthFallback.set(s.synthFallback);
     this.thirdPerson.set(s.walkView === 'third');
     this.startAtDesk.set(s.startAtDesk);

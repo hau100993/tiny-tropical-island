@@ -225,6 +225,26 @@ export class Mixer {
     this.footsteps?.bark(kind, gain, pan);
   }
 
+  /** Bọt's water jet (see Footsteps.squirt). */
+  playSquirt(duration: number, gain: number, pan: number): void {
+    this.footsteps?.squirt(duration, gain, pan);
+  }
+
+  /** Bọt's voice (see Footsteps.crab). */
+  playCrab(kind: 'greet' | 'dance', gain: number, pan: number): void {
+    this.footsteps?.crab(kind, gain, pan);
+  }
+
+  /** Hỏa Long's fire breath (see Footsteps.flame). */
+  playFlame(duration: number, gain: number, pan: number): void {
+    this.footsteps?.flame(duration, gain, pan);
+  }
+
+  /** Hỏa Long's voice (see Footsteps.dragon). */
+  playDragon(kind: 'greet' | 'dance', gain: number, pan: number): void {
+    this.footsteps?.dragon(kind, gain, pan);
+  }
+
   /** Kayak paddle splash (see Footsteps.paddle); follows the footsteps on/off setting. */
   playPaddle(kind: 'catch' | 'exit', strength: number, pan: number): void {
     this.footsteps?.paddle(kind, strength, pan);

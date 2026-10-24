@@ -41,6 +41,7 @@ import womanUrl from '../assets/characters/woman.glb?url';
 import shibaUrl from '../assets/animals/shiba.glb?url';
 import type { DogModel } from '../world/dog';
 import { DogCompanion, type DogPlayer, type DogSpot } from '../activities/dogCompanion';
+import { Creatures } from '../activities/creatures';
 import type { ListenerState } from '../audio/spatial';
 import type { FootSurface } from '../audio/synth/footsteps';
 import type { LayerId } from '../audio/types';
@@ -150,6 +151,8 @@ export class App {
   private dogLoading = false;
   private readonly dogPlayer: DogPlayer = { x: 0, z: 0, y: 0, speed: 0, onFoot: true, atSea: false, seat: null };
   private readonly dogLook = new THREE.Vector3();
+  /** Bọt the water crab and Hỏa Long the fire dragon (activities/creatures.ts). */
+  private readonly creatures: Creatures;
   /** Petting Mochi with the mouse (activities/petting.ts, controls/petPointer.ts). */
   private readonly petting = new Petting();
   private readonly petPointer: PetPointer;
@@ -298,8 +301,13 @@ export class App {
       this.renderer.domElement,
       this.camera,
       (x, z) => this.world.water.addRipple(x, z, 3, -1.0),
-      // A click on Mochi pets it instead.
-      () => (this.petPointer.active || this.petPointer.hover ? 'none' : this.cameras.mode === 'orbit' ? 'cursor' : this.walkClickAim()),
+      // A click on Mochi (or a creature) pets it instead.
+      () =>
+        this.petPointer.active || this.petPointer.hover || this.creatures.hover
+          ? 'none'
+          : this.cameras.mode === 'orbit'
+            ? 'cursor'
+            : this.walkClickAim(),
     );
     this.hearts = new Hearts(() => this.reducedMotion.matches);
     this.scene.add(this.hearts.group);
@@ -314,6 +322,7 @@ export class App {
       onMove: (dx, dy) => this.petting.move(dx, dy),
       onEnd: (cancelled) => this.endPetting(cancelled),
     });
+    this.creatures = this.createCreatures();
 
     this.overlay = new DebugOverlay(container, s.showDebug);
     this.settings.onChange((next) => this.applySettings(next));
@@ -637,6 +646,22 @@ export class App {
       },
     });
     this.keymap.register({
+      code: 'KeyR',
+      keyLabel: 'R',
+      label: vi.shortcuts.waterSkill,
+      action: () => {
+        if (!this.creatures.waterSkill()) this.activityMenu.flash(vi.creatures.off);
+      },
+    });
+    this.keymap.register({
+      code: 'KeyX',
+      keyLabel: 'X',
+      label: vi.shortcuts.fireSkill,
+      action: () => {
+        if (!this.creatures.fireSkill()) this.activityMenu.flash(vi.creatures.dragonOff);
+      },
+    });
+    this.keymap.register({
       code: 'KeyN',
       keyLabel: 'N',
       label: vi.shortcuts.pauseTime,
@@ -782,6 +807,62 @@ export class App {
     if (s.character !== this.characterId) this.setCharacter(s.character);
     if (s.dog && !this.dogModel && !this.dogLoading) this.loadDog();
     if (this.dogModel) this.dogModel.root.visible = s.dog;
+    this.creatures.setEnabled(s.creatures, s.dragon);
+  }
+
+  /**
+   * The elemental creatures: Bọt lives on the hammock's beach, Hỏa Long loops over the beach in
+   * front of the house. They see you only walking about (not swimming); their sounds follow
+   * Âm thanh hoạt động; water soaks you like a swim, fire dries you.
+   */
+  private createCreatures(): Creatures {
+    const hm = this.world.heightmap;
+    const hammock = this.world.hammock.center;
+    const crabAngle = Math.atan2(hammock.z, hammock.x) + 0.12;
+    const crabR = hm.shoreDistance(crabAngle, 0.5);
+    const house = this.world.layout.house;
+    const dragonAngle = Math.atan2(house.z, house.x) - 0.25;
+    const dragonR = hm.shoreDistance(dragonAngle, 0.3);
+    const ear = (x: number, y: number, z: number): { gain: number; pan: number } | null =>
+      this.settings.get().footsteps ? this.dogEar(x, y, z) : null;
+    return new Creatures({
+      scene: this.scene,
+      camera: this.camera,
+      renderer: this.renderer,
+      shared: sharedUniforms,
+      heightAt: (x, z) => hm.heightAt(x, z),
+      seaRadius: (angle) => hm.shoreDistance(angle, -0.3),
+      ripple: (x, z, radius, strength) => this.world.water.addRipple(x, z, radius, strength),
+      homes: {
+        crab: { x: Math.cos(crabAngle) * crabR, z: Math.sin(crabAngle) * crabR },
+        dragon: { x: Math.cos(dragonAngle) * dragonR, z: Math.sin(dragonAngle) * dragonR },
+      },
+      aim: () => this.petAimMode(),
+      dogHover: () => this.petPointer.hover,
+      player: (out) => {
+        const w = this.walker;
+        if (this.cameras.mode !== 'walk' || w.swimming) return false;
+        out.x = w.x;
+        out.z = w.z;
+        out.y = w.feetY;
+        return true;
+      },
+      rain: () => this.world.weather.rainAmount,
+      ear,
+      sound: {
+        squirt: (d, g, p) => this.mixer.playSquirt(d, g, p),
+        crab: (k, g, p) => this.mixer.playCrab(k, g, p),
+        flame: (d, g, p) => this.mixer.playFlame(d, g, p),
+        dragon: (k, g, p) => this.mixer.playDragon(k, g, p),
+      },
+      // Soaked like after a swim (it dries, and drips, the same way); fire dries you at once.
+      soak: () => {
+        this.soaked = Math.max(this.soaked, 0.6);
+      },
+      dry: () => {
+        this.soaked = 0;
+      },
+    });
   }
 
   /** Mochi the dog: loaded on first use (a .glb, ~0.8 MB). See activities/dogCompanion.ts. */
@@ -838,6 +919,11 @@ export class App {
    */
   private petAim(): ClickAim {
     if (!this.dog || !this.dogModel?.root.visible) return 'none';
+    return this.petAimMode();
+  }
+
+  /** Pointing at an animal: the cursor, from above or walking (not swimming). */
+  private petAimMode(): ClickAim {
     const m = this.cameras.mode;
     if (m === 'orbit') return 'cursor';
     if (m !== 'walk' || this.walker.swimming) return 'none';
@@ -882,7 +968,7 @@ export class App {
     this.hearts.update(dt);
     if (!model || !dog || !model.root.visible) {
       this.petPointer.cancel();
-      this.petCursor.set('none');
+      this.petCursor.set(this.creatures.hover ? 'hover' : 'none');
       return;
     }
     const w = this.walker;
@@ -902,7 +988,7 @@ export class App {
     if (pp.active && (!p.onFoot || p.seat !== null || w.speed > 0.6 || this.petAim() === 'none')) pp.cancel();
     this.petting.update(dt);
     dog.affection = this.petting.affection;
-    this.petCursor.set(pp.active ? 'grab' : pp.hover ? 'hover' : 'none');
+    this.petCursor.set(pp.active ? 'grab' : pp.hover || this.creatures.hover ? 'hover' : 'none');
     dog.update(dt, p);
     model.root.position.set(dog.x, dog.y, dog.z);
     model.root.rotation.y = dog.yaw;
@@ -1045,6 +1131,14 @@ export class App {
     if (w.shelter !== 'none') return false;
     if (w.swimming) return !w.diving;
     return w.depth > 0 || (this.world.heightmap.distanceToShore(w.x, w.z) < 9 && w.surface === 'sand');
+  }
+
+  /** Feet in the water (wading or swimming): only then does the sea card show. */
+  private inSea(): boolean {
+    const w = this.walker;
+    if (w.shelter !== 'none') return false;
+    if (w.swimming) return !w.diving;
+    return w.depth > 0;
   }
 
   /** What the activity card offers by the sea right now. */
@@ -1538,7 +1632,7 @@ export class App {
       // What you can do here: sit at the desk, the bath, the hammock; the sea's activities.
       const near = this.nearSeat();
       const seatCard = near === 'desk' ? this.deskCard : near === 'bath' ? this.bathCard : near === 'hammock' ? this.hammockCard : null;
-      this.activityMenu.set(seatCard ?? (this.nearSea() ? this.seaOffer() : null));
+      this.activityMenu.set(seatCard ?? (this.inSea() ? this.seaOffer() : null));
       this.activityMenu.update(dt, this.walker.speed > 0.15);
     } else if (mode === 'kayak') {
       this.activityMenu.update(dt, Math.abs(this.kayak.body.speed) > 0.3);
@@ -1598,6 +1692,7 @@ export class App {
     this.deskVideo?.setSize(w, h);
     this.world.spray.setViewport(this.drawingBuffer.y, this.camera.fov);
     this.bubbles.setViewport(this.drawingBuffer.y, this.camera.fov);
+    this.creatures.setViewport(this.drawingBuffer.y, this.camera.fov);
   };
 
   private tick = (dt: number, elapsed: number): void => {
@@ -1648,6 +1743,7 @@ export class App {
     this.updateSurfing();
     this.updateAvatar(dt);
     this.updateDog(dt);
+    this.creatures.update(dt);
     this.updateWetness(dt);
     this.world.footprints.setClock(elapsed);
     const onFoot = this.cameras.mode === 'walk' && !this.walker.swimming;
