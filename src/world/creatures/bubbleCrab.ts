@@ -3,6 +3,7 @@ import { WaterJet } from './waterJet';
 import type { StreamState } from './jetStream';
 import type { BubbleSink } from './airBubbles';
 import type { SpraySink } from '../../water/Spray';
+import type { EmberSink } from './embers';
 
 /** Sand band it lives on (ground height, m), and how far it strays from home (m). */
 const BAND = [0.12, 1.6] as const;
@@ -25,6 +26,17 @@ const RECOVER = 0.5;
 /** Bubbles blown from the mouth per second while the pointer rests on it; and in a pat's burst. */
 const HOVER_BUBBLES = 12;
 const PAT_BURST = 30;
+/** "Mưa Bong Bóng": bubbles blown high in one breath. */
+const SHOWER_BUBBLES = 90;
+/**
+ * "Mạch Nước Cầu Vồng": a geyser bursts from the sand (under you when you are near, else in
+ * front of it) for `time` s, ~5 m high; in daylight a rainbow arches over it (radius m).
+ */
+const GEYSER = { windup: 0.6, time: 2.2, drops: 300, speed: [8, 10.5], rainbow: 2.4, soak: 1.3 } as const;
+
+/** Its skills, in the order R cycles through them. */
+export type CrabSkill = 'jet' | 'bubbles' | 'geyser';
+const SKILLS: readonly CrabSkill[] = ['jet', 'bubbles', 'geyser'];
 
 /** What the crab needs from the island. */
 export interface CrabWorld {
@@ -34,6 +46,9 @@ export interface CrabWorld {
   ripple(x: number, z: number, radius: number, strength: number): void;
   spray: SpraySink;
   bubbles: BubbleSink;
+  /** Rainbow motes (the geyser's rainbow), and how bright the day is (0 night … 1 day). */
+  rainbow: EmberSink;
+  daylight(): number;
 }
 
 export interface CrabEvents {
@@ -53,7 +68,7 @@ export interface CrabPlayer {
   y: number;
 }
 
-type State = 'idle' | 'wander' | 'approach' | 'greet' | 'turn' | 'windup' | 'fire' | 'recover' | 'dance' | 'hover';
+type State = 'idle' | 'wander' | 'approach' | 'greet' | 'turn' | 'windup' | 'fire' | 'recover' | 'dance' | 'hover' | 'geyserUp' | 'geyser';
 
 /**
  * Bọt's behaviour: potters about its stretch of beach, comes over to greet you now and then,
@@ -90,6 +105,15 @@ export class BubbleCrab {
   private patQueued = false;
   private bubbleDebt = 0;
   private voiceIn = 0;
+  /** The skill R starts next, and the one queued. */
+  private nextSkill = 0;
+  private skill: CrabSkill = 'jet';
+  /** The geyser's base (world) and its drops / rainbow rows owed. */
+  private gx = 0;
+  private gz = 0;
+  private gy = 0;
+  private dropDebt = 0;
+  private bowDebt = 0;
 
   constructor(
     private readonly world: CrabWorld,
@@ -124,13 +148,20 @@ export class BubbleCrab {
   }
 
   private get busy(): boolean {
-    return this.state === 'turn' || this.state === 'windup' || this.state === 'fire' || this.state === 'recover';
+    const s = this.state;
+    return s === 'turn' || s === 'windup' || s === 'fire' || s === 'recover' || s === 'geyserUp' || s === 'geyser';
   }
 
-  /** The water skill, on command (R). Ignored while one is under way. */
-  command(): void {
-    if (this.state === 'turn' || this.state === 'windup' || this.state === 'fire') return;
+  /**
+   * A water skill, on command (R): each press the next one (jet, bubble shower, geyser).
+   * Ignored while one is under way; returns the one started (null: busy).
+   */
+  command(): CrabSkill | null {
+    if (this.busy || this.queued) return null;
+    this.skill = SKILLS[this.nextSkill];
+    this.nextSkill = (this.nextSkill + 1) % SKILLS.length;
     this.queued = true;
+    return this.skill;
   }
 
   /** `mouth`: where the jet leaves (world), from the model's last frame. */
@@ -144,10 +175,17 @@ export class BubbleCrab {
     // way (at you when you stand near, else onto the ground between it and the camera).
     if (this.patQueued && !this.busy) {
       this.patQueued = false;
-      if (Math.random() < 0.5) {
+      const r = Math.random();
+      if (r < 0.25) {
         this.events.onVoice('dance');
         this.go('dance', 1.7);
         this.blowBubbles(mouth, PAT_BURST, 1.3);
+      } else if (r < 0.5) {
+        this.skill = 'bubbles';
+        this.queued = true;
+      } else if (r < 0.75) {
+        this.skill = 'geyser';
+        this.queued = true;
       } else {
         this.atPlayer = player !== null && toPlayer < AIM_PLAYER;
         this.hit = false;
@@ -167,6 +205,19 @@ export class BubbleCrab {
     }
     // Start a skill: queued by you, or now and then on its own (not mid-greeting or hovered).
     const quiet = this.state !== 'approach' && this.state !== 'greet' && this.state !== 'hover' && this.state !== 'dance';
+    if (!this.busy && this.queued && this.skill !== 'jet') {
+      // The bubble shower and the geyser.
+      this.queued = false;
+      this.autoSkill = this.between(AUTO_SKILL);
+      this.hit = false;
+      if (this.skill === 'bubbles') {
+        this.events.onVoice('dance');
+        this.go('dance', 1.7);
+        this.bubbleShower(mouth);
+      } else {
+        this.startGeyser(player, toPlayer);
+      }
+    }
     if (!this.busy && (this.queued || (this.autoSkill <= 0 && quiet))) {
       this.atPlayer = this.queued && player !== null && toPlayer < AIM_PLAYER;
       this.queued = false;
@@ -246,6 +297,23 @@ export class BubbleCrab {
       case 'dance':
         if (this.timer <= 0) this.go(this.hovered ? 'hover' : 'idle', 3);
         break;
+      case 'geyserUp':
+        // Claws up, calling the water: the sand at the spot trembles with a few drops.
+        face = Math.atan2(this.gx - this.x, this.gz - this.z);
+        if (Math.random() < dt * 30) this.world.spray.drop(this.gx, this.gy + 0.02, this.gz, (Math.random() - 0.5) * 0.6, 1 + Math.random(), (Math.random() - 0.5) * 0.6, 0.02);
+        if (this.timer <= 0) {
+          this.events.onSquirt(GEYSER.time);
+          this.go('geyser', GEYSER.time);
+        }
+        break;
+      case 'geyser':
+        face = Math.atan2(this.gx - this.x, this.gz - this.z);
+        this.geyser(dt, player);
+        if (this.timer <= 0) {
+          this.events.onVoice('dance');
+          this.go('dance', 1.7);
+        }
+        break;
       case 'hover': {
         face = Math.atan2(this.viewX - this.x, this.viewZ - this.z);
         if (!this.hovered) {
@@ -266,7 +334,7 @@ export class BubbleCrab {
     this.action =
       speed > 0
         ? 'move'
-        : this.state === 'windup' || this.state === 'fire'
+        : this.state === 'windup' || this.state === 'fire' || this.state === 'geyserUp' || this.state === 'geyser'
           ? 'skill'
           : this.state === 'greet' || this.state === 'hover'
             ? 'greet'
@@ -274,6 +342,72 @@ export class BubbleCrab {
               ? 'dance'
               : 'idle';
     this.jet.update(dt, mouth.x, mouth.y, mouth.z);
+  }
+
+  /** "Mưa Bong Bóng": a big breath of bubbles blown up high, to drift down all round. */
+  private bubbleShower(mouth: { x: number; y: number; z: number }): void {
+    for (let i = 0; i < SHOWER_BUBBLES; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 0.4 + Math.random() * 1.4;
+      this.world.bubbles.blow(mouth.x, mouth.y + 0.05, mouth.z, Math.cos(a) * s, 1.6 + Math.random() * 2.2, Math.sin(a) * s, 0.05 + Math.random() * 0.1);
+    }
+  }
+
+  /** The geyser's spot: right under you when you stand near, else in front, toward the viewer. */
+  private startGeyser(player: CrabPlayer | null, toPlayer: number): void {
+    if (player && toPlayer < AIM_PLAYER) {
+      this.gx = player.x;
+      this.gz = player.z;
+    } else {
+      const dx = this.viewX - this.x;
+      const dz = this.viewZ - this.z;
+      const d = Math.hypot(dx, dz) || 1;
+      this.gx = this.x + (dx / d) * 1.8;
+      this.gz = this.z + (dz / d) * 1.8;
+    }
+    this.gy = Math.max(0, this.world.heightAt(this.gx, this.gz));
+    this.events.onVoice('greet');
+    this.go('geyserUp', GEYSER.windup);
+  }
+
+  /**
+   * One frame of the geyser: a column of water drops thrown up (falling back as rain round it),
+   * and in daylight a rainbow arching over it, facing the viewer (bands of rainbow motes on a
+   * half circle). Standing in it soaks you.
+   */
+  private geyser(dt: number, player: CrabPlayer | null): void {
+    const w = this.world;
+    // Strongest in the middle of its time.
+    const k = Math.sin(Math.PI * Math.min(1, 1 - this.timer / GEYSER.time));
+    this.dropDebt += dt * GEYSER.drops * (0.4 + 0.6 * k);
+    for (; this.dropDebt >= 1; this.dropDebt -= 1) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * 0.15;
+      const up = GEYSER.speed[0] + Math.random() * (GEYSER.speed[1] - GEYSER.speed[0]) * (0.5 + 0.5 * k);
+      const spread = 0.25 + Math.random() * 0.7;
+      w.spray.drop(this.gx + Math.cos(a) * r, this.gy + 0.05, this.gz + Math.sin(a) * r, Math.cos(a) * spread, up, Math.sin(a) * spread, 0.03 + Math.random() * 0.04);
+    }
+    const day = w.daylight();
+    if (day > 0.25) {
+      // Across the line of sight: the arch stands facing the viewer.
+      const vx = this.viewX - this.gx;
+      const vz = this.viewZ - this.gz;
+      const vd = Math.hypot(vx, vz) || 1;
+      const px = -vz / vd;
+      const pz = vx / vd;
+      this.bowDebt += dt * 160;
+      for (; this.bowDebt >= 1; this.bowDebt -= 1) {
+        const t = Math.random() * Math.PI;
+        for (let b = 0; b < 7; b++) {
+          const rr = GEYSER.rainbow + (3 - b) * 0.11;
+          w.rainbow.emit(this.gx + px * Math.cos(t) * rr, this.gy + 0.3 + Math.sin(t) * rr, this.gz + pz * Math.cos(t) * rr, 0, 0.3, 0, 0.09 + Math.random() * 0.04, (b / 7) * 0.8);
+        }
+      }
+    }
+    if (player && !this.hit && Math.hypot(player.x - this.gx, player.z - this.gz) < GEYSER.soak && k > 0.3) {
+      this.hit = true;
+      this.events.onHitPlayer();
+    }
   }
 
   /** `n` bubbles from the mouth, puffed forward (and a little up) at about `speed` m/s. */

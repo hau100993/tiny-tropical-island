@@ -25,6 +25,14 @@ const RECOVER = 0.5;
 /** Pollen from the sprout per second while the pointer rests on it; and in a pat's puff. */
 const HOVER_SPORES = 16;
 const PAT_SPORES = 40;
+/** "Vũ Điệu Mầm Non": a longer dance in a rising spiral of pollen (s, motes per second). */
+const DANCE = { time: 2.6, rate: 70 } as const;
+/** "Gió Bồ Công Anh": dandelion seeds blown off the sprout (s, seeds per second, m/s up). */
+const DANDELION = { time: 1.6, rate: 110, up: [0.6, 1.6] } as const;
+
+/** Its skills, in the order Z cycles through them. */
+export type BunnySkill = 'leaves' | 'dance' | 'dandelion';
+const SKILLS: readonly BunnySkill[] = ['leaves', 'dance', 'dandelion'];
 
 export interface BunnyWorld {
   heightAt(x: number, z: number): number;
@@ -32,6 +40,9 @@ export interface BunnyWorld {
   house: { x: number; z: number };
   leaves: LeafStorm;
   spores: EmberSink;
+  /** Dandelion seeds, and the breeze (m/s, horizontal) they drift on. */
+  fluff: EmberSink;
+  breeze(): { x: number; z: number };
 }
 
 export interface BunnyEvents {
@@ -49,7 +60,7 @@ export interface BunnyPlayer {
   y: number;
 }
 
-type State = 'idle' | 'wander' | 'approach' | 'greet' | 'hover' | 'turn' | 'windup' | 'throw' | 'recover' | 'dance';
+type State = 'idle' | 'wander' | 'approach' | 'greet' | 'hover' | 'turn' | 'windup' | 'throw' | 'recover' | 'dance' | 'blow';
 
 /**
  * Mầm's behaviour: wanders the grass between the house and the beach, comes over to greet you,
@@ -76,6 +87,12 @@ export class GrassBunny {
   private autoSkill: number;
   private queued = false;
   private patQueued = false;
+  /** The skill Z starts next, and the one queued; motes owed (the spiral, the seeds). */
+  private nextSkill = 0;
+  private skill: BunnySkill = 'leaves';
+  private moteDebt = 0;
+  /** A commanded dance (the pollen spiral), not a pat's. */
+  private bigDance = false;
   private hovered = false;
   private viewX = 0;
   private viewZ = 0;
@@ -96,9 +113,16 @@ export class GrassBunny {
     this.autoSkill = between(AUTO_SKILL);
   }
 
-  /** "Lá Bay" on command (Z). Ignored while one is under way. */
-  command(): void {
-    if (!this.busy) this.queued = true;
+  /**
+   * A grass skill, on command (Z): each press the next one ("Lá Bay", the dance, dandelions).
+   * Ignored while one is under way; returns the one started (null: busy).
+   */
+  command(): BunnySkill | null {
+    if (this.busy || this.queued) return null;
+    this.skill = SKILLS[this.nextSkill];
+    this.nextSkill = (this.nextSkill + 1) % SKILLS.length;
+    this.queued = true;
+    return this.skill;
   }
 
   setHover(on: boolean, viewX: number, viewZ: number): void {
@@ -112,7 +136,8 @@ export class GrassBunny {
   }
 
   private get busy(): boolean {
-    return this.state === 'turn' || this.state === 'windup' || this.state === 'throw' || this.state === 'recover';
+    const s = this.state;
+    return s === 'turn' || s === 'windup' || s === 'throw' || s === 'recover' || s === 'blow' || (s === 'dance' && this.bigDance);
   }
 
   /** `bud`: the tip of its sprout (world), from the model's last frame. */
@@ -125,7 +150,11 @@ export class GrassBunny {
 
     // A pat: heads or tails. Leaves your way, or a happy dance in a puff of pollen.
     if (this.patQueued && !this.busy) {
-      if (Math.random() < 0.5) {
+      const r = Math.random();
+      if (r < 0.25) {
+        this.skill = 'dandelion';
+        this.queued = true;
+      } else if (r < 0.55) {
         this.events.onVoice('dance');
         this.go('dance', 1.6);
         this.puff(bud, PAT_SPORES, 0.9);
@@ -143,6 +172,18 @@ export class GrassBunny {
       this.go('hover', 0);
     }
     const quiet = this.state === 'idle' || this.state === 'wander';
+    if (!this.busy && this.queued && this.skill !== 'leaves') {
+      this.queued = false;
+      this.autoSkill = between(AUTO_SKILL);
+      this.events.onVoice('dance');
+      if (this.skill === 'dance') {
+        this.bigDance = true;
+        this.go('dance', DANCE.time);
+      } else {
+        this.events.onThrow(DANDELION.time);
+        this.go('blow', DANDELION.time);
+      }
+    }
     if (!this.busy && (this.queued || (this.autoSkill <= 0 && quiet))) {
       this.atPlayer = this.queued && player !== null && toPlayer < AIM_PLAYER;
       this.queued = false;
@@ -221,14 +262,23 @@ export class GrassBunny {
         if (this.timer <= 0) this.go('idle', 2 + Math.random() * 3);
         break;
       case 'dance':
-        if (this.timer <= 0) this.go(this.hovered ? 'hover' : 'idle', 3);
+        if (this.bigDance) this.spiral(dt, bud);
+        if (this.timer <= 0) {
+          this.bigDance = false;
+          this.go(this.hovered ? 'hover' : 'idle', 3);
+        }
+        break;
+      case 'blow':
+        // Facing the way the breeze goes, seeds streaming off the sprout.
+        this.blowSeeds(dt, bud);
+        if (this.timer <= 0) this.go('idle', 2);
         break;
     }
     if (face !== null) this.turnToward(face, dt, 5);
 
     this.speed = speed;
     this.y = this.world.heightAt(this.x, this.z);
-    const throwing = this.state === 'windup' || this.state === 'throw';
+    const throwing = this.state === 'windup' || this.state === 'throw' || this.state === 'blow';
     this.action = speed > 0 ? 'move' : throwing ? 'skill' : this.state === 'greet' || this.state === 'hover' ? 'greet' : this.state === 'dance' ? 'dance' : 'idle';
     const want = throwing || this.state === 'dance' ? 1 : this.state === 'hover' ? 0.85 : this.state === 'greet' ? 0.4 : 0;
     this.flare += (want - this.flare) * (1 - Math.exp(-dt * 4));
@@ -237,6 +287,37 @@ export class GrassBunny {
   private go(state: State, time: number): void {
     this.state = state;
     this.timer = time;
+  }
+
+  /** The big dance: pollen rising round it in a double spiral, gold and lime. */
+  private spiral(dt: number, bud: { x: number; y: number; z: number }): void {
+    this.moteDebt += dt * DANCE.rate;
+    const t = DANCE.time - this.timer;
+    for (; this.moteDebt >= 1; this.moteDebt -= 1) {
+      for (const arm of [0, Math.PI]) {
+        const a = t * 7 + arm;
+        const r = 0.35 + t * 0.25;
+        this.world.spores.emit(this.x + Math.cos(a) * r, this.y + 0.1, this.z + Math.sin(a) * r, -Math.sin(a) * 0.6, 0.9 + Math.random() * 0.5, Math.cos(a) * 0.6, 0.03 + Math.random() * 0.03);
+      }
+    }
+    // A flourish from the sprout now and then.
+    if (Math.random() < dt * 4) this.puff(bud, 8, 0.6);
+  }
+
+  /** "Gió Bồ Công Anh": seeds lifted off the sprout, carried away on the breeze, spreading. */
+  private blowSeeds(dt: number, bud: { x: number; y: number; z: number }): void {
+    const b = this.world.breeze();
+    // Some breeze even on a still day (it blows them itself), always away from it.
+    const bs = Math.hypot(b.x, b.z);
+    const fx = bs > 0.2 ? b.x : Math.sin(this.yaw) * 0.6;
+    const fz = bs > 0.2 ? b.z : Math.cos(this.yaw) * 0.6;
+    this.moteDebt += dt * DANDELION.rate;
+    for (; this.moteDebt >= 1; this.moteDebt -= 1) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 0.2 + Math.random() * 0.5;
+      const up = DANDELION.up[0] + Math.random() * (DANDELION.up[1] - DANDELION.up[0]);
+      this.world.fluff.emit(bud.x, bud.y + 0.03, bud.z, fx * (0.6 + Math.random() * 0.8) + Math.cos(a) * s, up, fz * (0.6 + Math.random() * 0.8) + Math.sin(a) * s, 0.11 + Math.random() * 0.07);
+    }
   }
 
   /** `n` motes of pollen from the sprout, drifting out and up at about `speed` m/s. */

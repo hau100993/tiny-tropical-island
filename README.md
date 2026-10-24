@@ -64,9 +64,9 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `B` | Work desk: sit down at the desk in the house (from anywhere) / get up |
 | `G` | Call Mochi the dog: it runs straight to you |
 | `J` | Mochi's special move, **Sao Băng Mochi** (see *Mochi*) |
-| `R` | Bọt the water crab fires its water jet (at you if you stand within 10 m, else out to sea) |
-| `X` | Hỏa Long the fire dragon breathes fire (at you if you stand within 12 m: it dries you; else onto the sea) |
-| `Z` | Mầm the grass bunny throws Lá Bay: flowers spring up where the leaves land (within 10 m of you: a ring of flowers round you) |
+| `R` | Bọt the water crab's skills, each press the next: water jet (at you if you stand within 10 m, else out to sea), bubble shower, rainbow geyser (see *Three skills each*) |
+| `X` | Hỏa Long the fire dragon's skills, each press the next: fire breath (at you if you stand within 12 m: it dries you; else onto the sea), ring of fire, meteor shower |
+| `Z` | Mầm the grass bunny's skills, each press the next: Lá Bay (flowers spring up where the leaves land; within 10 m of you: a ring of flowers round you), the pollen dance, dandelion breeze |
 | `U` | Seated at the desk: play a YouTube link on the left monitor, same as clicking the YouTube logo on the right monitor (see *The house and the work desk*). Elsewhere: pause / resume that video |
 | `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up |
 | `K` | Walking on the beach or in the shallows: get into the kayak; in the kayak: step out (see *Kayak*) |
@@ -413,6 +413,20 @@ at your feet. **With the mouse:** rest the pointer on it and it turns to you, th
 open and golden pollen drifts up; click it and, at random, it throws leaves your way or does a
 happy hop in a puff of pollen. Sounds (a rush of leaves, little squeaks) follow **Âm thanh hoạt
 động**. Loaded on first use (0.54 MB).
+
+**Three skills each (`R` / `X` / `Z`: each press starts the next; a click on the creature picks
+one at random; a note names it).** Bọt: **Vòi Rồng Nước** (the jet), **Mưa Bong Bóng** (a big
+breath of rainbow bubbles blown high, drifting down all round), **Mạch Nước Cầu Vồng** (claws up,
+the sand trembles, then a geyser bursts up ~5 m for 2.2 s, under you if you stand within 10 m
+(soaking you), else in front of it; in daylight a rainbow arches over it, facing you). Hỏa
+Long: **Hơi Thở Lửa** (the breath), **Vòng Lửa** (it spins once in the air and a wall of fire
+races out along the ground in a ring to 6 m; it dries you as it passes; over the sea it skims the
+waves), **Mưa Thiên Thạch** (it climbs, nose to the sky, and spits seven fireballs that arc up
+and rain down within 5.5 m of you, or of it, each a blazing core with a tail of sparks that
+bursts where it lands, hissing into steam on the sea). Mầm: **Lá Bay Nở Hoa** (the leaves and
+flowers), **Vũ Điệu Mầm Non** (a longer dance in a rising double spiral of pollen), **Gió Bồ
+Công Anh** (dandelion seeds, little white stars of fine hairs, stream off its sprout and float
+away on the wind for several seconds). Bé Mập already has three pranks and its celebration.
 
 **Wild ones in the rainforest (Góc nhìn → Sinh vật hoang trong rừng, on by default).** Walk in
 among the trees and wild Bọt, Hỏa Long and Mầm show themselves: every few seconds one peeks out

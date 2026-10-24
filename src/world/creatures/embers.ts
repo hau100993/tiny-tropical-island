@@ -5,6 +5,8 @@ import { FIRE_BLENDING, FIRE_BLEND_GLSL } from './fireBlend';
 /** Pool sizes: a rainbow arc is drawn with many motes at once. */
 const MAX = 400;
 const MAX_RAINBOW = 3000;
+/** Hỏa Long's ring of fire and meteors throw many sparks at once. */
+const MAX_EMBER = 1500;
 
 /** Anything that throws embers (or puffs of steam). */
 export interface EmberSink {
@@ -19,9 +21,10 @@ export interface EmberSink {
  * Glowing sparks that rise and wink out; soft white steam that swells and thins away; or pollen
  * (Mầm's spores): little yellow-green motes that drift up slowly and twinkle; or sea sparkle
  * (Bé Mập's fin at night): cyan glints that stay on the water and fade; or rainbow motes (Bé
- * Mập's celebration): glittering drops in every colour that hang in the air and sink slowly.
+ * Mập's celebration): glittering drops in every colour that hang in the air and sink slowly; or
+ * dandelion seeds (Mầm): white fluffy stars that float on the breeze for seconds.
  */
-export type EmberKind = 'ember' | 'steam' | 'spore' | 'sea' | 'rainbow';
+export type EmberKind = 'ember' | 'steam' | 'spore' | 'sea' | 'rainbow' | 'fluff';
 
 const VERT = /* glsl */ `
 attribute float aSize;
@@ -81,6 +84,16 @@ void main() {
   vec3 col = mix(hue, vec3(1.0), glint * 0.7);
   float a = glow * tw * smoothstep(0.0, 0.06, vLife) * (1.0 - vLife * vLife);
   gl_FragColor = fireBlend(col * 1.3, a, uDayLight);
+#elif defined(FLUFF)
+  // A dandelion seed seen end-on: a small core and a star of fine hairs (the pappus), turning
+  // slowly; soft white, faintly glowing at night.
+  float ang = atan(c.y, c.x) + vSeed * 6.283 + uTime * (vSeed - 0.5);
+  float r = sqrt(r2);
+  float hairs = pow(abs(cos(ang * 4.0)), 18.0) * smoothstep(1.0, 0.25, r) * smoothstep(0.0, 0.2, r);
+  float core = exp(-r2 * 40.0);
+  float a = clamp(hairs * 1.3 + core + exp(-r2 * 4.0) * 0.2, 0.0, 1.0);
+  a *= smoothstep(0.0, 0.1, vLife) * (1.0 - smoothstep(0.7, 1.0, vLife));
+  gl_FragColor = fireBlend(vec3(1.0, 0.99, 0.95), a, uDayLight);
 #else
   // A spark: white-hot centre, orange glow, cooling to red as it dies; it flickers.
   float core = exp(-r2 * 9.0);
@@ -118,7 +131,7 @@ export class Embers implements EmberSink {
     shared: SharedUniforms,
     private readonly kind: EmberKind,
   ) {
-    const max = (this.max = kind === 'rainbow' ? MAX_RAINBOW : MAX);
+    const max = (this.max = kind === 'rainbow' ? MAX_RAINBOW : kind === 'ember' ? MAX_EMBER : MAX);
     this.vel = new Float32Array(max * 3);
     this.age = new Float32Array(max).fill(Infinity);
     this.life = new Float32Array(max);
@@ -137,7 +150,7 @@ export class Embers implements EmberSink {
       uniforms: { uScale: this.scale, uTime: shared.uTime, uDayLight: shared.uDayLight },
       vertexShader: VERT,
       fragmentShader: FRAG,
-      defines: kind === 'steam' ? { STEAM: '' } : kind === 'spore' ? { SPORE: '' } : kind === 'sea' ? { SEA: '' } : kind === 'rainbow' ? { RAINBOW: '' } : {},
+      defines: kind === 'steam' ? { STEAM: '' } : kind === 'spore' ? { SPORE: '' } : kind === 'sea' ? { SEA: '' } : kind === 'rainbow' ? { RAINBOW: '' } : kind === 'fluff' ? { FLUFF: '' } : {},
       transparent: true,
       depthWrite: false,
       ...(kind === 'steam' ? { blending: THREE.NormalBlending } : FIRE_BLENDING),
@@ -165,7 +178,7 @@ export class Embers implements EmberSink {
     this.vel[i * 3 + 2] = vz;
     this.age[i] = 0;
     const k = this.kind;
-    this.life[i] = k === 'ember' ? 0.5 + Math.random() * 1.1 : k === 'spore' || k === 'sea' ? 2 + Math.random() * 2 : k === 'rainbow' ? 1.8 + Math.random() * 0.9 : 1.4 + Math.random() * 1.6;
+    this.life[i] = k === 'ember' ? 0.5 + Math.random() * 1.1 : k === 'spore' || k === 'sea' ? 2 + Math.random() * 2 : k === 'rainbow' ? 1.8 + Math.random() * 0.9 : k === 'fluff' ? 4 + Math.random() * 2.5 : 1.4 + Math.random() * 1.6;
     this.radius[i] = radius;
     (this.seed.array as Float32Array)[i] = seed ?? Math.random();
     this.seed.needsUpdate = true;
@@ -181,10 +194,12 @@ export class Embers implements EmberSink {
     const spore = this.kind === 'spore';
     const sea = this.kind === 'sea';
     const rainbow = this.kind === 'rainbow';
+    const fluff = this.kind === 'fluff';
     // Embers: quick drag and a strong lift (hot air); steam: slower on both; pollen: barely lifts.
     // Sea sparkle stays on the water: strong drag, no lift. Rainbow motes sink slowly.
-    const drag = Math.exp(-(ember ? 2.2 : spore ? 1.8 : sea ? 3 : rainbow ? 1.6 : 1.2) * dt);
-    const lift = (ember ? 2.4 : spore ? 0.18 : sea ? 0 : rainbow ? -1.1 : 0.9) * dt;
+    // Dandelion seeds keep drifting with the breeze they were given (little drag), barely sinking.
+    const drag = Math.exp(-(ember ? 2.2 : spore ? 1.8 : sea ? 3 : rainbow ? 1.6 : fluff ? 0.3 : 1.2) * dt);
+    const lift = (ember ? 2.4 : spore ? 0.18 : sea ? 0 : rainbow ? -1.1 : fluff ? -0.04 : 0.9) * dt;
     let last = -1;
     for (let i = 0; i < this.max; i++) {
       if (this.age[i] === Infinity) continue;
@@ -203,7 +218,7 @@ export class Embers implements EmberSink {
       p[i * 3 + 1] += v[i * 3 + 1] * dt;
       p[i * 3 + 2] += v[i * 3 + 2] * dt;
       // Sparks shrink as they cool; steam swells as it spreads.
-      s[i] = this.radius[i] * (ember ? 1 - 0.6 * k : spore || sea || rainbow ? 1 : 1 + 2.2 * k);
+      s[i] = this.radius[i] * (ember ? 1 - 0.6 * k : spore || sea || rainbow || fluff ? 1 : 1 + 2.2 * k);
       l[i] = k;
       last = i;
     }

@@ -4,18 +4,18 @@ import { PetPointer } from '../controls/petPointer';
 import type { ClickAim } from '../controls/waterClick';
 import type { SharedUniforms } from '../core/uniforms';
 import { AirBubbles } from '../world/creatures/airBubbles';
-import { Embers } from '../world/creatures/embers';
+import { Embers, type EmberSink } from '../world/creatures/embers';
 import { WildCreatures } from './wildCreatures';
 import type { TrunkInstance } from '../world/vegetation/forest';
 // Type-only: the models, behaviours and the GLTFLoader are a separate chunk, fetched on first use.
 import type { CrabModel } from '../world/creatures/crabModel';
-import type { BubbleCrab, CrabPlayer } from '../world/creatures/bubbleCrab';
+import type { BubbleCrab, CrabPlayer, CrabSkill } from '../world/creatures/bubbleCrab';
 import type { DragonModel } from '../world/creatures/dragonModel';
-import type { FireDragon } from '../world/creatures/fireDragon';
+import type { DragonSkill, FireDragon } from '../world/creatures/fireDragon';
 import type { JetStream } from '../world/creatures/jetStream';
 import type { FlameSprite, GroundGlow } from '../world/creatures/flames';
 import type { BunnyModel } from '../world/creatures/bunnyModel';
-import type { GrassBunny } from '../world/creatures/grassBunny';
+import type { BunnySkill, GrassBunny } from '../world/creatures/grassBunny';
 import type { LeafStorm } from '../world/creatures/leafStorm';
 import type { Blooms } from '../world/creatures/blooms';
 import waterCrabUrl from '../assets/creatures/water-crab.glb?url';
@@ -59,6 +59,8 @@ export interface CreatureHost {
   /** Water hit you: soaked. Fire hit you: dried. */
   soak(): void;
   dry(): void;
+  /** Rainbow motes, shared (the geyser's rainbow, the dragon's and Mầm's sparkles). */
+  rainbow: EmberSink;
 }
 
 interface Crab {
@@ -94,6 +96,9 @@ export class Creatures {
   private readonly embers: Embers;
   private readonly steam: Embers;
   private readonly spores: Embers;
+  /** Mầm's dandelion seeds, and the breeze they ride (reused). */
+  private readonly fluff: Embers;
+  private readonly breeze = { x: 0, z: 0 };
   private readonly crabPointer: PetPointer;
   private readonly dragonPointer: PetPointer;
   private readonly bunnyPointer: PetPointer;
@@ -121,7 +126,8 @@ export class Creatures {
     this.embers = new Embers(shared, 'ember');
     this.steam = new Embers(shared, 'steam');
     this.spores = new Embers(shared, 'spore');
-    scene.add(this.jetSpray.points, this.bubbles.points, this.embers.points, this.steam.points, this.spores.points);
+    this.fluff = new Embers(shared, 'fluff');
+    scene.add(this.jetSpray.points, this.bubbles.points, this.embers.points, this.steam.points, this.spores.points, this.fluff.points);
     this.wild = new WildCreatures({
       scene,
       camera: host.camera,
@@ -204,18 +210,19 @@ export class Creatures {
     if (this.bunny) this.bunny.model.root.visible = bunny;
   }
 
-  /** Bọt's water jet (R); false if Bọt is off or not loaded yet. */
-  waterSkill(): boolean {
-    if (!this.crabOn || !this.crab) return false;
-    this.crab.brain.command();
-    return true;
+  /**
+   * Bọt's water skills (R: each press the next): which one started, 'busy' (one is under way)
+   * or 'off' (Bọt is off or not loaded yet).
+   */
+  waterSkill(): CrabSkill | 'busy' | 'off' {
+    if (!this.crabOn || !this.crab) return 'off';
+    return this.crab.brain.command() ?? 'busy';
   }
 
-  /** Hỏa Long's fire (X); false if it is off or not loaded yet. */
-  fireSkill(): boolean {
-    if (!this.dragonOn || !this.dragon) return false;
-    this.dragon.brain.command();
-    return true;
+  /** Hỏa Long's fire skills (X: each press the next); see waterSkill. */
+  fireSkill(): DragonSkill | 'busy' | 'off' {
+    if (!this.dragonOn || !this.dragon) return 'off';
+    return this.dragon.brain.command() ?? 'busy';
   }
 
   /** Wild creatures peeking out in the rainforest, on or off. */
@@ -223,15 +230,15 @@ export class Creatures {
     this.wild.setEnabled(on);
   }
 
-  /** Mầm's "Lá Bay" (Z); false if it is off or not loaded yet. */
-  grassSkill(): boolean {
-    if (!this.bunnyOn || !this.bunny) return false;
-    this.bunny.brain.command();
-    return true;
+  /** Mầm's grass skills (Z: each press the next); see waterSkill. */
+  grassSkill(): BunnySkill | 'busy' | 'off' {
+    if (!this.bunnyOn || !this.bunny) return 'off';
+    return this.bunny.brain.command() ?? 'busy';
   }
 
   setViewport(heightPx: number, fovDeg: number): void {
     this.spores.setViewport(heightPx, fovDeg);
+    this.fluff.setViewport(heightPx, fovDeg);
     this.jetSpray.setViewport(heightPx, fovDeg);
     this.bubbles.setViewport(heightPx, fovDeg);
     this.embers.setViewport(heightPx, fovDeg);
@@ -244,6 +251,7 @@ export class Creatures {
     this.embers.update(dt);
     this.steam.update(dt);
     this.spores.update(dt);
+    this.fluff.update(dt);
     const walking = this.host.player(this.you);
     const you = walking ? this.you : null;
     const cam = this.host.camera.position;
@@ -343,6 +351,8 @@ export class Creatures {
             ripple: h.ripple,
             spray: this.jetSpray,
             bubbles: this.bubbles,
+            rainbow: h.rainbow,
+            daylight: () => h.shared.uDayLight.value,
           },
           h.homes.crab,
           {
@@ -389,6 +399,7 @@ export class Creatures {
           h.homes.dragon,
           {
             onBreath: (duration) => this.play(brain.x, brain.y, brain.z, (g, p) => h.sound.flame(duration, g, p)),
+            onBoom: (x, y, z) => this.play(x, y, z, (g, p) => h.sound.flame(0.35, g, p)),
             onVoice: (kind) => this.play(brain.x, brain.y, brain.z, (g, p) => h.sound.dragon(kind, g, p)),
             onHitPlayer: () => {
               // Warm air off a wet you: a puff of steam, then dry.
@@ -451,7 +462,20 @@ export class Creatures {
         );
         await this.compileHidden(model.root, [leaves.mesh, blooms.group]);
         const brain: GrassBunny = new GrassBunny(
-          { heightAt: h.heightAt, house: h.house, leaves, spores: this.spores },
+          {
+            heightAt: h.heightAt,
+            house: h.house,
+            leaves,
+            spores: this.spores,
+            fluff: this.fluff,
+            // The wind (uWind ~0..1.5) as a breeze of up to ~2 m/s.
+            breeze: () => {
+              const k = h.shared.uWind.value * 1.4;
+              this.breeze.x = h.shared.uWindDir.value.x * k;
+              this.breeze.z = h.shared.uWindDir.value.y * k;
+              return this.breeze;
+            },
+          },
           h.homes.bunny,
           {
             onThrow: (duration) => this.play(brain.x, brain.y, brain.z, (g, p) => h.sound.leaves(duration, g, p)),

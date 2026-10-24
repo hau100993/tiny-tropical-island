@@ -334,11 +334,12 @@ export class App {
       onMove: (dx, dy) => this.petting.move(dx, dy),
       onEnd: (cancelled) => this.endPetting(cancelled),
     });
+    // Rainbow motes: Bé Mập's and Mochi's celebrations, Bọt's geyser and more (shared).
+    this.rainbow = new Embers(sharedUniforms, 'rainbow');
+    this.scene.add(this.rainbow.points);
     this.creatures = this.createCreatures();
     this.seaGlow = new Embers(sharedUniforms, 'sea');
     this.scene.add(this.seaGlow.points);
-    this.rainbow = new Embers(sharedUniforms, 'rainbow');
-    this.scene.add(this.rainbow.points);
     this.beMap = this.createShark();
     this.listenShoo();
 
@@ -678,7 +679,9 @@ export class App {
       keyLabel: 'R',
       label: vi.shortcuts.waterSkill,
       action: () => {
-        if (!this.creatures.waterSkill()) this.activityMenu.flash(vi.creatures.off);
+        const r = this.creatures.waterSkill();
+        if (r === 'off') this.activityMenu.flash(vi.creatures.off);
+        else if (r !== 'busy') this.activityMenu.flash(vi.creatures.skills[r]);
       },
     });
     this.keymap.register({
@@ -686,7 +689,9 @@ export class App {
       keyLabel: 'X',
       label: vi.shortcuts.fireSkill,
       action: () => {
-        if (!this.creatures.fireSkill()) this.activityMenu.flash(vi.creatures.dragonOff);
+        const r = this.creatures.fireSkill();
+        if (r === 'off') this.activityMenu.flash(vi.creatures.dragonOff);
+        else if (r !== 'busy') this.activityMenu.flash(vi.creatures.skills[r]);
       },
     });
     this.keymap.register({
@@ -694,7 +699,9 @@ export class App {
       keyLabel: 'Z',
       label: vi.shortcuts.grassSkill,
       action: () => {
-        if (!this.creatures.grassSkill()) this.activityMenu.flash(vi.creatures.grassOff);
+        const r = this.creatures.grassSkill();
+        if (r === 'off') this.activityMenu.flash(vi.creatures.grassOff);
+        else if (r !== 'busy') this.activityMenu.flash(vi.creatures.skills[r]);
       },
     });
     this.keymap.register({
@@ -978,6 +985,7 @@ export class App {
         bunny: { x: bunnyX, z: bunnyZ },
       },
       house: { x: house.x, z: house.z },
+      rainbow: this.rainbow,
       trunks: this.world.forest.trunks,
       treesNear: (x, z, r) => this.colliders.treesNear(x, z, r),
       aim: () => this.petAimMode(),

@@ -31,6 +31,30 @@ const BREATH = 1.6;
 const RECOVER = 0.6;
 /** Embers puffed from the mouth per second while the pointer rests on it. */
 const HOVER_EMBERS = 22;
+/**
+ * "Vòng Lửa": it spins in the air and a ring of fire bursts from the ground under it, racing
+ * out to `reach` m in `time` s (released `at` s into the spin).
+ */
+const RING = { spin: 1.8, at: 0.55, time: 1.2, reach: 6, rate: 900 } as const;
+/**
+ * "Mưa Thiên Thạch": it climbs, nose to the sky, and spits `count` fireballs up, `every` s
+ * apart, that rain down round you (or round it) within `spread` m after `flight` s and burst.
+ */
+const METEOR = { climb: 1.6, count: 7, every: 0.28, flight: 1.5, spread: 5.5, burst: 55 } as const;
+
+/** Its skills, in the order X cycles through them. */
+export type DragonSkill = 'breath' | 'ring' | 'meteors';
+const SKILLS: readonly DragonSkill[] = ['breath', 'ring', 'meteors'];
+
+interface Fireball {
+  live: boolean;
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+}
 
 export interface DragonWorld {
   heightAt(x: number, z: number): number;
@@ -44,6 +68,8 @@ export interface DragonWorld {
 export interface DragonEvents {
   /** Fire starts (s of breathing). */
   onBreath(duration: number): void;
+  /** A fireball bursts on the ground (or the sea) at (x, y, z). */
+  onBoom(x: number, y: number, z: number): void;
   /** A sound of its own: `greet` (a friendly chirrup) or `dance` (an excited one). */
   onVoice(kind: 'greet' | 'dance'): void;
   /** The flame reached you. */
@@ -58,7 +84,7 @@ export interface DragonPlayer {
   y: number;
 }
 
-type State = 'patrol' | 'approach' | 'greet' | 'hover' | 'place' | 'windup' | 'fire' | 'recover' | 'dance';
+type State = 'patrol' | 'approach' | 'greet' | 'hover' | 'place' | 'windup' | 'fire' | 'recover' | 'dance' | 'ring' | 'meteors';
 
 /**
  * Hỏa Long's behaviour, always on the wing: loops lazily round its home over the beach, flies
@@ -102,6 +128,22 @@ export class FireDragon {
   private hit = false;
   private emberDebt = 0;
   private voiceIn = 0;
+  /** The skill X starts next, and the one queued. */
+  private nextSkill = 0;
+  private skill: DragonSkill = 'breath';
+  /** The ring of fire: its centre and its age (s; < 0: not yet released). */
+  private ringX = 0;
+  private ringZ = 0;
+  private ringAge = -1;
+  private ringHit = false;
+  /** The meteor shower: where it falls round, fireballs left to throw, the next one in (s). */
+  private rainX = 0;
+  private rainZ = 0;
+  private toThrow = 0;
+  private throwIn = 0;
+  private readonly balls: Fireball[] = Array.from({ length: METEOR.count }, () => ({ live: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 }));
+  /** Where you are (for a meteor or the ring reaching you). */
+  private player: DragonPlayer | null = null;
   /** Your chest while breathing at you (the flame's hit test follows it). */
   private readonly chest = { x: 0, y: 0, z: 0 };
   private readonly breath: FireBreath;
@@ -127,9 +169,16 @@ export class FireDragon {
     return this.breath.stream;
   }
 
-  /** Fire, on command (X). Ignored while one is under way. */
-  command(): void {
-    if (!this.busy) this.queued = true;
+  /**
+   * A fire skill, on command (X): each press the next one (breath, ring of fire, meteor shower).
+   * Ignored while one is under way; returns the one started (null: busy).
+   */
+  command(): DragonSkill | null {
+    if (this.busy || this.queued) return null;
+    this.skill = SKILLS[this.nextSkill];
+    this.nextSkill = (this.nextSkill + 1) % SKILLS.length;
+    this.queued = true;
+    return this.skill;
   }
 
   setHover(on: boolean, viewX: number, viewZ: number): void {
@@ -143,7 +192,8 @@ export class FireDragon {
   }
 
   private get busy(): boolean {
-    return this.state === 'place' || this.state === 'windup' || this.state === 'fire' || this.state === 'recover';
+    const s = this.state;
+    return s === 'place' || s === 'windup' || s === 'fire' || s === 'recover' || s === 'ring' || s === 'meteors';
   }
 
   /**
@@ -163,13 +213,21 @@ export class FireDragon {
     this.voiceIn -= dt;
     const toPlayer = player ? Math.hypot(player.x - this.x, player.z - this.z) : Infinity;
 
-    // A pat: an excited dance, nose to the sky, and a short burst of fire upward.
+    this.player = player;
+    // A pat: an excited dance, nose to the sky, and a short burst of fire upward; or (now and
+    // then) a ring of fire or a meteor shower.
     if (this.patQueued && !this.busy) {
-      this.events.onVoice('dance');
-      this.go('dance', 1.6);
-      this.breath.fire(0.8, null);
-      this.events.onBreath(0.8);
-      this.atPlayer = false;
+      const r = Math.random();
+      if (r < 0.5) {
+        this.events.onVoice('dance');
+        this.go('dance', 1.6);
+        this.breath.fire(0.8, null);
+        this.events.onBreath(0.8);
+        this.atPlayer = false;
+      } else {
+        this.skill = r < 0.75 ? 'ring' : 'meteors';
+        this.queued = true;
+      }
     }
     this.patQueued = false;
     if (this.hovered && !this.busy && this.state !== 'dance' && this.state !== 'hover') {
@@ -178,6 +236,23 @@ export class FireDragon {
       this.go('hover', 0);
     }
     const quiet = this.state === 'patrol';
+    if (!this.busy && this.queued && this.skill !== 'breath') {
+      this.queued = false;
+      this.autoSkill = between(AUTO_SKILL);
+      this.events.onVoice('dance');
+      if (this.skill === 'ring') {
+        this.ringAge = -1;
+        this.ringHit = false;
+        this.go('ring', RING.spin);
+      } else {
+        const near = player !== null && toPlayer < AIM_PLAYER;
+        this.rainX = near && player ? player.x : this.x;
+        this.rainZ = near && player ? player.z : this.z;
+        this.toThrow = METEOR.count;
+        this.throwIn = 0.5;
+        this.go('meteors', 0.5 + METEOR.count * METEOR.every + METEOR.flight + 0.4);
+      }
+    }
     if (!this.busy && (this.queued || (this.autoSkill <= 0 && quiet))) {
       this.atPlayer = this.queued && player !== null && toPlayer < AIM_PLAYER;
       this.queued = false;
@@ -296,12 +371,39 @@ export class FireDragon {
         speed = 0.3;
         if (this.timer <= 0) this.go(this.hovered ? 'hover' : 'patrol', 0);
         break;
+      case 'ring': {
+        // Stays put, spinning once round; the ring leaves from the ground under it.
+        ty = this.surface(this.x, this.z) + ALT;
+        speed = 0.6;
+        const k = 1 - this.timer / RING.spin;
+        face = this.yaw + dt * ((Math.PI * 2) / RING.spin) * 6;
+        if (this.ringAge < 0 && k >= RING.at / RING.spin) {
+          this.ringAge = 0;
+          this.ringX = this.x;
+          this.ringZ = this.z;
+          this.events.onBreath(RING.time);
+        }
+        if (this.timer <= 0) this.go('dance', 1.2);
+        break;
+      }
+      case 'meteors':
+        // Up, nose to the sky, spitting fireballs.
+        ty = this.surface(this.x, this.z) + ALT + METEOR.climb;
+        speed = 1.2;
+        this.throwIn -= dt;
+        if (this.toThrow > 0 && this.throwIn <= 0) {
+          this.throwIn = METEOR.every;
+          this.toThrow--;
+          this.throwBall(mouth);
+        }
+        if (this.timer <= 0) this.go('dance', 1.2);
+        break;
     }
     this.fly(dt, tx, ty, tz, speed);
     const hs = Math.hypot(this.vx, this.vz);
     this.turn(dt, face ?? (hs > 0.3 ? Math.atan2(this.vx, this.vz) : this.yaw));
 
-    const breathing = this.state === 'windup' || this.state === 'fire';
+    const breathing = this.state === 'windup' || this.state === 'fire' || this.state === 'ring' || this.state === 'meteors';
     this.action = breathing ? 'skill' : this.state === 'greet' || this.state === 'hover' ? 'greet' : this.state === 'dance' ? 'dance' : hs > 2 ? 'move' : 'idle';
     const wantFlare = breathing || this.state === 'dance' ? 1 : this.state === 'hover' ? 0.7 : this.state === 'greet' ? 0.4 : 0;
     this.flare += (wantFlare - this.flare) * (1 - Math.exp(-dt * 5));
@@ -311,11 +413,106 @@ export class FireDragon {
     if (breathing || (this.state === 'place' && this.timer < PLACE - 1)) {
       const h = Math.hypot(this.aimX - mouth.x, this.aimZ - mouth.z);
       wantPitch = Math.max(PITCH_UP, Math.min(PITCH_DOWN, Math.atan2(mouth.y - this.aimY, h)));
-    } else if (this.state === 'dance' && this.timer > 0.6) {
+    } else if ((this.state === 'dance' && this.timer > 0.6) || this.state === 'meteors') {
       wantPitch = PITCH_UP;
     }
+    this.updateRing(dt);
+    this.updateBalls(dt);
     this.pitch += (wantPitch - this.pitch) * (1 - Math.exp(-dt * 6));
     this.breath.update(dt, mouth.x, mouth.y, mouth.z, dir.x, dir.y, dir.z);
+  }
+
+  /**
+   * The ring of fire, one frame: embers thrown up and out all along a circle that grows from
+   * under it (the front fastest at first, then slowing), steam where it runs over the sea.
+   */
+  private updateRing(dt: number): void {
+    if (this.ringAge < 0) return;
+    this.ringAge += dt;
+    const k = this.ringAge / RING.time;
+    if (k >= 1) {
+      this.ringAge = -1;
+      return;
+    }
+    // Ease out: fast at first.
+    const r = 0.4 + (RING.reach - 0.4) * (1 - (1 - k) * (1 - k));
+    const n = Math.round(RING.rate * dt * (1 - 0.5 * k));
+    const w = this.world;
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const x = this.ringX + Math.cos(a) * r;
+      const z = this.ringZ + Math.sin(a) * r;
+      const g = w.heightAt(x, z);
+      // Over the sea: above the waves (under them the water would tint it).
+      const y = g < 0 ? 0.35 : g + 0.05;
+      // A wall of flame on the front: big licks going up, a few sparks thrown out ahead.
+      const spark = Math.random() < 0.2;
+      const out = spark ? 1.5 + Math.random() * 1.5 : 0.3;
+      // Over the sea it skims the water: mostly fire, a wisp of steam now and then.
+      if (g < 0 && Math.random() < 0.06) w.steam.emit(x, y, z, Math.cos(a) * 0.3, 0.6, Math.sin(a) * 0.3, 0.15 + Math.random() * 0.1);
+      else w.embers.emit(x, y, z, Math.cos(a) * out, (spark ? 2 : 1.2) + Math.random() * 1.8, Math.sin(a) * out, spark ? 0.06 + Math.random() * 0.05 : 0.16 + Math.random() * 0.16);
+    }
+    // The front passing over you.
+    const p = this.player;
+    if (p && !this.ringHit && Math.abs(Math.hypot(p.x - this.ringX, p.z - this.ringZ) - r) < 0.5) {
+      this.ringHit = true;
+      this.events.onHitPlayer();
+    }
+  }
+
+  /** A fireball from the mouth, up and over, to land somewhere round the shower's centre. */
+  private throwBall(mouth: { x: number; y: number; z: number }): void {
+    const b = this.balls.find((f) => !f.live);
+    if (!b) return;
+    const a = Math.random() * Math.PI * 2;
+    const r = 1 + Math.random() * (METEOR.spread - 1);
+    const tx = this.rainX + Math.cos(a) * r;
+    const tz = this.rainZ + Math.sin(a) * r;
+    const ty = Math.max(0, this.world.heightAt(tx, tz));
+    const T = METEOR.flight * (0.85 + Math.random() * 0.3);
+    b.live = true;
+    b.x = mouth.x;
+    b.y = mouth.y;
+    b.z = mouth.z;
+    b.vx = (tx - mouth.x) / T;
+    b.vz = (tz - mouth.z) / T;
+    b.vy = (ty - mouth.y) / T + (9.81 * T) / 2;
+    this.events.onBreath(0.25);
+  }
+
+  /** Fireballs in flight: a blazing core with a tail of sparks; a burst where they land. */
+  private updateBalls(dt: number): void {
+    const w = this.world;
+    for (const b of this.balls) {
+      if (!b.live) continue;
+      b.vy -= 9.81 * dt;
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.z += b.vz * dt;
+      // The core (big, bright) and its tail.
+      w.embers.emit(b.x, b.y, b.z, 0, 0, 0, 0.32);
+      for (let i = 0; i < 4; i++) w.embers.emit(b.x + (Math.random() - 0.5) * 0.15, b.y + (Math.random() - 0.5) * 0.15, b.z + (Math.random() - 0.5) * 0.15, -b.vx * 0.15 + (Math.random() - 0.5), -b.vy * 0.15 + (Math.random() - 0.5), -b.vz * 0.15 + (Math.random() - 0.5), 0.08 + Math.random() * 0.08);
+      const g = w.heightAt(b.x, b.z);
+      // The sea: bursts on its waves (~0.3 m), not under them.
+      const floor = g < 0 ? 0.3 : g;
+      if (b.vy < 0 && b.y <= floor + 0.05) {
+        b.live = false;
+        for (let i = 0; i < METEOR.burst; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const c = Math.random();
+          const v = 1.5 + Math.random() * 3;
+          w.embers.emit(b.x, floor + 0.1, b.z, Math.cos(a) * v * (1 - c * 0.5), c * v + 1, Math.sin(a) * v * (1 - c * 0.5), 0.07 + Math.random() * 0.1);
+        }
+        if (g < 0) {
+          // Into the sea: a hiss of steam and a ring of ripples.
+          for (let i = 0; i < 14; i++) w.steam.emit(b.x, 0.05, b.z, (Math.random() - 0.5) * 0.8, 0.8 + Math.random(), (Math.random() - 0.5) * 0.8, 0.3 + Math.random() * 0.3);
+          w.ripple(b.x, b.z, 0.8, -0.5);
+        }
+        this.events.onBoom(b.x, floor, b.z);
+        const p = this.player;
+        if (p && Math.hypot(p.x - b.x, p.z - b.z) < 1.3) this.events.onHitPlayer();
+      }
+    }
   }
 
   private go(state: State, time: number): void {
