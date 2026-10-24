@@ -87,6 +87,8 @@ export class SurfActivity {
   private autoLook = 0;
   /** Camera shake (0..1), kicked by a wipeout, fed by a hard carve. */
   private shake = 0;
+  /** A knock from outside waiting for the next update (see knockOff). */
+  private knocked = false;
   private lastTime = Number.NaN;
   private readonly next: NextWave = { seconds: 0, ready: false, fill: 0 };
   private readonly tmp = new THREE.Vector3();
@@ -223,6 +225,11 @@ export class SurfActivity {
     return this.body.state === 'prone' && s.size > 0.3 && s.x < SURF.closeOut && s.d > -0.04 && s.d < 0.32;
   }
 
+  /** Knocks the rider off the board on the next update (Bé Mập's prank): a normal wipeout. */
+  knockOff(): void {
+    if (this.active) this.knocked = true;
+  }
+
   /** Fallen off: the rider is somewhere in the white water (not drawn) for a moment. */
   get riderHidden(): boolean {
     return this.body.state === 'wiped';
@@ -270,6 +277,9 @@ export class SurfActivity {
       this.mouseIdle += dt;
       if (this.mouseIdle > RECENTER_AFTER && Math.hypot(this.body.vx, this.body.vz) > 0.4) this.lookYaw *= 1 - damp(1.2, dt);
       ev = this.body.step(dt, this.body.state === 'idle' ? null : c);
+      // Knocked off from outside since the last frame: the same wipeout (jolt, splash, sound).
+      if (this.knocked && ev === 'none') ev = this.body.knock();
+      this.knocked = false;
       this.strokes();
       if (ev === 'waveGone' || ev === 'missed' || ev === 'remount') this.returning = true;
       if (ev === 'stand') this.returning = false;

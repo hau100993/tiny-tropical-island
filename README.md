@@ -65,6 +65,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `G` | Call Mochi the dog: it runs straight to you |
 | `R` | Bọt the water crab fires its water jet (at you if you stand within 10 m, else out to sea) |
 | `X` | Hỏa Long the fire dragon breathes fire (at you if you stand within 12 m: it dries you; else onto the sea) |
+| `Z` | Mầm the grass bunny throws Lá Bay: flowers spring up where the leaves land (within 10 m of you: a ring of flowers round you) |
 | `U` | Seated at the desk: play a YouTube link on the left monitor, same as clicking the YouTube logo on the right monitor (see *The house and the work desk*). Elsewhere: pause / resume that video |
 | `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up |
 | `K` | Walking on the beach or in the shallows: get into the kayak; in the kayak: step out (see *Kayak*) |
@@ -388,6 +389,48 @@ orders it: standing within 12 m of it you are the target, and the fire **dries y
 it hovers, turns to you, its tail flame flares and it puffs embers; click it and it does an
 excited dance with a burst of fire straight up. Sounds (the roar and crackle of the flame, its
 chirrup) follow **Âm thanh hoạt động**. Loaded on first use (0.44 MB).
+
+**Mầm, the grass creature (Góc nhìn → Mầm (thỏ hệ Cỏ), on by default).** A spring-green bunny
+(~0.75 m to the ear tips) with a cream belly and a carrot in its paw, a sprout growing from the
+top of its head between the ears (a soft-ribbed bud with a shoot and four leaves that sway in the
+wind). It wanders the lawn by the stepping stones between the house and the beach (it keeps away
+from the house's stilts), waves to greet you, and now and then throws **Lá Bay**: an arching
+stream of leaves and flower petals in a widening spiral, trailing sparkles; they fall swinging
+like real leaves, lie on the grass a moment and fade, and **flowers spring up where they land**:
+small clusters of daisies, five-petal flowers and tulips in eight colours that grow out of the
+ground, unfold their petals from a closed bud with a puff of pollen, sway in the wind, and after
+~45 s close up, droop and wilt. `Z` orders it:
+standing within 10 m you are the target, the leaves swirl round you and a ring of flowers opens
+at your feet. **With the mouse:** rest the pointer on it and it turns to you, the sprout's leaves
+open and golden pollen drifts up; click it and, at random, it throws leaves your way or does a
+happy hop in a puff of pollen. Sounds (a rush of leaves, little squeaks) follow **Âm thanh hoạt
+động**. Loaded on first use (0.54 MB).
+
+**Wild ones in the rainforest (Góc nhìn → Sinh vật hoang trong rừng, on by default).** Walk in
+among the trees and wild Bọt, Hỏa Long and Mầm show themselves: every few seconds one peeks out
+from behind a trunk ahead of you (5–11 m off, never behind another trunk from where the camera
+looks; up to 1–3 at once, drawn again each time you walk in), watches you, calls, shows its
+element (soap bubbles, embers, pollen), then slips back behind the trunk and is gone. Come within
+3.5 m and it startles and vanishes in a puff of its element; leave the forest (or stop walking)
+and they all hide. The wild dragons hover between the trunks. Two of each are loaded on your
+first visit (skeleton clones of one load each) and reused.
+
+**Bé Mập, the baby shark (Góc nhìn → Bé Mập trêu bạn ở biển, on by default).** A small
+friendly blue shark with a big baby head lives out at sea and comes to play while you are on the
+water (kayak, surf, swim, dive), first after ~30 s there and then every ~2–4 minutes, only over
+water deeper than 1.5 m. It warns you first: it circles you for 5–8 s with its fin cutting the
+surface and a giggle. Then one of three pranks, at a random strength (light / medium / strong):
+**Cú Nhảy Ùm**, a leap right over you and a big splash (a strong one rolls in the air); **Húc
+Đùa**, a bump from below; **Xoáy Nước**, tight fast circles round you that spin you. What they
+do: the kayak rocks (and settles), spins, or, at full strength, **capsizes** and rolls back up
+by itself after a moment (an Eskimo roll; with reduced motion it only rocks); the surfer is
+knocked off the board (medium and strong); a swimmer or diver is shoved (diving, no leaps);
+you always end up soaked. Then it swims off and dives. **Shoo it:** click it while it circles
+or lines up a prank and it swims off in a huff (no prank). **Friends:** after three pranks it
+is your friend (kept between visits): most of its visits it then just swims along beside you,
+keeping pace, and now and then leaps out ahead for show; one visit in four it still plays a
+prank. **At night** the water it stirs glows: a cyan trail of sea sparkle behind its fin and
+round its splashes. Its splashes and giggle follow **Âm thanh hoạt động**.
 
 **Characters (Góc nhìn → Nhân vật).** Besides the built-in body you can walk around as a man or a
 woman from Quaternius' low-poly character pack (`src/assets/characters/*.glb`, CC0). They load
@@ -826,6 +869,8 @@ audio files in the repo.
 | `src/assets/animals/shiba.glb` ("Shiba Inu") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/y4wdQpg767) | CC0 1.0 (public domain) | Mochi the dog; its walk, gallop, idle, sniff and jump clips are used |
 | `src/assets/creatures/water-crab.glb` ("Crab Enemy") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/Gs3yfsV5lB) | CC0 1.0 (public domain) | Bọt the water crab, recoloured blue in code; its idle, walk, bite, yes and dance clips are used. The file has 6 vertices with NaN skin weights (an export fault), repaired at load |
 | `src/assets/creatures/fire-dragon.glb` ("Dragon Evolved") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/LlwD0QNUPj) | CC0 1.0 (public domain) | Hỏa Long the fire dragon, recoloured red and gold in code; its flying idle, fast flying, headbutt, yes and punch clips are used |
+| `src/assets/creatures/grass-bunny.glb` ("Bunny") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/irZjWFARyl) | CC0 1.0 (public domain) | Mầm the grass bunny, recoloured green and cream in code; the sprout on its head is made in code; its idle, walk, punch, wave and jump clips are used |
+| `src/assets/creatures/sea-shark.glb` ("Shark") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/YYsK3gRCBZ) | CC0 1.0 (public domain) | Bé Mập the baby shark, tinted and scaled small in code, its head enlarged on the Neck bone; its swim, fast swim and bite clips are used. (Named in Vietnamese on purpose: "Baby Shark" is a Pinkfong trademark.) |
 | `src/assets/characters/man.glb` ("Hoodie Character") and `woman.glb` (a woman from the same pack) by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/gKLBoRsyKe) | CC0 1.0 (public domain) | rigged low-poly characters; their own animations are not used (they wear the procedural motion) |
 | `src/assets/decor/mug-logo.png` (TMA logo) | trademark of its owner, not covered by this project's license | added at the repository owner's request, for the desk mug only |
 | `public/audio/library/island-day.mp3`, `island-night.mp3` | redistribution permitted (confirmed by the repository owner) | built-in recordings, 15 min each; source: *TODO, add the original source and exact license* |

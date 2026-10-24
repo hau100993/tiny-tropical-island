@@ -10,8 +10,12 @@ export interface EmberSink {
   emit(x: number, y: number, z: number, vx: number, vy: number, vz: number, radius: number): void;
 }
 
-/** Glowing sparks that rise and wink out; or soft white steam that swells and thins away. */
-export type EmberKind = 'ember' | 'steam';
+/**
+ * Glowing sparks that rise and wink out; soft white steam that swells and thins away; or pollen
+ * (Mầm's spores): little yellow-green motes that drift up slowly and twinkle; or sea sparkle
+ * (Bé Mập's fin at night): cyan glints that stay on the water and fade.
+ */
+export type EmberKind = 'ember' | 'steam' | 'spore' | 'sea';
 
 const VERT = /* glsl */ `
 attribute float aSize;
@@ -46,6 +50,21 @@ void main() {
   // Still pale at night (lit by the fire that made it).
   vec3 col = vec3(0.92, 0.94, 0.96) * (0.5 + 0.5 * uDayLight);
   gl_FragColor = vec4(col, a);
+#elif defined(SPORE)
+  // A mote of pollen: a soft glowing dot, lime to gold, twinkling, fading in and out.
+  float glow = exp(-r2 * 3.5);
+  float tw = 0.6 + 0.4 * sin(uTime * 6.0 + vSeed * 40.0);
+  vec3 col = mix(vec3(0.75, 1.0, 0.35), vec3(1.0, 0.9, 0.4), vSeed);
+  float a = glow * tw * smoothstep(0.0, 0.15, vLife) * (1.0 - vLife);
+  gl_FragColor = fireBlend(col * (1.0 + exp(-r2 * 12.0)), a, uDayLight);
+#elif defined(SEA)
+  // Sea sparkle (bioluminescence): a cyan glow on the water, lit up then fading; pure light
+  // (additive at any hour, it is only spawned at night).
+  float glow = exp(-r2 * 3.0);
+  float tw = 0.7 + 0.3 * sin(uTime * 9.0 + vSeed * 30.0);
+  vec3 col = mix(vec3(0.2, 0.9, 1.0), vec3(0.45, 1.0, 0.85), vSeed);
+  float a = glow * tw * smoothstep(0.0, 0.08, vLife) * (1.0 - vLife) * 0.9;
+  gl_FragColor = vec4(col * (1.0 + exp(-r2 * 10.0)) * a, 0.0);
 #else
   // A spark: white-hot centre, orange glow, cooling to red as it dies; it flickers.
   float core = exp(-r2 * 9.0);
@@ -96,10 +115,10 @@ export class Embers implements EmberSink {
       uniforms: { uScale: this.scale, uTime: shared.uTime, uDayLight: shared.uDayLight },
       vertexShader: VERT,
       fragmentShader: FRAG,
-      defines: kind === 'steam' ? { STEAM: '' } : {},
+      defines: kind === 'steam' ? { STEAM: '' } : kind === 'spore' ? { SPORE: '' } : kind === 'sea' ? { SEA: '' } : {},
       transparent: true,
       depthWrite: false,
-      ...(kind === 'ember' ? FIRE_BLENDING : { blending: THREE.NormalBlending }),
+      ...(kind === 'steam' ? { blending: THREE.NormalBlending } : FIRE_BLENDING),
     });
     this.points = new THREE.Points(geo, mat);
     this.points.name = kind;
@@ -123,7 +142,7 @@ export class Embers implements EmberSink {
     this.vel[i * 3 + 1] = vy;
     this.vel[i * 3 + 2] = vz;
     this.age[i] = 0;
-    this.life[i] = this.kind === 'ember' ? 0.5 + Math.random() * 1.1 : 1.4 + Math.random() * 1.6;
+    this.life[i] = this.kind === 'ember' ? 0.5 + Math.random() * 1.1 : this.kind === 'spore' || this.kind === 'sea' ? 2 + Math.random() * 2 : 1.4 + Math.random() * 1.6;
     this.radius[i] = radius;
     (this.seed.array as Float32Array)[i] = Math.random();
     this.seed.needsUpdate = true;
@@ -136,9 +155,12 @@ export class Embers implements EmberSink {
     const s = this.size.array as Float32Array;
     const l = this.lifeAttr.array as Float32Array;
     const ember = this.kind === 'ember';
-    // Embers: quick drag and a strong lift (hot air); steam: slower on both.
-    const drag = Math.exp(-(ember ? 2.2 : 1.2) * dt);
-    const lift = (ember ? 2.4 : 0.9) * dt;
+    const spore = this.kind === 'spore';
+    const sea = this.kind === 'sea';
+    // Embers: quick drag and a strong lift (hot air); steam: slower on both; pollen: barely lifts.
+    // Sea sparkle stays on the water: strong drag, no lift.
+    const drag = Math.exp(-(ember ? 2.2 : spore ? 1.8 : sea ? 3 : 1.2) * dt);
+    const lift = (ember ? 2.4 : spore ? 0.18 : sea ? 0 : 0.9) * dt;
     let last = -1;
     for (let i = 0; i < MAX; i++) {
       if (this.age[i] === Infinity) continue;
@@ -157,7 +179,7 @@ export class Embers implements EmberSink {
       p[i * 3 + 1] += v[i * 3 + 1] * dt;
       p[i * 3 + 2] += v[i * 3 + 2] * dt;
       // Sparks shrink as they cool; steam swells as it spreads.
-      s[i] = this.radius[i] * (ember ? 1 - 0.6 * k : 1 + 2.2 * k);
+      s[i] = this.radius[i] * (ember ? 1 - 0.6 * k : spore || sea ? 1 : 1 + 2.2 * k);
       l[i] = k;
       last = i;
     }

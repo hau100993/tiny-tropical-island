@@ -245,6 +245,16 @@ export class Mixer {
     this.footsteps?.dragon(kind, gain, pan);
   }
 
+  /** Mầm's leaves (see Footsteps.leaves). */
+  playLeaves(duration: number, gain: number, pan: number): void {
+    this.footsteps?.leaves(duration, gain, pan);
+  }
+
+  /** Mầm's voice (see Footsteps.bunny). */
+  playBunny(kind: 'greet' | 'dance', gain: number, pan: number): void {
+    this.footsteps?.bunny(kind, gain, pan);
+  }
+
   /** Kayak paddle splash (see Footsteps.paddle); follows the footsteps on/off setting. */
   playPaddle(kind: 'catch' | 'exit', strength: number, pan: number): void {
     this.footsteps?.paddle(kind, strength, pan);

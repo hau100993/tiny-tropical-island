@@ -89,6 +89,16 @@ export class KayakActivity {
   private readonly v2 = new THREE.Vector3();
   private readonly v3 = new THREE.Vector3();
   private readonly p2 = { x: 0, z: 0 };
+  /** A knock's rocking: extra roll (rad) and heave (m), springs settling back (see jolt). */
+  private joltRoll = 0;
+  private joltRollV = 0;
+  private joltHeave = 0;
+  private joltHeaveV = 0;
+  /** Capsized: seconds into it (−1 = upright) and which way it rolls (see capsize). */
+  private capT = -1;
+  private capSide = 1;
+  /** The capsize's extra roll this frame (rad, 0 upright … π upside down … 2π upright again). */
+  private capRoll = 0;
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -128,6 +138,39 @@ export class KayakActivity {
       },
       LOOK_SPEED,
     );
+  }
+
+  /**
+   * A knock (Bé Mập's pranks): the hull rocks by `roll` rad and lifts by `heave` m, then swings
+   * back and settles like a spring (a damped oscillation).
+   */
+  jolt(roll: number, heave: number): void {
+    this.joltRollV += roll * 9;
+    this.joltHeaveV += heave * 9;
+  }
+
+  /** Spun round (rad/s added to the yaw rate) and shoved (m/s, world). */
+  shove(spin: number, vx: number, vz: number): void {
+    this.body.w += spin;
+    this.body.vx += vx;
+    this.body.vz += vz;
+  }
+
+  /** Upside down for a moment, then rolled up again (an Eskimo roll); false if it cannot now. */
+  capsize(side: 1 | -1): boolean {
+    if (!this.active || this.capT >= 0) return false;
+    if (this.reducedMotion()) {
+      this.jolt(side * 0.5, 0.15);
+      return false;
+    }
+    this.capT = 0;
+    this.capSide = side;
+    return true;
+  }
+
+  /** Capsized right now (upside down or rolling). */
+  get capsized(): boolean {
+    return this.capT >= 0;
   }
 
   /** Where the kayak waits at first: pulled up on the sand. */
@@ -245,13 +288,15 @@ export class KayakActivity {
       this.latch.left = Math.max(0, this.latch.left - dt);
       this.latch.right = Math.max(0, this.latch.right - dt);
       const c = this.ctl;
-      // A/D steer (the paddle picks the strokes); Q/E stroke one side by hand.
-      c.left = k.has('KeyQ') || this.latch.left > 0;
-      c.right = k.has('KeyE') || this.latch.right > 0;
-      c.steer = (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0) - (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0);
-      c.cruise = k.has('KeyW') || k.has('ArrowUp');
-      c.back = k.has('KeyS') || k.has('ArrowDown');
-      c.sweep = k.has('ShiftLeft') || k.has('ShiftRight');
+      // A/D steer (the paddle picks the strokes); Q/E stroke one side by hand. Not while
+      // capsized (the paddler is busy rolling back up).
+      const free = this.capT < 0;
+      c.left = free && (k.has('KeyQ') || this.latch.left > 0);
+      c.right = free && (k.has('KeyE') || this.latch.right > 0);
+      c.steer = free ? (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0) - (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) : 0;
+      c.cruise = free && (k.has('KeyW') || k.has('ArrowUp'));
+      c.back = free && (k.has('KeyS') || k.has('ArrowDown'));
+      c.sweep = free && (k.has('ShiftLeft') || k.has('ShiftRight'));
       this.paddle.update(dt, c, this.body.speed);
       // Not looking around and moving: the view settles back behind the boat, like a car cam.
       this.mouseIdle += dt;
@@ -263,9 +308,48 @@ export class KayakActivity {
     } else {
       this.body.step(dt, null);
     }
+    this.knocks(dt);
     this.hullWake(dt);
     this.syncModel();
     if (this.active) this.applyCamera(dt);
+  }
+
+  /** The rocking springs settle; a capsize runs its course (tip over, hang, roll up). */
+  private knocks(dt: number): void {
+    // Damped springs: a = −k·x − c·v (rocks a few times, then still).
+    this.joltRollV += (-26 * this.joltRoll - 3.2 * this.joltRollV) * dt;
+    this.joltRoll += this.joltRollV * dt;
+    this.joltHeaveV += (-30 * this.joltHeave - 5 * this.joltHeaveV) * dt;
+    this.joltHeave += this.joltHeaveV * dt;
+    if (this.capT < 0) {
+      this.capRoll = 0;
+      return;
+    }
+    const was = this.capT;
+    this.capT += dt;
+    const t = this.capT;
+    const ease = (k: number): number => k * k * (3 - 2 * k);
+    // Over in 0.45 s, upside down until 1.85 s, then on round to upright by 2.75 s.
+    if (t < 0.45) this.capRoll = Math.PI * ease(t / 0.45);
+    else if (t < 1.85) this.capRoll = Math.PI;
+    else if (t < 2.75) this.capRoll = Math.PI * (1 + ease((t - 1.85) / 0.9));
+    else {
+      this.capRoll = 0;
+      this.capT = -1;
+    }
+    // A burst of water as it goes over and as it comes up.
+    if ((was < 0.35 && t >= 0.35) || (was < 2.6 && t >= 2.6)) this.splashBurst(30);
+  }
+
+  /** Water thrown up all round the hull (a capsize, a breach landing beside it). */
+  splashBurst(n: number): void {
+    const b = this.body;
+    this.fx.wake?.emit(WakeKind.Ring, b.x, b.z, 0, 0, 2.5, 0.4, 2.2, 0.9, 0.12);
+    for (let k = 0; k < n; k++) {
+      const a = Math.random() * Math.PI * 2;
+      const h = 0.5 + Math.random() * 1.8;
+      this.fx.spray.drop(b.x + Math.cos(a) * 0.4, b.y + 0.2, b.z + Math.sin(a) * 0.4, Math.cos(a) * h + b.vx * 0.3, 1.5 + Math.random() * 2.5, Math.sin(a) * h + b.vz * 0.3, 0.02 + Math.random() * 0.04);
+    }
   }
 
   /** The blade in or out of the water: splash ring, droplets, the swirl it leaves behind. */
@@ -349,8 +433,10 @@ export class KayakActivity {
   private syncModel(): void {
     const b = this.body;
     const g = this.model.group;
-    g.position.set(b.x, b.y, b.z);
-    g.rotation.set(b.pitch, b.yaw, -b.roll, 'YXZ');
+    // Upside down it floats a little lower (the hull's bottom at the surface).
+    const sunk = Math.sin(Math.min(Math.PI, this.capRoll)) * 0.1 + (this.capRoll > 0.5 && this.capRoll < 5.8 ? 0.12 : 0);
+    g.position.set(b.x, b.y + this.joltHeave - sunk, b.z);
+    g.rotation.set(b.pitch, b.yaw, -b.roll - this.joltRoll - this.capSide * this.capRoll, 'YXZ');
     // Resting across the lap when nobody paddles; at rest on its side when empty.
     const pose = this.paddle.pose;
     const paddle = this.model.paddle;
@@ -392,6 +478,9 @@ export class KayakActivity {
     const g = this.model.group;
     const head = this.tmp.set(0, HULL.seatY + EYE.y, HULL.seatZ + EYE.z).applyMatrix4(g.matrixWorld);
     const turn = b.yaw - this.camYaw;
+    // Capsized, seen from behind: the camera keeps to where the head would be upright (it
+    // watches the hull go over and come up, instead of diving with it).
+    if (this.capT >= 0 && this.view !== 'first') head.set(b.x, b.y + HULL.seatY + EYE.y, b.z);
     this.camYaw = dt === 0 ? b.yaw : this.camYaw + Math.atan2(Math.sin(turn), Math.cos(turn)) * damp(4, dt);
     const calm = this.reducedMotion() ? 0 : 1;
     if (this.view === 'first') {
@@ -399,7 +488,8 @@ export class KayakActivity {
       // The boat's roll and pitch, softened (and none with reduced motion).
       const k = 0.35 * calm;
       this.camera.position.copy(head);
-      this.camera.rotation.set(this.pitch + b.pitch * k, yaw, -b.roll * k, 'YXZ');
+      // Capsized: the view turns over with you (under water for a moment).
+      this.camera.rotation.set(this.pitch + b.pitch * k, yaw, -b.roll * k - this.joltRoll * 0.5 * calm - this.capSide * this.capRoll, 'YXZ');
       return;
     }
     const yaw = this.camYaw + this.lookYaw;

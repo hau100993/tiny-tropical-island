@@ -5,6 +5,8 @@ import type { ClickAim } from '../controls/waterClick';
 import type { SharedUniforms } from '../core/uniforms';
 import { AirBubbles } from '../world/creatures/airBubbles';
 import { Embers } from '../world/creatures/embers';
+import { WildCreatures } from './wildCreatures';
+import type { TrunkInstance } from '../world/vegetation/forest';
 // Type-only: the models, behaviours and the GLTFLoader are a separate chunk, fetched on first use.
 import type { CrabModel } from '../world/creatures/crabModel';
 import type { BubbleCrab, CrabPlayer } from '../world/creatures/bubbleCrab';
@@ -12,8 +14,13 @@ import type { DragonModel } from '../world/creatures/dragonModel';
 import type { FireDragon } from '../world/creatures/fireDragon';
 import type { JetStream } from '../world/creatures/jetStream';
 import type { FlameSprite, GroundGlow } from '../world/creatures/flames';
+import type { BunnyModel } from '../world/creatures/bunnyModel';
+import type { GrassBunny } from '../world/creatures/grassBunny';
+import type { LeafStorm } from '../world/creatures/leafStorm';
+import type { Blooms } from '../world/creatures/blooms';
 import waterCrabUrl from '../assets/creatures/water-crab.glb?url';
 import fireDragonUrl from '../assets/creatures/fire-dragon.glb?url';
+import grassBunnyUrl from '../assets/creatures/grass-bunny.glb?url';
 
 /** What the creatures need from the app. */
 export interface CreatureHost {
@@ -26,7 +33,12 @@ export interface CreatureHost {
   seaRadius(angle: number): number;
   ripple(x: number, z: number, radius: number, strength: number): void;
   /** Where each lives (world x, z). */
-  homes: { crab: { x: number; z: number }; dragon: { x: number; z: number } };
+  homes: { crab: { x: number; z: number }; dragon: { x: number; z: number }; bunny: { x: number; z: number } };
+  /** Where the house stands (Mầm keeps clear of its stilts). */
+  house: { x: number; z: number };
+  /** The forest's trunks, and how many stand within `r` m of (x, z) (the wild ones live there). */
+  trunks: readonly TrunkInstance[];
+  treesNear(x: number, z: number, r: number): number;
   /** How the pointer aims now (as for Mochi), and whether Mochi is under it (Mochi wins). */
   aim(): ClickAim;
   dogHover(): boolean;
@@ -41,6 +53,8 @@ export interface CreatureHost {
     crab(kind: 'greet' | 'dance', gain: number, pan: number): void;
     flame(duration: number, gain: number, pan: number): void;
     dragon(kind: 'greet' | 'dance', gain: number, pan: number): void;
+    leaves(duration: number, gain: number, pan: number): void;
+    bunny(kind: 'greet' | 'dance', gain: number, pan: number): void;
   };
   /** Water hit you: soaked. Fire hit you: dried. */
   soak(): void;
@@ -61,25 +75,40 @@ interface Dragon {
   glow: GroundGlow;
 }
 
+interface Bunny {
+  model: BunnyModel;
+  brain: GrassBunny;
+  leaves: LeafStorm;
+  blooms: Blooms;
+}
+
 /**
- * The elemental creatures (world/creatures/): Bọt the water crab and Hỏa Long the fire dragon.
- * Each loads on first use, its shaders compiled in the background before it joins the scene.
- * Owns their effect pools (droplets, soap bubbles, embers, steam: one draw call each, nothing
- * when idle) and the mouse on them (hover and click, like petting Mochi).
+ * The elemental creatures (world/creatures/): Bọt the water crab, Hỏa Long the fire dragon and
+ * Mầm the grass bunny. Each loads on first use, its shaders compiled in the background before it
+ * joins the scene. Owns their effect pools (droplets, soap bubbles, embers, steam, pollen: one
+ * draw call each, nothing when idle) and the mouse on them (hover and click, like petting Mochi).
  */
 export class Creatures {
   private readonly jetSpray: Spray;
   private readonly bubbles: AirBubbles;
   private readonly embers: Embers;
   private readonly steam: Embers;
+  private readonly spores: Embers;
   private readonly crabPointer: PetPointer;
   private readonly dragonPointer: PetPointer;
+  private readonly bunnyPointer: PetPointer;
   private crab: Crab | null = null;
   private dragon: Dragon | null = null;
+  private bunny: Bunny | null = null;
   private crabOn = false;
   private dragonOn = false;
+  private bunnyOn = false;
   private crabLoading = false;
   private dragonLoading = false;
+  private bunnyLoading = false;
+  private readonly wind = { strength: 0, x: 0, y: 0 };
+  /** Wild ones in the rainforest (wildCreatures.ts). */
+  private readonly wild: WildCreatures;
   private readonly you: CrabPlayer = { x: 0, z: 0, y: 0 };
   private readonly mouth = new THREE.Vector3();
   private readonly tip = new THREE.Vector3();
@@ -91,7 +120,35 @@ export class Creatures {
     this.bubbles = new AirBubbles(shared, (x, z) => host.heightAt(x, z));
     this.embers = new Embers(shared, 'ember');
     this.steam = new Embers(shared, 'steam');
-    scene.add(this.jetSpray.points, this.bubbles.points, this.embers.points, this.steam.points);
+    this.spores = new Embers(shared, 'spore');
+    scene.add(this.jetSpray.points, this.bubbles.points, this.embers.points, this.steam.points, this.spores.points);
+    this.wild = new WildCreatures({
+      scene,
+      camera: host.camera,
+      shared,
+      heightAt: host.heightAt,
+      trunks: host.trunks,
+      treesNear: host.treesNear,
+      bubbles: this.bubbles,
+      embers: this.embers,
+      spores: this.spores,
+      voice: (kind, x, y, z) =>
+        this.play(x, y, z, (g, p) => (kind === 'crab' ? host.sound.crab('greet', g, p) : kind === 'dragon' ? host.sound.dragon('greet', g, p) : host.sound.bunny('greet', g, p))),
+      load: async (count) => {
+        const [{ CrabModel }, { DragonModel }, { BunnyModel }] = await Promise.all([
+          import('../world/creatures/crabModel'),
+          import('../world/creatures/dragonModel'),
+          import('../world/creatures/bunnyModel'),
+        ]);
+        const [crabs, dragons, bunnies] = await Promise.all([
+          CrabModel.loadMany(waterCrabUrl, shared, count),
+          DragonModel.loadMany(fireDragonUrl, shared, count),
+          BunnyModel.loadMany(grassBunnyUrl, shared, count),
+        ]);
+        return { crabs, dragons, bunnies };
+      },
+      compile: (root) => this.compileHidden(root, []),
+    });
     const dom = host.renderer.domElement;
     this.crabPointer = new PetPointer(dom, host.camera, {
       // Like Mochi: the cursor, from above or walking.
@@ -116,21 +173,35 @@ export class Creatures {
       onMove: () => {},
       onEnd: () => {},
     });
+    this.bunnyPointer = new PetPointer(dom, host.camera, {
+      aim: () => (this.bunny?.model.root.visible ? host.aim() : 'none'),
+      hit: (ray) => {
+        if (host.dogHover() || this.crabPointer.hover || this.dragonPointer.hover) return false;
+        const d = this.bunny?.model.hitTest(ray) ?? null;
+        return d !== null;
+      },
+      onStart: () => this.bunny?.brain.pat(),
+      onMove: () => {},
+      onEnd: () => {},
+    });
   }
 
   /** The pointer is on a creature (no water click, the paw cursor). */
   get hover(): boolean {
-    return this.crabPointer.hover || this.dragonPointer.hover;
+    return this.crabPointer.hover || this.dragonPointer.hover || this.bunnyPointer.hover;
   }
 
   /** Shows or hides each (loading it the first time it is shown). */
-  setEnabled(crab: boolean, dragon: boolean): void {
+  setEnabled(crab: boolean, dragon: boolean, bunny: boolean): void {
     this.crabOn = crab;
     this.dragonOn = dragon;
+    this.bunnyOn = bunny;
     if (crab && !this.crab && !this.crabLoading) this.loadCrab();
     if (dragon && !this.dragon && !this.dragonLoading) this.loadDragon();
+    if (bunny && !this.bunny && !this.bunnyLoading) this.loadBunny();
     if (this.crab) this.crab.model.root.visible = crab;
     if (this.dragon) this.dragon.model.root.visible = dragon;
+    if (this.bunny) this.bunny.model.root.visible = bunny;
   }
 
   /** Bọt's water jet (R); false if Bọt is off or not loaded yet. */
@@ -147,7 +218,20 @@ export class Creatures {
     return true;
   }
 
+  /** Wild creatures peeking out in the rainforest, on or off. */
+  setWild(on: boolean): void {
+    this.wild.setEnabled(on);
+  }
+
+  /** Mầm's "Lá Bay" (Z); false if it is off or not loaded yet. */
+  grassSkill(): boolean {
+    if (!this.bunnyOn || !this.bunny) return false;
+    this.bunny.brain.command();
+    return true;
+  }
+
   setViewport(heightPx: number, fovDeg: number): void {
+    this.spores.setViewport(heightPx, fovDeg);
     this.jetSpray.setViewport(heightPx, fovDeg);
     this.bubbles.setViewport(heightPx, fovDeg);
     this.embers.setViewport(heightPx, fovDeg);
@@ -159,11 +243,33 @@ export class Creatures {
     this.bubbles.update(dt);
     this.embers.update(dt);
     this.steam.update(dt);
+    this.spores.update(dt);
     const walking = this.host.player(this.you);
     const you = walking ? this.you : null;
     const cam = this.host.camera.position;
     this.updateCrab(dt, you, cam);
     this.updateDragon(dt, you, cam);
+    this.updateBunny(dt, you, cam);
+    this.wild.update(dt, you);
+  }
+
+  private updateBunny(dt: number, you: CrabPlayer | null, cam: THREE.Vector3): void {
+    const b = this.bunny;
+    if (b) b.blooms.update(dt);
+    if (!b || !b.model.root.visible) {
+      this.bunnyPointer.cancel();
+      this.bunnyPointer.hover = false;
+      if (b) b.leaves.mesh.visible = false;
+      return;
+    }
+    this.bunnyPointer.update();
+    const g = b.brain;
+    g.setHover(this.bunnyPointer.hover, cam.x, cam.z);
+    g.update(dt, you, b.model.budTop(this.mouth));
+    b.model.root.position.set(g.x, g.y, g.z);
+    b.model.root.rotation.y = g.yaw;
+    b.model.update(dt, g.action, g.speed, g.flare, this.host.shared.uWind.value);
+    b.leaves.update(dt, this.mouth.x, this.mouth.y, this.mouth.z);
   }
 
   private updateCrab(dt: number, you: CrabPlayer | null, cam: THREE.Vector3): void {
@@ -304,11 +410,69 @@ export class Creatures {
       });
   }
 
+  /** Mầm: a .glb of 0.4 MB, with its leaves and flowers. */
+  private loadBunny(): void {
+    this.bunnyLoading = true;
+    const h = this.host;
+    Promise.all([
+      import('../world/creatures/bunnyModel'),
+      import('../world/creatures/grassBunny'),
+      import('../world/creatures/leafStorm'),
+      import('../world/creatures/blooms'),
+    ])
+      .then(async ([{ BunnyModel }, { GrassBunny }, { LeafStorm }, { Blooms }]) => {
+        const model = await BunnyModel.load(grassBunnyUrl, h.shared);
+        // Each flower that opens gives a little puff of pollen.
+        const blooms = new Blooms(h.shared.uTime, h.shared.uWind, h.heightAt, (x, y, z) => {
+          for (let i = 0; i < 6; i++) {
+            this.spores.emit(x, y, z, (Math.random() - 0.5) * 0.4, 0.15 + Math.random() * 0.35, (Math.random() - 0.5) * 0.4, 0.018 + Math.random() * 0.015);
+          }
+        });
+        const wind = (): { strength: number; x: number; y: number } => {
+          this.wind.strength = h.shared.uWind.value;
+          this.wind.x = h.shared.uWindDir.value.x;
+          this.wind.y = h.shared.uWindDir.value.y;
+          return this.wind;
+        };
+        const leaves = new LeafStorm(
+          h.heightAt,
+          wind,
+          (x, _y, z) => blooms.spawnCluster(x, z),
+          () => {
+            // The leaves swirl round you and leave a ring of flowers at your feet.
+            const y = this.you;
+            for (let i = 0; i < 8; i++) {
+              const a = (i / 8) * Math.PI * 2 + Math.random() * 0.3;
+              const r = 0.6 + Math.random() * 0.3;
+              blooms.spawnCluster(y.x + Math.cos(a) * r, y.z + Math.sin(a) * r, 1 + Math.floor(Math.random() * 2));
+            }
+          },
+          this.spores,
+        );
+        await this.compileHidden(model.root, [leaves.mesh, blooms.group]);
+        const brain: GrassBunny = new GrassBunny(
+          { heightAt: h.heightAt, house: h.house, leaves, spores: this.spores },
+          h.homes.bunny,
+          {
+            onThrow: (duration) => this.play(brain.x, brain.y, brain.z, (g, p) => h.sound.leaves(duration, g, p)),
+            onVoice: (kind) => this.play(brain.x, brain.y, brain.z, (g, p) => h.sound.bunny(kind, g, p)),
+          },
+        );
+        h.scene.add(model.root, leaves.mesh, blooms.group);
+        model.root.visible = this.bunnyOn;
+        this.bunny = { model, brain, leaves, blooms };
+      })
+      .catch((err: unknown) => console.warn('bunny load failed', err))
+      .finally(() => {
+        this.bunnyLoading = false;
+      });
+  }
+
   /**
-   * Compiles `root` and effect meshes that start hidden (compile skips hidden objects): shown for
-   * the call, which gathers them at once, then hidden again until used.
+   * Compiles `root` and effect objects that start hidden (compile skips hidden objects): shown
+   * for the call, which gathers them at once, then hidden again until used.
    */
-  private compileHidden(root: THREE.Object3D, extras: THREE.Mesh[]): Promise<unknown> {
+  private compileHidden(root: THREE.Object3D, extras: THREE.Object3D[]): Promise<unknown> {
     const group = new THREE.Group();
     group.add(root, ...extras);
     for (const m of extras) m.visible = true;

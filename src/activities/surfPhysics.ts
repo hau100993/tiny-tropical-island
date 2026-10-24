@@ -401,6 +401,12 @@ export class SurfBody {
     return 'none';
   }
 
+  /** Knocked off from outside (Bé Mập's prank): a wipeout, unless already off or not on it. */
+  knock(): SurfEvent {
+    if (this.state === 'wiped' || this.state === 'idle') return 'none';
+    return this.wipe();
+  }
+
   private wipe(): SurfEvent {
     this.state = 'wiped';
     this.timer = 0;

@@ -63,6 +63,12 @@ export interface Settings {
   creatures: boolean;
   /** Hỏa Long, the fire creature (a dragon) over the house beach. */
   dragon: boolean;
+  /** Mầm, the grass creature (a bunny) on the grass in front of the house. */
+  grass: boolean;
+  /** Wild ones of the three peek out from behind the trees when you walk in the rainforest. */
+  wild: boolean;
+  /** Bé Mập, the baby shark, comes to play pranks while you are at sea. */
+  shark: boolean;
   /** Walk mode view: through the eyes, or behind the character. */
   walkView: WalkView;
   /** Your character (third person, swimming, kayak, surfing). */
@@ -117,6 +123,9 @@ export function defaultSettings(): Settings {
     dog: true,
     creatures: true,
     dragon: true,
+    grass: true,
+    wild: true,
+    shark: true,
     walkView: 'third',
     character: 'default',
     activeScene: 'b-sunny',
@@ -215,6 +224,9 @@ export function parseSettings(json: string | null): Settings {
     dog: bool(raw.dog, defaults.dog),
     creatures: bool(raw.creatures, defaults.creatures),
     dragon: bool(raw.dragon, defaults.dragon),
+    grass: bool(raw.grass, defaults.grass),
+    wild: bool(raw.wild, defaults.wild),
+    shark: bool(raw.shark, defaults.shark),
     walkView: raw.walkView === 'first' || raw.walkView === 'third' ? raw.walkView : defaults.walkView,
     character: (CHARACTER_IDS as readonly unknown[]).includes(raw.character) ? (raw.character as CharacterId) : defaults.character,
     activeScene: typeof raw.activeScene === 'string' ? raw.activeScene.slice(0, 64) : defaults.activeScene,

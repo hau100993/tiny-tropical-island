@@ -265,6 +265,56 @@ export class Footsteps {
     }
   }
 
+  /**
+   * Mầm's "Lá Bay" for `dur` s: a rush of leaves (high band of noise, swelling and let go) with
+   * crisp flutters through it.
+   */
+  leaves(dur: number, gain: number, pan: number): void {
+    const ctx = this.engine.ctx;
+    const t = ctx.currentTime + 0.01;
+    const p = ctx.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan)) * 0.8;
+    p.connect(this.out);
+    window.setTimeout(() => p.disconnect(), (dur + 1.5) * 1000);
+    const buffer = this.engine.noise.pink;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const f = makeFilter(ctx, 'bandpass', 3200, 0.8);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.5 * gain, t + 0.15);
+    g.gain.setTargetAtTime(0, t + dur, 0.2);
+    src.connect(f).connect(g).connect(p);
+    const length = dur + 0.8;
+    src.start(t, Math.random() * Math.max(0, buffer.duration - length - 0.1), length);
+    src.onended = () => {
+      src.disconnect();
+      f.disconnect();
+      g.disconnect();
+    };
+    const flutters = Math.round(dur * 18);
+    for (let i = 0; i < flutters; i++) {
+      this.burst(p, this.engine.noise.white, t + Math.random() * dur, 'bandpass', 4000 + Math.random() * 3000, 2.5, 0.002, 0.02, 0.1 * gain);
+    }
+  }
+
+  /** Mầm's voice: little squeaks. `greet`: two; `dance`: three, higher and quicker. */
+  bunny(kind: 'greet' | 'dance', gain: number, pan: number): void {
+    const ctx = this.engine.ctx;
+    const t = ctx.currentTime + 0.01;
+    const p = ctx.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan)) * 0.8;
+    p.connect(this.out);
+    window.setTimeout(() => p.disconnect(), 2000);
+    const n = kind === 'greet' ? 2 : 3;
+    const step = kind === 'greet' ? 0.13 : 0.09;
+    const base = kind === 'greet' ? 1300 : 1600;
+    for (let i = 0; i < n; i++) {
+      const f = base * (1 + i * 0.12) * (0.95 + Math.random() * 0.1);
+      this.blip(p, 'triangle', f, f * 1.35, t + i * step, 0.06, 0.2 * gain);
+    }
+  }
+
   private voice(dest: AudioNode, f0: number, f1: number, t: number, dur: number, gain: number, formant1: number, formant2: number): void {
     const ctx = this.engine.ctx;
     const osc = ctx.createOscillator();

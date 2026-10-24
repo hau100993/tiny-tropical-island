@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { patchWorldMaterial } from '../patchMaterial';
 import type { SharedUniforms } from '../../core/uniforms';
 import { rayEllipsoid } from '../../activities/petting';
@@ -45,6 +46,17 @@ export class DragonModel {
   static async load(url: string, shared: SharedUniforms): Promise<DragonModel> {
     const gltf = await new GLTFLoader().loadAsync(url);
     return new DragonModel(gltf.scene, gltf.animations, shared);
+  }
+
+  /**
+   * `count` independent copies from one load (the wild ones in the forest): each a skeleton
+   * clone sharing the file's geometry, with its own bones, clips and materials.
+   */
+  static async loadMany(url: string, shared: SharedUniforms, count: number): Promise<DragonModel[]> {
+    const gltf = await new GLTFLoader().loadAsync(url);
+    const out: DragonModel[] = [];
+    for (let i = 0; i < count; i++) out.push(new DragonModel(cloneSkinned(gltf.scene) as THREE.Group, gltf.animations, shared));
+    return out;
   }
 
   private constructor(scene: THREE.Group, clips: THREE.AnimationClip[], shared: SharedUniforms) {

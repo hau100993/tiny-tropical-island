@@ -42,6 +42,9 @@ import shibaUrl from '../assets/animals/shiba.glb?url';
 import type { DogModel } from '../world/dog';
 import { DogCompanion, type DogPlayer, type DogSpot } from '../activities/dogCompanion';
 import { Creatures } from '../activities/creatures';
+import { SeaShark } from '../activities/seaShark';
+import { Embers } from '../world/creatures/embers';
+import seaSharkUrl from '../assets/creatures/sea-shark.glb?url';
 import type { ListenerState } from '../audio/spatial';
 import type { FootSurface } from '../audio/synth/footsteps';
 import type { LayerId } from '../audio/types';
@@ -153,6 +156,10 @@ export class App {
   private readonly dogLook = new THREE.Vector3();
   /** Bọt the water crab and Hỏa Long the fire dragon (activities/creatures.ts). */
   private readonly creatures: Creatures;
+  /** Bé Mập, the baby shark who plays pranks on you at sea (activities/seaShark.ts). */
+  private readonly beMap: SeaShark;
+  /** Sea sparkle (Bé Mập's glowing trail at night). */
+  private readonly seaGlow: Embers;
   /** Petting Mochi with the mouse (activities/petting.ts, controls/petPointer.ts). */
   private readonly petting = new Petting();
   private readonly petPointer: PetPointer;
@@ -323,6 +330,10 @@ export class App {
       onEnd: (cancelled) => this.endPetting(cancelled),
     });
     this.creatures = this.createCreatures();
+    this.seaGlow = new Embers(sharedUniforms, 'sea');
+    this.scene.add(this.seaGlow.points);
+    this.beMap = this.createShark();
+    this.listenShoo();
 
     this.overlay = new DebugOverlay(container, s.showDebug);
     this.settings.onChange((next) => this.applySettings(next));
@@ -662,6 +673,14 @@ export class App {
       },
     });
     this.keymap.register({
+      code: 'KeyZ',
+      keyLabel: 'Z',
+      label: vi.shortcuts.grassSkill,
+      action: () => {
+        if (!this.creatures.grassSkill()) this.activityMenu.flash(vi.creatures.grassOff);
+      },
+    });
+    this.keymap.register({
       code: 'KeyN',
       keyLabel: 'N',
       label: vi.shortcuts.pauseTime,
@@ -807,12 +826,109 @@ export class App {
     if (s.character !== this.characterId) this.setCharacter(s.character);
     if (s.dog && !this.dogModel && !this.dogLoading) this.loadDog();
     if (this.dogModel) this.dogModel.root.visible = s.dog;
-    this.creatures.setEnabled(s.creatures, s.dragon);
+    this.creatures.setEnabled(s.creatures, s.dragon, s.grass);
+    this.creatures.setWild(s.wild);
+    this.beMap.setEnabled(s.shark);
+  }
+
+  /**
+   * A click (a press and release without dragging) on Bé Mập while it comes for you shoos it
+   * away: at the cursor, or at the screen centre while the pointer is locked.
+   */
+  private listenShoo(): void {
+    const dom = this.renderer.domElement;
+    const ndc = new THREE.Vector2();
+    const ray = new THREE.Raycaster();
+    let downX = 0;
+    let downY = 0;
+    let downT = 0;
+    dom.addEventListener('pointerdown', (e) => {
+      downX = e.clientX;
+      downY = e.clientY;
+      downT = performance.now();
+    });
+    dom.addEventListener('pointerup', (e) => {
+      if (e.button !== 0 || Math.hypot(e.clientX - downX, e.clientY - downY) > 6 || performance.now() - downT > 400) return;
+      if (document.pointerLockElement === dom) {
+        ndc.set(0, 0);
+      } else {
+        const r = dom.getBoundingClientRect();
+        ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      }
+      ray.setFromCamera(ndc, this.camera);
+      this.beMap.shoo(ray.ray);
+    });
+  }
+
+  /**
+   * Bé Mập: comes to play when you are at sea (kayak, surf, swim, dive). Its pranks rock, spin
+   * or capsize the kayak, knock the surfer off, shove a swimmer, and always get you wet.
+   */
+  private createShark(): SeaShark {
+    const hm = this.world.heightmap;
+    return new SeaShark({
+      seaHeight: this.seaHeight,
+      ground: (x, z) => hm.heightAt(x, z),
+      ripple: (x, z, radius, strength) => this.world.water.addRipple(x, z, radius, strength),
+      spray: this.world.spray,
+      bubbles: this.bubbles,
+      player: (out) => {
+        const m = this.cameras.mode;
+        const w = this.walker;
+        if (m === 'kayak') {
+          out.mode = 'kayak';
+          out.x = this.kayak.body.x;
+          out.z = this.kayak.body.z;
+        } else if (m === 'surf') {
+          out.mode = 'surf';
+          out.x = this.surf.body.x;
+          out.z = this.surf.body.z;
+        } else if (m === 'walk' && w.swimming) {
+          out.mode = w.diving ? 'dive' : 'swim';
+          out.x = w.x;
+          out.z = w.z;
+        } else {
+          out.mode = null;
+          return;
+        }
+        out.y = out.mode === 'dive' ? w.bodyY : this.seaHeight(out.x, out.z);
+      },
+      kayak: {
+        jolt: (roll, heave) => this.kayak.jolt(roll, heave),
+        shove: (spin, vx, vz) => this.kayak.shove(spin, vx, vz),
+        capsize: (side) => this.kayak.capsize(side),
+        splash: (n) => this.kayak.splashBurst(n),
+      },
+      surfKnock: () => this.surf.knockOff(),
+      swimPush: (vx, vz, vy) => {
+        this.walker.vel.x += vx;
+        this.walker.vel.y += vz;
+        if (this.walker.diving) this.walker.vy += vy;
+      },
+      soak: () => {
+        this.soaked = 1;
+      },
+      glow: this.seaGlow,
+      night: () => 1 - sharedUniforms.uDayLight.value,
+      notify: (kind) => this.activityMenu.flash(kind === 'friend' ? vi.creatures.sharkFriend : vi.creatures.sharkShoo),
+      sound: {
+        splash: (g, p) => this.mixer.playSurfCrash(g, p),
+        giggle: (g, p) => this.mixer.playCrab('dance', g, p),
+      },
+      ear: (x, y, z) => (this.settings.get().footsteps ? this.dogEar(x, y, z) : null),
+      load: async () => {
+        const { SharkModel } = await import('../world/creatures/sharkModel');
+        const model = await SharkModel.load(seaSharkUrl);
+        await this.renderer.compileAsync(model.root, this.camera, this.scene);
+        this.scene.add(model.root);
+        return model;
+      },
+    });
   }
 
   /**
    * The elemental creatures: Bọt lives on the hammock's beach, Hỏa Long loops over the beach in
-   * front of the house. They see you only walking about (not swimming); their sounds follow
+   * front of the house, Mầm wanders the grass between the house and the beach. They see you only walking about (not swimming); their sounds follow
    * Âm thanh hoạt động; water soaks you like a swim, fire dries you.
    */
   private createCreatures(): Creatures {
@@ -823,6 +939,10 @@ export class App {
     const house = this.world.layout.house;
     const dragonAngle = Math.atan2(house.z, house.x) - 0.25;
     const dragonR = hm.shoreDistance(dragonAngle, 0.3);
+    // Mầm: the open lawn by the stepping stones, between the house and the beach.
+    const hl = Math.hypot(house.x, house.z) || 1;
+    const bunnyX = house.x + (house.x / hl) * 10;
+    const bunnyZ = house.z + (house.z / hl) * 10;
     const ear = (x: number, y: number, z: number): { gain: number; pan: number } | null =>
       this.settings.get().footsteps ? this.dogEar(x, y, z) : null;
     return new Creatures({
@@ -836,7 +956,11 @@ export class App {
       homes: {
         crab: { x: Math.cos(crabAngle) * crabR, z: Math.sin(crabAngle) * crabR },
         dragon: { x: Math.cos(dragonAngle) * dragonR, z: Math.sin(dragonAngle) * dragonR },
+        bunny: { x: bunnyX, z: bunnyZ },
       },
+      house: { x: house.x, z: house.z },
+      trunks: this.world.forest.trunks,
+      treesNear: (x, z, r) => this.colliders.treesNear(x, z, r),
       aim: () => this.petAimMode(),
       dogHover: () => this.petPointer.hover,
       player: (out) => {
@@ -854,6 +978,8 @@ export class App {
         crab: (k, g, p) => this.mixer.playCrab(k, g, p),
         flame: (d, g, p) => this.mixer.playFlame(d, g, p),
         dragon: (k, g, p) => this.mixer.playDragon(k, g, p),
+        leaves: (d, g, p) => this.mixer.playLeaves(d, g, p),
+        bunny: (k, g, p) => this.mixer.playBunny(k, g, p),
       },
       // Soaked like after a swim (it dries, and drips, the same way); fire dries you at once.
       soak: () => {
@@ -1693,6 +1819,7 @@ export class App {
     this.world.spray.setViewport(this.drawingBuffer.y, this.camera.fov);
     this.bubbles.setViewport(this.drawingBuffer.y, this.camera.fov);
     this.creatures.setViewport(this.drawingBuffer.y, this.camera.fov);
+    this.seaGlow.setViewport(this.drawingBuffer.y, this.camera.fov);
   };
 
   private tick = (dt: number, elapsed: number): void => {
@@ -1744,6 +1871,8 @@ export class App {
     this.updateAvatar(dt);
     this.updateDog(dt);
     this.creatures.update(dt);
+    this.beMap.update(dt);
+    this.seaGlow.update(dt);
     this.updateWetness(dt);
     this.world.footprints.setClock(elapsed);
     const onFoot = this.cameras.mode === 'walk' && !this.walker.swimming;
