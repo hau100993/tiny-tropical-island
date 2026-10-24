@@ -1756,6 +1756,27 @@ kbd.key {
   font-weight: 400;
 }
 
+/* Time bar: always shown above the sections, nothing to open; the clock row and the hour
+   slider in one slim block. */
+.time-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 0 8px;
+  padding: 4px 8px 4px 10px;
+  border-radius: 10px;
+  background: var(--control-bg);
+}
+
+.time-bar .clock-face {
+  padding: 0;
+  background: none;
+}
+
+.time-bar .clock-big {
+  font-size: 18px;
+}
+
 /* Hour slider: no label or value (the clock above says it), a day-coloured track. */
 .slider.day-slider {
   grid-template-columns: 1fr;

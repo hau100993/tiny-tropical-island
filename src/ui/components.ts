@@ -40,6 +40,8 @@ export interface SliderOptions {
   defaultValue?: number;
   /** Small tick marks under the track (e.g. the "normal" level, or 06/12/18 h). */
   marks?: readonly number[];
+  /** Show the value in a bubble over the thumb while dragging too (not only on wheel notches). */
+  dragBubble?: boolean;
 }
 
 export const PERCENT: SliderOptions = { min: 0, max: 1, step: 0.01, wheelStep: 0.05, format: (v) => `${Math.round(v * 100)}%` };
@@ -147,7 +149,11 @@ export function slider(label: string, value: number, onInput: (v: number) => voi
     apply(now);
     showBubble(input, opts.format(now), (now - opts.min) / span);
   };
-  input.addEventListener('input', () => apply(Number(input.value)));
+  input.addEventListener('input', () => {
+    const v = Number(input.value);
+    apply(v);
+    if (opts.dragBubble) showBubble(input, opts.format(v), (v - opts.min) / span);
+  });
   onWheelNotch(root, () => !input.disabled, (dir, e) => jump(wheelValue(Number(input.value), dir, e.shiftKey, opts)));
   if (opts.defaultValue !== undefined) {
     const def = opts.defaultValue;

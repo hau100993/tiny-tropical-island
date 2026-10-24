@@ -42,8 +42,6 @@ export const vi = {
     speedTitle: (hint: string) => `Tốc độ: ${hint}\nBấm: nhanh hơn (hết vòng thì quay lại) · Shift + bấm: chậm hơn · Lăn chuột: đổi tốc độ`,
     speedFromReal: 'Đang theo giờ máy tính · bấm để chạy giờ trên đảo với tốc độ này',
     /** Short state after the time in the closed section's title. */
-    timeMetaReal: 'giờ thật',
-    timeMetaPaused: 'đã dừng',
     pause: 'Dừng',
     resume: 'Chạy',
     pauseTitle: 'Dừng / chạy thời gian (N)',
@@ -63,7 +61,7 @@ export const vi = {
     moonlight: 'Trăng sáng',
     fireflies: 'Đom đóm',
     walk: 'Đi bộ trên đảo (C)',
-    sections: { scene: 'Cảnh', sound: 'Âm thanh', time: 'Thời gian', view: 'Góc nhìn', settings: 'Cài đặt' },
+    sections: { scene: 'Cảnh', sound: 'Âm thanh', view: 'Góc nhìn', settings: 'Cài đặt' },
     pomodoroBtn: 'Pomodoro: mở/ẩn thẻ hẹn giờ (T: chạy/tạm dừng)',
     fullscreenOn: 'Toàn màn hình (F)',
     fullscreenOff: 'Thoát toàn màn hình (F hoặc Esc)',

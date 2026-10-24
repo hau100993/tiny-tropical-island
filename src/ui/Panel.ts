@@ -10,7 +10,7 @@ import { isTyping, type Keymap } from '../controls/keymap';
 import { QUALITY_LEVELS, type QualityLevel } from '../core/quality';
 import type { ScenePresetStore } from '../core/scenePresets';
 import { CHARACTER_IDS, PANEL_SECTIONS, type CharacterId, type PanelSection, type Settings, type SettingsStore } from '../core/settings';
-import { formatClock, formatClockSeconds } from '../world/celestial';
+import { formatClock } from '../world/celestial';
 import { nextSpeed } from './timeSpeed';
 import type { Fullscreen } from './fullscreen';
 import type { ScreenInfo } from '../world/deskScreens';
@@ -55,7 +55,6 @@ export interface PanelDeps {
 const SECTION_ICONS: Readonly<Record<PanelSection, string>> = {
   scene: icons.scene,
   sound: icons.music,
-  time: icons.time,
   view: icons.eye,
   settings: icons.settings,
 };
@@ -255,9 +254,10 @@ export class Panel {
     sound.body.append(library.root, synthRow, this.synthStatus);
 
     // --- Thời gian ---
-    // Two rows: the hh:mm:ss clock with three icon buttons (stop/run, speed, the computer's
-    // clock), and the hour slider painted with the colours of the day. Labels live in tooltips.
-    const time = this.section('time');
+    // Always shown above the sections, nothing to open: the hh:mm clock with three icon buttons
+    // (stop/run, speed, the computer's clock), and the hour slider painted with the colours of
+    // the day. Labels live in tooltips.
+    const time = el('div', 'time-bar');
     this.clockFace = el('div', 'clock-face');
     const clockMain = el('div', 'clock-main');
     this.clockDot = el('span', 'clock-dot');
@@ -284,11 +284,11 @@ export class Panel {
       const c = settings.get();
       if (c.timeMode === 'real' || c.timePaused) settings.update({ timeMode: 'free', timePaused: false });
       deps.setHours(h);
-    }, { min: 0, max: 23.99, step: 0.05, wheelStep: 0.25, wrap: 24, format: formatClock });
+    }, { min: 0, max: 23.99, step: 0.05, wheelStep: 0.25, wrap: 24, format: formatClock, dragBubble: true });
     this.clock.root.classList.add('day-slider');
     this.clock.root.title = vi.panel.timeDragHint;
     this.clock.input.setAttribute('aria-label', vi.panel.time);
-    time.body.append(this.clockFace, this.clock.root);
+    time.append(this.clockFace, this.clock.root);
 
     // --- Góc nhìn ---
     const view = this.section('view');
@@ -337,7 +337,7 @@ export class Panel {
     keys.append(keysTitle, keysBody);
     conf.body.append(el('div', 'subhead', vi.panel.quality), quality, this.qualityNote, confOpts, keys);
 
-    content.append(...[...this.sections.values()].map((x) => x.root));
+    content.append(time, ...[...this.sections.values()].map((x) => x.root));
     this.root.append(header, top, content);
     // Out of sight (walking and left alone, or the UI hidden with H): only a small round handle
     // stays where the bar was (styles: .panel.handle); pointing at it opens the panel.
@@ -523,19 +523,13 @@ export class Panel {
    * Called every frame; refreshes the status line, the Pomodoro clock and the section values
    * a couple of times a second, touching the DOM only when the text changes.
    */
-  private shownSecond = -1;
-
   tick(now: number): void {
-    // The clock string changes once a second (and no string is built in between).
-    const second = Math.floor(this.deps.getHours() * 3600);
-    if (second !== this.shownSecond) {
-      this.shownSecond = second;
-      setText(this.bigClock, formatClockSeconds(this.deps.getHours()));
-    }
     const minute = Math.floor(this.deps.getHours() * 60);
-    if (minute !== this.shownMinute && document.activeElement !== this.clock.input) {
+    // The clock string changes once a minute (and no string is built in between).
+    if (minute !== this.shownMinute) {
       this.shownMinute = minute;
-      this.clock.set(this.deps.getHours());
+      setText(this.bigClock, formatClock(this.deps.getHours()));
+      if (document.activeElement !== this.clock.input) this.clock.set(this.deps.getHours());
     }
     // The slider's thumb is a sun by day (06–18 h), a moon by night.
     const h = this.deps.getHours();
@@ -550,9 +544,6 @@ export class Panel {
     setText(this.meta('scene'), scene);
     setText(this.headerScene, scene);
     setText(this.meta('sound'), muted ? vi.panel.status.muted : info.playing);
-    const t = this.deps.settings.get();
-    const timeState = t.timeMode === 'real' ? vi.panel.timeMetaReal : t.timePaused ? vi.panel.timeMetaPaused : `×${t.timeSpeed}`;
-    setText(this.meta('time'), `${info.islandTime} · ${timeState}`);
     const p = this.deps.pomodoro();
     setText(this.pomoText, p ? p.remaining : '');
     this.pomoBtn.classList.toggle('running', !!p?.running);

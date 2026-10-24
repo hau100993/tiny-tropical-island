@@ -75,7 +75,8 @@ export interface Settings {
   panelSections: PanelSection[];
 }
 
-export const PANEL_SECTIONS = ['scene', 'sound', 'time', 'view', 'settings'] as const;
+// The time bar is always shown above them (Panel), so it isn't one of these.
+export const PANEL_SECTIONS = ['scene', 'sound', 'view', 'settings'] as const;
 export type PanelSection = (typeof PANEL_SECTIONS)[number];
 /** First launch: the scenes and the views, the two things you pick most. */
 const DEFAULT_SECTIONS: readonly PanelSection[] = ['scene', 'view'];

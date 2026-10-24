@@ -90,14 +90,15 @@ effects their normal level). Small ticks mark 06:00 / 12:00 / 18:00 on the **Gi�
 the normal 50% (30% for **Trăng sáng**) on the sun and moon sliders. The Pomodoro minute boxes
 also take the wheel when the pointer is over their row (±1, Shift ±5).
 
+- **Time bar** (always shown above *Cảnh*, nothing to open): the hh:mm clock with three icon
+  buttons (pause/play, speed, computer clock) and a day-coloured hour slider, see *Day, night
+  and sky*.
 - **Cảnh:** scenes as cards: icon, name, and a second line with the scene's time (or *Giữ
   giờ*) and ♪ when it plays recordings of its own. Clicking a card switches to the scene and
   its sound. Below: **+ Tạo cảnh**, **Sửa cảnh**, **Khôi phục gốc** (edited built-ins) and
   **Xóa** (your scenes); see *Scenes and your recordings*.
 - **Âm thanh:** **Âm thanh của tôi** (your recordings) and **Âm nền tự tạo khi không phát
   file** (the synthesized fallback, see below).
-- **Thời gian:** the hh:mm:ss clock with three icon buttons (pause/play, speed, computer clock)
-  and a day-coloured hour slider, see *Day, night and sky*.
 - **Góc nhìn:** tiles for **Toàn cảnh**, **Đi bộ**, **Góc làm việc**, **Bồn tắm**, **Nằm võng**
   (the current one is highlighted, each shows its key), and switches: character view (`V`),
   **Âm thanh hoạt động** (footsteps, paddle and swim splashes, the surf's crash and rush; off by
@@ -573,17 +574,17 @@ in, and drips when it comes out. These marks live in a sharp "wake map" (48 m ar
 
 ## Day, night and sky
 
-**The clock** (*Thời gian* in the panel):
+**The clock** (the time bar at the top of the panel's list, always shown):
 
-One row: the time (a dot before it: filled = running, ring = the computer's clock, grey =
+One row: the time (hh:mm) (a dot before it: filled = running, ring = the computer's clock, grey =
 stopped; hover for the words) and three small buttons; below it the hour slider, coloured like
 the day (night blue, dawn pink, sky blue, sunset orange), with a sun or a moon as its handle.
 Hover any button for its name.
 
 - **Monitor icon (giờ thật):** the island follows your computer's clock, to the second. Click
   again for the island's own clock.
-- **Hour slider:** drag (or wheel, 15 min per notch) to any time; the island clock runs on from
-  there (also when it was stopped or on real time).
+- **Hour slider:** drag (or wheel, 15 min per notch) to any time; the time shows over the handle
+  meanwhile; the island clock runs on from there (also when it was stopped or on real time).
 - **Speed button (×1 / ×10 / ×60 / ×240):** click for the next speed, round and round; Shift +
   click goes back; the mouse wheel over it changes it too. ×1 = real speed, ×10 = a day in about
   2.4 h, ×60 = a day in 24 min (default), ×240 = a day in 6 min. On the computer's clock it shows
