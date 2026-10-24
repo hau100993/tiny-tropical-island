@@ -5,6 +5,7 @@ export const vi = {
   appTitle: 'Đảo Nhiệt Đới',
   noWebGL2:
     'Trình duyệt không hỗ trợ WebGL2. Hãy dùng Chrome hoặc Edge bản mới và bật "Sử dụng tăng tốc phần cứng" trong cài đặt.',
+  loading: 'Đang dựng hòn đảo…',
   audioPrompt: {
     waiting: '🔊 Nhấp chuột hoặc nhấn phím bất kỳ để bật âm thanh',
     failed: 'Không khởi động được âm thanh. Nhấp lại để thử.',

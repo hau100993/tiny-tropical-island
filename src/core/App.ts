@@ -33,11 +33,13 @@ import { SwimEffects } from '../activities/swimEffects';
 import { SurfActivity } from '../activities/SurfActivity';
 import type { PopUp, SurfEvent } from '../activities/surfPhysics';
 import { Avatar, type AvatarPose, type AvatarRig, type SwimPose } from '../world/avatar';
-import { GlbCharacter, type CharacterSpec } from '../world/character';
+// Type-only: the .glb modules (and three's GLTFLoader with them) are a separate chunk, fetched
+// with the first character or the dog (see setCharacter and loadDog).
+import type { GlbCharacter, CharacterSpec } from '../world/character';
 import manUrl from '../assets/characters/man.glb?url';
 import womanUrl from '../assets/characters/woman.glb?url';
 import shibaUrl from '../assets/animals/shiba.glb?url';
-import { DogModel } from '../world/dog';
+import type { DogModel } from '../world/dog';
 import { DogCompanion, type DogPlayer, type DogSpot } from '../activities/dogCompanion';
 import type { ListenerState } from '../audio/spatial';
 import type { FootSurface } from '../audio/synth/footsteps';
@@ -549,8 +551,24 @@ export class App {
     this.mixer.setUnderwater(this.underMuffled);
   }
 
+  /**
+   * The first frame would wait for every shader to compile (~100 programs: 15+ s with a cold
+   * shader cache in Chrome on Windows, the page frozen). They compile in the background first.
+   */
   start(): void {
-    this.loop.start();
+    const note = document.createElement('div');
+    note.className = 'loading-note';
+    note.textContent = vi.loading;
+    this.container.append(note);
+    Promise.all([
+      this.renderer.compileAsync(this.scene, this.camera),
+      this.world.water.compileAsync(this.scene, this.camera),
+    ])
+      .catch((err: unknown) => console.warn('shader precompile failed', err))
+      .finally(() => {
+        note.remove();
+        this.loop.start();
+      });
   }
 
   /** Creates the audio graph; must run inside a click/keypress handler. */
@@ -760,7 +778,8 @@ export class App {
   /** Mochi the dog: loaded on first use (a .glb, ~0.8 MB). See activities/dogCompanion.ts. */
   private loadDog(): void {
     this.dogLoading = true;
-    DogModel.load(shibaUrl, sharedUniforms)
+    import('../world/dog')
+      .then(({ DogModel }) => DogModel.load(shibaUrl, sharedUniforms))
       .then((model) => {
         this.dogModel = model;
         this.scene.add(model.root);
@@ -942,7 +961,8 @@ export class App {
       return;
     }
     this.activityMenu.flash(vi.panel.characterLoading);
-    GlbCharacter.load(spec, { ...sharedUniforms, uWetness: this.avatar.wetness })
+    import('../world/character')
+      .then(({ GlbCharacter }) => GlbCharacter.load(spec, { ...sharedUniforms, uWetness: this.avatar.wetness }))
       .then((c) => {
         this.characterCache.set(id, c);
         // Chosen something else meanwhile: keep it for later, don't wear it.

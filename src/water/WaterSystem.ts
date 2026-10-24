@@ -117,6 +117,11 @@ export class WaterSystem {
     this.captureHidden = [this.surface.mesh, ...objects];
   }
 
+  /** Compiles the refraction capture's shaders in the background (see SceneCapture.compileAsync). */
+  compileAsync(scene: THREE.Scene, camera: THREE.Camera): Promise<unknown> {
+    return this.capture.compileAsync(scene, camera, this.captureHidden);
+  }
+
   /** Objects besides the water to leave out of the reflection (sky, particles, small plants). */
   setReflectionHidden(objects: THREE.Object3D[]): void {
     this.reflectionHidden = [this.surface.mesh, ...objects];

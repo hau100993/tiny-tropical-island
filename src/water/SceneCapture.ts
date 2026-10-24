@@ -55,6 +55,33 @@ export class SceneCapture {
     restore(hidden, this.wasVisible);
   }
 
+  /**
+   * Compiles this pass's shaders in the background (KHR_parallel_shader_compile). A render
+   * target gets no tone mapping, so its materials are other programs than the canvas's.
+   */
+  compileAsync(scene: THREE.Scene, camera: THREE.Camera, hidden: readonly THREE.Object3D[]): Promise<unknown> {
+    if (!this.target) return Promise.resolve();
+    // compile() walks every object, invisible ones too, so the hidden ones are taken out of their
+    // parents' lists for the call (compile() runs synchronously inside compileAsync: no frame
+    // can see the gap). Compiling the real scene keeps its lights and fog as the pass sees them.
+    const parents: (THREE.Object3D | null)[] = [];
+    const indices: number[] = [];
+    for (const o of hidden) {
+      const p = o.parent;
+      const i = p ? p.children.indexOf(o) : -1;
+      if (p && i >= 0) p.children.splice(i, 1);
+      parents.push(i >= 0 ? p : null);
+      indices.push(i);
+    }
+    const prev = this.renderer.getRenderTarget();
+    this.renderer.setRenderTarget(this.target);
+    const done = this.renderer.compileAsync(scene, camera);
+    this.renderer.setRenderTarget(prev);
+    // Put back in reverse order, so each goes back to its own index.
+    for (let k = hidden.length - 1; k >= 0; k--) parents[k]?.children.splice(indices[k], 0, hidden[k]);
+    return done;
+  }
+
   private readonly wasVisible: boolean[] = [];
 }
 
