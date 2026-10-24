@@ -132,6 +132,8 @@ export class Panel {
   private walking = false;
   /** The UI is hidden (H): the panel only shows while pointed at, from the top-right corner. */
   private uiHidden = false;
+  /** Just opened: tucked away as when walking, until the panel is clicked or P pressed (endIntro). */
+  private intro = true;
   private peek = false;
   /** Walking, left alone SLEEP_MS: faded out completely until the corner is pointed at. */
   private asleep = false;
@@ -173,6 +175,10 @@ export class Panel {
       this.held = false;
       this.scheduleClose();
     });
+    // The page opens with the scene in front: the panel waits tucked away (styles:
+    // body.panel-intro) until something in it is clicked.
+    document.body.classList.add('panel-intro');
+    this.root.addEventListener('click', () => this.endIntro());
 
     // --- Fixed top ---
     const header = el('div', 'panel-header');
@@ -402,7 +408,26 @@ export class Panel {
   }
 
   private get tucked(): boolean {
-    return this.walking || this.uiHidden;
+    return this.walking || this.uiHidden || this.intro;
+  }
+
+  /** The first frame is up: the tucked panel goes out of sight SLEEP_MS from now, in view. */
+  sceneShown(): void {
+    this.scheduleSleep();
+  }
+
+  /**
+   * Ends the opening tuck (a click in the panel, or P): from then on it opens and collapses as
+   * usual in the overview. False if it had already ended.
+   */
+  endIntro(): boolean {
+    if (!this.intro) return false;
+    this.intro = false;
+    document.body.classList.remove('panel-intro');
+    const { settings } = this.deps;
+    if (settings.get().panelCollapsed) settings.update({ panelCollapsed: false });
+    this.retuck();
+    return true;
   }
 
   private retuck(): void {
@@ -433,12 +458,12 @@ export class Panel {
     }, CLOSE_MS);
   }
 
-  /** Walking: the faded panel goes out of sight after SLEEP_MS left alone. */
+  /** Walking (or just opened): the faded panel goes out of sight after SLEEP_MS left alone. */
   private scheduleSleep(): void {
     window.clearTimeout(this.sleepTimer);
-    if (!this.walking || this.peek) return;
+    if (!(this.walking || this.intro) || this.peek) return;
     this.sleepTimer = window.setTimeout(() => {
-      if (!this.walking || this.peek) return;
+      if (!(this.walking || this.intro) || this.peek) return;
       this.asleep = true;
       this.syncCollapsed();
     }, SLEEP_MS);

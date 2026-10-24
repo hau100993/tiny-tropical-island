@@ -544,21 +544,21 @@ body.ui-hidden .debug-overlay {
 
 /* ---------- Walk mode ---------- */
 
-/* Walking, paddling, surfing: the panel waits collapsed and faded in its corner, out of the
-   scene; pointing at it opens it (Panel.setWalking). */
-body.walking .panel {
+/* Walking, paddling, surfing, or the page just opened (.panel-intro): the panel waits collapsed
+   and faded in its corner, out of the scene; pointing at it opens it (Panel.setWalking). */
+body:is(.walking, .panel-intro) .panel {
   opacity: 0.35;
   transition: opacity 0.2s, transform 0.4s;
 }
 
-body.walking .panel:hover,
-body.walking .panel.peek {
+body:is(.walking, .panel-intro) .panel:hover,
+body:is(.walking, .panel-intro) .panel.peek {
   opacity: 1;
 }
 
-/* Out of sight (walking and left alone, or H): only a small round handle where the bar was,
-   faint; it lights up as it appears (that's where the menu went) and when pointed at. */
-body:is(.walking, .ui-hidden) .panel.handle {
+/* Out of sight (walking and left alone, just opened, or H): only a small round handle where the
+   bar was, faint; it lights up as it appears (that's where the menu went) and when pointed at. */
+body:is(.walking, .ui-hidden, .panel-intro) .panel.handle {
   width: 34px;
   height: 34px;
   padding: 0;
@@ -569,7 +569,7 @@ body:is(.walking, .ui-hidden) .panel.handle {
   animation: panel-handle-in 1.8s ease-out;
 }
 
-body:is(.walking, .ui-hidden) .panel.handle:hover {
+body:is(.walking, .ui-hidden, .panel-intro) .panel.handle:hover {
   opacity: 0.9;
 }
 

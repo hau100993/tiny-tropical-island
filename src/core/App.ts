@@ -568,6 +568,7 @@ export class App {
       .finally(() => {
         note.remove();
         this.loop.start();
+        this.panel.sceneShown();
       });
   }
 
@@ -599,7 +600,15 @@ export class App {
     const toggleSetting = (key: 'showDebug' | 'panelCollapsed') => () =>
       this.settings.update({ [key]: !this.settings.get()[key] });
     this.keymap.register({ code: 'KeyM', keyLabel: 'M', label: vi.shortcuts.muteAll, action: () => this.mixer.toggleMuteAll() });
-    this.keymap.register({ code: 'KeyP', keyLabel: 'P', label: vi.shortcuts.panel, action: toggleSetting('panelCollapsed') });
+    this.keymap.register({
+      code: 'KeyP',
+      keyLabel: 'P',
+      label: vi.shortcuts.panel,
+      // Right after opening the page, P brings the tucked panel out first.
+      action: () => {
+        if (!this.panel.endIntro()) toggleSetting('panelCollapsed')();
+      },
+    });
     this.keymap.register({
       code: 'KeyH',
       keyLabel: 'H',
