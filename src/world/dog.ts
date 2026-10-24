@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { patchWorldMaterial } from './patchMaterial';
+import { smoothSubdivide } from './smoothMesh';
 import type { SharedUniforms } from '../core/uniforms';
 import { rayEllipsoid } from '../activities/petting';
 
@@ -126,6 +127,15 @@ export class DogModel {
   }
 
   private constructor(scene: THREE.Group, clips: THREE.AnimationClip[], shared: SharedUniforms) {
+    // The file is low-poly and flat-shaded (~1.9k triangles, every face lit flat): rounded off
+    // once here (see smoothSubdivide: ~7.7k triangles, smooth normals), like the other animals.
+    scene.traverse((o) => {
+      const mesh = o as THREE.SkinnedMesh;
+      if (!mesh.isMesh) return;
+      const flat = mesh.geometry;
+      mesh.geometry = smoothSubdivide(flat, 1);
+      flat.dispose();
+    });
     const box = new THREE.Box3().setFromObject(scene);
     const fit = new THREE.Group();
     fit.scale.setScalar(HEAD_HEIGHT / (box.max.y - box.min.y));

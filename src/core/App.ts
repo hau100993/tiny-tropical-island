@@ -173,6 +173,9 @@ export class App {
   private readonly heartAt = new THREE.Vector3();
   private heartCount = 0;
   private readonly dogSupport = { y: 0, surface: 'sand' as WalkSurface, onPlatform: false };
+  private readonly dogClear = { x: 0, z: 0 };
+  /** Mochi's comet trail: motes per second still owed (see dogTrail). */
+  private dogTrailIn = 0;
   private readonly earRight = new THREE.Vector3();
   private readonly pomodoro: PomodoroOverlay;
   /** Pomodoro storm calm: target and the eased value the visuals use. */
@@ -661,6 +664,16 @@ export class App {
       },
     });
     this.keymap.register({
+      code: 'KeyJ',
+      keyLabel: 'J',
+      label: vi.shortcuts.dogSkill,
+      action: () => {
+        const dog = this.dog;
+        if (!this.settings.get().dog || !dog) return;
+        if (!dog.zoomies(this.dogPlayer)) this.activityMenu.flash(vi.dog.zoomNoRoom);
+      },
+    });
+    this.keymap.register({
       code: 'KeyR',
       keyLabel: 'R',
       label: vi.shortcuts.waterSkill,
@@ -1028,6 +1041,11 @@ export class App {
             bathSpot: roomSpot(h.bath.standX - 0.5, h.bath.standZ + 0.35, h.bath.seatX, h.bath.seatZ),
             hammockSpot: { x: hx, y: this.world.heightmap.heightAt(hx, hz), z: hz, yaw: Math.atan2(hm.center.x - hx, hm.center.z - hz) },
             inRoom: (x, z, y) => c.shelterAt(x, z, y) === 'room',
+            clear: (x, z, y) => {
+              if (this.world.heightmap.heightAt(x, z) < 0.15 || c.shelterAt(x, z, y) !== 'none') return false;
+              c.world.resolve(x, z, y, 0.4, this.dogClear);
+              return this.dogClear.x === x && this.dogClear.z === z;
+            },
           },
           {
             onStep: (x, z, y, yaw, side, speed) => this.onDogStep(x, z, y, yaw, side, speed),
@@ -1036,6 +1054,7 @@ export class App {
               const ear = this.dogEar(this.dog.x, this.dog.y, this.dog.z);
               if (ear) this.mixer.playBark(kind, ear.gain, ear.pan);
             },
+            onZoom: (phase) => this.onDogZoom(phase),
           },
           { x: w.x + 1.5, z: w.z + 1.5 },
         );
@@ -1093,6 +1112,43 @@ export class App {
     }
   }
 
+  /**
+   * "Sao Băng Mochi": a comet's tail of golden sparkles behind it while it runs (the rainbow
+   * motes, hues from orange to pale yellow), ~90 a second, drifting up a little off its back.
+   */
+  private dogTrail(dt: number): void {
+    const dog = this.dog;
+    if (!dog) return;
+    this.dogTrailIn -= dt * 90;
+    const bx = -Math.sin(dog.yaw);
+    const bz = -Math.cos(dog.yaw);
+    for (; this.dogTrailIn <= 0; this.dogTrailIn += 1) {
+      const j = (): number => (Math.random() - 0.5) * 0.18;
+      this.rainbow.emit(dog.x + bx * 0.3 + j(), dog.y + dog.lift + 0.28 + j(), dog.z + bz * 0.3 + j(), bx * 0.4 + j(), 0.6 + Math.random() * 0.6, bz * 0.4 + j(), 0.05 + Math.random() * 0.05, 0.08 + Math.random() * 0.1);
+    }
+  }
+
+  /** Mochi's special move: the start (a puff of sand), the leap (a ring), the landing (a burst, hearts). */
+  private onDogZoom(phase: 'start' | 'leap' | 'land'): void {
+    const dog = this.dog;
+    const model = this.dogModel;
+    if (!dog || !model) return;
+    const n = phase === 'land' ? 140 : phase === 'leap' ? 40 : 0;
+    for (let k = 0; k < n; k++) {
+      const a = Math.random() * Math.PI * 2;
+      const c = phase === 'land' ? Math.random() : Math.random() * 0.3;
+      const sn = Math.sqrt(1 - c * c);
+      const v = phase === 'land' ? 2.5 + Math.random() * 2.5 : 1.5;
+      // Mostly gold, a few in every colour.
+      const hue = Math.random() < 0.7 ? 0.08 + Math.random() * 0.1 : Math.random() * 0.8;
+      this.rainbow.emit(dog.x, dog.y + dog.lift + 0.3, dog.z, Math.cos(a) * sn * v, c * v + 0.8, Math.sin(a) * sn * v, 0.05 + Math.random() * 0.06, hue);
+    }
+    if (phase === 'land') {
+      this.hearts.spawn(model.headTop(this.heartAt));
+      this.hearts.spawn(model.headTop(this.heartAt));
+    }
+  }
+
   /** Every frame: where you are for Mochi, its move, then its animation; petting and hearts. */
   private updateDog(dt: number): void {
     const model = this.dogModel;
@@ -1122,8 +1178,10 @@ export class App {
     dog.affection = this.petting.affection;
     this.petCursor.set(pp.active ? 'grab' : pp.hover || this.creatures.hover ? 'hover' : 'none');
     dog.update(dt, p);
-    model.root.position.set(dog.x, dog.y, dog.z);
+    model.root.position.set(dog.x, dog.y + dog.lift, dog.z);
     model.root.rotation.y = dog.yaw;
+    model.root.rotation.z = dog.bank;
+    if (dog.zooming) this.dogTrail(dt);
     // It looks at you when you're close (at the camera while stroked from above).
     const stroking = this.petting.stroking;
     const near = Math.hypot(p.x - dog.x, p.z - dog.z) < 6;

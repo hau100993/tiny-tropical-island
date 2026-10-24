@@ -63,6 +63,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `T` | Pomodoro: show the timer and start / pause it |
 | `B` | Work desk: sit down at the desk in the house (from anywhere) / get up |
 | `G` | Call Mochi the dog: it runs straight to you |
+| `J` | Mochi's special move, **Sao Băng Mochi** (see *Mochi*) |
 | `R` | Bọt the water crab fires its water jet (at you if you stand within 10 m, else out to sea) |
 | `X` | Hỏa Long the fire dragon breathes fire (at you if you stand within 12 m: it dries you; else onto the sea) |
 | `Z` | Mầm the grass bunny throws Lá Bay: flowers spring up where the leaves land (within 10 m of you: a ring of flowers round you) |
@@ -351,7 +352,14 @@ at the desk it sits beside the chair looking up at you, while you're in the bath
 tub (if you jumped to a seat with `B` while it was outside, it is simply there); while you're in
 the hammock it lies beside it; while you swim, paddle or surf it
 waits at the water's edge watching you, and greets you with a bark when you're back. `G` calls
-it. **Petting, with the mouse** (no key, no text prompt): point at Mochi (from above the cursor
+it. **`J`: Sao Băng Mochi**, its special move (Shiba "zoomies"): a play bow and a yip, then two
+laps round you at full gallop (7.5 m/s, leaning into the turn) leaving a comet's tail of golden
+sparkles that drift down onto the sand, and a leap with a full turn in the air to finish: a
+burst of gold (and a few colours) and two hearts. It needs open ground: a circle round you
+(3.4, 2.8 or 2.2 m) clear of trees, rocks, walls and the sea, or else one just beside you; if
+there is none a note says so. The model is the file's, rounded off at load (`world/smoothMesh.ts`:
+the file is flat-shaded low poly, ~1.9k triangles; one step of Loop subdivision and smooth
+normals give ~7.7k, like the other animals). **Petting, with the mouse** (no key, no text prompt): point at Mochi (from above the cursor
 turns into a paw; walking, a paw appears at the screen centre when you aim at it). A click is a
 pat (it hops, wags hard and yips). Press and hold to stroke it: walking, it comes to sit in
 front of you, your character crouches and strokes its head and neck with the right hand (the

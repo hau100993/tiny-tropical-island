@@ -35,12 +35,16 @@ export interface DogWorld {
   hammockSpot: DogSpot;
   /** Inside the house's room. */
   inRoom(x: number, z: number, y: number): boolean;
+  /** Open ground for a run at (x, z): dry land, no tree, rock or wall within reach. */
+  clear(x: number, z: number, y: number): boolean;
 }
 
 /** A paw coming down (for prints and the patter), and other moments worth a sound. */
 export interface DogEvents {
   onStep(x: number, z: number, y: number, yaw: number, side: number, speed: number): void;
   onBark(kind: 'woof' | 'yip'): void;
+  /** Its special move: the run starts, it leaps for the finish, it lands. */
+  onZoom(phase: 'start' | 'leap' | 'land'): void;
 }
 
 /** How far behind you the dog walks (m, along your path). */
@@ -62,7 +66,28 @@ const PET_GAP = 0.72;
 const PAT_LINGER = 2.4;
 const PET_LINGER = 1.2;
 
-type Mode = 'follow' | 'come' | 'wait' | 'pet';
+/**
+ * "Sao Băng Mochi" (its zoomies): a play bow, then laps round you this fast (m/s) on the widest
+ * clear circle of these radii (m), then a leap with a full turn in the air, this high (m) and long (s).
+ */
+const ZOOM_SPEED = 7.5;
+const ZOOM_RADII = [3.4, 2.8, 2.2] as const;
+const ZOOM_LAPS = 2;
+/**
+ * Where the circle may be centred: [distance from you (m), directions tried]; you inside it
+ * first, then (trees about) a circle beside you.
+ */
+const ZOOM_CENTRES: readonly (readonly [number, number])[] = [
+  [0, 1],
+  [1.2, 8],
+  [2, 8],
+  [3.2, 12],
+  [4.5, 12],
+];
+const ZOOM_BOW = 0.6;
+const ZOOM_LEAP = { height: 0.75, time: 0.75 } as const;
+
+type Mode = 'follow' | 'come' | 'wait' | 'pet' | 'zoom';
 
 /**
  * Mochi, the dog that keeps you company. It follows your own path a couple of metres behind
@@ -108,6 +133,18 @@ export class DogCompanion {
   private side = 1;
   private shoreTimer = 0;
   private readonly shore = { x: 0, z: 0 };
+  /** The zoomies: the stage, the circle's radius, the angle round you and how far it has run. */
+  private zoomStage: 'bow' | 'enter' | 'run' | 'leap' = 'bow';
+  private zoomR = 3;
+  private zoomA = 0;
+  private zoomRun = 0;
+  private zoomDir = 1;
+  /** The circle's centre, from you (m): 0 when it runs round you. */
+  private zoomOx = 0;
+  private zoomOz = 0;
+  /** Height off the ground (m: the leap) and lean into the turn (rad), for the model. */
+  lift = 0;
+  bank = 0;
 
   constructor(
     private readonly world: DogWorld,
@@ -124,6 +161,52 @@ export class DogCompanion {
     this.mode = 'come';
     this.modeTime = 0;
     this.events.onBark('woof');
+  }
+
+  /** Running its zoomies (for the trail of sparkles behind it). */
+  get zooming(): boolean {
+    return this.mode === 'zoom' && (this.zoomStage === 'run' || this.zoomStage === 'leap');
+  }
+
+  /**
+   * "Sao Băng Mochi": round and round you at full speed, then a leap with a spin. Needs you on
+   * foot and open ground: a clear circle round you, or else one beside you (trees about); false
+   * if there is none (it stays put).
+   */
+  zoomies(p: Readonly<DogPlayer>): boolean {
+    if (!p.onFoot || p.seat || this.mode === 'zoom') return false;
+    for (const r of ZOOM_RADII) {
+      for (const [off, dirs] of ZOOM_CENTRES) {
+        for (let d = 0; d < dirs; d++) {
+          const da = (d / dirs) * Math.PI * 2;
+          const cx = p.x + Math.cos(da) * off;
+          const cz = p.z + Math.sin(da) * off;
+          let ok = true;
+          for (let k = 0; k < 20 && ok; k++) {
+            const a = (k / 20) * Math.PI * 2;
+            ok = this.world.clear(cx + Math.cos(a) * r, cz + Math.sin(a) * r, p.y);
+          }
+          if (ok) return this.startZoom(cx - p.x, cz - p.z, r);
+        }
+      }
+    }
+    return false;
+  }
+
+  /** Starts the zoomies on the circle of radius `r` centred (ox, oz) from you. */
+  private startZoom(ox: number, oz: number, r: number): boolean {
+    this.zoomOx = ox;
+    this.zoomOz = oz;
+    this.zoomR = r;
+    this.mode = 'zoom';
+    this.zoomStage = 'bow';
+    this.modeTime = 0;
+    this.zoomRun = 0;
+    // (The angle round the circle is taken once it gets there.)
+    this.zoomA = 0;
+    this.zoomDir = Math.random() < 0.5 ? 1 : -1;
+    this.events.onBark('yip');
+    return true;
   }
 
   /** A pat (a click on it). It hops, wags hard and yips. */
@@ -174,6 +257,13 @@ export class DogCompanion {
     let alone = false;
 
     this.petReady = false;
+    if (this.mode === 'zoom') {
+      if (!p.onFoot || p.seat) this.endZoom();
+      else {
+        this.zoom(dt, p);
+        return;
+      }
+    }
     if (this.mode === 'pet') {
       const linger = this.petHold ? Infinity : this.petToYou ? PET_LINGER : PAT_LINGER;
       if (this.modeTime > linger || !p.onFoot || p.seat) {
@@ -266,6 +356,78 @@ export class DogCompanion {
       this.wag += ((rest ? 0.15 : 0.35) - this.wag) * Math.min(1, dt * 2);
     }
     this.settleY(p);
+  }
+
+  /** The zoomies, one frame: bow, onto the circle, laps, the leap. */
+  private zoom(dt: number, p: Readonly<DogPlayer>): void {
+    this.still = 0;
+    this.wag += (1 - this.wag) * Math.min(1, dt * 6);
+    const cx = p.x + this.zoomOx;
+    const cz = p.z + this.zoomOz;
+    const r = this.zoomR;
+    if (this.zoomStage === 'bow') {
+      // The play bow: front down, rump up (its "eating" pose), facing you.
+      this.speed = 0;
+      this.face(dt * 3, cx, cz);
+      this.action = 'sniff';
+      if (this.modeTime > ZOOM_BOW) {
+        this.zoomStage = 'enter';
+        this.events.onZoom('start');
+      }
+    } else if (this.zoomStage === 'enter') {
+      // Out to the circle where it is.
+      this.zoomA = Math.atan2(this.z - cz, this.x - cx);
+      const left = this.steer(dt, cx + Math.cos(this.zoomA) * r, cz + Math.sin(this.zoomA) * r, 0, ZOOM_SPEED);
+      this.action = 'move';
+      if (left < 0.3 || this.modeTime > ZOOM_BOW + 2.5) this.zoomStage = 'run';
+    } else if (this.zoomStage === 'run') {
+      this.accelerate(dt, ZOOM_SPEED);
+      const da = (this.speed / r) * dt * this.zoomDir;
+      this.zoomA += da;
+      this.zoomRun += Math.abs(da);
+      const nx = cx + Math.cos(this.zoomA) * r;
+      const nz = cz + Math.sin(this.zoomA) * r;
+      // Facing along the circle (the tangent), leaning in: tan(bank) = v² / (g r).
+      const tx = -Math.sin(this.zoomA) * this.zoomDir;
+      const tz = Math.cos(this.zoomA) * this.zoomDir;
+      this.turnTo(dt * 3, Math.atan2(tx, tz));
+      this.move(nx - this.x, nz - this.z);
+      this.bank += (Math.atan((this.speed * this.speed) / (9.81 * r)) * 0.6 * this.zoomDir - this.bank) * Math.min(1, dt * 6);
+      this.action = 'move';
+      if (this.zoomRun >= ZOOM_LAPS * Math.PI * 2) {
+        this.zoomStage = 'leap';
+        this.modeTime = 0;
+        this.events.onBark('woof');
+        this.events.onZoom('leap');
+      }
+    } else {
+      // The leap: on along the circle, up and down with a full turn in the air.
+      const t = Math.min(1, this.modeTime / ZOOM_LEAP.time);
+      this.speed *= 1 - Math.min(1, dt * 1.5);
+      const da = (this.speed / r) * dt * this.zoomDir;
+      this.zoomA += da;
+      this.move(cx + Math.cos(this.zoomA) * r - this.x, cz + Math.sin(this.zoomA) * r - this.z);
+      this.lift = 4 * ZOOM_LEAP.height * t * (1 - t);
+      this.yaw += ((Math.PI * 2) / ZOOM_LEAP.time) * dt * this.zoomDir;
+      this.bank *= 1 - Math.min(1, dt * 8);
+      this.action = 'move';
+      if (t >= 1) {
+        this.events.onZoom('land');
+        this.endZoom();
+        // It lands facing you, pleased with itself.
+        this.yaw = Math.atan2(cx - this.x, cz - this.z);
+        this.speed = 0;
+        this.action = 'idle';
+      }
+    }
+    this.settleY(p);
+  }
+
+  private endZoom(): void {
+    this.mode = 'follow';
+    this.lift = 0;
+    this.bank = 0;
+    this.snapCursor();
   }
 
   /** Being petted: comes to sit in front of you (or stays put), facing you, wagging. */

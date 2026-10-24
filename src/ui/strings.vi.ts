@@ -321,6 +321,7 @@ export const vi = {
   },
   dog: {
     toggle: 'Mochi đi theo',
+    zoomNoRoom: 'Mochi cần chỗ trống quanh bạn (bãi cỏ, bãi cát) để chạy',
   },
   creatures: {
     toggle: 'Bọt (cua hệ Nước)',
@@ -343,6 +344,7 @@ export const vi = {
     fullscreen: 'Bật/tắt toàn màn hình',
     video: 'Ở bàn làm việc: phát video YouTube · nơi khác: tạm dừng/phát tiếp video',
     callDog: 'Gọi Mochi chạy lại',
+    dogSkill: 'Mochi tung Sao Băng: chạy vòng quanh bạn thật nhanh, nhảy xoay một vòng',
     waterSkill: 'Bọt phun nước (bạn đứng gần: phun vào bạn)',
     fireSkill: 'Hỏa Long phun lửa (bạn đứng gần: hong khô người bạn)',
     grassSkill: 'Mầm tung Lá Bay: hoa nở nơi lá rơi (bạn đứng gần: vòng hoa quanh bạn)',
