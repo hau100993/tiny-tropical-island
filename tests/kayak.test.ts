@@ -16,7 +16,7 @@ const flat: KayakEnv = {
   },
 };
 
-const NONE: PaddleControls = { left: false, right: false, steer: 0, cruise: false, back: false, sweep: false };
+const NONE: PaddleControls = { left: false, right: false, steer: 0, cruise: false, back: false, sweep: false, sprint: false };
 
 function run(ctl: Partial<PaddleControls>, seconds: number, body = new KayakBody(flat), paddle = new Paddle()): { body: KayakBody; turned: number } {
   const c = { ...NONE, ...ctl };
@@ -36,6 +36,14 @@ describe('kayak physics', () => {
     expect(body.speed).toBeGreaterThan(1.2);
     expect(body.speed).toBeLessThan(2.4);
     expect(Math.abs(turned)).toBeLessThan(0.35);
+  });
+
+  it('Shift + W sprints: clearly faster than cruising', () => {
+    const cruise = run({ cruise: true }, 30).body.speed;
+    const sprint = run({ cruise: true, sprint: true }, 30).body.speed;
+    console.info(`sprint ${sprint.toFixed(2)} m/s vs cruise ${cruise.toFixed(2)} m/s`);
+    expect(sprint).toBeGreaterThan(cruise * 1.3);
+    expect(sprint).toBeLessThan(4.5);
   });
 
   it('strokes on the left only turn the boat to the right', () => {

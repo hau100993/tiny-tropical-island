@@ -619,7 +619,7 @@ piece, so the two sides take turns. You steer like in a game; the paddler picks 
 
 | Input | Action |
 |---|---|
-| `W` (hold) | Paddle forward: steady strokes, left and right (~1.5 m/s, a relaxed touring pace) |
+| `W` (hold) | Paddle forward: steady strokes, left and right (~1.5 m/s, a relaxed touring pace). `Shift` + `W`: sprint, a race cadence (strokes ~40 % quicker, ~2.5 m/s) |
 | `A` / `D` | Turn left / right. Standing still: sweep strokes on the other side (turns on the spot, ~30°/s). With `W`: strokes on the outside of the turn (~25°/s). Gliding without `W`: the blade is trailed behind your hip as a stern rudder (~20°/s, slows you a little). The paddler also leans the kayak onto its outer edge, which frees the stern |
 | `S` (hold) | Paddle backwards: brake, then back up (~0.8 m/s); with `A`/`D` it backs round |
 | `Q` / `E` | Manual: one forward stroke on the left / right side (tap, or hold to repeat). A stroke on one side turns the boat **away** from that side, like a real kayak. `Shift` + `Q`/`E`: sweep stroke |

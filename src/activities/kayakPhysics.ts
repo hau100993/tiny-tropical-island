@@ -82,6 +82,8 @@ export interface PaddleControls {
   back: boolean;
   /** Shift with Q / E: sweep strokes. */
   sweep: boolean;
+  /** Shift with W: sprint, a quicker cadence (the blade moves faster, so it pushes harder). */
+  sprint: boolean;
 }
 
 /**
@@ -144,6 +146,8 @@ const IDLE: PaddlePose = { psi: 0, phi: 0, cx: 0, cy: 0.36, cz: -0.36 };
  * that side (and the boat slows a little). No special physics: the blade drag does it.
  */
 const RUDDER: PaddlePose = { psi: 0.95, phi: 0.5, cx: 0.06, cy: 0.3, cz: -0.18 };
+/** Sprinting: forward strokes take this fraction of their time (a race cadence). */
+const SPRINT_PACE = 0.6;
 /** Gliding faster than this (m/s), steering uses the rudder instead of sweeps. */
 const RUDDER_SPEED = 0.7;
 
@@ -197,6 +201,8 @@ export class Paddle {
    */
   edge = 0;
   private lastSide: Side = 1;
+  /** The current stroke's pace (1, or SPRINT_PACE). */
+  private pace = 1;
   private readonly target: PaddlePose = { ...IDLE };
 
   /**
@@ -207,7 +213,7 @@ export class Paddle {
    */
   update(dt: number, c: Readonly<PaddleControls>, speed = 0): void {
     if (this.stroking) {
-      this.t += dt / STROKES[this.kind].dur;
+      this.t += dt / (STROKES[this.kind].dur * this.pace);
       if (this.t >= 1) this.stroking = false;
     }
     const steer = Math.abs(c.steer) > 0.1 ? (c.steer > 0 ? 1 : -1) : 0;
@@ -242,6 +248,7 @@ export class Paddle {
       this.side = want;
       this.lastSide = want;
       this.kind = kind;
+      this.pace = c.sprint && kind === 'forward' ? SPRINT_PACE : 1;
       this.t = 0;
       this.stroking = true;
     }

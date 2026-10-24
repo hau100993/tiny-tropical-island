@@ -291,7 +291,7 @@ export const vi = {
     controls: 'W A S D: bơi ếch · Shift: bơi sải · Space: lặn · Chuột: lái hướng · V: đổi góc nhìn · Vào chỗ nông: đứng dậy · C: toàn cảnh',
   },
   kayak: {
-    controls: 'W: chèo tới · A / D: rẽ trái / phải · S: chèo lùi · Q / E: chèo tay trái / phải · Chuột: lái hướng · Space: nhảy xuống bơi · K: lên bờ · C: toàn cảnh',
+    controls: 'W: chèo tới (giữ Shift: chèo nhanh) · A / D: rẽ trái / phải · S: chèo lùi · Q / E: chèo tay trái / phải · Chuột: lái hướng · Space: nhảy xuống bơi · K: lên bờ · C: toàn cảnh',
     title: 'Kayak',
     land: 'Lên bờ',
     jump: 'Nhảy xuống bơi',
@@ -363,6 +363,6 @@ export const vi = {
     diveKeys: 'Lặn: đang bơi nhấn Space · W bơi theo hướng nhìn · Space trồi lên · dưỡng khí ~45 giây, hết thì tự nổi',
     surfKeys: 'Lướt ván: nằm chèo W, A / D quay ván · hiện "Sóng tới!" thì nhấn Space: ván tự quay vào bờ, tự chèo và đứng lên · đứng: A / D ôm cua dọc sóng (Shift gắt, nghiêng quá là ngã, ngã thì tự leo lại lên ván) · W lấy đà · S hãm · L rời ván',
     journalKeys: 'Nhật ký (J): các việc ở biển, tự đánh dấu khi bạn làm xong, lưu lại cho lần sau',
-    kayakKeys: 'Kayak: W chèo tới · A / D rẽ · S chèo lùi · Q / E chèo tay từng bên (Shift: chèo quét) · Space nhảy xuống bơi (bơi lại sát thuyền là tự leo lên) · K lên bờ',
+    kayakKeys: 'Kayak: W chèo tới (giữ Shift: chèo nhanh) · A / D rẽ · S chèo lùi · Q / E chèo tay từng bên (Shift: chèo quét) · Space nhảy xuống bơi (bơi lại sát thuyền là tự leo lên) · K lên bờ',
   },
 } as const;

@@ -69,7 +69,7 @@ export class KayakActivity {
   };
   private readonly keys = new Set<string>();
   private readonly latch = { left: 0, right: 0 };
-  private readonly ctl: PaddleControls = { left: false, right: false, steer: 0, cruise: false, back: false, sweep: false };
+  private readonly ctl: PaddleControls = { left: false, right: false, steer: 0, cruise: false, back: false, sweep: false, sprint: false };
   /** Mouse look: drag on the scene (see DragLook). */
   readonly look: DragLook;
   private wakeTimer = 0;
@@ -296,7 +296,10 @@ export class KayakActivity {
       c.steer = free ? (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0) - (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) : 0;
       c.cruise = free && (k.has('KeyW') || k.has('ArrowUp'));
       c.back = free && (k.has('KeyS') || k.has('ArrowDown'));
-      c.sweep = free && (k.has('ShiftLeft') || k.has('ShiftRight'));
+      const shift = k.has('ShiftLeft') || k.has('ShiftRight');
+      // Shift: sweeps with Q / E, otherwise (W) a sprint.
+      c.sweep = free && shift;
+      c.sprint = free && shift;
       this.paddle.update(dt, c, this.body.speed);
       // Not looking around and moving: the view settles back behind the boat, like a car cam.
       this.mouseIdle += dt;
