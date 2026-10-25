@@ -107,6 +107,11 @@ export class DogSkills {
     return false;
   }
 
+  /** Joining another creature's skill (a combo): its lightning, unless it is busy. */
+  join(): boolean {
+    return !this.busy && this.start('zap', () => false);
+  }
+
   private start(s: DogSkill, zoomies: () => boolean): boolean {
     const h = this.host;
     const dog = h.dog();

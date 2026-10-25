@@ -8,6 +8,8 @@ import { Embers, type EmberSink } from '../world/creatures/embers';
 import type { SkillFxSink } from '../world/creatures/skillFx';
 import type { SkillElement } from '../ui/skillCard';
 import type { StrikeTarget } from './dogSkills';
+import type { Partner } from './combos';
+import type { SpraySink } from '../water/Spray';
 import { WildCreatures } from './wildCreatures';
 import type { TrunkInstance } from '../world/vegetation/forest';
 // Type-only: the models, behaviours and the GLTFLoader are a separate chunk, fetched on first use.
@@ -67,8 +69,8 @@ export interface CreatureHost {
   rainbow: EmberSink;
   /** Flashes, shock waves, shake, framing and big sounds for the skills. */
   fx: SkillFxSink;
-  /** A skill you set off (a key or a click) started: show its name. */
-  skillCard(skill: string, element: SkillElement): void;
+  /** A skill you set off (a key or a click) started at (x, z): show its name (and maybe a combo). */
+  skillCard(skill: string, element: SkillElement, x: number, z: number): void;
 }
 
 interface Crab {
@@ -249,6 +251,28 @@ export class Creatures {
     if (this.bunny) add(this.bunnyOn, this.bunny.model.root, this.bunny.brain.x, this.bunny.brain.y, this.bunny.brain.z, 0.4, () => this.bunny?.brain.pat());
   }
 
+  /** Their effect pools, for the combos (flowers only once Mầm is loaded). */
+  get pools(): { embers: EmberSink; steam: EmberSink; spores: EmberSink; spray: SpraySink; bloom(x: number, z: number, n: number): void } {
+    return {
+      embers: this.embers,
+      steam: this.steam,
+      spores: this.spores,
+      spray: this.jetSpray,
+      bloom: (x, z, n) => this.bunny?.blooms.spawnCluster(x, z, n),
+    };
+  }
+
+  /** The creatures within `r` m of (x, z) other than `except`'s, that could join a skill (a combo). */
+  partners(x: number, z: number, r: number, except: string, out: Partner[]): void {
+    const near = (bx: number, bz: number): boolean => Math.hypot(bx - x, bz - z) < r;
+    const c = this.crab;
+    const d = this.dragon;
+    const b = this.bunny;
+    if (except !== 'water' && this.crabOn && c && near(c.brain.x, c.brain.z)) out.push({ element: 'water', x: c.brain.x, z: c.brain.z, start: () => c.brain.command() !== null });
+    if (except !== 'fire' && this.dragonOn && d && near(d.brain.x, d.brain.z)) out.push({ element: 'fire', x: d.brain.x, z: d.brain.z, start: () => d.brain.command() !== null });
+    if (except !== 'grass' && this.bunnyOn && b && near(b.brain.x, b.brain.z)) out.push({ element: 'grass', x: b.brain.x, z: b.brain.z, start: () => b.brain.command() !== null });
+  }
+
   /** A blast (Mochi's bark) at (x, z): those within `r` m jump (a pat: a dance, or a skill back). */
   startle(x: number, z: number, r: number): void {
     const near = (bx: number, bz: number): boolean => Math.hypot(bx - x, bz - z) < r;
@@ -403,7 +427,7 @@ export class Creatures {
             onSquirt: (duration) => this.play(brain.x, brain.y, brain.z, (g, p) => h.sound.squirt(duration, g, p)),
             onVoice: (kind) => this.play(brain.x, brain.y, brain.z, (g, p) => h.sound.crab(kind, g, p)),
             onHitPlayer: () => h.soak(),
-            onSkill: (skill) => h.skillCard(skill, 'water'),
+            onSkill: (skill) => h.skillCard(skill, 'water', brain.x, brain.z),
           },
         );
         h.scene.add(model.root, stream.mesh, big.mesh, column.mesh);
@@ -455,7 +479,7 @@ export class Creatures {
               }
               h.dry();
             },
-            onSkill: (skill) => h.skillCard(skill, 'fire'),
+            onSkill: (skill) => h.skillCard(skill, 'fire', brain.x, brain.z),
           },
         );
         h.scene.add(model.root, stream.mesh, tailFlame.mesh, glow.mesh);
@@ -529,7 +553,7 @@ export class Creatures {
           {
             onThrow: (duration) => this.play(brain.x, brain.y, brain.z, (g, p) => h.sound.leaves(duration, g, p)),
             onVoice: (kind) => this.play(brain.x, brain.y, brain.z, (g, p) => h.sound.bunny(kind, g, p)),
-            onSkill: (skill) => h.skillCard(skill, 'grass'),
+            onSkill: (skill) => h.skillCard(skill, 'grass', brain.x, brain.z),
           },
         );
         h.scene.add(model.root, leaves.mesh, blooms.group);

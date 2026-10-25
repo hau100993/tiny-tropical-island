@@ -18,6 +18,7 @@ import { SkillCard, type SkillElement } from '../ui/skillCard';
 import { Lightning } from '../world/creatures/lightning';
 import { Scorcher } from '../world/scorch';
 import { DogSkills, type DogSkill, type StrikeTarget } from '../activities/dogSkills';
+import { Combos, type ComboId, type Partner } from '../activities/combos';
 import { Petting } from '../activities/petting';
 import { Hearts } from '../world/hearts';
 import { PetCursor } from '../ui/PetCursor';
@@ -185,6 +186,9 @@ export class App {
   private readonly smoke: Embers;
   private readonly dust: Embers;
   private readonly you = { x: 0, y: 0, z: 0 };
+  /** Two creatures' skills together (activities/combos.ts). */
+  private readonly combos: Combos;
+  private readonly viewXZ = { x: 0, z: 0 };
   /** Petting Mochi with the mouse (activities/petting.ts, controls/petPointer.ts). */
   private readonly petting = new Petting();
   private readonly petPointer: PetPointer;
@@ -371,6 +375,7 @@ export class App {
     this.dust = new Embers(sharedUniforms, 'steam');
     this.scene.add(this.lightning.mesh, this.smoke.points, this.dust.points);
     this.dogSkills = this.createDogSkills();
+    this.combos = this.createCombos();
     this.seaGlow = new Embers(sharedUniforms, 'sea');
     this.scene.add(this.seaGlow.points);
     this.beMap = this.createShark();
@@ -1019,7 +1024,10 @@ export class App {
       house: { x: house.x, z: house.z },
       rainbow: this.rainbow,
       fx: this.fx,
-      skillCard: (skill, element) => this.showSkill(skill, element),
+      skillCard: (skill, element, x, z) => {
+        this.showSkill(skill, element);
+        if (element !== 'combo') this.combos.note(element, x, z);
+      },
       trunks: this.world.forest.trunks,
       treesNear: (x, z, r) => this.colliders.treesNear(x, z, r),
       aim: () => this.petAimMode(),
@@ -1077,7 +1085,50 @@ export class App {
       sparks: this.rainbow,
       smoke: this.smoke,
       dust: this.dust,
-      card: (s) => this.showSkill(DOG_SKILL_KEY[s], s === 'bark' ? 'water' : 'spark'),
+      card: (s) => {
+        this.showSkill(DOG_SKILL_KEY[s], s === 'bark' ? 'water' : 'spark');
+        const dog = this.dog;
+        if (dog) this.combos.note('spark', dog.x, dog.z);
+      },
+    });
+  }
+
+  /** Combos: the creatures' effect pools, where you are, who could join in. */
+  private createCombos(): Combos {
+    const hm = this.world.heightmap;
+    const pools = this.creatures.pools;
+    return new Combos({
+      fx: this.fx,
+      lightning: this.lightning,
+      embers: pools.embers,
+      steam: pools.steam,
+      spores: pools.spores,
+      rainbow: this.rainbow,
+      spray: pools.spray,
+      heightAt: (x, z) => hm.heightAt(x, z),
+      bloom: (x, z, n) => pools.bloom(x, z, n),
+      ripple: (x, z, radius, strength) => this.world.water.addRipple(x, z, radius, strength),
+      stage: (out) => {
+        const w = this.walker;
+        if (this.cameras.mode !== 'walk' || w.swimming) return null;
+        // In front of you, where you are looking.
+        return out.set(w.x - Math.sin(w.yaw) * 5, 0, w.z - Math.cos(w.yaw) * 5);
+      },
+      viewer: () => {
+        this.viewXZ.x = this.camera.position.x;
+        this.viewXZ.z = this.camera.position.z;
+        return this.viewXZ;
+      },
+      partners: (x, z, r, except) => {
+        const out: Partner[] = [];
+        this.creatures.partners(x, z, r, except, out);
+        const dog = this.dog;
+        if (except !== 'spark' && dog && this.settings.get().dog && Math.hypot(dog.x - x, dog.z - z) < r) {
+          out.push({ element: 'spark', x: dog.x, z: dog.z, start: () => this.dogSkills.join() });
+        }
+        return out;
+      },
+      card: (id: ComboId) => this.showSkill(id, 'combo'),
     });
   }
 
@@ -2066,6 +2117,7 @@ export class App {
     this.rainbow.update(dt);
     this.fx.update(dt);
     this.dogSkills.update(dt);
+    this.combos.update(dt);
     this.lightning.update(dt, this.camera);
     this.scorcher.update(dt);
     this.smoke.update(dt);

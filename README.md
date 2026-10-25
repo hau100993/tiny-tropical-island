@@ -457,6 +457,18 @@ spray, wind streaks), a **camera shake** (off with Windows' reduce-motion), a sh
 end up inside a tree) and big **sounds** (boom, splash, whoosh, a power-up swell; with Âm thanh
 hoạt động on). On **Cao (High)** they also **glow** (a bloom pass, only while a skill is on).
 
+**Combos.** Two skills of different elements set off within 1.5 s of each other (press two
+creatures' keys one after the other, or let it happen: when you start a skill and another
+creature stands within 12 m, it joins in 1 time in 3) make a **combo** in front of you, with a
+purple name card (`activities/combos.ts`; then none for 6 s): **Lửa + Nước "Hơi Nước Cầu
+Vồng"** (a white whirlwind of steam 8 m tall under a great rainbow), **Lửa + Cỏ "Hoa Lửa"** (a
+ring of fire racing out, flowers springing up behind it), **Nước + Cỏ "Mưa Hoa"** (a shower of
+drops and glitter, flowers everywhere), **Điện + Nước "Cột Nước Sấm Sét"** (a water spout with
+lightning spiralling up it), **Điện + Lửa "Bão Lửa Sấm Sét"** (five bolts out of the sky, each
+blowing up in fire), **Điện + Cỏ "Đồng Cỏ Phát Sáng"** (glowing pollen all over the meadow, little
+arcs jumping between the grass). Mochi counts as Điện; a creature struck by its lightning that
+hits back can make one too.
+
 **Wild ones in the rainforest (Góc nhìn → Sinh vật hoang trong rừng, on by default).** Walk in
 among the trees and wild Bọt, Hỏa Long and Mầm show themselves: every few seconds one peeks out
 from behind a trunk ahead of you (5–11 m off, never behind another trunk from where the camera

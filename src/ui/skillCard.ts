@@ -16,6 +16,8 @@ export class SkillCard {
   private readonly who: HTMLElement;
   private readonly name: HTMLElement;
   private timer = 0;
+  /** Until when (ms, performance.now) a combo's card stays up over single skills' cards. */
+  private comboUntil = 0;
 
   constructor(parent: HTMLElement) {
     this.root = el('div', 'skill-card');
@@ -28,6 +30,10 @@ export class SkillCard {
 
   /** `text`: "Who: Skill name" (the creatures' skill strings); the part after ": " is the name. */
   show(text: string, element: SkillElement): void {
+    // A combo's card isn't cut short by the skills that made it.
+    const now = performance.now();
+    if (element !== 'combo' && now < this.comboUntil) return;
+    if (element === 'combo') this.comboUntil = now + CARD_MS;
     const i = text.indexOf(': ');
     this.who.textContent = i >= 0 ? text.slice(0, i) : '';
     this.name.textContent = i >= 0 ? text.slice(i + 2) : text;

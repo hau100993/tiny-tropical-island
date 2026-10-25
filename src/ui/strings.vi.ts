@@ -351,6 +351,12 @@ export const vi = {
       dogZoom: 'Mochi: Sao Băng Mochi',
       dogBark: 'Mochi: Sủa Sóng Âm',
       dogZap: 'Mochi: Phóng Điện',
+      steamRainbow: 'Combo Lửa + Nước: Hơi Nước Cầu Vồng',
+      fireBloom: 'Combo Lửa + Cỏ: Hoa Lửa',
+      flowerRain: 'Combo Nước + Cỏ: Mưa Hoa',
+      stormColumn: 'Combo Điện + Nước: Cột Nước Sấm Sét',
+      thunderFire: 'Combo Điện + Lửa: Bão Lửa Sấm Sét',
+      glowMeadow: 'Combo Điện + Cỏ: Đồng Cỏ Phát Sáng',
     } as Record<string, string>,
   },
   shortcuts: {
