@@ -1,4 +1,4 @@
-import { button, el, onWheelNotch, toggle, type ToggleControl } from './components';
+import { button, el, onWheelNotch, slider, toggle, type ToggleControl } from './components';
 import { icons } from './icons';
 import { vi } from './strings.vi';
 import { isRecord, parseJson, readStored, writeStored } from '../core/storage';
@@ -29,6 +29,23 @@ export interface PomodoroDeps {
   soundOn: () => boolean;
   /** A break with "Bão dịu đi khi nghỉ" started (true) or ended (false). */
   onCalm: (active: boolean) => void;
+  /** Volume of the notification sounds (0..1). Called at start and on every change. */
+  setAlertVolume: (volume: number) => void;
+  /** `count` focus sessions just ended (the to-do list counts them). */
+  onFocusDone: (count: number) => void;
+}
+
+/** What the right desk monitor shows of the timer. */
+export interface PomodoroSnapshot {
+  phase: string;
+  remaining: string;
+  progress: number;
+  running: boolean;
+  onBreak: boolean;
+  /** "●●○○": focus sessions done before the long break ('' without long breaks). */
+  dots: string;
+  /** The timer was started and not reset (paused counts too). */
+  started: boolean;
 }
 
 type NumberKey = 'focusMin' | 'breakMin' | 'longBreakMin' | 'longEvery';
@@ -86,7 +103,7 @@ export class PomodoroOverlay {
 
     const controls = el('div', 'pomo-controls');
     this.playBtn = button('', () => this.toggleRunning(), 'icon-btn');
-    const skipBtn = iconButton(icons.skip, vi.pomodoro.skip, () => this.update(skip(this.state, this.config, Date.now())));
+    const skipBtn = iconButton(icons.skip, vi.pomodoro.skip, () => this.skipPhase());
     const resetBtn = iconButton(icons.reset, vi.pomodoro.reset, () => this.update(reset(this.config)));
     const gearBtn = iconButton(icons.gear, vi.pomodoro.settings, () => {
       this.settingsBox.hidden = !this.settingsBox.hidden;
@@ -108,20 +125,47 @@ export class PomodoroOverlay {
     this.tick();
     this.updateCalm();
     this.render();
+    this.deps.setAlertVolume(this.config.alertVolume);
   }
 
-  /** For the desk monitor: phase, time left, progress; null while hidden and idle. */
-  snapshot(): { phase: string; remaining: string; progress: number; running: boolean; onBreak: boolean } | null {
+  /** For the desk monitors: phase, time left, progress; null while hidden and idle. */
+  snapshot(): PomodoroSnapshot | null {
     const s = this.state;
-    if (!this.visible && !s.running) return null;
+    const full = phaseMs(s.phase, this.config);
     const left = remaining(s, Date.now());
+    const started = s.running || left < full || s.completed > 0 || s.phase !== 'focus';
+    if (!this.visible && !started) return null;
     return {
       phase: vi.pomodoro.phases[s.phase],
       remaining: formatRemaining(left),
-      progress: 1 - left / phaseMs(s.phase, this.config),
+      progress: 1 - left / full,
       running: s.running,
       onBreak: isBreak(s.phase),
+      dots: this.dotsText(),
+      started,
     };
+  }
+
+  /** "Chuyển sang phần sau". */
+  skipPhase(): void {
+    this.update(skip(this.state, this.config, Date.now()));
+  }
+
+  get chimeOn(): boolean {
+    return this.config.chime;
+  }
+
+  /** The bell on the desk monitor: notification sounds on or off. */
+  toggleChime(): void {
+    this.config = { ...this.config, chime: !this.config.chime };
+    for (const [key, t] of this.toggles) if (key === 'chime') t.set(this.config.chime);
+    this.update(this.state);
+  }
+
+  private dotsText(): string {
+    const every = this.config.longEvery;
+    const s = this.state;
+    return every > 0 ? '●'.repeat(Math.min(s.completed, every)) + '○'.repeat(Math.max(0, every - s.completed)) : '';
   }
 
   get isVisible(): boolean {
@@ -197,6 +241,12 @@ export class PomodoroOverlay {
       toggleRow.append(t.root);
     }
     box.append(toggleRow);
+    const volume = slider(vi.pomodoro.alertVolume, this.config.alertVolume, (v) => {
+      this.config = { ...this.config, alertVolume: v };
+      this.deps.setAlertVolume(v);
+      this.save();
+    });
+    box.append(volume.root);
     return box;
   }
 
@@ -236,6 +286,8 @@ export class PomodoroOverlay {
     if (!rang && this.config.chime && this.deps.soundOn()) this.deps.scheduleChime(Date.now(), kind);
     this.showNotice(kind === 'toBreak' ? vi.pomodoro.toBreak : vi.pomodoro.toFocus);
     this.update(state);
+    const focus = ended.filter((p) => p === 'focus').length;
+    if (focus > 0) this.deps.onFocusDone(focus);
   };
 
   private scheduleChime(): void {
@@ -285,8 +337,7 @@ export class PomodoroOverlay {
     this.phaseEl.textContent = phase;
     this.timeEl.textContent = text;
     this.bar.style.width = `${(100 * (1 - left / phaseMs(s.phase, this.config))).toFixed(2)}%`;
-    const every = this.config.longEvery;
-    this.dots.textContent = every > 0 ? '●'.repeat(Math.min(s.completed, every)) + '○'.repeat(Math.max(0, every - s.completed)) : '';
+    this.dots.textContent = this.dotsText();
     this.playBtn.innerHTML = s.running ? icons.pause : icons.play;
     const label = s.running ? vi.pomodoro.pause : vi.pomodoro.start;
     this.playBtn.title = `${label} (T)`;

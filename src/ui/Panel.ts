@@ -13,7 +13,7 @@ import { CHARACTER_IDS, PANEL_SECTIONS, type CharacterId, type PanelSection, typ
 import { formatClock } from '../world/celestial';
 import { nextSpeed } from './timeSpeed';
 import type { Fullscreen } from './fullscreen';
-import type { ScreenInfo } from '../world/deskScreens';
+import type { ScreenInfo } from '../world/deskDash';
 import { isTouch } from './touch';
 
 /** Where the camera is, as the "Góc nhìn" tiles show it. */

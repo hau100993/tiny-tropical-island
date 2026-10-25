@@ -16,6 +16,7 @@ export const icons = {
   gear: svg('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>'),
   check: svg('<path d="m5 12.5 4.5 4.5L19 7.5"/>'),
   close: svg('<path d="m6 6 12 12"/><path d="M18 6 6 18"/>'),
+  power: svg('<path d="M12 3v8"/><path d="M6.4 7.4a8 8 0 1 0 11.2 0"/>'),
   link: svg('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
   maximize: svg('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'),
   minimize: svg('<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>'),

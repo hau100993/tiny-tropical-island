@@ -1,25 +1,32 @@
 import * as THREE from 'three';
 import { YT_LOGO } from '../ui/youtube';
 
-/** What the right-hand monitor shows (filled by the app once a second). */
-export interface ScreenInfo {
-  pomodoro: { phase: string; remaining: string; progress: number; running: boolean; onBreak: boolean } | null;
-  scene: string;
-  /** What is playing, as one line. */
-  playing: string;
-  islandTime: string;
-  weather: string;
-}
-
 const W = 1024;
 const H = 576;
-/** Canvas size of both screens, in pixels. */
+/** Canvas size of the left screen, in pixels. */
 export const SCREEN_PX = { w: W, h: H } as const;
+
+/** What the left screen shows: the idle launcher, the typing code editor, or a YouTube video. */
+export type LeftMode = 'idle' | 'editor' | 'video';
+
+export interface PxRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+const TILE = 150;
 /**
- * Where the YouTube logo sits on the right screen (canvas pixels): top right, beside the clock.
- * DeskVideo lays a real button exactly over it while you sit at the desk.
+ * The two app icons on the idle left screen (canvas pixels). DeskVideo lays real buttons exactly
+ * over them while you sit at the desk.
  */
-export const DASH_LOGO = { x: 846, y: 56, w: 130, h: 92 } as const;
+export const LAUNCHER: { code: PxRect; youtube: PxRect } = {
+  code: { x: W / 2 - 40 - TILE, y: H / 2 - 105, w: TILE, h: TILE },
+  youtube: { x: W / 2 + 40, y: H / 2 - 105, w: TILE, h: TILE },
+};
+/** The button cluster in the left screen's top-right corner (editor or video open). */
+export const SCREEN_BAR: PxRect = { x: W - 300, y: 10, w: 290, h: 72 };
 /** Redraw rate of the code editor (typing animation). */
 const EDITOR_FPS = 8;
 /** Beyond this distance (m) from the desk the screens are too small to read: don't redraw. */
@@ -154,73 +161,66 @@ function tokenize(line: string): Token[] {
 }
 
 /**
- * The two desk monitors, drawn on canvases: a code editor that slowly types code (left) and a
- * dashboard with the clock, Pomodoro, scene and what is playing (right). They only redraw
- * while the camera is close enough to read them.
+ * The left desk monitor, drawn on a canvas: an idle launcher with two app icons, a code editor
+ * that slowly types code, or the title of the loaded video (the live video covers it while
+ * seated). It only redraws while the camera is close enough to read it. (The right monitor is
+ * DeskDash.)
  */
 export class DeskScreens {
   private readonly editor: CanvasRenderingContext2D;
-  private readonly dash: CanvasRenderingContext2D;
   private readonly editorTex: THREE.CanvasTexture;
-  private readonly dashTex: THREE.CanvasTexture;
   private snippet = 0;
   /** Characters of the current snippet typed so far. */
   private typed = 0;
   private pauseLeft = 0;
   private editorTimer = 0;
-  private dashTimer = 0;
   private blink = 0;
   private readonly center = new THREE.Vector3();
   private readonly logoBody = new Path2D(YT_LOGO.body);
   private readonly logoPlay = new Path2D(YT_LOGO.play);
+  private leftMode: LeftMode = 'idle';
   /** A video loaded on the left screen (its title), shown there while you're away from the desk. */
   private videoLabel: string | null = null;
+  /** The idle and video screens are still pictures: drawn again only when this is set. */
+  private leftDirty = true;
 
-  constructor(
-    screens: ReadonlyArray<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>,
-    anisotropy: number,
-    private readonly info: () => ScreenInfo,
-  ) {
-    const make = (mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>): [CanvasRenderingContext2D, THREE.CanvasTexture] => {
-      const canvas = document.createElement('canvas');
-      canvas.width = W;
-      canvas.height = H;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('2D canvas unavailable');
-      const tex = new THREE.CanvasTexture(canvas);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.anisotropy = anisotropy;
-      mesh.material.map = tex;
-      mesh.material.color.set('#ffffff');
-      mesh.material.needsUpdate = true;
-      return [ctx, tex];
-    };
-    [this.editor, this.editorTex] = make(screens[0]);
-    [this.dash, this.dashTex] = make(screens[1]);
-    screens[0].getWorldPosition(this.center);
-    // The dashboard is drawn on the first update (its data source may not exist yet).
-    this.drawEditor();
+  constructor(mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>, anisotropy: number) {
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('2D canvas unavailable');
+    this.editor = ctx;
+    this.editorTex = new THREE.CanvasTexture(canvas);
+    this.editorTex.colorSpace = THREE.SRGBColorSpace;
+    this.editorTex.anisotropy = anisotropy;
+    mesh.material.map = this.editorTex;
+    mesh.material.color.set('#ffffff');
+    mesh.material.needsUpdate = true;
+    mesh.getWorldPosition(this.center);
+    this.drawLeft();
   }
 
-  /** The left screen shows the paused video's title instead of the editor (null: editor). */
-  setVideo(label: string | null): void {
-    if (label === this.videoLabel) return;
-    this.videoLabel = label;
+  /** What the left screen shows; `videoLabel` is the loaded video's title (video mode). */
+  setLeft(mode: LeftMode, videoLabel: string | null): void {
+    if (mode === this.leftMode && videoLabel === this.videoLabel) return;
+    this.leftMode = mode;
+    this.videoLabel = videoLabel;
+    this.leftDirty = true;
     this.editorTimer = 0;
   }
 
   update(dt: number, camera: THREE.Camera): void {
     if (camera.position.distanceTo(this.center) > NEAR_ENOUGH) return;
-    this.editorTimer -= dt;
-    if (this.editorTimer <= 0) {
-      this.editorTimer = 1 / EDITOR_FPS;
-      this.typeSome();
-      this.drawEditor();
-    }
-    this.dashTimer -= dt;
-    if (this.dashTimer <= 0) {
-      this.dashTimer = 1;
-      this.drawDash();
+    if (this.leftMode === 'editor') {
+      this.editorTimer -= dt;
+      if (this.editorTimer <= 0) {
+        this.editorTimer = 1 / EDITOR_FPS;
+        this.typeSome();
+        this.drawLeft();
+      }
+    } else if (this.leftDirty) {
+      this.drawLeft();
     }
   }
 
@@ -271,11 +271,63 @@ export class DeskScreens {
     if (this.typed >= code.length) this.pauseLeft = 4;
   }
 
+  private drawLeft(): void {
+    this.leftDirty = false;
+    if (this.leftMode === 'video') this.drawVideoCard(this.videoLabel ?? '');
+    else if (this.leftMode === 'editor') this.drawEditor();
+    else this.drawIdle();
+  }
+
+  /** A monitor at rest: dark glass, a faint sheen, and the two app icons with their names. */
+  private drawIdle(): void {
+    const g = this.editor;
+    const bg = g.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, '#0d1117');
+    bg.addColorStop(1, '#161c27');
+    g.fillStyle = bg;
+    g.fillRect(0, 0, W, H);
+    const sheen = g.createLinearGradient(0, 0, W * 0.7, H);
+    sheen.addColorStop(0, 'rgba(255,255,255,0.06)');
+    sheen.addColorStop(0.45, 'rgba(255,255,255,0)');
+    g.fillStyle = sheen;
+    g.fillRect(0, 0, W, H);
+
+    const { code, youtube } = LAUNCHER;
+    // Code: a blue tile with a "</>" mark.
+    const blue = g.createLinearGradient(0, code.y, 0, code.y + code.h);
+    blue.addColorStop(0, '#3aa0ee');
+    blue.addColorStop(1, '#0b5fae');
+    roundRect(g, code.x, code.y, code.w, code.h, 34, blue);
+    g.strokeStyle = '#ffffff';
+    g.lineWidth = 11;
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    const cx = code.x + code.w / 2;
+    const cy = code.y + code.h / 2;
+    g.beginPath();
+    g.moveTo(cx - 26, cy - 26);
+    g.lineTo(cx - 50, cy);
+    g.lineTo(cx - 26, cy + 26);
+    g.moveTo(cx + 26, cy - 26);
+    g.lineTo(cx + 50, cy);
+    g.lineTo(cx + 26, cy + 26);
+    g.moveTo(cx + 9, cy - 34);
+    g.lineTo(cx - 9, cy + 34);
+    g.stroke();
+    // YouTube: a white tile with the logo.
+    roundRect(g, youtube.x, youtube.y, youtube.w, youtube.h, 34, '#f4f5f7');
+    this.drawLogo(g, youtube.x + 25, youtube.y + 41, 100);
+
+    g.font = `24px ${UI_FONT}`;
+    g.fillStyle = '#c3cad5';
+    g.textAlign = 'center';
+    g.fillText('VS Code', code.x + code.w / 2, code.y + code.h + 42);
+    g.fillText('YouTube', youtube.x + youtube.w / 2, youtube.y + youtube.h + 42);
+    g.textAlign = 'left';
+    this.editorTex.needsUpdate = true;
+  }
+
   private drawEditor(): void {
-    if (this.videoLabel !== null) {
-      this.drawVideoCard(this.videoLabel);
-      return;
-    }
     const g = this.editor;
     const { file, code } = SNIPPETS[this.snippet];
     g.fillStyle = C.bg;
@@ -336,105 +388,27 @@ export class DeskScreens {
     this.editorTex.needsUpdate = true;
   }
 
-  private drawDash(): void {
-    const g = this.dash;
-    const i = this.info();
-    const bg = g.createLinearGradient(0, 0, W, H);
-    bg.addColorStop(0, '#0f2027');
-    bg.addColorStop(1, '#203a43');
-    g.fillStyle = bg;
-    g.fillRect(0, 0, W, H);
-
-    const now = new Date();
-    const hh = String(now.getHours()).padStart(2, '0');
-    const mm = String(now.getMinutes()).padStart(2, '0');
-    g.fillStyle = '#ffffff';
-    g.font = `200 120px ${UI_FONT}`;
-    g.fillText(`${hh}:${mm}`, 48, 150);
-    g.font = `26px ${UI_FONT}`;
-    g.fillStyle = '#a7c4cc';
-    const days = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
-    g.fillText(`${days[now.getDay()]}, ${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`, 52, 196);
-    this.drawLogo(g);
-
-    // Pomodoro card.
-    const p = i.pomodoro;
-    roundRect(g, 48, 236, 440, 150, 18, 'rgba(255,255,255,0.08)');
-    g.font = `22px ${UI_FONT}`;
-    g.fillStyle = '#a7c4cc';
-    g.fillText('Pomodoro', 72, 274);
-    if (p) {
-      g.fillStyle = p.onBreak ? '#ffd38a' : '#4fd1c1';
-      g.fillText(p.phase + (p.running ? '' : ' (tạm dừng)'), 200, 274);
-      g.fillStyle = '#ffffff';
-      g.font = `300 64px ${UI_FONT}`;
-      g.fillText(p.remaining, 70, 346);
-      roundRect(g, 72, 362, 392, 6, 3, 'rgba(255,255,255,0.15)');
-      roundRect(g, 72, 362, Math.max(6, 392 * p.progress), 6, 3, p.onBreak ? '#ffd38a' : '#4fd1c1');
-    } else {
-      g.fillStyle = '#ffffff';
-      g.font = `26px ${UI_FONT}`;
-      g.fillText('Nhấn T để bắt đầu', 72, 330);
-    }
-
-    // Scene and sound.
-    roundRect(g, 520, 236, 456, 150, 18, 'rgba(255,255,255,0.08)');
-    g.font = `22px ${UI_FONT}`;
-    g.fillStyle = '#a7c4cc';
-    g.fillText('Cảnh', 544, 274);
-    g.fillStyle = '#ffffff';
-    g.font = `30px ${UI_FONT}`;
-    g.fillText(ellipsize(g, i.scene || '—', 400), 544, 316);
-    g.font = `20px ${UI_FONT}`;
-    g.fillStyle = '#a7c4cc';
-    g.fillText(ellipsize(g, i.weather, 410), 544, 356);
-
-    roundRect(g, 48, 410, 928, 120, 18, 'rgba(255,255,255,0.08)');
-    g.font = `22px ${UI_FONT}`;
-    g.fillStyle = '#a7c4cc';
-    g.fillText('Đang phát', 72, 448);
-    g.fillText(`Giờ trên đảo ${i.islandTime}`, 760, 448);
-    g.fillStyle = '#ffffff';
-    g.font = `26px ${UI_FONT}`;
-    g.fillText(ellipsize(g, `♪  ${i.playing}`, 880), 72, 500);
-    this.dashTex.needsUpdate = true;
-  }
-
-  /** The YouTube "app icon" with its name under it (seated, a real button covers the icon). */
-  private drawLogo(g: CanvasRenderingContext2D): void {
-    const r = DASH_LOGO;
+  /** The YouTube logo, `w` pixels wide, its top-left corner at (x, y). */
+  private drawLogo(g: CanvasRenderingContext2D, x: number, y: number, w: number): void {
     g.save();
-    g.translate(r.x, r.y);
-    g.scale(r.w / 24, r.h / 17);
+    g.translate(x, y);
+    g.scale(w / 24, w / 24);
     g.translate(0, -3.5);
     g.fillStyle = YT_LOGO.red;
     g.fill(this.logoBody);
     g.fillStyle = '#ffffff';
     g.fill(this.logoPlay);
     g.restore();
-    g.font = `20px ${UI_FONT}`;
-    g.fillStyle = '#a7c4cc';
-    g.textAlign = 'center';
-    g.fillText('YouTube', r.x + r.w / 2, r.y + r.h + 32);
-    g.textAlign = 'left';
   }
 
   dispose(): void {
     this.editorTex.dispose();
-    this.dashTex.dispose();
   }
 }
 
-function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number, fill: string): void {
+function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number, fill: string | CanvasGradient): void {
   g.fillStyle = fill;
   g.beginPath();
   g.roundRect(x, y, w, h, r);
   g.fill();
-}
-
-function ellipsize(g: CanvasRenderingContext2D, text: string, max: number): string {
-  if (g.measureText(text).width <= max) return text;
-  let t = text;
-  while (t.length > 1 && g.measureText(`${t}…`).width > max) t = t.slice(0, -1);
-  return `${t}…`;
 }

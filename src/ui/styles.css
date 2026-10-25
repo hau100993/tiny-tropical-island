@@ -2136,142 +2136,82 @@ body.cursor-idle canvas {
   background: var(--control-bg-hover);
 }
 
-/* YouTube logo laid on the right monitor (CSS3D): the app icon that opens and controls the video. */
-.video-logo {
-  position: relative;
+/* Left monitor launcher (CSS3D, one CSS pixel per canvas pixel): see-through buttons over the
+   two app icons drawn on the idle screen. (CSS3DObject makes .screen-apps absolute.) */
+.screen-app {
+  position: absolute;
+  top: 0;
   padding: 0;
   background: transparent;
   border: 0;
+  border-radius: 34px;
   cursor: pointer;
   pointer-events: auto;
-  transition: filter 0.15s;
+  transition: background 0.15s, box-shadow 0.15s;
 }
 
-.video-logo svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.video-logo:hover,
-.video-logo:focus-visible {
-  filter: brightness(1.12) drop-shadow(0 0 6px rgba(255, 0, 51, 0.6));
+.screen-app:hover,
+.screen-app:focus-visible {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.35), 0 0 28px rgba(120, 190, 255, 0.45);
   outline: none;
 }
 
-/* State badge in the logo's corner: a soft pulse while playing, two bars while paused. */
-.video-logo-badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  display: none;
-  width: 22px;
-  height: 22px;
-  border: 3px solid #0f2027;
-  border-radius: 50%;
-}
-
-.video-logo[data-state='playing'] .video-logo-badge {
-  display: block;
-  background: #4fd1c1;
-  animation: video-pulse 1.6s ease-in-out infinite;
-}
-
-.video-logo[data-state='paused'] .video-logo-badge {
-  display: block;
-  background: #e8edf0 linear-gradient(90deg, transparent 30%, #0f2027 30% 43%, transparent 43% 57%, #0f2027 57% 70%, transparent 70%);
-  background-size: 100% 50%;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-@keyframes video-pulse {
-  50% {
-    opacity: 0.45;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .video-logo[data-state='playing'] .video-logo-badge {
-    animation: none;
-  }
-}
-
-/* Menu under the logo: title, play/pause, soundscape, change video, close. */
-.video-menu {
-  position: fixed;
-  transform: translate(-50%, 0);
+/* Corner buttons on the left monitor (editor or video open). */
+.screen-bar {
   display: flex;
-  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+
+.screen-bar-pill {
+  display: flex;
   gap: 4px;
-  max-width: min(420px, calc(100vw - 16px));
-  padding: 6px;
-  color: #e8edf0;
-  background: rgba(15, 18, 22, 0.8);
-  border-radius: 10px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-  backdrop-filter: var(--glass-filter);
+  padding: 5px;
+  background: rgba(15, 18, 22, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  opacity: 0.7;
+  transition: opacity 0.15s;
 }
 
-/* Invisible bridge over the gap to the logo, so the mouse can cross it. */
-.video-menu::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -10px;
-  height: 10px;
+.screen-bar-pill:hover,
+.screen-bar-pill:focus-within {
+  opacity: 1;
 }
 
-.video-menu[hidden] {
+.screen-bar[data-mode='editor'] .video-only {
   display: none;
 }
 
-.video-menu-title {
-  overflow: hidden;
-  padding: 2px 6px 0;
-  font-size: 12px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.video-menu-row {
-  display: flex;
-  gap: 2px;
-}
-
-.video-menu-hint {
-  padding: 0 6px 2px;
-  font-size: 10.5px;
-  opacity: 0.6;
-}
-
-.video-menu-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
-  font: inherit;
-  font-size: 11px;
+.screen-bar-btn {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  padding: 0;
   color: #e8edf0;
   background: transparent;
   border: 0;
-  border-radius: 6px;
+  border-radius: 13px;
   cursor: pointer;
 }
 
-.video-menu-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
+.screen-bar-btn:hover,
+.screen-bar-btn:focus-visible {
+  background: rgba(255, 255, 255, 0.14);
+  outline: none;
 }
 
-.video-menu-btn[aria-pressed='true'] {
+.screen-bar-btn[aria-pressed='true'] {
   color: #6ee7d8;
 }
 
-.video-menu-btn svg {
-  width: 14px;
-  height: 14px;
+.screen-bar-btn svg {
+  width: 30px;
+  height: 30px;
 }
 
 /* ---- Skill name card (ui/skillCard.ts): big, glowing, in the element's colours ---- */
@@ -2497,4 +2437,25 @@ body:is(.walking, .ui-hidden, .panel-intro).touch .panel.handle {
     top: max(12px, env(safe-area-inset-top));
     bottom: auto;
   }
+}
+
+/* ---------- Right desk monitor (world/deskDash.ts, controls/deskDashInput.ts) ---------- */
+
+/* The to-do input: invisible; the monitor draws its text and caret. */
+.dash-input {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  font-size: 16px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Seated at the desk the monitor shows the Pomodoro: the floating card steps aside. */
+body.at-work-desk .pomodoro {
+  display: none;
 }

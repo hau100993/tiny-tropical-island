@@ -156,6 +156,22 @@ export class Mixer {
 
   private ambienceMuted = false;
 
+  /**
+   * Volume of the notification sounds (alerts bus, outside the master volume), 0..1. 0.8 is the
+   * level the chime always had; 1 is a little louder.
+   */
+  setAlertVolume(volume: number): void {
+    this.alertVolume = volume;
+    this.applyAlertVolume();
+  }
+
+  private alertVolume = 0.8;
+
+  private applyAlertVolume(): void {
+    const e = this.engine;
+    if (e) e.alerts.gain.setTargetAtTime(this.alertVolume * 1.25, e.ctx.currentTime, 0.05);
+  }
+
   /** Head under water: everything heard through the water (see AudioEngine.setUnderwater). */
   setUnderwater(on: boolean): void {
     this.underwater = on;
@@ -285,6 +301,7 @@ export class Mixer {
   private applyAll(masterFade?: number): void {
     for (const id of LAYER_IDS) this.applyLayer(id);
     this.applyMuffle();
+    this.applyAlertVolume();
     this.engine?.setMaster(this.state.master.volume, this.state.master.muted, masterFade);
   }
 

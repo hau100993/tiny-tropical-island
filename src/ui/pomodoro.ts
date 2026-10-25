@@ -11,6 +11,8 @@ export interface PomodoroConfig {
   /** Start the next phase by itself when one ends. */
   autoContinue: boolean;
   chime: boolean;
+  /** Volume of the notification sounds (chime, to-do pops), 0..1, apart from the master volume. */
+  alertVolume: number;
   /** "Bão dịu đi khi nghỉ": rain, wind and snow ease to 30% during breaks. */
   calmStorm: boolean;
 }
@@ -31,7 +33,7 @@ export interface PomodoroState {
 }
 
 export function defaultPomodoroConfig(): PomodoroConfig {
-  return { focusMin: 25, breakMin: 5, longBreakMin: 15, longEvery: 4, autoContinue: true, chime: true, calmStorm: true };
+  return { focusMin: 25, breakMin: 5, longBreakMin: 15, longEvery: 4, autoContinue: true, chime: true, alertVolume: 0.8, calmStorm: true };
 }
 
 export function phaseMs(phase: PomodoroPhase, c: Readonly<PomodoroConfig>): number {
@@ -133,6 +135,7 @@ export function parsePomodoro(raw: unknown): { config: PomodoroConfig; state: Po
     longEvery: typeof rc.longEvery === 'number' && Number.isFinite(rc.longEvery) ? Math.min(12, Math.max(0, Math.round(rc.longEvery))) : d.longEvery,
     autoContinue: bool(rc.autoContinue, d.autoContinue),
     chime: bool(rc.chime, d.chime),
+    alertVolume: typeof rc.alertVolume === 'number' && Number.isFinite(rc.alertVolume) ? Math.min(1, Math.max(0, rc.alertVolume)) : d.alertVolume,
     calmStorm: bool(rc.calmStorm, d.calmStorm),
   };
   const rs = isRecord(raw) && isRecord(raw.state) ? raw.state : null;

@@ -30,7 +30,10 @@ import { Walker, type StepEvent, type SwimStroke } from '../controls/walker';
 import { CameraManager, type SeatId, type SeatSpot } from '../controls/CameraManager';
 import type { HouseSeat } from '../world/house';
 import { DeskView } from '../controls/deskView';
-import { DeskScreens, type ScreenInfo } from '../world/deskScreens';
+import { DeskScreens } from '../world/deskScreens';
+import { DeskDash, type ScreenInfo } from '../world/deskDash';
+import { DeskDashInput } from '../controls/deskDashInput';
+import { AmbienceSwitch } from '../audio/ambienceSwitch';
 import { formatClock, windowSkyTurn } from '../world/celestial';
 import { WalkHint } from '../ui/WalkHint';
 import { ActivityMenu, type ActivityCard } from '../ui/ActivityMenu';
@@ -145,6 +148,11 @@ export class App {
   private readonly cameras: CameraManager;
   private readonly deskView: DeskView;
   private readonly deskScreens: DeskScreens;
+  /** The right desk monitor: Pomodoro strip and to-do list. */
+  private readonly deskDash: DeskDash;
+  private readonly dashInput: DeskDashInput;
+  /** Soundscape on/off, shared by the right monitor and the video's corner button. */
+  private readonly ambience: AmbienceSwitch;
   private readonly fader: HTMLElement;
   private faderTimer = 0;
   private readonly walkHint: WalkHint;
@@ -343,7 +351,7 @@ export class App {
     };
     auroraMotion();
     this.reducedMotion.addEventListener('change', auroraMotion);
-    this.deskScreens = new DeskScreens(w.house.screens, this.renderer.capabilities.getMaxAnisotropy(), () => this.screenInfo());
+    this.deskScreens = new DeskScreens(w.house.screens[0], this.renderer.capabilities.getMaxAnisotropy());
     // The avatar's feet find the ground (terrain, house floor, steps) like the walker does.
     const support = { y: 0, surface: 'sand' as WalkSurface, onPlatform: false };
     this.avatar = new Avatar(sharedUniforms, (x, z, nearY) =>
@@ -454,6 +462,17 @@ export class App {
       toggleTimePaused: () => this.toggleTimePaused(),
       fullscreen: this.fullscreen,
     });
+    // Before the Pomodoro: its first tick may already report finished focus sessions.
+    this.deskDash = new DeskDash(w.house.screens[1], this.renderer.capabilities.getMaxAnisotropy(), {
+      info: () => this.screenInfo(),
+      toggleTimer: () => this.pomodoro.toggleRunning(),
+      skipPhase: () => this.pomodoro.skipPhase(),
+      chimeOn: () => this.pomodoro.chimeOn,
+      toggleChime: () => this.pomodoro.toggleChime(),
+      ambienceOn: () => this.ambience.on,
+      toggleAmbience: () => this.ambience.toggle(),
+    });
+    this.dashInput = new DeskDashInput(this.renderer.domElement, this.camera, w.house.screens[1], this.deskDash, ui);
     this.pomodoro = new PomodoroOverlay(ui, {
       scheduleChime: (atMs, kind) => this.mixer.scheduleChime(atMs, kind),
       soundOn: () => this.mixer.started,
@@ -462,13 +481,19 @@ export class App {
         this.mixer.setCalm(this.calmTarget);
         this.library.setCalm(this.calmTarget);
       },
+      setAlertVolume: (v) => this.mixer.setAlertVolume(v),
+      onFocusDone: (count) => this.deskDash.addPomodoros(count),
     });
     this.audioPrompt = new AudioPrompt(ui);
     this.slowHint = new SlowHint(ui, () => this.settings.get().quality, (quality) => this.settings.update({ quality }));
-    this.deskVideo = new DeskVideo(container, ui, this.camera, w.house.screens[0], w.house.screens[1], {
-      onPlaying: (playing) => this.mixer.setAmbienceMuted(playing),
+    this.ambience = new AmbienceSwitch((muted) => this.mixer.setAmbienceMuted(muted));
+    this.deskVideo = new DeskVideo(container, ui, this.camera, w.house.screens[0], {
+      onPlaying: (playing) => this.ambience.setVideoPlaying(playing),
+      ambienceOn: () => this.ambience.on,
+      toggleAmbience: () => this.ambience.toggle(),
       master: () => this.mixer.current.master,
     });
+    this.ambience.onChange(() => this.deskVideo.syncAmbience());
     this.mixer.onChange(() => this.deskVideo.syncVolume());
     // No start screen: sound starts with the first click or key press anywhere (browsers
     // don't allow audio before that).
@@ -500,7 +525,11 @@ export class App {
       document.body.classList.toggle('walking', walking || paddling || surfing);
       this.panel.setWalking(walking || paddling || surfing);
       document.body.classList.toggle('at-desk', mode === 'seat');
-      this.deskVideo.setSeated(mode === 'seat' && this.cameras.seat === 'desk');
+      const atDesk = mode === 'seat' && this.cameras.seat === 'desk';
+      this.deskVideo.setSeated(atDesk);
+      this.dashInput.setActive(atDesk);
+      // The monitor shows the Pomodoro: the floating card steps aside.
+      document.body.classList.toggle('at-work-desk', atDesk);
       if (paddling) this.walkHint.update(true, vi.kayak.controls);
       else if (surfing) this.walkHint.update(true, this.surfControls());
       else this.walkHint.update(walking, this.walkControls());
@@ -2243,8 +2272,9 @@ export class App {
     this.world.footprints.setClock(elapsed);
     const onFoot = this.cameras.mode === 'walk' && !this.walker.swimming;
     this.world.update(dt, elapsed, this.camera, sea, onFoot ? this.walker : null);
-    this.deskScreens.setVideo(this.deskVideo.label);
+    this.deskScreens.setLeft(this.deskVideo.leftMode, this.deskVideo.label);
     this.deskScreens.update(dt, this.camera);
+    this.deskDash.update(dt, this.camera, this.cameras.mode === 'seat' && this.cameras.seat === 'desk');
     this.deskVideo.update();
     // The video is decoded and composited on the same GPU: give it room while it plays.
     this.loop.targetFps = this.deskVideo.watching ? VIDEO_FPS : NORMAL_FPS;

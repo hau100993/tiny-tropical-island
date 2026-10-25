@@ -68,7 +68,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `R` | Bọt the water crab's skills, each press the next: water jet (at you if you stand within 10 m, else out to sea), bubble shower, rainbow geyser (see *Three skills each*) |
 | `X` | Hỏa Long the fire dragon's skills, each press the next: fire breath (at you if you stand within 12 m: it dries you; else onto the sea), ring of fire, meteor shower |
 | `Z` | Mầm the grass bunny's skills, each press the next: Leaf Blossom (flowers spring up where the leaves land; within 10 m of you: a ring of flowers round you), the pollen dance, dandelion breeze |
-| `U` | Seated at the desk: play a YouTube link on the left monitor, same as clicking the YouTube logo on the right monitor (see *The house and the work desk*). Elsewhere: pause / resume that video |
+| `U` | Seated at the desk: play a YouTube link on the left monitor, same as clicking the YouTube icon on that monitor (see *The house and the work desk*). Elsewhere: pause / resume that video |
 | `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up |
 | `K` | Walking on the beach or in the shallows: get into the kayak; in the kayak: step out (see *Kayak*) |
 | `L` | Walking on the beach or in the shallows: go surfing (see *Surfing*); on the board: slip off |
@@ -237,14 +237,17 @@ something else, put your own image at `src/assets/local/mug-logo.png` (or `.jpg`
 that folder is git-ignored and takes precedence) and restart `npm run dev`. Wood has a procedural grain (shader, no textures); cushions, futon, chair and
 ceramics are rounded and smooth-shaded. Trees are kept out of the view from the glass to the sea.
 
-**YouTube on the left monitor.** Seated at the desk, click the YouTube logo on the right
-monitor (or press `U`). Paste a YouTube link (a video, a live stream, a Short or a playlist) into
-the little card, or pick one of the last five, and it plays on the left screen, sitting on it in
-3D as you look around or lean in. With a video loaded, clicking the logo plays or pauses it; a
-dot in its corner shows the state. Hover the logo for the video's menu: **Tạm dừng / Phát tiếp**,
-**Âm nền** (the island's sound is switched off while a video plays; this turns it back on),
-**Đổi video** and **Tắt video** (back to the code editor). The menu also shows itself for a few
-seconds when a video starts. Master volume and `M` also set the video's volume. Getting up
+**The left monitor: VS Code and YouTube.** At rest the left monitor shows two app icons. Seated
+at the desk, click **VS Code** for the code editor that slowly types code, or **YouTube** (or
+press `U`) to play a video. With either open, a small button cluster sits in the screen's
+top-right corner; its power button (⏻) closes the editor or the video and brings the icons
+back. The app remembers whether you left the editor open.
+
+**YouTube on the left monitor.** Paste a YouTube link (a video, a live stream, a Short or a
+playlist) into the little card, or pick one of the last five, and it plays on the left screen,
+sitting on it in 3D as you look around or lean in. The corner buttons are: **play / pause**,
+**soundscape** (the island's sound is switched off while a video plays; this turns it back on),
+**change video**, and **power**. Master volume and `M` also set the video's volume. Getting up
 leaves the video playing: you still see it on the monitor as you walk around the house, and `U`
 anywhere away from the desk pauses or resumes it. Notes:
 
@@ -272,17 +275,36 @@ and press **E** next to the chair. At the desk:
 
 - **drag** with the mouse to look around (screens, the sea, the room); **scroll** to lean in and
   read the screens; **E**, **Esc** or **B** to get up: you stand next to the chair, in the room
-  (even if you sat down from the orbit view; **C** then takes you back to it). The mouse stays free, so the panel and the
-  Pomodoro card work as usual.
-- **Left monitor:** a code editor that slowly types code (a few files of this project).
-  **Right monitor:** the clock and date, the Pomodoro timer, the scene preset and its effects,
-  what is playing, and the time on the island.
+  (even if you sat down from the orbit view; **C** then takes you back to it). The mouse stays free, so the panel works
+  as usual (the floating Pomodoro card steps aside: the right monitor shows the timer).
+- **Left monitor:** VS Code (a code editor that slowly types code) or YouTube; see below.
+- **Right monitor: Pomodoro and to-do list** (see below).
 - Rain is muffled indoors; at night the pendant lamp and the desk lamp light the room.
 - **Mở app ở góc làm việc** in the *Hiển thị* section opens the app straight at the desk.
 
 **Soaking in the tub:** **Ngâm bồn tắm** in the panel (from anywhere), or walk to the bath corner
 and press **E** next to the tub. You sit in the water looking out of the big window at the
 forest; drag to look around, **E** or **Esc** to get out.
+
+**The right monitor: Pomodoro and to-do list.** On top, a compact strip: while the Pomodoro runs
+(or is paused), the phase, the session dots, the time left in large digits, a progress line,
+play/pause and skip; otherwise the clock and date with a **Bắt đầu tập trung** button. Its two
+small round buttons are **🔔** (notification sounds on/off) and **🌊** (the soundscape on/off; it
+is the same switch as the soundscape button on a playing video). `✓` and `🍅` count today's
+finished tasks and focus sessions. Below the strip, the to-do list, on "liquid glass" cards:
+
+- **Thêm việc…**: click it and type (Vietnamese input methods work), **Enter** adds the task,
+  **Esc** stops typing.
+- Click a task's **ring ◯** when it is done: it moves to **Đã xong hôm nay** below. Click a
+  finished task to put it back. The finished list keeps today only (it empties at midnight);
+  click its title to fold it.
+- Click a card to make it the **current task** (it glows, "ĐANG LÀM"); each focus session that
+  ends while it is current adds a 🍅 to it. Click it again to clear.
+- **Drag** a card up or down to change the order; hover a card for its **✕** (delete).
+- The **wheel** over the list scrolls it (elsewhere it leans in, as before). While the Pomodoro
+  runs, the footer line (what is playing, the scene, the island time) is hidden to give the list
+  more room.
+- The list is saved in the browser (`localStorage`, key `tsw.todo`).
 
 ## Pomodoro (`T` or **Pomodoro (T)** in the panel)
 
@@ -297,6 +319,9 @@ the next part, reset, settings (⚙), hide (✕).
     focus). It rings even when the soundscape is muted with `M`.
   - **Bão dịu đi khi nghỉ** — during breaks rain, wind and snow (sound *and* visuals) ease down to
     30 % over ~20 s, and come back when focus starts.
+  - **Âm lượng thông báo** — the bell's own volume, apart from the master volume (default 80 %,
+    which is how loud the bell always was).
+- Seated at the desk the card hides; the right monitor shows and controls the timer instead.
 - The browser tab title shows the countdown (e.g. `18:42 · Tập trung`), so you can see it on the
   taskbar.
 - Works with the tab in the background: the bell is placed on the audio clock in advance, so it
@@ -976,7 +1001,7 @@ audio files in the repo.
 | Gerstner waves | — | technique from *GPU Gems* (2004), ch. 1 |
 | [WebGL Water](https://madebyevan.com/webgl-water/) by Evan Wallace | MIT | the heightfield ripple simulation (drop + update passes) and the caustics-by-area-ratio technique are reimplemented after it in `src/water/` |
 | Planar reflection camera (`src/water/PlanarReflection.ts`) | MIT | mirrored camera and oblique near plane adapted from three.js `examples/jsm/objects/Reflector.js` |
-| YouTube logo on the desk's right monitor (`YT_LOGO` in `src/ui/youtube.ts`) | path data from [Simple Icons](https://simpleicons.org/), CC0; the logo is a trademark of Google | drawn as the button that opens the YouTube player |
+| YouTube icon on the desk's left monitor (`YT_LOGO` in `src/ui/youtube.ts`) | path data from [Simple Icons](https://simpleicons.org/), CC0; the logo is a trademark of Google | drawn as the launcher icon that opens the YouTube player |
 | `src/assets/animals/shiba.glb` ("Shiba Inu") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/y4wdQpg767) | CC0 1.0 (public domain) | Mochi the dog; its walk, gallop, idle, sniff and jump clips are used |
 | `src/assets/creatures/water-crab.glb` ("Crab Enemy") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/Gs3yfsV5lB) | CC0 1.0 (public domain) | Bọt the water crab, recoloured blue in code; its idle, walk, bite, yes and dance clips are used. The file has 6 vertices with NaN skin weights (an export fault), repaired at load |
 | `src/assets/creatures/fire-dragon.glb` ("Dragon Evolved") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/LlwD0QNUPj) | CC0 1.0 (public domain) | Hỏa Long the fire dragon, recoloured red and gold in code; its flying idle, fast flying, headbutt, yes and punch clips are used |

@@ -3,22 +3,17 @@ import { CSS3DObject, CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRe
 import { button, el } from './components';
 import { icons } from './icons';
 import { vi } from './strings.vi';
-import { embedUrl, parseYouTubeUrl, youTubeLogoSvg, YT_ORIGIN, YT_STATE, type YouTubeRef } from './youtube';
+import { embedUrl, parseYouTubeUrl, YT_ORIGIN, YT_STATE, type YouTubeRef } from './youtube';
 import { parseJson, readStored, writeStored } from '../core/storage';
-import { DASH_LOGO, SCREEN_PX } from '../world/deskScreens';
+import { LAUNCHER, SCREEN_BAR, SCREEN_PX, type LeftMode, type PxRect } from '../world/deskScreens';
 
 /** The iframe's own size in CSS pixels (16:9 like the screen); CSS3D scales it onto the screen. */
 const PX_W = 640;
 const PX_H = 360;
 const RECENT_KEY = 'tsw.videoRecent';
 const RECENT_MAX = 5;
-/** The logo button's own size in CSS pixels (same shape as its spot on the right screen). */
-const LOGO_PX_W = 104;
-const LOGO_PX_H = Math.round((LOGO_PX_W * DASH_LOGO.h) / DASH_LOGO.w);
-/** The menu stays this long after the mouse leaves (time to cross the gap to it). */
-const MENU_HIDE_MS = 400;
-/** When a video first starts, the menu shows itself this long so you know where it is. */
-const PEEK_MS = 3000;
+/** The left screen's last choice between idle and the code editor. */
+const LEFT_KEY = 'tsw.leftScreen';
 
 interface Recent {
   url: string;
@@ -28,6 +23,9 @@ interface Recent {
 export interface DeskVideoDeps {
   /** The video started or stopped playing (the app silences the soundscape while it plays). */
   onPlaying(playing: boolean): void;
+  /** The soundscape switch shared with the right monitor (see AmbienceSwitch). */
+  ambienceOn(): boolean;
+  toggleAmbience(): void;
   /** Master volume (0..1) and mute, applied to the video too. */
   master(): { volume: number; muted: boolean };
 }
@@ -40,16 +38,20 @@ export interface DeskVideoDeps {
  * moves under the canvas, which is see-through only where that screen is visible (`punchHole`):
  * whatever passes in front of the monitor hides the video. The player is driven with postMessage
  * commands (no YouTube script in this page).
- * A YouTube logo on the right screen (a real button, laid on it the same way) opens the link
- * card or plays/pauses; hovering it shows a small menu with the video's controls.
+ * The same screen is a small launcher: at rest it shows two app icons (real buttons laid over the
+ * ones drawn on its canvas) that open the code editor or the link card. With either open, a button
+ * cluster in its top-right corner controls the video and turns the screen back to rest.
  */
 export class DeskVideo {
   private readonly css = new CSS3DRenderer();
   private readonly cssScene = new THREE.Scene();
   private readonly object: CSS3DObject;
   private readonly frame: HTMLDivElement;
-  private readonly logoObject: CSS3DObject;
-  private readonly logo: HTMLButtonElement;
+  private readonly appsObject: CSS3DObject;
+  private readonly barObject: CSS3DObject;
+  private readonly bar: HTMLElement;
+  /** The code editor is open (when no video is loaded). */
+  private editorOn: boolean;
   private iframe: HTMLIFrameElement | null = null;
   private url = '';
   private title = '';
@@ -57,37 +59,25 @@ export class DeskVideo {
   private playing = false;
   private ready = false;
   private listenTimer = 0;
-  /** While playing: you turned the soundscape back on for this video. */
-  private ambienceWanted = false;
-  // Prompt card, and the menu that opens from the logo.
+  // Prompt card, and the video's buttons in the corner.
   private readonly card: HTMLElement;
   private readonly input: HTMLInputElement;
   private readonly recentList: HTMLElement;
   private readonly error: HTMLElement;
-  private readonly menu: HTMLElement;
-  private readonly menuTitle: HTMLElement;
   private readonly playBtn: HTMLButtonElement;
   private readonly ambienceBtn: HTMLButtonElement;
-  /** Mouse (or keyboard focus) on the logo or the menu. */
-  private hovering = false;
-  private hideTimer = 0;
-  private peekTimer = 0;
-  /** The menu already showed itself for this video. */
-  private peeked = false;
   private readonly tmp = new THREE.Vector3();
   /** The left screen again, drawn as a see-through hole in the canvas (see `punchHole`). */
   private readonly holeScene = new THREE.Scene();
-  private menuX = NaN;
-  private menuY = NaN;
 
   constructor(
     container: HTMLElement,
     ui: HTMLElement,
     private readonly camera: THREE.PerspectiveCamera,
     private readonly screen: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>,
-    dash: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>,
     private readonly deps: DeskVideoDeps,
   ) {
+    this.editorOn = parseJson(readStored(LEFT_KEY)) === 'editor';
     // The CSS layer: right above the canvas, below the UI (DOM order).
     this.css.domElement.className = 'video-layer';
     container.insertBefore(this.css.domElement, ui);
@@ -122,25 +112,42 @@ export class DeskVideo {
     hole.matrix.copy(this.screen.matrixWorld);
     this.holeScene.add(hole);
 
-    // ---- The logo on the right screen, exactly over the one drawn there ----
-    this.logo = button('', () => this.onLogo(), 'video-logo');
-    this.logo.style.width = `${LOGO_PX_W}px`;
-    this.logo.style.height = `${LOGO_PX_H}px`;
-    this.logo.innerHTML = `${youTubeLogoSvg()}<span class="video-logo-badge"></span>`;
-    this.logo.setAttribute('aria-label', vi.video.logo);
-    this.logoObject = new CSS3DObject(this.logo);
-    this.logoObject.visible = false;
-    this.cssScene.add(this.logoObject);
-    dash.updateWorldMatrix(true, false);
-    dash.matrixWorld.decompose(this.logoObject.position, this.logoObject.quaternion, this.tmp);
-    const d = dash.geometry.parameters;
-    const r = DASH_LOGO;
-    // Canvas pixels (origin top left) to the screen's metres (origin centre, y up).
-    this.logoObject.translateX(((r.x + r.w / 2) / SCREEN_PX.w - 0.5) * d.width);
-    this.logoObject.translateY((0.5 - (r.y + r.h / 2) / SCREEN_PX.h) * d.height);
-    this.logoObject.translateZ(0.001);
-    const metres = (r.w / SCREEN_PX.w) * d.width;
-    this.logoObject.scale.setScalar(metres / LOGO_PX_W);
+    // ---- Launcher: real buttons over the two icons drawn on the idle screen ----
+    const { code, youtube } = LAUNCHER;
+    const apps = el('div', 'screen-apps');
+    const codeBtn = button('', () => this.openEditor(), 'screen-app');
+    codeBtn.setAttribute('aria-label', vi.video.code);
+    codeBtn.title = vi.video.code;
+    const ytBtn = button('', () => this.openCard(), 'screen-app');
+    ytBtn.setAttribute('aria-label', vi.video.logo);
+    ytBtn.title = vi.video.logo;
+    for (const [b, r] of [[codeBtn, code], [ytBtn, youtube]] as const) {
+      b.style.left = `${r.x - code.x}px`;
+      b.style.width = `${r.w}px`;
+      b.style.height = `${r.h}px`;
+    }
+    apps.append(codeBtn, ytBtn);
+    this.appsObject = this.onScreen(apps, { x: code.x, y: code.y, w: youtube.x + youtube.w - code.x, h: code.h });
+
+    // ---- Corner buttons: play/pause, soundscape, change link (video only), power ----
+    this.bar = el('div', 'screen-bar');
+    this.bar.title = vi.video.focusHint;
+    this.playBtn = button('', () => this.togglePlay(), 'screen-bar-btn video-only');
+    this.ambienceBtn = button('', () => this.deps.toggleAmbience(), 'screen-bar-btn video-only');
+    const change = button('', () => this.openCard(), 'screen-bar-btn video-only');
+    change.innerHTML = icons.link;
+    change.title = vi.video.change;
+    const power = button('', () => this.turnOff(), 'screen-bar-btn');
+    power.innerHTML = icons.power;
+    const pill = el('div', 'screen-bar-pill');
+    pill.append(this.playBtn, this.ambienceBtn, change, power);
+    this.bar.append(pill);
+    this.barObject = this.onScreen(this.bar, SCREEN_BAR);
+    const syncPower = (): void => {
+      power.title = this.active ? vi.video.close : vi.video.closeEditor;
+    };
+    this.bar.addEventListener('pointerenter', syncPower);
+    syncPower();
 
     // ---- Prompt card ----
     this.card = el('div', 'video-card');
@@ -176,35 +183,40 @@ export class DeskVideo {
     this.card.append(head, form, this.error, this.recentList, el('div', 'hint', vi.video.note));
     ui.append(this.card);
 
-    // ---- Menu under the logo: title, play/pause, soundscape, change video, close ----
-    this.menu = el('div', 'video-menu');
-    this.menu.hidden = true;
-    this.menuTitle = el('div', 'video-menu-title');
-    this.playBtn = button('', () => this.togglePlay(), 'video-menu-btn');
-    this.ambienceBtn = button('', () => this.toggleAmbience(), 'video-menu-btn');
-    const change = button('', () => this.openCard(), 'video-menu-btn');
-    change.innerHTML = `${icons.link}<span>${vi.video.change}</span>`;
-    const stop = button('', () => this.stop(), 'video-menu-btn');
-    stop.innerHTML = `${icons.close}<span>${vi.video.close}</span>`;
-    const row = el('div', 'video-menu-row');
-    row.append(this.playBtn, this.ambienceBtn, change, stop);
-    this.menu.append(this.menuTitle, row, el('div', 'video-menu-hint', vi.video.focusHint));
-    ui.append(this.menu);
-    for (const target of [this.logo, this.menu]) {
-      target.addEventListener('pointerenter', () => this.setHover(true));
-      target.addEventListener('pointerleave', () => this.setHover(false));
-      target.addEventListener('focusin', () => this.setHover(true));
-      target.addEventListener('focusout', () => this.setHover(false));
-    }
-    this.syncAmbienceBtn();
+    this.syncAmbience();
     this.syncControls();
 
     window.addEventListener('message', this.onMessage);
   }
 
+  /**
+   * Lays `element` on the left screen over the canvas rectangle `r`, one CSS pixel per canvas
+   * pixel, a hair in front of the video.
+   */
+  private onScreen(element: HTMLElement, r: PxRect): CSS3DObject {
+    element.style.width = `${r.w}px`;
+    element.style.height = `${r.h}px`;
+    const obj = new CSS3DObject(element);
+    obj.visible = false;
+    this.cssScene.add(obj);
+    this.screen.matrixWorld.decompose(obj.position, obj.quaternion, this.tmp);
+    const d = this.screen.geometry.parameters;
+    // Canvas pixels (origin top left) to the screen's metres (origin centre, y up).
+    obj.translateX(((r.x + r.w / 2) / SCREEN_PX.w - 0.5) * d.width);
+    obj.translateY((0.5 - (r.y + r.h / 2) / SCREEN_PX.h) * d.height);
+    obj.translateZ(0.002);
+    obj.scale.setScalar(d.width / SCREEN_PX.w);
+    return obj;
+  }
+
   /** A video is loaded (playing or paused). */
   get active(): boolean {
     return this.iframe !== null;
+  }
+
+  /** What the left screen shows. */
+  get leftMode(): LeftMode {
+    return this.active ? 'video' : this.editorOn ? 'editor' : 'idle';
   }
 
   /** Title for the left screen while you're away from the desk. */
@@ -223,30 +235,43 @@ export class DeskVideo {
     else this.openCard();
   }
 
-  /** Seated at the desk or not. Getting up leaves the video playing; the logo and menu hide. */
+  /** Seated at the desk or not. Getting up leaves the video playing; the buttons hide. */
   setSeated(on: boolean): void {
     if (on === this.seated) return;
     this.seated = on;
-    if (!on) {
-      this.closeCard();
-      this.hovering = false;
-      window.clearTimeout(this.peekTimer);
-      this.peekTimer = 0;
-    }
+    if (!on) this.closeCard();
     // Seated: over the canvas (clickable). Away: under it, seen through the hole.
     this.css.domElement.classList.toggle('behind', !on);
     this.show();
   }
 
   /**
-   * Shows or hides the video and the logo button. The CSS renderer only touches the DOM when it
-   * renders, so it renders once here too (otherwise a hidden video would stay where it was).
+   * Shows or hides the video, the launcher and the corner buttons. The CSS renderer only touches
+   * the DOM when it renders, so it renders once here too (otherwise a hidden video would stay
+   * where it was).
    */
   private show(): void {
+    const mode = this.leftMode;
     this.object.visible = this.active;
-    this.logoObject.visible = this.seated;
-    this.syncMenu();
+    this.appsObject.visible = this.seated && mode === 'idle';
+    this.barObject.visible = this.seated && mode !== 'idle';
+    this.bar.dataset.mode = mode;
     this.css.render(this.cssScene, this.camera);
+  }
+
+  /** The VS Code icon: the typing editor. */
+  private openEditor(): void {
+    this.editorOn = true;
+    writeStored(LEFT_KEY, 'editor');
+    this.show();
+  }
+
+  /** Power: close the video or the editor; the screen goes back to rest. */
+  private turnOff(): void {
+    if (this.active) this.unload();
+    this.editorOn = false;
+    writeStored(LEFT_KEY, 'idle');
+    this.show();
   }
 
   setSize(width: number, height: number): void {
@@ -260,11 +285,10 @@ export class DeskVideo {
     this.command('setVolume', [Math.round(m.volume * 100)]);
   }
 
-  /** Every frame: place the iframe and the logo on their screens, the menu under the logo. */
+  /** Every frame: place the iframe and the buttons on the screen. */
   update(): void {
-    if (!this.object.visible && !this.logoObject.visible) return;
+    if (!this.object.visible && !this.appsObject.visible && !this.barObject.visible) return;
     this.css.render(this.cssScene, this.camera);
-    this.placeMenu();
   }
 
   /**
@@ -296,65 +320,14 @@ export class DeskVideo {
     return true;
   }
 
-  /** The menu hangs under the logo's bottom edge, kept inside the window. */
-  private placeMenu(): void {
-    if (this.menu.hidden) return;
-    const v = this.tmp.set(0, -LOGO_PX_H / 2, 0).applyMatrix4(this.logoObject.matrixWorld).project(this.camera);
-    const w = this.css.domElement.clientWidth;
-    const ht = this.css.domElement.clientHeight;
-    const half = this.menu.offsetWidth / 2;
-    // Whole pixels, written only when they change (a style write every frame costs a relayout).
-    const x = Math.round(Math.min(Math.max((v.x * 0.5 + 0.5) * w, half + 8), w - half - 8));
-    const y = Math.round((-v.y * 0.5 + 0.5) * ht + 8);
-    if (x !== this.menuX || y !== this.menuY) {
-      this.menuX = x;
-      this.menuY = y;
-      this.menu.style.left = `${x}px`;
-      this.menu.style.top = `${y}px`;
-    }
-  }
-
-  /** The logo: no video yet, ask for a link; otherwise play or pause. */
-  private onLogo(): void {
-    if (this.active) this.togglePlay();
-    else this.openCard();
-  }
-
   private togglePlay(): void {
     this.command(this.playing ? 'pauseVideo' : 'playVideo');
   }
 
-  private setHover(on: boolean): void {
-    window.clearTimeout(this.hideTimer);
-    if (on) {
-      this.hovering = true;
-      this.syncMenu();
-      return;
-    }
-    this.hideTimer = window.setTimeout(() => {
-      this.hovering = false;
-      this.syncMenu();
-    }, MENU_HIDE_MS);
-  }
-
-  /** The menu shows while hovered or peeking, and only with a video loaded. */
-  private syncMenu(): void {
-    const show = this.seated && this.active && (this.hovering || this.peekTimer !== 0);
-    if (show === !this.menu.hidden) return;
-    this.menu.hidden = !show;
-    this.menuX = NaN;
-    this.placeMenu();
-  }
-
-  /** Logo badge, its tooltip, the play button and the menu title follow the player. */
+  /** The play button follows the player. */
   private syncControls(): void {
-    const state = !this.active ? 'none' : this.playing ? 'playing' : 'paused';
-    this.logo.dataset.state = state;
-    this.logo.title = state === 'none' ? vi.video.logo : '';
-    this.playBtn.innerHTML = this.playing
-      ? `${icons.pause}<span>${vi.video.pause}</span>`
-      : `${icons.play}<span>${vi.video.resume}</span>`;
-    this.menuTitle.textContent = this.title || vi.video.untitled;
+    this.playBtn.innerHTML = this.playing ? icons.pause : icons.play;
+    this.playBtn.title = this.playing ? vi.video.pause : vi.video.resume;
   }
 
   private openCard(): void {
@@ -391,9 +364,9 @@ export class DeskVideo {
     this.unload();
     this.url = url;
     this.title = '';
-    this.ambienceWanted = false;
-    this.peeked = false;
-    this.syncAmbienceBtn();
+    // The video takes the screen; closing it goes back to rest, not to the editor.
+    this.editorOn = false;
+    writeStored(LEFT_KEY, 'idle');
     const f = el('iframe', 'video-iframe');
     f.src = embedUrl(ref, location.origin);
     f.width = String(PX_W);
@@ -416,16 +389,7 @@ export class DeskVideo {
     this.iframe = null;
     this.ready = false;
     this.setPlaying(false);
-    window.clearTimeout(this.peekTimer);
-    this.peekTimer = 0;
     this.syncControls();
-  }
-
-  /** ✕: close the video; the left screen goes back to the code editor. */
-  private stop(): void {
-    this.unload();
-    this.hovering = false;
-    this.show();
   }
 
   /**
@@ -490,31 +454,14 @@ export class DeskVideo {
   private setPlaying(on: boolean): void {
     if (on === this.playing) return;
     this.playing = on;
-    // The soundscape goes quiet while the video plays, unless you turned it back on.
-    this.deps.onPlaying(on && !this.ambienceWanted);
+    this.deps.onPlaying(on);
     this.syncControls();
-    if (on && !this.peeked && this.seated) {
-      // First start of this video: show the menu for a moment (the soundscape just went quiet
-      // and its switch lives there).
-      this.peeked = true;
-      this.peekTimer = window.setTimeout(() => {
-        this.peekTimer = 0;
-        this.syncMenu();
-      }, PEEK_MS);
-      this.syncMenu();
-    }
   }
 
-  /** The bar's speaker button: soundscape back on (or off again) while the video plays. */
-  private toggleAmbience(): void {
-    this.ambienceWanted = !this.ambienceWanted;
-    this.syncAmbienceBtn();
-    if (this.playing) this.deps.onPlaying(!this.ambienceWanted);
-  }
-
-  private syncAmbienceBtn(): void {
-    const on = this.ambienceWanted;
-    this.ambienceBtn.innerHTML = `${on ? icons.speaker : icons.speakerOff}<span>${vi.video.ambience}</span>`;
+  /** The corner's speaker button follows the shared soundscape switch. */
+  syncAmbience(): void {
+    const on = this.deps.ambienceOn();
+    this.ambienceBtn.innerHTML = on ? icons.speaker : icons.speakerOff;
     this.ambienceBtn.setAttribute('aria-pressed', String(on));
     this.ambienceBtn.title = on ? vi.video.ambienceOn : vi.video.ambienceOff;
   }
