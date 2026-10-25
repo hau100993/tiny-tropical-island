@@ -1,59 +1,53 @@
-/** Full health, for you and for Mochi. */
+/** Full health (Mochi, and each wild one in a fight). */
 export const MAX_HP = 100;
 /** Health comes back by itself this fast (per s), once nothing has hit for `after` s. */
 const REGEN = { rate: 5, after: 6 } as const;
 /** Petting Mochi heals it this much faster. */
 const PET_REGEN = 4;
 
-export type Who = 'you' | 'dog';
-
 /**
- * Health for the forest ambushes (activities/ambush.ts): you and Mochi, 0..100, no saving. A
- * hit takes some away; after a few quiet seconds it comes back by itself. Reaching 0 calls
- * `onDown` (you faint and wake on the beach; Mochi lies down a while): health is then restored
- * by whoever handles that (`restore`).
+ * Mochi's health in the forest fights (activities/ambush.ts), 0..100, not saved. A hit takes
+ * some away; after a few quiet seconds it comes back by itself (faster while you stroke it).
+ * Reaching 0 calls `onDown` (it lies down to rest); whoever handles that calls `restore`.
+ * (You have no health: a hit on you is only splashes, 2026-10-25.)
  */
 export class Health {
-  readonly hp: Record<Who, number> = { you: MAX_HP, dog: MAX_HP };
-  /** s since each was last hit. */
-  private readonly quiet: Record<Who, number> = { you: Infinity, dog: Infinity };
-  private readonly down: Record<Who, boolean> = { you: false, dog: false };
+  hp = MAX_HP;
+  /** s since the last hit. */
+  private quiet = Infinity;
+  private down = false;
 
-  constructor(private readonly onDown: (who: Who) => void) {}
+  constructor(private readonly onDown: () => void) {}
 
-  /** A hit for `amount`; true if it took them down. */
-  hit(who: Who, amount: number): boolean {
-    if (this.down[who]) return false;
-    this.hp[who] = Math.max(0, this.hp[who] - amount);
-    this.quiet[who] = 0;
-    if (this.hp[who] > 0) return false;
-    this.down[who] = true;
-    this.onDown(who);
+  /** A hit for `amount`; true if it took it down. */
+  hit(amount: number): boolean {
+    if (this.down) return false;
+    this.hp = Math.max(0, this.hp - amount);
+    this.quiet = 0;
+    if (this.hp > 0) return false;
+    this.down = true;
+    this.onDown();
     return true;
   }
 
   /** Back on its feet with `hp`. */
-  restore(who: Who, hp = MAX_HP): void {
-    this.down[who] = false;
-    this.hp[who] = Math.min(MAX_HP, hp);
+  restore(hp = MAX_HP): void {
+    this.down = false;
+    this.hp = Math.min(MAX_HP, hp);
   }
 
-  isDown(who: Who): boolean {
-    return this.down[who];
+  get isDown(): boolean {
+    return this.down;
   }
 
-  /** Every frame; `petting`: Mochi is being stroked (it heals faster). */
-  update(dt: number, petting: boolean): void {
-    for (const who of ['you', 'dog'] as const) {
-      this.quiet[who] += dt;
-      if (this.down[who] || this.hp[who] >= MAX_HP) continue;
-      const fast = who === 'dog' && petting ? PET_REGEN : 1;
-      if (this.quiet[who] >= REGEN.after || fast > 1) this.hp[who] = Math.min(MAX_HP, this.hp[who] + REGEN.rate * fast * dt);
-    }
-  }
-
-  /** Anyone hurt (the bars stay up until both are full). */
   get hurt(): boolean {
-    return this.hp.you < MAX_HP || this.hp.dog < MAX_HP;
+    return this.hp < MAX_HP;
+  }
+
+  /** Every frame; `petting`: it is being stroked (it heals at once, faster). */
+  update(dt: number, petting: boolean): void {
+    this.quiet += dt;
+    if (this.down || this.hp >= MAX_HP) return;
+    if (this.quiet >= REGEN.after || petting) this.hp = Math.min(MAX_HP, this.hp + REGEN.rate * (petting ? PET_REGEN : 1) * dt);
   }
 }

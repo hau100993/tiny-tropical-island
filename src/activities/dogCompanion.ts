@@ -87,7 +87,10 @@ const ZOOM_CENTRES: readonly (readonly [number, number])[] = [
 const ZOOM_BOW = 0.6;
 const ZOOM_LEAP = { height: 0.75, time: 0.75 } as const;
 
-type Mode = 'follow' | 'come' | 'wait' | 'pet' | 'zoom' | 'act';
+/** Standing guard lasts this long after the fight last asked for it (s). */
+const GUARD_HOLD = 0.6;
+
+type Mode = 'follow' | 'come' | 'wait' | 'pet' | 'zoom' | 'act' | 'guard';
 
 /**
  * Mochi, the dog that keeps you company. It follows your own path a couple of metres behind
@@ -147,6 +150,10 @@ export class DogCompanion {
   private actX = 0;
   private actZ = 0;
   private actPose: DogAction = 'idle';
+  /** Standing guard: where, and s since the fight last called for it. */
+  private guardX = 0;
+  private guardZ = 0;
+  private guardAt = 0;
   /** Height off the ground (m: the leap) and lean into the turn (rad), for the model. */
   lift = 0;
   bank = 0;
@@ -180,6 +187,23 @@ export class DogCompanion {
     this.actX = x;
     this.actZ = z;
     this.actPose = pose;
+    return true;
+  }
+
+  /**
+   * Standing guard (a forest fight, activities/ambush.ts): it runs to (x, z) and stands there
+   * facing (fx, fz). Renewed every frame by the fight; it goes back to following you GUARD_HOLD s
+   * after the last call. Not while it does something of its own (a skill, being stroked).
+   */
+  guard(x: number, z: number, fx: number, fz: number): boolean {
+    if (this.mode === 'zoom' || this.mode === 'act' || this.mode === 'pet') return false;
+    if (this.mode !== 'guard') this.modeTime = 0;
+    this.mode = 'guard';
+    this.guardAt = 0;
+    this.actX = fx;
+    this.actZ = fz;
+    this.guardX = x;
+    this.guardZ = z;
     return true;
   }
 
@@ -282,6 +306,22 @@ export class DogCompanion {
     let alone = false;
 
     this.petReady = false;
+    if (this.mode === 'guard') {
+      this.guardAt += dt;
+      if (this.guardAt > GUARD_HOLD || !p.onFoot || p.seat) {
+        this.mode = 'follow';
+        this.snapCursor();
+      } else {
+        // At a run to its spot, then braced there facing the attacker.
+        this.still = 0;
+        const left = this.steer(dt, this.guardX, this.guardZ, 0.15, MAX_SPEED);
+        if (left < 0.35) this.face(dt * 6, this.actX, this.actZ);
+        this.action = this.speed > 0.1 ? 'move' : 'idle';
+        this.wag += (0.3 - this.wag) * Math.min(1, dt * 6);
+        this.settleY(p);
+        return;
+      }
+    }
     if (this.mode === 'act') {
       if (this.modeTime > this.actTime) {
         this.mode = 'follow';

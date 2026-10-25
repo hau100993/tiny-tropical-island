@@ -27,11 +27,11 @@ const VANISH = 0.3;
 const SHY = 3.5;
 /**
  * Ambushes (attacks on): one out watching you now and then attacks instead, this often (s,
- * random in the range) while you are in the forest; after a creature is driven off another may
- * follow quickly (`chain` s), up to `fights` in a row. The wind-up (s: it glows and calls) gives
- * you time to run; then it stays, taunting, until Mochi drives it off (or `linger` s).
+ * random in the range) while you are in the forest. The wind-up (s: it glows and calls) gives
+ * you time to run, and Mochi time to come between; then it stays and fights (activities/
+ * ambush.ts) until it is driven off, wins, or `linger` s have gone by.
  */
-const AMBUSH = { every: [25, 50], chain: [3, 6], chainChance: 0.5, fights: 3, windup: 0.8, linger: 6 } as const;
+const AMBUSH = { every: [10, 20], windup: 0.8, linger: 30 } as const;
 /** Driven off: it flashes, shrinks and is gone in a burst of sparkles (s). */
 const BANISH = 0.45;
 
@@ -50,7 +50,12 @@ export interface Attacker {
   z: number;
   /** Gone (driven off, or it slipped away). */
   readonly gone: boolean;
+  /** Driven off: a flash, sparkles, gone. */
   banish(): void;
+  /** Its attack pose for a moment (as it throws a shot). */
+  cast(): void;
+  /** It won (or gave up): a little dance, then back behind its trunk. */
+  leave(): void;
 }
 
 /** One wild creature's model, whatever its kind. */
@@ -76,8 +81,9 @@ interface Encounter {
   y: number;
   flourished: boolean;
   greeted: boolean;
-  /** As an attacker (once it has attacked). */
+  /** As an attacker (once it has attacked); since its last shot (s). */
   attacker: Attacker | null;
+  castT: number;
 }
 
 export interface WildHost {
@@ -96,7 +102,8 @@ export interface WildHost {
   load(count: number): Promise<{ crabs: CrabModel[]; dragons: DragonModel[]; bunnies: BunnyModel[] }>;
   /** Compiles the models' shaders before they first show. */
   compile(root: THREE.Object3D): Promise<unknown>;
-  /** An ambush: it attacks now (the attack itself and what follows: activities/ambush.ts). */
+  /** An ambush is coming from it (Mochi steps up), then it attacks (the fight: activities/ambush.ts). */
+  windup(a: Attacker): void;
   attack(a: Attacker): void;
   /** Driven off at (x, y, z): the flash and the sparkles. */
   banished(kind: WildKind, x: number, y: number, z: number): void;
@@ -121,10 +128,9 @@ export class WildCreatures {
   private wasInForest = false;
   /** How many may be out at once during this visit (1–3). */
   private limit = 2;
-  /** Ambushes: on, the next in (s), how many in this fight so far. */
+  /** Ambushes: on, and the next in (s). */
   private attacks = false;
   private ambushIn = 0;
-  private fights = 0;
 
   constructor(private readonly host: WildHost) {}
 
@@ -155,7 +161,6 @@ export class WildCreatures {
       this.limit = 1 + Math.floor(Math.random() * 3);
       this.gap = 1 + Math.random() * 2;
       this.ambushIn = this.between(AMBUSH.every);
-      this.fights = 0;
     }
     this.wasInForest = inForest;
     // An ambush: one of those out watching you winds up an attack.
@@ -165,10 +170,8 @@ export class WildCreatures {
       if (watcher) {
         this.go(watcher, 'windup');
         this.host.voice(watcher.w.kind, watcher.px, watcher.y, watcher.pz);
-        this.fights++;
-        const again = this.fights < AMBUSH.fights && Math.random() < AMBUSH.chainChance;
-        this.ambushIn = this.between(again ? AMBUSH.chain : AMBUSH.every);
-        if (!again) this.fights = 0;
+        this.host.windup(this.attackerOf(watcher));
+        this.ambushIn = this.between(AMBUSH.every);
       }
     }
 
@@ -260,13 +263,15 @@ export class WildCreatures {
         if (Math.random() < dt * 30) this.puff(w, e.px, e.y, e.pz, 2, 0.3);
         if (e.t >= AMBUSH.windup) {
           this.go(e, 'taunt');
+          e.castT = 0;
           this.host.attack(this.attackerOf(e));
         }
         break;
       case 'taunt':
-        // Stays out, hopping about, until Mochi drives it off (or it gets bored).
+        // Stays out and fights: its attack pose as it throws, hopping about between.
         if (you) face = Math.atan2(you.x - e.px, you.z - e.pz);
-        action = e.t < 1 ? 'skill' : 'dance';
+        e.castT += dt;
+        action = e.castT < 0.9 ? 'skill' : 'dance';
         if (e.t >= AMBUSH.linger) this.go(e, 'retreat');
         break;
       case 'banish': {
@@ -316,6 +321,14 @@ export class WildCreatures {
         self.go(e, 'banish');
         self.host.banished(e.w.kind, a.x, a.y, a.z);
         self.host.voice(e.w.kind, e.px, e.y, e.pz);
+      },
+      cast(): void {
+        e.castT = 0;
+      },
+      leave(): void {
+        if (a.gone) return;
+        self.host.voice(e.w.kind, e.px, e.y, e.pz);
+        self.go(e, 'retreat');
       },
     };
     e.attacker = a;
@@ -429,6 +442,7 @@ export class WildCreatures {
       flourished: false,
       greeted: false,
       attacker: null,
+      castT: 0,
     });
   }
 

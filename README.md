@@ -479,18 +479,19 @@ element (soap bubbles, embers, pollen), then slips back behind the trunk and is 
 and they all hide. The wild dragons hover between the trunks. Two of each are loaded on your
 first visit (skeleton clones of one load each) and reused.
 
-**Ambushes.** In the forest, every 25–50 s
-one of the wild ones out watching you attacks: it glows and calls for 0.8 s (time to run, with
-Shift), then throws a shot of its element in an arc at you or at Mochi (a ball of water and
-bubbles, a fireball, a whirl of leaves), aimed where you stood: it bursts where it lands and hurts
-whoever is still within 1.6 m (15–25; water soaks you, fire dries you; the screen's edge flashes
-red). Mochi always strikes back (Lightning Strike or Sonic Bark at the attacker) and drives it
-off: it flashes, squashes and is gone in a burst of sparkles. Another may follow a few seconds
-later, up to three in a row. **Health** bars (you and Mochi, glass, top left) show in the forest
-and while anyone is hurt; health comes back by itself (5/s) after 6 s without a hit, Mochi's
-faster while you stroke it. At 0 you faint: you fall, the screen goes dark, and you wake on the
-beach where walks start, healed. Mochi at 0 lies down for 10 s (no striking back) and gets up at
-half. Off: they only peek out, as before.
+**Ambushes.** In the forest, every 10–20 s one of the wild ones out watching you picks a fight:
+it glows and calls for 0.8 s (time to run, with Shift) while **Mochi runs to stand guard** 1.5 m
+in front of you, between you and it. Then they fight: the wild one throws a shot of its element
+every ~2 s (a ball of water and bubbles, a fireball, a whirl of leaves) in an arc at you or at
+Mochi, aimed where its target stood (running dodges it; Mochi on guard takes half of those meant
+for you). A hit on you only splashes (water soaks you, fire dries you, the screen's edge flashes
+red): **you have no health**. A hit on Mochi costs it 15–25. Mochi strikes back again and again
+(Lightning Strike or Sonic Bark, 35–50 each): the wild one's 100 health lasts 2–3 strikes, then
+it flashes, squashes and is gone in a burst of sparkles. **Health bars float over their heads**,
+as in games (Mochi's gold, the wild one's in its element's colour, red when low): in a fight,
+and over Mochi while it is hurt. Mochi's health comes back by itself (5/s) after 6 s without a
+hit, faster while you stroke it. If Mochi goes down, the wild one has won and slips away; Mochi
+lies down for 10 s and gets up at half.
 
 **Bé Mập, the baby shark (always there).** A small
 friendly blue shark with a big baby head lives out at sea and comes to play while you are on the

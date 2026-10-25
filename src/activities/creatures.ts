@@ -70,7 +70,8 @@ export interface CreatureHost {
   rainbow: EmberSink;
   /** Flashes, shock waves, shake, framing and big sounds for the skills. */
   fx: SkillFxSink;
-  /** A wild one in the forest attacks (activities/ambush.ts). */
+  /** A wild one in the forest gets ready to attack, then attacks (activities/ambush.ts). */
+  wildWindup(a: Attacker): void;
   wildAttack(a: Attacker): void;
   /** A skill you set off (a key or a click) started at (x, z): show its name (and maybe a combo). */
   skillCard(skill: string, element: SkillElement, x: number, z: number): void;
@@ -169,6 +170,7 @@ export class Creatures {
         return { crabs, dragons, bunnies };
       },
       compile: (root) => this.compileHidden(root, []),
+      windup: (a) => host.wildWindup(a),
       attack: (a) => host.wildAttack(a),
       banished: (kind, x, y, z) => {
         // Gone in a flash of its colour and a burst of sparkles.

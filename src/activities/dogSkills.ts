@@ -83,6 +83,8 @@ export class DogSkills {
   private counterWith: 'zap' | 'bark' = 'zap';
   private counterAt: { x: number; y: number; z: number } | null = null;
   private counterHit: (() => void) | null = null;
+  /** The last one it struck back at (its name card shows once per foe, not at every strike). */
+  private counterLast: object | null = null;
   private t = 0;
   private struck = 0;
   private crawlIn = 0;
@@ -132,7 +134,8 @@ export class DogSkills {
     this.counterWith = Math.random() < 0.5 ? 'zap' : 'bark';
     this.counterAt = target;
     this.counterHit = hit;
-    h.card(this.counterWith);
+    if (target !== this.counterLast) h.card(this.counterWith);
+    this.counterLast = target;
     return true;
   }
 

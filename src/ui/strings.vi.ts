@@ -352,11 +352,6 @@ export const vi = {
       glowMeadow: 'Combo Điện + Cỏ: Glowing Meadow',
     } as Record<string, string>,
   },
-  health: {
-    you: 'Bạn',
-    dog: 'Mochi',
-    fainted: 'Bạn kiệt sức… tỉnh lại trên bãi biển',
-  },
   shortcuts: {
     debug: 'Ẩn/hiện thông số',
     muteAll: 'Tắt/bật toàn bộ âm thanh',
