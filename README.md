@@ -60,6 +60,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `N` | Stop / run the clock (stopping the real-time clock freezes the island at that moment) |
 | `C` | Walk around the island; press again to go back to the orbit view |
 | `V` | While walking: character view (third person) ↔ eyes view (first person) |
+| Mouse wheel | While walking or standing: the camera in and out behind you (1.6–18 m, as in the overview; still shortened by what is in the way). In past the nearest: through the eyes; out from there: behind you again |
 | `T` | Pomodoro: show the timer and start / pause it |
 | `B` | Work desk: sit down at the desk in the house (from anywhere) / get up |
 | `G` | Call Mochi the dog: it runs straight to you |
@@ -535,7 +536,7 @@ behind you, so it works inside the small room too.
 | `W` `A` `S` `D` / arrow keys | Walk |
 | `Shift` (hold) | Run |
 | Click | Splash: a ripple at the cursor, if that is water |
-| `V` | Switch between the character view and the eyes view |
+| `V` | Switch between the character view and the eyes view (the mouse wheel too: see the walking keys) |
 | `C` | Stop walking and return to the orbit view |
 
 - You start at the foot of the porch steps, looking out to sea; next time you continue where you

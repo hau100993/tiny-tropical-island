@@ -42,6 +42,13 @@ const PITCH = { first: [-1.45, 1.45], third: [-1.2, 0.8] } as const;
 /** Third person: camera distance behind the pivot, and pivot height above the feet (chest). */
 const ARM = 4.2;
 const HEAD = 1.4;
+/**
+ * Mouse wheel (walking or standing, as in the overview): the arm from `min` to `max` m, × `step`
+ * per notch. In past `min` you see through the eyes; out from there, behind you again.
+ */
+const ZOOM = { min: 1.6, max: 18, step: 1.18 } as const;
+/** Wheel delta (px) of one notch (trackpads send many small ones). */
+const NOTCH_PX = 100;
 
 export type WalkView = 'first' | 'third';
 
@@ -71,6 +78,8 @@ export interface WalkerEvents {
   onStroke(e: SwimStroke): void;
   /** Went under (a dive) or came back up to the surface. */
   onDive(under: boolean): void;
+  /** The wheel asks for the other view (in past the nearest: through the eyes; out: behind). */
+  onView(view: WalkView): void;
 }
 
 /** The keys that move you: held, the mouse steers (DragLook). */
@@ -110,8 +119,9 @@ export class Walker {
   phase = 0;
   /** Current step length (m): shorter when walking slowly, 0 standing still. */
   stride = 0;
-  /** Third person: current camera distance (shorter when something is in the way). */
+  /** Third person: current camera distance (shorter when something is in the way), and the one the wheel chose. */
   arm = ARM;
+  armWant = ARM;
   /** In deep water: swimming instead of walking (feetY is then the seabed below). */
   swimming = false;
   /** Sea surface (with the waves) where the swimmer is. */
@@ -158,6 +168,17 @@ export class Walker {
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
+    // The wheel over the scene: the camera arm in and out (see ZOOM).
+    dom.addEventListener(
+      'wheel',
+      (e) => {
+        if (!this.active) return;
+        e.preventDefault();
+        const px = e.deltaMode === WheelEvent.DOM_DELTA_PIXEL ? e.deltaY : e.deltaY * NOTCH_PX;
+        this.zoom(px / NOTCH_PX);
+      },
+      { passive: false },
+    );
     this.look = new DragLook(
       dom,
       (dx, dy) => {
@@ -183,7 +204,7 @@ export class Walker {
     this.keys.clear();
     this.vel.set(0, 0);
     this.eyeY = this.feetY + EYE_HEIGHT;
-    this.arm = ARM;
+    this.arm = this.armWant;
     this.setView(this.view);
     this.camera.rotation.order = 'YXZ';
     this.applyCamera(0);
@@ -198,6 +219,25 @@ export class Walker {
     this.pitch = -0.1;
     if (this.colliders.world.supportAt(x, z, 1000, this.sup)) this.feetY = this.sup.y;
     this.placed = true;
+  }
+
+  /** `notches` of the wheel (> 0: out). */
+  zoom(notches: number): void {
+    if (notches === 0) return;
+    if (this.view === 'first') {
+      // Out from the eyes: behind you, close.
+      if (notches > 0) {
+        this.armWant = ZOOM.min;
+        this.events.onView('third');
+      }
+      return;
+    }
+    const next = this.armWant * Math.pow(ZOOM.step, notches);
+    if (next < ZOOM.min * 0.92) {
+      this.events.onView('first');
+      return;
+    }
+    this.armWant = Math.min(ZOOM.max, Math.max(ZOOM.min, next));
   }
 
   setView(view: WalkView): void {
@@ -544,10 +584,7 @@ export class Walker {
     const fy = Math.sin(this.pitch);
     const fz = -Math.cos(this.yaw) * cp;
     const headY = this.eyeY + (this.diving ? 0.1 : 0.15);
-    const free = this.colliders.cameraDistance(this.x, headY, this.z, -fx, -fy, -fz, ARM);
-    const want = Math.max(0.3, free - 0.25);
-    if (want < this.arm || dt === 0) this.arm = want;
-    else this.arm += (want - this.arm) * damp(3, dt);
+    this.springArm(dt, headY, fx, fy, fz);
     const cx = this.x - fx * this.arm;
     const cz = this.z - fz * this.arm;
     // At the surface the camera stays above the water; diving, it stays under it.
@@ -556,6 +593,19 @@ export class Walker {
       : Math.max(headY - fy * this.arm, this.surfaceY + 0.45);
     this.camera.position.set(cx, cy, cz);
     this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
+  }
+
+  /**
+   * The arm's length this frame: as long as the wheel chose, but short of whatever is in the way
+   * behind (at once when something gets in the way, easing back out after); the wheel's own
+   * changes ease both ways.
+   */
+  private springArm(dt: number, headY: number, fx: number, fy: number, fz: number): void {
+    const free = this.colliders.cameraDistance(this.x, headY, this.z, -fx, -fy, -fz, this.armWant);
+    const blocked = free - 0.25 < this.armWant;
+    const want = Math.max(0.3, Math.min(this.armWant, free - 0.25));
+    if (dt === 0 || (blocked && want < this.arm)) this.arm = want;
+    else this.arm += (want - this.arm) * damp(want < this.arm ? 8 : 3, dt);
   }
 
   /**
@@ -568,10 +618,7 @@ export class Walker {
     const fx = -Math.sin(this.yaw) * cp;
     const fy = Math.sin(this.pitch);
     const fz = -Math.cos(this.yaw) * cp;
-    const free = this.colliders.cameraDistance(this.x, headY, this.z, -fx, -fy, -fz, ARM);
-    const want = Math.max(0.3, free - 0.25);
-    if (want < this.arm || dt === 0) this.arm = want;
-    else this.arm += (want - this.arm) * damp(3, dt);
+    this.springArm(dt, headY, fx, fy, fz);
     const cx = this.x - fx * this.arm;
     const cz = this.z - fz * this.arm;
     // Never under the sea surface (waves would cut through the picture).

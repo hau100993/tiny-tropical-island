@@ -266,6 +266,7 @@ export class App {
         onSwim: (swimming) => this.onSwim(swimming),
         onStroke: (e) => this.onSwimStroke(e),
         onDive: (under) => this.onDive(under),
+        onView: (view) => this.settings.update({ walkView: view }),
       },
       () => this.reducedMotion.matches,
     );

@@ -377,7 +377,7 @@ export const vi = {
     mouse: 'Kéo: xoay · Cuộn: thu phóng · Chuột phải: dời · Nhấp vào nước: gợn sóng',
     sliderWheel: 'Thanh trượt: lăn chuột để chỉnh 5% (giờ: 15 phút) · giữ Shift để chỉnh mịn · nhấp đúp: về mặc định',
     sceneKeys: '1 – 9: chọn cảnh theo thứ tự trên bảng',
-    walkKeys: 'Khi đi bộ: W A S D đi · Shift chạy · chuột lái hướng khi đi · đứng lại: kéo chuột để xoay, rê lên Mochi để vuốt · V đổi góc nhìn · C toàn cảnh',
+    walkKeys: 'Khi đi bộ: W A S D đi · Shift chạy · chuột lái hướng khi đi · đứng lại: kéo chuột để xoay, rê lên Mochi để vuốt · lăn chuột: camera xa/gần (lăn sát vào: nhìn qua mắt) · V đổi góc nhìn · C toàn cảnh',
     swimKeys: 'Bơi: đi ra chỗ sâu ngang ngực · W A S D bơi ếch · giữ Shift bơi sải · vào chỗ nông là đứng dậy',
     diveKeys: 'Lặn: đang bơi nhấn Space · W bơi theo hướng nhìn · Space trồi lên · dưỡng khí ~45 giây, hết thì tự nổi',
     surfKeys: 'Lướt ván: nằm chèo W, A / D quay ván · hiện "Sóng tới!" thì nhấn Space: ván giữ hướng mũi đang chỉ (A / D vẫn chỉnh được), tự chèo và đứng lên · lướt 8 giây liền: Bé Mập nhảy lên ăn mừng · đứng: A / D ôm cua dọc sóng (Shift gắt, nghiêng quá là ngã, ngã thì tự leo lại lên ván) · W lấy đà · S hãm · L rời ván',
