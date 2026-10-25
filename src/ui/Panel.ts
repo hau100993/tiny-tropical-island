@@ -113,13 +113,6 @@ export class Panel {
   private readonly qualityNote: HTMLElement;
   private readonly autoRotate: ToggleControl;
   private readonly footsteps: ToggleControl;
-  private readonly dog: ToggleControl;
-  private readonly creatures: ToggleControl;
-  private readonly dragon: ToggleControl;
-  private readonly grass: ToggleControl;
-  private readonly wild: ToggleControl;
-  private readonly wildAttack: ToggleControl;
-  private readonly shark: ToggleControl;
   private readonly thirdPerson: ToggleControl;
   private readonly startAtDesk: ToggleControl;
   private readonly startQuality: QualityLevel;
@@ -312,24 +305,10 @@ export class Panel {
     this.footsteps = toggle(vi.panel.footsteps, s.footsteps, (on) => settings.update({ footsteps: on }));
     this.autoRotate = toggle(vi.panel.autoRotate, s.autoRotate, (on) => settings.update({ autoRotate: on }));
     const viewOpts = el('div', 'option-list');
-    this.dog = toggle(vi.dog.toggle, s.dog, (on) => settings.update({ dog: on }));
-    this.creatures = toggle(vi.creatures.toggle, s.creatures, (on) => settings.update({ creatures: on }));
-    this.dragon = toggle(vi.creatures.dragonToggle, s.dragon, (on) => settings.update({ dragon: on }));
-    this.grass = toggle(vi.creatures.grassToggle, s.grass, (on) => settings.update({ grass: on }));
-    this.wild = toggle(vi.creatures.wildToggle, s.wild, (on) => settings.update({ wild: on }));
-    this.wildAttack = toggle(vi.creatures.wildAttackToggle, s.wildAttack, (on) => settings.update({ wildAttack: on }));
-    this.shark = toggle(vi.creatures.sharkToggle, s.shark, (on) => settings.update({ shark: on }));
     viewOpts.append(
       withKey(this.thirdPerson.root, 'V'),
       this.footsteps.root,
       this.autoRotate.root,
-      withKey(this.dog.root, 'G'),
-      withKey(this.creatures.root, 'R'),
-      withKey(this.dragon.root, 'X'),
-      withKey(this.grass.root, 'Z'),
-      this.wild.root,
-      this.wildAttack.root,
-      this.shark.root,
     );
     const characters = el('div', 'seg-group three');
     for (const id of CHARACTER_IDS) {
@@ -651,13 +630,6 @@ export class Panel {
     this.qualityNote.textContent = msaaChanged ? vi.panel.msaaReload : '';
     this.autoRotate.set(s.autoRotate);
     this.footsteps.set(s.footsteps);
-    this.dog.set(s.dog);
-    this.creatures.set(s.creatures);
-    this.dragon.set(s.dragon);
-    this.grass.set(s.grass);
-    this.wild.set(s.wild);
-    this.wildAttack.set(s.wildAttack);
-    this.shark.set(s.shark);
     this.synthFallback.set(s.synthFallback);
     this.thirdPerson.set(s.walkView === 'third');
     this.startAtDesk.set(s.startAtDesk);

@@ -322,19 +322,11 @@ export const vi = {
     resetHint: (v: string) => `Lăn chuột để chỉnh · nhấp đúp: về mặc định (${v})`,
   },
   dog: {
-    toggle: 'Mochi đi theo',
     zoomNoRoom: 'Mochi cần chỗ trống quanh bạn (bãi cỏ, bãi cát) để chạy',
   },
   creatures: {
-    toggle: 'Bọt (cua hệ Nước)',
-    off: 'Bật “Bọt” trong Góc nhìn trước',
-    dragonToggle: 'Hỏa Long (rồng hệ Lửa)',
-    dragonOff: 'Bật “Hỏa Long” trong Góc nhìn trước',
-    grassToggle: 'Mầm (thỏ hệ Cỏ)',
-    grassOff: 'Bật “Mầm” trong Góc nhìn trước',
-    wildToggle: 'Sinh vật hoang trong rừng',
-    wildAttackToggle: 'Sinh vật hoang tấn công (có thanh máu)',
-    sharkToggle: 'Bé Mập trêu bạn ở biển',
+    /** Pressed before it has arrived (its model loads on first use). */
+    coming: 'Đang gọi… thử lại sau một giây',
     sharkFriend: 'Bé Mập đã thành bạn của bạn! Giờ nó hay bơi cùng bạn.',
     sharkShoo: 'Bé Mập phụng phịu bơi đi…',
     sharkCheer: (s: number) => `Lướt ${s} giây liền! Bé Mập nhảy lên ăn mừng cho bạn!`,

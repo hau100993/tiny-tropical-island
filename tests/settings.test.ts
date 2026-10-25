@@ -33,6 +33,12 @@ describe('parseSettings', () => {
     expect(mouseLook(defaultSettings().mouseSpeed)).toBeCloseTo(0.6);
   });
 
+  it('turns activity sounds on once for version 2 data, and keeps a later choice', () => {
+    expect(defaultSettings().footsteps).toBe(true);
+    expect(parseSettings(JSON.stringify({ version: 2, footsteps: false })).footsteps).toBe(true);
+    expect(parseSettings(JSON.stringify({ version: 3, footsteps: false })).footsteps).toBe(false);
+  });
+
   it('rejects unknown quality levels', () => {
     expect(parseSettings(JSON.stringify({ quality: 'ultra' })).quality).toBe('medium');
   });

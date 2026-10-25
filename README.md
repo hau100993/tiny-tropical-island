@@ -105,8 +105,9 @@ also take the wheel when the pointer is over their row (±1, Shift ±5).
   file** (the synthesized fallback, see below).
 - **Góc nhìn:** tiles for **Toàn cảnh**, **Đi bộ**, **Góc làm việc**, **Bồn tắm**, **Nằm võng**
   (the current one is highlighted, each shows its key), and switches: character view (`V`),
-  **Âm thanh hoạt động** (footsteps, paddle and swim splashes, the surf's crash and rush; off by
-  default), camera auto-rotate, and **Nhân vật**: **Mặc định** (the built-in body), **Nam** or
+  **Âm thanh hoạt động** (footsteps, paddle and swim splashes, the surf's crash and rush, the
+  creatures' voices and skills; on by default), camera auto-rotate. Mochi, the creatures, the wild
+  ones and Bé Mập are always there (their switches were removed 2026-10-25), and **Nhân vật**: **Mặc định** (the built-in body), **Nam** or
   **Nữ** (see *Characters* below).
 - **Cài đặt:** quality (Thấp / Vừa / Cao; anti-aliasing changes between Low and the others
   apply after a reload), **Mở app ở góc làm việc**, **Nhấp vào cảnh 3D để thu gọn bảng** (off by
@@ -343,7 +344,7 @@ when wading), and when he stops mid-stride he steps his feet back together inste
 with one leg out and the knees bent. He breathes, blinks
 and looks around slowly when standing.
 
-**Mochi the dog (Góc nhìn → Mochi đi theo, on by default).** A Shiba Inu keeps you company. It
+**Mochi the dog (always there).** A Shiba Inu keeps you company. It
 follows your own path a couple of metres behind (breadcrumbs of where you walked, so it goes
 round trees and rocks and up the steps without any path finding), walking or galloping to keep
 up; when you stand about it looks at you, wags, sniffs the sand now and then and, after a while,
@@ -383,7 +384,7 @@ sand and snow, and with **Âm thanh hoạt động** on you hear its paws on the
 (synthesized). Its walk and gallop are the model's own clips, played faster or slower with its
 speed so the paws don't slide; lying down and sitting are poses built in code (the file has none).
 
-**Bọt, the water creature (Góc nhìn → Bọt (cua hệ Nước), on by default; trial of an elemental
+**Bọt, the water creature (always there; trial of an elemental
 trio).** A small blue crab (~0.4 m) lives on the hammock's beach. It potters about the damp
 sand, comes over to greet you when you walk near (a "yes" nod and a bubbly blub-blub), and now
 and then turns to the sea and fires a **water jet**: one glassy stream bent along its ballistic
@@ -397,7 +398,7 @@ way (at you if you are walking within 10 m, else onto the ground between it and 
 The jet flies hard and flat (up to ~10 m out to sea), a wide stream with a big splash. Sounds (the jet's hiss, its voice) follow
 **Âm thanh hoạt động**. Loaded on first use (0.2 MB), its shaders compiled in the background.
 
-**Hỏa Long, the fire creature (Góc nhìn → Hỏa Long (rồng hệ Lửa), on by default).** A small red
+**Hỏa Long, the fire creature (always there).** A small red
 dragon (~1.5 m wingspan) always on the wing, looping lazily over the beach in front of the house,
 a flame burning at the tip of its tail (smaller in the rain). Its fire lights the sand below it,
 faintly by day and warmly at night (a faked glow, no real light). It flies over to greet you when
@@ -411,7 +412,7 @@ it hovers, turns to you, its tail flame flares and it puffs embers; click it and
 excited dance with a burst of fire straight up. Sounds (the roar and crackle of the flame, its
 chirrup) follow **Âm thanh hoạt động**. Loaded on first use (0.44 MB).
 
-**Mầm, the grass creature (Góc nhìn → Mầm (thỏ hệ Cỏ), on by default).** A spring-green bunny
+**Mầm, the grass creature (always there).** A spring-green bunny
 (~0.75 m to the ear tips) with a cream belly and a carrot in its paw, a sprout growing from the
 top of its head between the ears (a soft-ribbed bud with a shoot and four leaves that sway in the
 wind). It wanders the lawn by the stepping stones between the house and the beach (it keeps away
@@ -469,7 +470,7 @@ blowing up in fire), **Điện + Cỏ "Glowing Meadow"** (glowing pollen all ove
 arcs jumping between the grass). Mochi counts as Điện; a creature struck by its lightning that
 hits back can make one too.
 
-**Wild ones in the rainforest (Góc nhìn → Sinh vật hoang trong rừng, on by default).** Walk in
+**Wild ones in the rainforest (always there).** Walk in
 among the trees and wild Bọt, Hỏa Long and Mầm show themselves: every few seconds one peeks out
 from behind a trunk ahead of you (5–11 m off, never behind another trunk from where the camera
 looks; up to 1–3 at once, drawn again each time you walk in), watches you, calls, shows its
@@ -478,7 +479,7 @@ element (soap bubbles, embers, pollen), then slips back behind the trunk and is 
 and they all hide. The wild dragons hover between the trunks. Two of each are loaded on your
 first visit (skeleton clones of one load each) and reused.
 
-**Ambushes (Góc nhìn → Sinh vật hoang tấn công, on by default).** In the forest, every 25–50 s
+**Ambushes.** In the forest, every 25–50 s
 one of the wild ones out watching you attacks: it glows and calls for 0.8 s (time to run, with
 Shift), then throws a shot of its element in an arc at you or at Mochi (a ball of water and
 bubbles, a fireball, a whirl of leaves), aimed where you stood: it bursts where it lands and hurts
@@ -491,7 +492,7 @@ faster while you stroke it. At 0 you faint: you fall, the screen goes dark, and 
 beach where walks start, healed. Mochi at 0 lies down for 10 s (no striking back) and gets up at
 half. Off: they only peek out, as before.
 
-**Bé Mập, the baby shark (Góc nhìn → Bé Mập trêu bạn ở biển, on by default).** A small
+**Bé Mập, the baby shark (always there).** A small
 friendly blue shark with a big baby head lives out at sea and comes to play while you are on the
 water (kayak, surf, swim, dive), first after ~30 s there and then every ~2–4 minutes, only over
 water deeper than 1.5 m. It warns you first: it circles you for 5–8 s with its fin cutting the
@@ -563,7 +564,7 @@ behind you, so it works inside the small room too.
   the house beach and leap now and then (watch from the desk window); ghost crabs scurry on the
   damp sand and dig in when you come close; sea turtles glide over the reef (dive to see them).
 - **Sound follows where you are:** footsteps change with the ground (sand, grass, rock, wooden
-  floor, splashing water, snow crunch; switch on with **Âm thanh hoạt động**). The surf is loud on
+  floor, splashing water, snow crunch; with **Âm thanh hoạt động**, on by default). The surf is loud on
   the beach and fades inland, coming from the sea's side; birds get louder among the trees;
   inside the room everything is muffled and rain sounds like rain on the roof. No rain or snow
   falls under the roof, and the floor stays dry.

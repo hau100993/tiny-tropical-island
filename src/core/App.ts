@@ -715,7 +715,7 @@ export class App {
       keyLabel: 'G',
       label: vi.shortcuts.callDog,
       action: () => {
-        if (this.settings.get().dog) this.dog?.call();
+        this.dog?.call();
       },
     });
     this.keymap.register({
@@ -724,7 +724,7 @@ export class App {
       label: vi.shortcuts.dogSkill,
       action: () => {
         const dog = this.dog;
-        if (!this.settings.get().dog || !dog) return;
+        if (!dog) return;
         if (this.dogSkills.next(() => dog.zoomies(this.dogPlayer)) === 'noRoom') this.activityMenu.flash(vi.dog.zoomNoRoom);
       },
     });
@@ -734,7 +734,7 @@ export class App {
       label: vi.shortcuts.waterSkill,
       action: () => {
         const r = this.creatures.waterSkill();
-        if (r === 'off') this.activityMenu.flash(vi.creatures.off);
+        if (r === 'off') this.activityMenu.flash(vi.creatures.coming);
       },
     });
     this.keymap.register({
@@ -743,7 +743,7 @@ export class App {
       label: vi.shortcuts.fireSkill,
       action: () => {
         const r = this.creatures.fireSkill();
-        if (r === 'off') this.activityMenu.flash(vi.creatures.dragonOff);
+        if (r === 'off') this.activityMenu.flash(vi.creatures.coming);
       },
     });
     this.keymap.register({
@@ -752,7 +752,7 @@ export class App {
       label: vi.shortcuts.grassSkill,
       action: () => {
         const r = this.creatures.grassSkill();
-        if (r === 'off') this.activityMenu.flash(vi.creatures.grassOff);
+        if (r === 'off') this.activityMenu.flash(vi.creatures.coming);
       },
     });
     this.keymap.register({
@@ -900,11 +900,11 @@ export class App {
     this.updateSynth();
     this.overlay.setVisible(s.showDebug);
     if (s.character !== this.characterId) this.setCharacter(s.character);
-    if (s.dog && !this.dogModel && !this.dogLoading) this.loadDog();
-    if (this.dogModel) this.dogModel.root.visible = s.dog;
-    this.creatures.setEnabled(s.creatures, s.dragon, s.grass);
-    this.creatures.setWild(s.wild, s.wildAttack);
-    this.beMap.setEnabled(s.shark);
+    // Mochi, the creatures, the wild ones and Bé Mập are always there (no switches since 2026-10-25).
+    if (!this.dogModel && !this.dogLoading) this.loadDog();
+    this.creatures.setEnabled(true, true, true);
+    this.creatures.setWild(true, true);
+    this.beMap.setEnabled(true);
   }
 
   /**
@@ -1196,9 +1196,8 @@ export class App {
       this.dogDownT -= dt;
       if (this.dogDownT <= 0) this.health.restore('dog', 50);
     }
-    const s = this.settings.get();
-    const show = (this.creatures.inWildForest && s.wild && s.wildAttack) || this.health.hurt;
-    this.hpBars.update(show, this.health.hp.you, this.health.hp.dog, s.dog && this.dog !== null);
+    const show = this.creatures.inWildForest || this.health.hurt;
+    this.hpBars.update(show, this.health.hp.you, this.health.hp.dog, this.dog !== null);
   }
 
   /** Combos: the creatures' effect pools, where you are, who could join in. */
@@ -1231,7 +1230,7 @@ export class App {
         const out: Partner[] = [];
         this.creatures.partners(x, z, r, except, out);
         const dog = this.dog;
-        if (except !== 'spark' && dog && this.settings.get().dog && Math.hypot(dog.x - x, dog.z - z) < r) {
+        if (except !== 'spark' && dog && Math.hypot(dog.x - x, dog.z - z) < r) {
           out.push({ element: 'spark', x: dog.x, z: dog.z, start: () => this.dogSkills.join() });
         }
         return out;
@@ -1293,7 +1292,7 @@ export class App {
       .then((model) => {
         this.dogModel = model;
         this.scene.add(model.root);
-        model.root.visible = this.settings.get().dog;
+        model.root.visible = true;
         const h = this.world.house;
         const c = this.colliders;
         // A spot in the room (house-local), facing a house-local point; on the floor.

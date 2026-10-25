@@ -4,7 +4,7 @@ import type { WalkView } from '../controls/walker';
 
 
 export const SETTINGS_KEY = 'tsw.settings';
-export const SETTINGS_VERSION = 2;
+export const SETTINGS_VERSION = 3;
 
 /** Who you walk around as: the built-in (code) body or a character from a .glb file. */
 export const CHARACTER_IDS = ['default', 'man', 'woman'] as const;
@@ -54,23 +54,10 @@ export interface Settings {
   // Walking (Phase 5)
   /**
    * Activity sounds ("Âm thanh hoạt động"): footsteps, paddle and swim splashes, the surf's crash
-   * and rush. Off by default (2026-10-20); version 2 turned it off once for everyone.
+   * and rush, the creatures' voices and skills. On by default again (2026-10-25: version 3 turned
+   * it on once for everyone; version 2 had turned it off).
    */
   footsteps: boolean;
-  /** Mochi the dog keeps you company. */
-  dog: boolean;
-  /** Bọt, the water creature (a crab) on the house beach. */
-  creatures: boolean;
-  /** Hỏa Long, the fire creature (a dragon) over the house beach. */
-  dragon: boolean;
-  /** Mầm, the grass creature (a bunny) on the grass in front of the house. */
-  grass: boolean;
-  /** Wild ones of the three peek out from behind the trees when you walk in the rainforest. */
-  wild: boolean;
-  /** The wild ones attack you and Mochi now and then (health bars; Mochi strikes back). */
-  wildAttack: boolean;
-  /** Bé Mập, the baby shark, comes to play pranks while you are at sea. */
-  shark: boolean;
   /** Walk mode view: through the eyes, or behind the character. */
   walkView: WalkView;
   /** Mouse steering speed while walking, paddling and surfing, 0..1 (see mouseLook). */
@@ -128,14 +115,7 @@ export function defaultSettings(): Settings {
     sunBrightness: 0.5,
     sunSize: 0.5,
     fireflies: true,
-    footsteps: false,
-    dog: true,
-    creatures: true,
-    dragon: true,
-    grass: true,
-    wild: true,
-    wildAttack: true,
-    shark: true,
+    footsteps: true,
     walkView: 'third',
     mouseSpeed: 0.4,
     character: 'default',
@@ -153,6 +133,8 @@ type Raw = Record<string, unknown>;
 const MIGRATIONS: Record<number, (raw: Raw) => Raw> = {
   // 1 → 2: activity sounds became opt-in.
   1: (raw) => ({ ...raw, footsteps: false }),
+  // 2 → 3: back on by default (and the creature switches are gone: they are always there).
+  2: (raw) => ({ ...raw, footsteps: true }),
 };
 
 function migrate(raw: Raw): Raw {
@@ -232,13 +214,6 @@ export function parseSettings(json: string | null): Settings {
     sunSize: unit(raw.sunSize, defaults.sunSize),
     fireflies: bool(raw.fireflies, defaults.fireflies),
     footsteps: bool(raw.footsteps, defaults.footsteps),
-    dog: bool(raw.dog, defaults.dog),
-    creatures: bool(raw.creatures, defaults.creatures),
-    dragon: bool(raw.dragon, defaults.dragon),
-    grass: bool(raw.grass, defaults.grass),
-    wild: bool(raw.wild, defaults.wild),
-    wildAttack: bool(raw.wildAttack, defaults.wildAttack),
-    shark: bool(raw.shark, defaults.shark),
     walkView: raw.walkView === 'first' || raw.walkView === 'third' ? raw.walkView : defaults.walkView,
     mouseSpeed: unit(raw.mouseSpeed, defaults.mouseSpeed),
     character: (CHARACTER_IDS as readonly unknown[]).includes(raw.character) ? (raw.character as CharacterId) : defaults.character,
