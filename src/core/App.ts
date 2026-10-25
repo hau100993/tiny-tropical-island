@@ -12,6 +12,9 @@ import { Keymap } from '../controls/keymap';
 import { onWaterClick, type ClickAim } from '../controls/waterClick';
 import { PetPointer } from '../controls/petPointer';
 import { DragLook } from '../controls/dragLook';
+import { SkillFx } from '../world/creatures/skillFx';
+import { Bloom } from './bloom';
+import { SkillCard, type SkillElement } from '../ui/skillCard';
 import { Petting } from '../activities/petting';
 import { Hearts } from '../world/hearts';
 import { PetCursor } from '../ui/PetCursor';
@@ -163,6 +166,10 @@ export class App {
   private readonly seaGlow: Embers;
   /** Bé Mập's rainbow (its celebration of a long ride). */
   private readonly rainbow: Embers;
+  /** The skills' flashes, shock waves, shake and framing; their bloom (High), their name cards. */
+  private readonly fx: SkillFx;
+  private readonly bloom: Bloom;
+  private skillCard!: SkillCard;
   /** Petting Mochi with the mouse (activities/petting.ts, controls/petPointer.ts). */
   private readonly petting = new Petting();
   private readonly petPointer: PetPointer;
@@ -338,6 +345,12 @@ export class App {
     // Rainbow motes: Bé Mập's and Mochi's celebrations, Bọt's geyser and more (shared).
     this.rainbow = new Embers(sharedUniforms, 'rainbow');
     this.scene.add(this.rainbow.points);
+    this.fx = new SkillFx(this.scene, this.camera, () => this.reducedMotion.matches, (kind, size, x, y, z) => {
+      const ear = this.settings.get().footsteps ? this.dogEar(x, y, z) : null;
+      // Big sounds carry: at least a third as loud as up close, anywhere on the beach.
+      if (ear) this.mixer.playSkill(kind, size, Math.max(ear.gain, 0.35), ear.pan);
+    });
+    this.bloom = new Bloom(this.renderer, this.scene, this.camera, QUALITY_PROFILES[this.settings.get().quality].msaa);
     this.creatures = this.createCreatures();
     this.seaGlow = new Embers(sharedUniforms, 'sea');
     this.scene.add(this.seaGlow.points);
@@ -351,6 +364,7 @@ export class App {
     // UI layer above the canvas; hidden as a whole with the H key.
     const ui = document.createElement('div');
     ui.className = 'ui-layer';
+    this.skillCard = new SkillCard(ui);
     container.append(ui);
     this.migrateLinkedWeather();
     this.library.setActivePreset(this.settings.get().activeScene);
@@ -682,7 +696,6 @@ export class App {
       action: () => {
         const r = this.creatures.waterSkill();
         if (r === 'off') this.activityMenu.flash(vi.creatures.off);
-        else if (r !== 'busy') this.activityMenu.flash(vi.creatures.skills[r]);
       },
     });
     this.keymap.register({
@@ -692,7 +705,6 @@ export class App {
       action: () => {
         const r = this.creatures.fireSkill();
         if (r === 'off') this.activityMenu.flash(vi.creatures.dragonOff);
-        else if (r !== 'busy') this.activityMenu.flash(vi.creatures.skills[r]);
       },
     });
     this.keymap.register({
@@ -702,7 +714,6 @@ export class App {
       action: () => {
         const r = this.creatures.grassSkill();
         if (r === 'off') this.activityMenu.flash(vi.creatures.grassOff);
-        else if (r !== 'busy') this.activityMenu.flash(vi.creatures.skills[r]);
       },
     });
     this.keymap.register({
@@ -988,6 +999,8 @@ export class App {
       },
       house: { x: house.x, z: house.z },
       rainbow: this.rainbow,
+      fx: this.fx,
+      skillCard: (skill, element) => this.showSkill(skill, element),
       trunks: this.world.forest.trunks,
       treesNear: (x, z, r) => this.colliders.treesNear(x, z, r),
       aim: () => this.petAimMode(),
@@ -1018,6 +1031,12 @@ export class App {
         this.soaked = 0;
       },
     });
+  }
+
+  /** A skill you set off (a key or a click): its name card. */
+  private showSkill(skill: string, element: SkillElement): void {
+    const name = vi.creatures.skills[skill];
+    if (name) this.skillCard.show(name, element);
   }
 
   /** Mochi the dog: loaded on first use (a .glb, ~0.8 MB). See activities/dogCompanion.ts. */
@@ -1888,6 +1907,7 @@ export class App {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h, false);
     this.renderer.getDrawingBufferSize(this.drawingBuffer);
+    this.bloom.resize();
     this.world.water.setSize(this.drawingBuffer.x, this.drawingBuffer.y);
     this.deskVideo?.setSize(w, h);
     this.world.spray.setViewport(this.drawingBuffer.y, this.camera.fov);
@@ -1949,6 +1969,7 @@ export class App {
     this.beMap.update(dt);
     this.seaGlow.update(dt);
     this.rainbow.update(dt);
+    this.fx.update(dt);
     this.updateWetness(dt);
     this.world.footprints.setClock(elapsed);
     const onFoot = this.cameras.mode === 'walk' && !this.walker.swimming;
@@ -1971,8 +1992,12 @@ export class App {
     this.updateShadowFocus();
     // The next scene render (capture if refraction is on, else main) refreshes the shadow map.
     this.renderer.shadowMap.needsUpdate = true;
+    // The skills' shake and framing, for this frame's renders only (not seated: the desk's own view).
+    this.fx.apply(this.cameras.mode !== 'seat');
     this.world.water.captureScene(this.scene, this.camera);
-    this.renderer.render(this.scene, this.camera);
+    if (QUALITY_PROFILES[s.quality].bloom && this.fx.bloom > 0.02) this.bloom.render(this.fx.bloom);
+    else this.renderer.render(this.scene, this.camera);
+    this.fx.restore();
     this.deskVideo.punchHole(this.renderer);
     this.gpuTimer.end();
     this.maybeResetTimeVisible();

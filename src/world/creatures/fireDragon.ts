@@ -1,6 +1,7 @@
 import type { DragonAction } from './dragonModel';
 import { FireBreath } from './fireBreath';
 import type { EmberSink } from './embers';
+import type { SkillFxSink } from './skillFx';
 import type { StreamState } from './jetStream';
 
 /** Cruising height above the ground or the sea (m), and the bob on it. */
@@ -32,15 +33,17 @@ const RECOVER = 0.6;
 /** Embers puffed from the mouth per second while the pointer rests on it. */
 const HOVER_EMBERS = 22;
 /**
- * "Vòng Lửa": it spins in the air and a ring of fire bursts from the ground under it, racing
- * out to `reach` m in `time` s (released `at` s into the spin).
+ * "Vòng Lửa": it spins in the air drawing fire into itself, then a ring of fire bursts from the
+ * ground under it with a flash and a wall of flame, racing out to `reach` m in `time` s
+ * (released `at` s into the spin).
  */
-const RING = { spin: 1.8, at: 0.55, time: 1.2, reach: 6, rate: 900 } as const;
+const RING = { spin: 2.0, at: 0.8, time: 1.4, reach: 10, rate: 1500 } as const;
 /**
- * "Mưa Thiên Thạch": it climbs, nose to the sky, and spits `count` fireballs up, `every` s
- * apart, that rain down round you (or round it) within `spread` m after `flight` s and burst.
+ * "Mưa Thiên Thạch": it climbs, nose to the sky, a circle of fire opens in the sky over you
+ * (or over it), and it spits `count` fireballs up, `every` s apart, that rain down round you
+ * within `spread` m after `flight` s and blow up: flash, shock wave, the ground shaking.
  */
-const METEOR = { climb: 1.6, count: 7, every: 0.28, flight: 1.5, spread: 5.5, burst: 55 } as const;
+const METEOR = { climb: 2.2, count: 10, every: 0.24, flight: 1.5, spread: 7, burst: 90, core: 0.6 } as const;
 
 /** Its skills, in the order X cycles through them. */
 export type DragonSkill = 'breath' | 'ring' | 'meteors';
@@ -63,6 +66,8 @@ export interface DragonWorld {
   ripple(x: number, z: number, radius: number, strength: number): void;
   embers: EmberSink;
   steam: EmberSink;
+  /** Flashes, shock waves, shake and big sounds. */
+  fx: SkillFxSink;
 }
 
 export interface DragonEvents {
@@ -74,6 +79,8 @@ export interface DragonEvents {
   onVoice(kind: 'greet' | 'dance'): void;
   /** The flame reached you. */
   onHitPlayer(): void;
+  /** A skill you set off (a key or a click) starts (for its name card). */
+  onSkill(skill: DragonSkill): void;
 }
 
 /** You, as the dragon sees you: null when not walking about the island. */
@@ -240,20 +247,31 @@ export class FireDragon {
       this.queued = false;
       this.autoSkill = between(AUTO_SKILL);
       this.events.onVoice('dance');
+      this.events.onSkill(this.skill);
+      const fx = this.world.fx;
       if (this.skill === 'ring') {
         this.ringAge = -1;
         this.ringHit = false;
+        fx.sound('charge', 0.8, this.x, this.y, this.z);
         this.go('ring', RING.spin);
       } else {
         const near = player !== null && toPlayer < AIM_PLAYER;
         this.rainX = near && player ? player.x : this.x;
         this.rainZ = near && player ? player.z : this.z;
         this.toThrow = METEOR.count;
-        this.throwIn = 0.5;
-        this.go('meteors', 0.5 + METEOR.count * METEOR.every + METEOR.flight + 0.4);
+        this.throwIn = 0.7;
+        // The circle of fire in the sky they fall from.
+        const sky = this.surface(this.rainX, this.rainZ) + 8;
+        fx.shock(this.rainX, sky, this.rainZ, 'fire', 0xff6a20, 5.5, 3.6);
+        fx.shock(this.rainX, sky, this.rainZ, 'energy', 0xffb050, 3.2, 2.8);
+        fx.flash(this.rainX, sky, this.rainZ, 0xff7a30, 60, 22, 1.2);
+        fx.sound('charge', 1, this.x, this.y, this.z);
+        fx.focus(this.rainX, sky * 0.5, this.rainZ, 0.7 + METEOR.count * METEOR.every + METEOR.flight + 0.6);
+        this.go('meteors', 0.7 + METEOR.count * METEOR.every + METEOR.flight + 0.4);
       }
     }
     if (!this.busy && (this.queued || (this.autoSkill <= 0 && quiet))) {
+      if (this.queued) this.events.onSkill('breath');
       this.atPlayer = this.queued && player !== null && toPlayer < AIM_PLAYER;
       this.queued = false;
       this.autoSkill = between(AUTO_SKILL);
@@ -377,11 +395,13 @@ export class FireDragon {
         speed = 0.6;
         const k = 1 - this.timer / RING.spin;
         face = this.yaw + dt * ((Math.PI * 2) / RING.spin) * 6;
+        if (this.ringAge < 0 && k < RING.at / RING.spin) this.drawIn(dt, k / (RING.at / RING.spin));
         if (this.ringAge < 0 && k >= RING.at / RING.spin) {
           this.ringAge = 0;
           this.ringX = this.x;
           this.ringZ = this.z;
           this.events.onBreath(RING.time);
+          this.releaseRing();
         }
         if (this.timer <= 0) this.go('dance', 1.2);
         break;
@@ -460,6 +480,33 @@ export class FireDragon {
     }
   }
 
+  /** Charging the ring: sparks drawn in from all round into its body, faster and denser (k 0..1). */
+  private drawIn(dt: number, k: number): void {
+    const n = Math.round(dt * (120 + 380 * k));
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const e = (Math.random() - 0.5) * 1.6;
+      const d = 2 + Math.random() * 1.8;
+      const dx = Math.cos(a) * Math.cos(e);
+      const dy = Math.sin(e);
+      const dz = Math.sin(a) * Math.cos(e);
+      // Fast inward: drag and lift bring them to rest round it (embers: drag 2.2/s, lift 2.4 m/s²).
+      this.world.embers.emit(this.x + dx * d, this.y + dy * d, this.z + dz * d, -dx * d * 2.4, -dy * d * 2.4 - 1.2, -dz * d * 2.4, 0.05 + Math.random() * 0.05);
+    }
+  }
+
+  /** The ring lets go: a flash, a wall of flame racing out with a second ring, the ground shaking. */
+  private releaseRing(): void {
+    const fx = this.world.fx;
+    const g = this.surface(this.x, this.z);
+    fx.flash(this.x, this.y, this.z, 0xff7a2a, 140, 20, 0.9);
+    fx.shock(this.x, g + (this.world.heightAt(this.x, this.z) < 0 ? 0.3 : 0), this.z, 'fire', 0xff5a14, RING.reach, RING.time, 2.4);
+    fx.shock(this.x, g, this.z, 'energy', 0xffc060, RING.reach * 0.6, RING.time * 0.75, 1.1);
+    fx.shake(this.x, g, this.z, 0.5, 0.9);
+    fx.sound('boom', 0.9, this.x, g, this.z);
+    fx.focus(this.x, g + 1, this.z, RING.time + 0.8);
+  }
+
   /** A fireball from the mouth, up and over, to land somewhere round the shower's centre. */
   private throwBall(mouth: { x: number; y: number; z: number }): void {
     const b = this.balls.find((f) => !f.live);
@@ -490,8 +537,8 @@ export class FireDragon {
       b.y += b.vy * dt;
       b.z += b.vz * dt;
       // The core (big, bright) and its tail.
-      w.embers.emit(b.x, b.y, b.z, 0, 0, 0, 0.32);
-      for (let i = 0; i < 4; i++) w.embers.emit(b.x + (Math.random() - 0.5) * 0.15, b.y + (Math.random() - 0.5) * 0.15, b.z + (Math.random() - 0.5) * 0.15, -b.vx * 0.15 + (Math.random() - 0.5), -b.vy * 0.15 + (Math.random() - 0.5), -b.vz * 0.15 + (Math.random() - 0.5), 0.08 + Math.random() * 0.08);
+      w.embers.emit(b.x, b.y, b.z, 0, 0, 0, METEOR.core);
+      for (let i = 0; i < 7; i++) w.embers.emit(b.x + (Math.random() - 0.5) * 0.15, b.y + (Math.random() - 0.5) * 0.15, b.z + (Math.random() - 0.5) * 0.15, -b.vx * 0.15 + (Math.random() - 0.5), -b.vy * 0.15 + (Math.random() - 0.5), -b.vz * 0.15 + (Math.random() - 0.5), 0.08 + Math.random() * 0.08);
       const g = w.heightAt(b.x, b.z);
       // The sea: bursts on its waves (~0.3 m), not under them.
       const floor = g < 0 ? 0.3 : g;
@@ -509,8 +556,12 @@ export class FireDragon {
           w.ripple(b.x, b.z, 0.8, -0.5);
         }
         this.events.onBoom(b.x, floor, b.z);
+        w.fx.flash(b.x, floor + 1, b.z, 0xff8a3d, 45, 10, 0.45);
+        w.fx.shock(b.x, floor, b.z, 'fire', 0xff6a20, 3.6, 0.9, 1.5);
+        w.fx.shake(b.x, floor, b.z, 0.38, 0.5);
+        w.fx.sound('boom', 0.6, b.x, floor, b.z);
         const p = this.player;
-        if (p && Math.hypot(p.x - b.x, p.z - b.z) < 1.3) this.events.onHitPlayer();
+        if (p && Math.hypot(p.x - b.x, p.z - b.z) < 1.8) this.events.onHitPlayer();
       }
     }
   }

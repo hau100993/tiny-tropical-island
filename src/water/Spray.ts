@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import type { SharedUniforms } from '../core/uniforms';
 
+/** Pool size; Bọt's geyser throws a column of thousands of drops. */
 const MAX = 1000;
+const MAX_JET = 3000;
 const GRAVITY = 9.81;
 
 /** Anything that throws droplets (the paddle now). */
@@ -62,10 +64,11 @@ export class Spray implements SpraySink {
   private readonly pos: THREE.BufferAttribute;
   private readonly size: THREE.BufferAttribute;
   private readonly fade: THREE.BufferAttribute;
-  private readonly vel = new Float32Array(MAX * 3);
-  private readonly age = new Float32Array(MAX);
-  private readonly floor = new Float32Array(MAX);
-  private readonly radius = new Float32Array(MAX);
+  private readonly max: number;
+  private readonly vel: Float32Array;
+  private readonly age: Float32Array;
+  private readonly floor: Float32Array;
+  private readonly radius: Float32Array;
   private next = 0;
   private readonly scale: { value: number };
 
@@ -75,10 +78,15 @@ export class Spray implements SpraySink {
     /** Bubbles: the sea surface above (x, z), where they pop. */
     private readonly ceiling: (x: number, z: number) => number = () => 0,
   ) {
+    const max = (this.max = kind === 'jet' ? MAX_JET : MAX);
+    this.vel = new Float32Array(max * 3);
+    this.age = new Float32Array(max);
+    this.floor = new Float32Array(max);
+    this.radius = new Float32Array(max);
     const geo = new THREE.BufferGeometry();
-    this.pos = new THREE.BufferAttribute(new Float32Array(MAX * 3), 3).setUsage(THREE.DynamicDrawUsage);
-    this.size = new THREE.BufferAttribute(new Float32Array(MAX), 1).setUsage(THREE.DynamicDrawUsage);
-    this.fade = new THREE.BufferAttribute(new Float32Array(MAX), 1).setUsage(THREE.DynamicDrawUsage);
+    this.pos = new THREE.BufferAttribute(new Float32Array(max * 3), 3).setUsage(THREE.DynamicDrawUsage);
+    this.size = new THREE.BufferAttribute(new Float32Array(max), 1).setUsage(THREE.DynamicDrawUsage);
+    this.fade = new THREE.BufferAttribute(new Float32Array(max), 1).setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute('position', this.pos);
     geo.setAttribute('aSize', this.size);
     geo.setAttribute('aFade', this.fade);
@@ -96,7 +104,7 @@ export class Spray implements SpraySink {
     this.points.name = kind;
     this.points.frustumCulled = false;
     this.points.renderOrder = 2;
-    for (let i = 0; i < MAX; i++) this.age[i] = Infinity;
+    this.age.fill(Infinity);
   }
 
   /** Viewport height in pixels and vertical field of view, for the point size. */
@@ -106,7 +114,7 @@ export class Spray implements SpraySink {
 
   drop(x: number, y: number, z: number, vx: number, vy: number, vz: number, size: number): void {
     const i = this.next;
-    this.next = (this.next + 1) % MAX;
+    this.next = (this.next + 1) % this.max;
     const p = this.pos.array as Float32Array;
     p[i * 3] = x;
     p[i * 3 + 1] = y;
@@ -129,7 +137,7 @@ export class Spray implements SpraySink {
     const s = this.size.array as Float32Array;
     const f = this.fade.array as Float32Array;
     let last = -1;
-    for (let i = 0; i < MAX; i++) {
+    for (let i = 0; i < this.max; i++) {
       if (this.age[i] === Infinity) {
         s[i] = 0;
         continue;

@@ -2237,3 +2237,66 @@ body.cursor-idle canvas {
   width: 14px;
   height: 14px;
 }
+
+/* ---- Skill name card (ui/skillCard.ts): big, glowing, in the element's colours ---- */
+.skill-card {
+  --c1: #ffffff;
+  --c2: #9fd8ff;
+  --glow: rgba(120, 200, 255, 0.8);
+  position: fixed;
+  left: 50%;
+  top: 16%;
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 30;
+  white-space: nowrap;
+}
+.skill-card.water { --c1: #e6fbff; --c2: #38b6ff; --glow: rgba(56, 182, 255, 0.85); }
+.skill-card.fire { --c1: #fff4c2; --c2: #ff5a1f; --glow: rgba(255, 110, 30, 0.9); }
+.skill-card.grass { --c1: #f4ffd6; --c2: #4cd964; --glow: rgba(90, 220, 110, 0.85); }
+.skill-card.spark { --c1: #ffffff; --c2: #ffd400; --glow: rgba(255, 220, 40, 0.95); }
+.skill-card.combo { --c1: #ffffff; --c2: #c86bff; --glow: rgba(200, 120, 255, 0.9); }
+.skill-card-who {
+  font-size: clamp(13px, 1.6vw, 18px);
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--c1);
+  text-shadow: 0 0 8px var(--glow), 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.skill-card-name {
+  margin-top: 2px;
+  font-size: clamp(30px, 5.2vw, 64px);
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  background: linear-gradient(180deg, var(--c1) 15%, var(--c2) 85%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.35);
+  filter: drop-shadow(0 0 10px var(--glow)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+}
+.skill-card.on {
+  animation: skill-card 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.skill-card.on .skill-card-name {
+  animation: skill-card-name 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes skill-card {
+  0% { opacity: 0; }
+  8% { opacity: 1; }
+  78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes skill-card-name {
+  0% { transform: translateX(-12%) skewX(-18deg) scale(1.35); letter-spacing: 0.4em; }
+  14% { transform: translateX(0) skewX(-8deg) scale(1); letter-spacing: 0.02em; }
+  80% { transform: translateX(1.5%) skewX(-8deg) scale(1.02); }
+  100% { transform: translateX(6%) skewX(-12deg) scale(1.05); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skill-card.on .skill-card-name { animation: none; }
+}

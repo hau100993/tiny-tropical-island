@@ -6,6 +6,7 @@ import { WavesLayer } from './synth/waves';
 import { WindLayer } from './synth/wind';
 import { Footsteps, type FootSurface } from './synth/footsteps';
 import { SurfSound } from './synth/surf';
+import { SkillSounds, type SkillSound } from './synth/skillSounds';
 import { spatialMix, type ListenerState } from './spatial';
 import { LayerSlot, type LayerSource } from './LayerSlot';
 import { FileLayer } from './file/FileLayer';
@@ -33,6 +34,7 @@ export class Mixer {
   private saveTimer = 0;
   private footsteps: Footsteps | null = null;
   private surf: SurfSound | null = null;
+  private skills: SkillSounds | null = null;
   /** Last spatial mix sent per layer (only resent when it changes noticeably). */
   private readonly spatialSent = new Map<LayerId, SpatialMix>();
   private readonly spatialTmp: SpatialMix = { gain: 1, pan: 0, occlusion: 0 };
@@ -64,6 +66,7 @@ export class Mixer {
     for (const layer of all) this.layers.set(layer.id, new LayerSlot(layer.id, layer, () => this.emit()));
     this.footsteps = new Footsteps(engine);
     this.surf = new SurfSound(engine);
+    this.skills = new SkillSounds(engine);
     this.applyAll(0.7);
     this.applyCalm(0.01);
     this.emit();
@@ -243,6 +246,11 @@ export class Mixer {
   /** Hỏa Long's voice (see Footsteps.dragon). */
   playDragon(kind: 'greet' | 'dance', gain: number, pan: number): void {
     this.footsteps?.dragon(kind, gain, pan);
+  }
+
+  /** A creature skill's big sound (see SkillSounds). */
+  playSkill(kind: SkillSound, size: number, gain: number, pan: number): void {
+    this.skills?.play(kind, size, gain, pan);
   }
 
   /** Mầm's leaves (see Footsteps.leaves). */

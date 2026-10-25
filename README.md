@@ -415,18 +415,34 @@ happy hop in a puff of pollen. Sounds (a rush of leaves, little squeaks) follow 
 động**. Loaded on first use (0.54 MB).
 
 **Three skills each (`R` / `X` / `Z`: each press starts the next; a click on the creature picks
-one at random; a note names it).** Bọt: **Vòi Rồng Nước** (the jet), **Mưa Bong Bóng** (a big
-breath of rainbow bubbles blown high, drifting down all round), **Mạch Nước Cầu Vồng** (claws up,
-the sand trembles, then a geyser bursts up ~5 m for 2.2 s, under you if you stand within 10 m
-(soaking you), else in front of it; in daylight a rainbow arches over it, facing you). Hỏa
-Long: **Hơi Thở Lửa** (the breath), **Vòng Lửa** (it spins once in the air and a wall of fire
-races out along the ground in a ring to 6 m; it dries you as it passes; over the sea it skims the
-waves), **Mưa Thiên Thạch** (it climbs, nose to the sky, and spits seven fireballs that arc up
-and rain down within 5.5 m of you, or of it, each a blazing core with a tail of sparks that
-bursts where it lands, hissing into steam on the sea). Mầm: **Lá Bay Nở Hoa** (the leaves and
-flowers), **Vũ Điệu Mầm Non** (a longer dance in a rising double spiral of pollen), **Gió Bồ
-Công Anh** (dandelion seeds, little white stars of fine hairs, stream off its sprout and float
-away on the wind for several seconds). Bé Mập already has three pranks and its celebration.
+one at random).** A skill you set off shows its **name card**, big and glowing in the creature's
+colours, like an anime (hidden with the rest of the UI by `H`). Bọt: **Vòi Rồng Nước** (the jet),
+**Mưa Bong Bóng** (it blows one giant soap bubble, 2.3 m across, with a swirling thin-film
+rainbow skin, sparkles drawn into it; the bubble floats up and bursts: a flash, its film flying
+apart as a fading sphere, a shock wave on the sand, hundreds of bubbles, drops and glitter all
+round, soaking you within 3.5 m), **Mạch Nước Cầu Vồng** (claws up, the sand trembles and pulses
+with rings, then a geyser bursts out with a flash, a crown of spray and a shock wave: a thick
+column of water ~10 m high for 2.8 s with a skirt of splashes, under you if you stand within 10 m
+(soaking you), else in front of it; in daylight a big rainbow arches over it, facing you). Hỏa
+Long: **Hơi Thở Lửa** (the breath), **Vòng Lửa** (it spins, drawing sparks into itself, then a
+flash and a 2.4 m wall of flame race out along the ground in a ring to 10 m, a second ring inside
+it; it dries you as it passes; over the sea it skims the waves), **Mưa Thiên Thạch** (it climbs,
+a circle of fire opens in the sky over you, or over it, and it spits ten fireballs that rain down
+within 7 m, each blowing up where it lands: a flash, a ring of flame, the ground shaking, steam
+on the sea). Mầm: **Lá Bay Nở Hoa** (the leaves and flowers), **Vũ Điệu Mầm Non** (a green
+tornado 6 m tall swirls up round it, a snaking funnel of wind streaks full of pollen and seeds;
+at the end it bursts in a gust and flowers spring up round it in two rings), **Gió Bồ Công
+Anh** (a dandelion clock swells on its sprout, then a gust: a wall of wind races out and
+hundreds of seeds, little white stars of fine hairs, whirl up and away on the wind). Bé Mập
+already has three pranks and its celebration.
+
+The big moments of every skill share their effects (`world/creatures/skillFx.ts`): a **flash**
+of real light (one point light kept in the scene at zero, so no shader is rebuilt), **shock
+waves** (a glowing ring on the ground or sea and a wall on its front: flame tongues, a crown of
+spray, wind streaks), a **camera shake** (off with Windows' reduce-motion), a short **framing**
+(the view widens a little and turns toward the skill; the camera itself never moves, so it can't
+end up inside a tree) and big **sounds** (boom, splash, whoosh, a power-up swell; with Âm thanh
+hoạt động on). On **Cao (High)** they also **glow** (a bloom pass, only while a skill is on).
 
 **Wild ones in the rainforest (Góc nhìn → Sinh vật hoang trong rừng, on by default).** Walk in
 among the trees and wild Bọt, Hỏa Long and Mầm show themselves: every few seconds one peeks out
@@ -801,6 +817,7 @@ Settings, presets and the panel state are saved in `localStorage`; your recordin
 | Wildflower clumps | 1.5k | 5k | 10k |
 | Rain streaks / snowflakes (max) | 3k / 2k | 10k / 6k | 25k / 15k |
 | Max pixel ratio | 1.0 | 1.25 | 1.5 |
+| Glow (bloom) round the creatures' big skills, only while one is on | off | off | on (~1–2 ms GPU then) |
 
 ## How the water works (short version)
 
@@ -886,7 +903,7 @@ audio files in the repo.
 
 | Item | License | Notes |
 |---|---|---|
-| [three.js](https://threejs.org) 0.186.1 (incl. `OrbitControls`, `BufferGeometryUtils`, `FullScreenQuad`) | MIT | runtime dependency |
+| [three.js](https://threejs.org) 0.186.1 (incl. `OrbitControls`, `BufferGeometryUtils`, `FullScreenQuad`, and `EffectComposer`, `RenderPass`, `ShaderPass`, `UnrealBloomPass`, `OutputPass` for the skills' glow) | MIT | runtime dependency |
 | [Vite](https://vite.dev), [TypeScript](https://www.typescriptlang.org), [Vitest](https://vitest.dev) | MIT / Apache-2.0 / MIT | dev tools only |
 | Simplex noise | public domain | reimplemented after Stefan Gustavson's reference |
 | Gerstner waves | — | technique from *GPU Gems* (2004), ch. 1 |

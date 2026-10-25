@@ -207,6 +207,12 @@ export class JetStream {
     this.mesh.visible = false;
   }
 
+  /** Thickness at the start and at the end of the arc (m): Bọt's geyser is a thick column. */
+  setRadius(r0: number, r1: number): void {
+    this.u.uR0.value = r0;
+    this.u.uR1.value = r1;
+  }
+
   update(s: StreamState): void {
     const show = s.opacity > 0.001 && s.head > s.tail + 1e-3;
     this.mesh.visible = show;

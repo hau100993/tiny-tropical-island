@@ -5,6 +5,8 @@ import type { ClickAim } from '../controls/waterClick';
 import type { SharedUniforms } from '../core/uniforms';
 import { AirBubbles } from '../world/creatures/airBubbles';
 import { Embers, type EmberSink } from '../world/creatures/embers';
+import type { SkillFxSink } from '../world/creatures/skillFx';
+import type { SkillElement } from '../ui/skillCard';
 import { WildCreatures } from './wildCreatures';
 import type { TrunkInstance } from '../world/vegetation/forest';
 // Type-only: the models, behaviours and the GLTFLoader are a separate chunk, fetched on first use.
@@ -13,6 +15,7 @@ import type { BubbleCrab, CrabPlayer, CrabSkill } from '../world/creatures/bubbl
 import type { DragonModel } from '../world/creatures/dragonModel';
 import type { DragonSkill, FireDragon } from '../world/creatures/fireDragon';
 import type { JetStream } from '../world/creatures/jetStream';
+import type { BigBubble } from '../world/creatures/bigBubble';
 import type { FlameSprite, GroundGlow } from '../world/creatures/flames';
 import type { BunnyModel } from '../world/creatures/bunnyModel';
 import type { BunnySkill, GrassBunny } from '../world/creatures/grassBunny';
@@ -61,12 +64,18 @@ export interface CreatureHost {
   dry(): void;
   /** Rainbow motes, shared (the geyser's rainbow, the dragon's and Mầm's sparkles). */
   rainbow: EmberSink;
+  /** Flashes, shock waves, shake, framing and big sounds for the skills. */
+  fx: SkillFxSink;
+  /** A skill you set off (a key or a click) started: show its name. */
+  skillCard(skill: string, element: SkillElement): void;
 }
 
 interface Crab {
   model: CrabModel;
   brain: BubbleCrab;
   stream: JetStream;
+  big: BigBubble;
+  column: JetStream;
 }
 
 interface Dragon {
@@ -285,7 +294,7 @@ export class Creatures {
     if (!c || !c.model.root.visible) {
       this.crabPointer.cancel();
       this.crabPointer.hover = false;
-      if (c) c.stream.mesh.visible = false;
+      if (c) c.stream.mesh.visible = c.big.mesh.visible = c.column.mesh.visible = false;
       return;
     }
     this.crabPointer.update();
@@ -295,6 +304,7 @@ export class Creatures {
     c.model.root.rotation.y = c.brain.yaw;
     c.model.update(dt, c.brain.action, c.brain.speed);
     c.stream.update(c.brain.stream);
+    c.column.update(c.brain.column);
   }
 
   private updateDragon(dt: number, you: CrabPlayer | null, cam: THREE.Vector3): void {
@@ -339,11 +349,20 @@ export class Creatures {
   private loadCrab(): void {
     this.crabLoading = true;
     const h = this.host;
-    Promise.all([import('../world/creatures/crabModel'), import('../world/creatures/bubbleCrab'), import('../world/creatures/jetStream')])
-      .then(async ([{ CrabModel }, { BubbleCrab }, { JetStream }]) => {
+    Promise.all([
+      import('../world/creatures/crabModel'),
+      import('../world/creatures/bubbleCrab'),
+      import('../world/creatures/jetStream'),
+      import('../world/creatures/bigBubble'),
+    ])
+      .then(async ([{ CrabModel }, { BubbleCrab }, { JetStream }, { BigBubble }]) => {
         const model = await CrabModel.load(waterCrabUrl, h.shared);
         const stream = new JetStream(h.shared, 9.81);
-        await this.compileHidden(model.root, [stream.mesh]);
+        const big = new BigBubble(h.shared);
+        // The geyser's column: a thick water stream shot straight up.
+        const column = new JetStream(h.shared, 9.81);
+        column.setRadius(0.32, 0.6);
+        await this.compileHidden(model.root, [stream.mesh, big.mesh, column.mesh]);
         const brain: BubbleCrab = new BubbleCrab(
           {
             heightAt: h.heightAt,
@@ -353,17 +372,20 @@ export class Creatures {
             bubbles: this.bubbles,
             rainbow: h.rainbow,
             daylight: () => h.shared.uDayLight.value,
+            fx: h.fx,
+            big,
           },
           h.homes.crab,
           {
             onSquirt: (duration) => this.play(brain.x, brain.y, brain.z, (g, p) => h.sound.squirt(duration, g, p)),
             onVoice: (kind) => this.play(brain.x, brain.y, brain.z, (g, p) => h.sound.crab(kind, g, p)),
             onHitPlayer: () => h.soak(),
+            onSkill: (skill) => h.skillCard(skill, 'water'),
           },
         );
-        h.scene.add(model.root, stream.mesh);
+        h.scene.add(model.root, stream.mesh, big.mesh, column.mesh);
         model.root.visible = this.crabOn;
-        this.crab = { model, brain, stream };
+        this.crab = { model, brain, stream, big, column };
       })
       .catch((err: unknown) => console.warn('crab load failed', err))
       .finally(() => {
@@ -395,6 +417,7 @@ export class Creatures {
             ripple: h.ripple,
             embers: this.embers,
             steam: this.steam,
+            fx: h.fx,
           },
           h.homes.dragon,
           {
@@ -409,6 +432,7 @@ export class Creatures {
               }
               h.dry();
             },
+            onSkill: (skill) => h.skillCard(skill, 'fire'),
           },
         );
         h.scene.add(model.root, stream.mesh, tailFlame.mesh, glow.mesh);
@@ -468,6 +492,8 @@ export class Creatures {
             leaves,
             spores: this.spores,
             fluff: this.fluff,
+            fx: h.fx,
+            bloom: (x, z, n) => blooms.spawnCluster(x, z, n),
             // The wind (uWind ~0..1.5) as a breeze of up to ~2 m/s.
             breeze: () => {
               const k = h.shared.uWind.value * 1.4;
@@ -480,6 +506,7 @@ export class Creatures {
           {
             onThrow: (duration) => this.play(brain.x, brain.y, brain.z, (g, p) => h.sound.leaves(duration, g, p)),
             onVoice: (kind) => this.play(brain.x, brain.y, brain.z, (g, p) => h.sound.bunny(kind, g, p)),
+            onSkill: (skill) => h.skillCard(skill, 'grass'),
           },
         );
         h.scene.add(model.root, leaves.mesh, blooms.group);

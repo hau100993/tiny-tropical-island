@@ -2,11 +2,11 @@ import * as THREE from 'three';
 import type { SharedUniforms } from '../../core/uniforms';
 import { FIRE_BLENDING, FIRE_BLEND_GLSL } from './fireBlend';
 
-/** Pool sizes: a rainbow arc is drawn with many motes at once. */
-const MAX = 400;
-const MAX_RAINBOW = 3000;
-/** Hỏa Long's ring of fire and meteors throw many sparks at once. */
-const MAX_EMBER = 1500;
+/**
+ * Pool sizes per kind: a rainbow arc is drawn with many motes at once; Hỏa Long's ring of fire
+ * and meteors throw thousands of sparks, Mầm's tornado and dandelion gust thousands of motes.
+ */
+const MAX: Record<EmberKind, number> = { ember: 3000, steam: 600, spore: 2500, sea: 400, rainbow: 3000, fluff: 2000 };
 
 /** Anything that throws embers (or puffs of steam). */
 export interface EmberSink {
@@ -131,7 +131,7 @@ export class Embers implements EmberSink {
     shared: SharedUniforms,
     private readonly kind: EmberKind,
   ) {
-    const max = (this.max = kind === 'rainbow' ? MAX_RAINBOW : kind === 'ember' ? MAX_EMBER : MAX);
+    const max = (this.max = MAX[kind]);
     this.vel = new Float32Array(max * 3);
     this.age = new Float32Array(max).fill(Infinity);
     this.life = new Float32Array(max);

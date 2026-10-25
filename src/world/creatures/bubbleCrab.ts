@@ -4,6 +4,8 @@ import type { StreamState } from './jetStream';
 import type { BubbleSink } from './airBubbles';
 import type { SpraySink } from '../../water/Spray';
 import type { EmberSink } from './embers';
+import type { SkillFxSink } from './skillFx';
+import type { BigBubbleSink } from './bigBubble';
 
 /** Sand band it lives on (ground height, m), and how far it strays from home (m). */
 const BAND = [0.12, 1.6] as const;
@@ -26,13 +28,18 @@ const RECOVER = 0.5;
 /** Bubbles blown from the mouth per second while the pointer rests on it; and in a pat's burst. */
 const HOVER_BUBBLES = 12;
 const PAT_BURST = 30;
-/** "Mưa Bong Bóng": bubbles blown high in one breath. */
-const SHOWER_BUBBLES = 90;
 /**
- * "Mạch Nước Cầu Vồng": a geyser bursts from the sand (under you when you are near, else in
- * front of it) for `time` s, ~5 m high; in daylight a rainbow arches over it (radius m).
+ * "Mưa Bong Bóng": it blows one giant soap bubble (to `radius` m in `blow` s), which floats up
+ * `rise` m in `float` s and bursts: a flash, a shock wave, `burst` bubbles and a shower of
+ * glittering drops all round (soaking you within `soak` m).
  */
-const GEYSER = { windup: 0.6, time: 2.2, drops: 300, speed: [8, 10.5], rainbow: 2.4, soak: 1.3 } as const;
+const BIG = { blow: 1.4, radius: 1.15, float: 1.5, rise: 3.2, burst: 300, drops: 450, glitter: 320, soak: 3.5, blast: 5, blastTime: 0.45 } as const;
+/**
+ * "Mạch Nước Cầu Vồng": the sand trembles and pulses for `windup` s, then a geyser bursts from
+ * it (under you when you are near, else in front of it) for `time` s, ~10 m high, with a crown
+ * of spray and a shock wave; in daylight a rainbow arches over it (radius m).
+ */
+const GEYSER = { windup: 1.0, time: 2.8, drops: 900, speed: [11.5, 14.5], rainbow: 4.2, soak: 2.2 } as const;
 
 /** Its skills, in the order R cycles through them. */
 export type CrabSkill = 'jet' | 'bubbles' | 'geyser';
@@ -49,6 +56,9 @@ export interface CrabWorld {
   /** Rainbow motes (the geyser's rainbow), and how bright the day is (0 night … 1 day). */
   rainbow: EmberSink;
   daylight(): number;
+  /** Flashes, shock waves, shake and big sounds; the giant bubble. */
+  fx: SkillFxSink;
+  big: BigBubbleSink;
 }
 
 export interface CrabEvents {
@@ -58,6 +68,8 @@ export interface CrabEvents {
   onVoice(kind: 'greet' | 'dance'): void;
   /** The water hit you. */
   onHitPlayer(): void;
+  /** A skill you set off (a key or a click) starts (for its name card). */
+  onSkill(skill: CrabSkill): void;
 }
 
 /** You, as the crab sees you: null when not walking about the island. */
@@ -68,7 +80,9 @@ export interface CrabPlayer {
   y: number;
 }
 
-type State = 'idle' | 'wander' | 'approach' | 'greet' | 'turn' | 'windup' | 'fire' | 'recover' | 'dance' | 'hover' | 'geyserUp' | 'geyser';
+type State =
+  | 'idle' | 'wander' | 'approach' | 'greet' | 'turn' | 'windup' | 'fire' | 'recover' | 'dance' | 'hover'
+  | 'geyserUp' | 'geyser' | 'blowBig' | 'floatBig';
 
 /**
  * Bọt's behaviour: potters about its stretch of beach, comes over to greet you now and then,
@@ -114,6 +128,18 @@ export class BubbleCrab {
   private gy = 0;
   private dropDebt = 0;
   private bowDebt = 0;
+  /** The geyser's wind-up: the next pulse of the sand in (s). */
+  private pulseIn = 0;
+  /** The giant bubble: where it is and how big (m). */
+  private bx = 0;
+  private by = 0;
+  private bz = 0;
+  private br = 0;
+  /** After the burst: the film flying apart (s since; < 0: none). */
+  private blastAge = -1;
+  /** The geyser's column of water (a JetStream shot straight up), and how long it has run (s). */
+  readonly column: StreamState = { ox: 0, oy: 0, oz: 0, vx: 0, vy: 0, vz: 0, tail: 0, head: 0, flight: 1, opacity: 0 };
+  private columnAge = -1;
 
   constructor(
     private readonly world: CrabWorld,
@@ -149,7 +175,7 @@ export class BubbleCrab {
 
   private get busy(): boolean {
     const s = this.state;
-    return s === 'turn' || s === 'windup' || s === 'fire' || s === 'recover' || s === 'geyserUp' || s === 'geyser';
+    return s === 'turn' || s === 'windup' || s === 'fire' || s === 'recover' || s === 'geyserUp' || s === 'geyser' || s === 'blowBig' || s === 'floatBig';
   }
 
   /**
@@ -191,6 +217,7 @@ export class BubbleCrab {
         this.hit = false;
         if (this.atPlayer && player) this.aimAtPlayer(player);
         else this.aimToward(this.viewX, this.viewZ);
+        this.events.onSkill('jet');
         this.go('turn', 0.8);
       }
     }
@@ -210,15 +237,18 @@ export class BubbleCrab {
       this.queued = false;
       this.autoSkill = this.between(AUTO_SKILL);
       this.hit = false;
+      this.events.onSkill(this.skill);
       if (this.skill === 'bubbles') {
-        this.events.onVoice('dance');
-        this.go('dance', 1.7);
-        this.bubbleShower(mouth);
+        this.events.onVoice('greet');
+        this.br = 0;
+        this.world.fx.sound('charge', 0.6, this.x, this.y, this.z);
+        this.go('blowBig', BIG.blow);
       } else {
         this.startGeyser(player, toPlayer);
       }
     }
     if (!this.busy && (this.queued || (this.autoSkill <= 0 && quiet))) {
+      if (this.queued) this.events.onSkill('jet');
       this.atPlayer = this.queued && player !== null && toPlayer < AIM_PLAYER;
       this.queued = false;
       this.autoSkill = this.between(AUTO_SKILL);
@@ -297,15 +327,23 @@ export class BubbleCrab {
       case 'dance':
         if (this.timer <= 0) this.go(this.hovered ? 'hover' : 'idle', 3);
         break;
-      case 'geyserUp':
-        // Claws up, calling the water: the sand at the spot trembles with a few drops.
+      case 'geyserUp': {
+        // Claws up, calling the water: the sand at the spot trembles, spits drops and pulses
+        // with rings, quicker and quicker.
         face = Math.atan2(this.gx - this.x, this.gz - this.z);
-        if (Math.random() < dt * 30) this.world.spray.drop(this.gx, this.gy + 0.02, this.gz, (Math.random() - 0.5) * 0.6, 1 + Math.random(), (Math.random() - 0.5) * 0.6, 0.02);
-        if (this.timer <= 0) {
-          this.events.onSquirt(GEYSER.time);
-          this.go('geyser', GEYSER.time);
+        const w = this.world;
+        const k = 1 - this.timer / GEYSER.windup;
+        for (let i = 0; i < 2; i++) {
+          if (Math.random() < dt * (30 + 90 * k)) w.spray.drop(this.gx + (Math.random() - 0.5) * 0.6, this.gy + 0.02, this.gz + (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.8, 1 + Math.random() * (1 + 2 * k), (Math.random() - 0.5) * 0.8, 0.02 + Math.random() * 0.02);
         }
+        this.pulseIn -= dt;
+        if (this.pulseIn <= 0) {
+          this.pulseIn = 0.36 - 0.2 * k;
+          w.fx.shock(this.gx, this.gy, this.gz, 'water', 0x7fd8ff, 1.2 + 0.8 * k, 0.45);
+        }
+        if (this.timer <= 0) this.burstGeyser();
         break;
+      }
       case 'geyser':
         face = Math.atan2(this.gx - this.x, this.gz - this.z);
         this.geyser(dt, player);
@@ -314,6 +352,27 @@ export class BubbleCrab {
           this.go('dance', 1.7);
         }
         break;
+      case 'blowBig':
+        // Puffing up the giant bubble at its mouth, facing you; sparkles drawn into it.
+        face = Math.atan2(this.viewX - this.x, this.viewZ - this.z);
+        this.blowBig(dt, mouth);
+        if (this.timer <= 0) {
+          this.events.onVoice('dance');
+          this.go('floatBig', BIG.float);
+        }
+        break;
+      case 'floatBig': {
+        // It lets go: the bubble floats up, wobbling, then bursts.
+        const k = 1 - this.timer / BIG.float;
+        this.by += (BIG.rise / BIG.float) * dt * (1.2 - 0.4 * k);
+        this.bx += Math.sin(k * 9) * 0.15 * dt;
+        this.world.big.set(this.bx, this.by, this.bz, this.br * (1 + 0.04 * Math.sin(k * 30)));
+        if (this.timer <= 0) {
+          this.popBig(player);
+          this.go('dance', 1.7);
+        }
+        break;
+      }
       case 'hover': {
         face = Math.atan2(this.viewX - this.x, this.viewZ - this.z);
         if (!this.hovered) {
@@ -334,7 +393,7 @@ export class BubbleCrab {
     this.action =
       speed > 0
         ? 'move'
-        : this.state === 'windup' || this.state === 'fire' || this.state === 'geyserUp' || this.state === 'geyser'
+        : this.state === 'windup' || this.state === 'fire' || this.state === 'geyserUp' || this.state === 'geyser' || this.state === 'blowBig'
           ? 'skill'
           : this.state === 'greet' || this.state === 'hover'
             ? 'greet'
@@ -342,15 +401,102 @@ export class BubbleCrab {
               ? 'dance'
               : 'idle';
     this.jet.update(dt, mouth.x, mouth.y, mouth.z);
+    this.updateColumn(dt);
+    if (this.blastAge >= 0) {
+      // The burst film: a sphere racing out and fading.
+      this.blastAge += dt;
+      const k = Math.min(1, this.blastAge / BIG.blastTime);
+      const r = this.br + (BIG.blast - this.br) * (1 - (1 - k) * (1 - k));
+      this.world.big.set(this.bx, this.by, this.bz, r, (1 - k) * (1 - k) * 1.6);
+      if (k >= 1) {
+        this.blastAge = -1;
+        this.world.big.set(0, 0, 0, 0);
+      }
+    }
   }
 
-  /** "Mưa Bong Bóng": a big breath of bubbles blown up high, to drift down all round. */
-  private bubbleShower(mouth: { x: number; y: number; z: number }): void {
-    for (let i = 0; i < SHOWER_BUBBLES; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const s = 0.4 + Math.random() * 1.4;
-      this.world.bubbles.blow(mouth.x, mouth.y + 0.05, mouth.z, Math.cos(a) * s, 1.6 + Math.random() * 2.2, Math.sin(a) * s, 0.05 + Math.random() * 0.1);
+  /**
+   * The column: its top shoots up to the peak in a quarter second and stays, swaying in height;
+   * when the geyser stops, its foot rises after the top and it falls apart.
+   */
+  private updateColumn(dt: number): void {
+    const c = this.column;
+    if (this.columnAge < 0) return;
+    this.columnAge += dt;
+    const t = this.columnAge;
+    const end = GEYSER.time;
+    c.head = c.flight * Math.min(0.97, t / 0.25) * (t < end ? 0.9 + 0.08 * Math.sin(t * 9) : 0.97);
+    c.tail = t < end ? 0 : Math.min(c.head, (t - end) * 2.2);
+    c.opacity = t < end ? Math.min(1, t * 6) : Math.max(0, 1 - (t - end) / 0.6);
+    if (c.opacity <= 0) {
+      this.columnAge = -1;
+      c.opacity = 0;
     }
+  }
+
+  /** The giant bubble grows at the mouth (eased), sparkles swirling into it. */
+  private blowBig(dt: number, mouth: { x: number; y: number; z: number }): void {
+    const k = Math.min(1, 1 - this.timer / BIG.blow);
+    this.br = BIG.radius * (1 - (1 - k) * (1 - k));
+    const fx = Math.sin(this.yaw);
+    const fz = Math.cos(this.yaw);
+    // It sits on the mouth, in front, its bottom just off the sand.
+    this.bx = mouth.x + fx * this.br * 0.9;
+    this.bz = mouth.z + fz * this.br * 0.9;
+    this.by = Math.max(mouth.y, this.y + 0.1 + this.br);
+    this.world.big.set(this.bx, this.by, this.bz, this.br);
+    // Sparkles from all round, pulled in (they slow as they come: drag).
+    if (Math.random() < dt * 60) {
+      for (let i = 0; i < 3; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const e = (Math.random() - 0.3) * 1.2;
+        const d = 1.6 + Math.random();
+        const dx = Math.cos(a) * Math.cos(e);
+        const dy = Math.sin(e);
+        const dz = Math.sin(a) * Math.cos(e);
+        this.world.rainbow.emit(this.bx + dx * d, this.by + dy * d, this.bz + dz * d, -dx * d * 1.7, -dy * d * 1.7 + 1, -dz * d * 1.7, 0.05 + Math.random() * 0.04, 0.45 + Math.random() * 0.25);
+      }
+    }
+  }
+
+  /** It bursts: a flash, a shock wave on the ground and one in the air, bubbles and drops everywhere. */
+  private popBig(player: CrabPlayer | null): void {
+    const w = this.world;
+    const { bx, by, bz, br } = this;
+    this.blastAge = 0;
+    const ground = Math.max(0, w.heightAt(bx, bz));
+    w.fx.flash(bx, by, bz, 0x9fe8ff, 90, 16, 0.6);
+    w.fx.shock(bx, ground, bz, 'water', 0x6fd0ff, 8, 1.4, 1.4);
+    w.fx.shock(bx, by, bz, 'energy', 0xbfefff, 5, 0.9);
+    w.fx.shake(bx, by, bz, 0.3, 0.6);
+    w.fx.sound('splash', 0.7, bx, by, bz);
+    w.fx.sound('boom', 0.25, bx, by, bz);
+    w.fx.focus(bx, by - 0.5, bz, 1.6);
+    for (let i = 0; i < BIG.burst; i++) {
+      const [dx, dy, dz] = this.sphere();
+      const s = 0.6 + Math.random() * 2.4;
+      w.bubbles.blow(bx + dx * br, by + dy * br, bz + dz * br, dx * s, dy * s + 0.6, dz * s, 0.06 + Math.random() * 0.2);
+    }
+    for (let i = 0; i < BIG.drops; i++) {
+      const [dx, dy, dz] = this.sphere();
+      const s = 2 + Math.random() * 4;
+      w.spray.drop(bx + dx * br, by + dy * br, bz + dz * br, dx * s, dy * s + 1.5, dz * s, 0.03 + Math.random() * 0.05);
+    }
+    for (let i = 0; i < BIG.glitter; i++) {
+      const [dx, dy, dz] = this.sphere();
+      const s = 1.5 + Math.random() * 3;
+      w.rainbow.emit(bx + dx * br, by + dy * br, bz + dz * br, dx * s, dy * s + 0.5, dz * s, 0.07 + Math.random() * 0.08);
+    }
+    if (w.heightAt(bx, bz) < 0) w.ripple(bx, bz, 2.5, -0.8);
+    if (player && Math.hypot(player.x - bx, player.z - bz) < BIG.soak) this.events.onHitPlayer();
+  }
+
+  /** A random direction (unit). */
+  private sphere(): [number, number, number] {
+    const a = Math.random() * Math.PI * 2;
+    const c = Math.random() * 2 - 1;
+    const s = Math.sqrt(1 - c * c);
+    return [Math.cos(a) * s, c, Math.sin(a) * s];
   }
 
   /** The geyser's spot: right under you when you stand near, else in front, toward the viewer. */
@@ -367,7 +513,30 @@ export class BubbleCrab {
     }
     this.gy = Math.max(0, this.world.heightAt(this.gx, this.gz));
     this.events.onVoice('greet');
+    this.pulseIn = 0;
+    this.world.fx.sound('charge', 0.8, this.gx, this.gy, this.gz);
     this.go('geyserUp', GEYSER.windup);
+  }
+
+  /** The geyser breaks out: a flash, a crown of spray, a shock wave, the ground shaking. */
+  private burstGeyser(): void {
+    const fx = this.world.fx;
+    const { gx, gy, gz } = this;
+    fx.flash(gx, gy + 2, gz, 0xd8f4ff, 110, 18, 0.7);
+    fx.shock(gx, gy, gz, 'water', 0x6fd0ff, 9, 1.5, 2.6);
+    fx.shake(gx, gy, gz, 0.55, 1);
+    fx.sound('splash', 1, gx, gy, gz);
+    fx.sound('boom', 0.6, gx, gy, gz);
+    fx.focus(gx, gy + 4, gz, GEYSER.time + 1);
+    const c = this.column;
+    c.ox = gx;
+    c.oy = gy;
+    c.oz = gz;
+    c.vy = GEYSER.speed[1];
+    c.flight = c.vy / 9.81;
+    this.columnAge = 0;
+    this.events.onSquirt(GEYSER.time);
+    this.go('geyser', GEYSER.time);
   }
 
   /**
@@ -382,11 +551,20 @@ export class BubbleCrab {
     this.dropDebt += dt * GEYSER.drops * (0.4 + 0.6 * k);
     for (; this.dropDebt >= 1; this.dropDebt -= 1) {
       const a = Math.random() * Math.PI * 2;
-      const r = Math.random() * 0.15;
+      if (Math.random() < 0.25) {
+        // The skirt: low, wide splashes all round the foot.
+        const s = 1.5 + Math.random() * 2.5;
+        w.spray.drop(this.gx + Math.cos(a) * 0.3, this.gy + 0.05, this.gz + Math.sin(a) * 0.3, Math.cos(a) * s, 2 + Math.random() * 3, Math.sin(a) * s, 0.025 + Math.random() * 0.04);
+        continue;
+      }
+      // The column: thick, fast, fanning out a little at the top.
+      const r = Math.random() * 0.35;
       const up = GEYSER.speed[0] + Math.random() * (GEYSER.speed[1] - GEYSER.speed[0]) * (0.5 + 0.5 * k);
-      const spread = 0.25 + Math.random() * 0.7;
-      w.spray.drop(this.gx + Math.cos(a) * r, this.gy + 0.05, this.gz + Math.sin(a) * r, Math.cos(a) * spread, up, Math.sin(a) * spread, 0.03 + Math.random() * 0.04);
+      const spread = 0.2 + Math.random() * 0.9;
+      w.spray.drop(this.gx + Math.cos(a) * r, this.gy + 0.05, this.gz + Math.sin(a) * r, Math.cos(a) * spread, up, Math.sin(a) * spread, 0.035 + Math.random() * 0.05);
     }
+    // A pulse of the crown now and then, while it is strongest.
+    if (k > 0.5 && Math.random() < dt * 2) w.fx.shock(this.gx, this.gy, this.gz, 'water', 0x8fdcff, 3.5, 0.8, 1.2);
     const day = w.daylight();
     if (day > 0.25) {
       // Across the line of sight: the arch stands facing the viewer.
@@ -395,12 +573,12 @@ export class BubbleCrab {
       const vd = Math.hypot(vx, vz) || 1;
       const px = -vz / vd;
       const pz = vx / vd;
-      this.bowDebt += dt * 160;
+      this.bowDebt += dt * 230;
       for (; this.bowDebt >= 1; this.bowDebt -= 1) {
         const t = Math.random() * Math.PI;
         for (let b = 0; b < 7; b++) {
-          const rr = GEYSER.rainbow + (3 - b) * 0.11;
-          w.rainbow.emit(this.gx + px * Math.cos(t) * rr, this.gy + 0.3 + Math.sin(t) * rr, this.gz + pz * Math.cos(t) * rr, 0, 0.3, 0, 0.09 + Math.random() * 0.04, (b / 7) * 0.8);
+          const rr = GEYSER.rainbow + (3 - b) * 0.17;
+          w.rainbow.emit(this.gx + px * Math.cos(t) * rr, this.gy + 0.3 + Math.sin(t) * rr, this.gz + pz * Math.cos(t) * rr, 0, 0.3, 0, 0.13 + Math.random() * 0.05, (b / 7) * 0.8);
         }
       }
     }

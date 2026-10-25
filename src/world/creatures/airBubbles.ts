@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { SharedUniforms } from '../../core/uniforms';
 
-const MAX = 320;
+const MAX = 800;
 /** Bubbles rise slowly toward this speed (m/s) and drift with the wind. */
 const RISE = 0.12;
 const DRIFT = 0.5;
