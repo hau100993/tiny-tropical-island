@@ -19,6 +19,9 @@ import { Lightning } from '../world/creatures/lightning';
 import { Scorcher } from '../world/scorch';
 import { DogSkills, type DogSkill, type StrikeTarget } from '../activities/dogSkills';
 import { Combos, type ComboId, type Partner } from '../activities/combos';
+import { Ambush } from '../activities/ambush';
+import { Health, type Who } from './health';
+import { HealthBars } from '../ui/healthBars';
 import { Petting } from '../activities/petting';
 import { Hearts } from '../world/hearts';
 import { PetCursor } from '../ui/PetCursor';
@@ -94,6 +97,11 @@ const CALM_LEVEL = 0.3;
 /** Time constant of the calm-down, seconds (≈ 20 s to settle). */
 const CALM_EASE = 6;
 
+/**
+ * Fainting (s from falling): the screen goes dark, you wake on the beach, it clears. Mochi out of
+ * health rests this long.
+ */
+const FAINT = { dark: 1.2, wake: 2.6, clear: 3.6, dogRest: 10 } as const;
 /** A pat on Mochi sets off one of its skills this often (else a hop and a yip). */
 const PAT_SKILL = 0.35;
 /** Mochi's skills by their name-card keys (vi.creatures.skills). */
@@ -186,6 +194,13 @@ export class App {
   private readonly smoke: Embers;
   private readonly dust: Embers;
   private readonly you = { x: 0, y: 0, z: 0 };
+  /** Forest ambushes: the shots, your and Mochi's health, its bars; fainting (s since; −1: not). */
+  private readonly ambush: Ambush;
+  private readonly health = new Health((who) => this.onDown(who));
+  private hpBars!: HealthBars;
+  private faintT = -1;
+  private dogDownT = 0;
+  private readonly dogAt = { x: 0, y: 0, z: 0 };
   /** Two creatures' skills together (activities/combos.ts). */
   private readonly combos: Combos;
   private readonly viewXZ = { x: 0, z: 0 };
@@ -376,6 +391,7 @@ export class App {
     this.scene.add(this.lightning.mesh, this.smoke.points, this.dust.points);
     this.dogSkills = this.createDogSkills();
     this.combos = this.createCombos();
+    this.ambush = this.createAmbush();
     this.seaGlow = new Embers(sharedUniforms, 'sea');
     this.scene.add(this.seaGlow.points);
     this.beMap = this.createShark();
@@ -389,6 +405,7 @@ export class App {
     const ui = document.createElement('div');
     ui.className = 'ui-layer';
     this.skillCard = new SkillCard(ui);
+    this.hpBars = new HealthBars(ui);
     container.append(ui);
     this.migrateLinkedWeather();
     this.library.setActivePreset(this.settings.get().activeScene);
@@ -886,7 +903,7 @@ export class App {
     if (s.dog && !this.dogModel && !this.dogLoading) this.loadDog();
     if (this.dogModel) this.dogModel.root.visible = s.dog;
     this.creatures.setEnabled(s.creatures, s.dragon, s.grass);
-    this.creatures.setWild(s.wild);
+    this.creatures.setWild(s.wild, s.wildAttack);
     this.beMap.setEnabled(s.shark);
   }
 
@@ -1021,6 +1038,7 @@ export class App {
       },
       house: { x: house.x, z: house.z },
       rainbow: this.rainbow,
+      wildAttack: (a) => this.ambush.attack(a),
       fx: this.fx,
       skillCard: (skill, element, x, z) => {
         this.showSkill(skill, element);
@@ -1089,6 +1107,98 @@ export class App {
         if (dog) this.combos.note('spark', dog.x, dog.z);
       },
     });
+  }
+
+  /** Ambushes in the forest: who can be hit, what a hit does, Mochi striking back. */
+  private createAmbush(): Ambush {
+    const hm = this.world.heightmap;
+    const pools = this.creatures.pools;
+    return new Ambush({
+      fx: this.fx,
+      embers: pools.embers,
+      spores: pools.spores,
+      fluff: pools.fluff,
+      spray: pools.spray,
+      bubbles: pools.bubbles,
+      heightAt: (x, z) => hm.heightAt(x, z),
+      you: () => {
+        const w = this.walker;
+        if (this.cameras.mode !== 'walk' || w.swimming || this.faintT >= 0) return null;
+        this.you.x = w.x;
+        this.you.y = w.feetY;
+        this.you.z = w.z;
+        return this.you;
+      },
+      dog: () => {
+        const dog = this.dog;
+        if (!dog || !this.dogModel?.root.visible || this.health.isDown('dog')) return null;
+        this.dogAt.x = dog.x;
+        this.dogAt.y = dog.y;
+        this.dogAt.z = dog.z;
+        return this.dogAt;
+      },
+      hitYou: (kind, amount) => {
+        this.hpBars.hurt();
+        // Water soaks you, fire dries you.
+        if (kind === 'crab') this.soaked = Math.max(this.soaked, 0.6);
+        else if (kind === 'dragon') this.soaked = 0;
+        this.health.hit('you', amount);
+      },
+      hitDog: (_kind, amount) => {
+        const dog = this.dog;
+        if (dog && this.settings.get().footsteps) {
+          const ear = this.dogEar(dog.x, dog.y, dog.z);
+          if (ear) this.mixer.playBark('yip', ear.gain, ear.pan);
+        }
+        this.dogModel?.hop();
+        this.health.hit('dog', amount);
+      },
+      counter: (a) => !this.health.isDown('dog') && this.dogSkills.counter(a, () => a.banish()),
+    });
+  }
+
+  /**
+   * Out of health. You: you fall, the screen goes dark, and you wake on the beach where walks
+   * start, healed. Mochi: it lies down to rest a while (no striking back), then gets up at half.
+   */
+  private onDown(who: Who): void {
+    if (who === 'you') {
+      const w = this.walker;
+      w.knockDown(w.x - Math.sin(w.yaw), w.z - Math.cos(w.yaw));
+      this.faintT = 0;
+      return;
+    }
+    const dog = this.dog;
+    if (dog) dog.act(FAINT.dogRest, dog.x + Math.sin(dog.yaw), dog.z + Math.cos(dog.yaw), 'lie');
+    this.dogDownT = FAINT.dogRest;
+  }
+
+  /** Fainting and Mochi's rest, and the health bars, every frame. */
+  private updateHealth(dt: number): void {
+    this.health.update(dt, this.petting.stroking);
+    this.ambush.update(dt);
+    if (this.faintT >= 0) {
+      const t0 = this.faintT;
+      this.faintT += dt;
+      if (t0 < FAINT.dark && this.faintT >= FAINT.dark) this.hpBars.setFaint(true);
+      if (t0 < FAINT.wake && this.faintT >= FAINT.wake) {
+        const sp = this.colliders.spawn;
+        this.walker.knockT = -1;
+        this.walker.placeAt(sp.x, sp.z, sp.yaw);
+        this.health.restore('you');
+      }
+      if (this.faintT >= FAINT.clear) {
+        this.hpBars.setFaint(false);
+        this.faintT = -1;
+      }
+    }
+    if (this.dogDownT > 0) {
+      this.dogDownT -= dt;
+      if (this.dogDownT <= 0) this.health.restore('dog', 50);
+    }
+    const s = this.settings.get();
+    const show = (this.creatures.inWildForest && s.wild && s.wildAttack) || this.health.hurt;
+    this.hpBars.update(show, this.health.hp.you, this.health.hp.dog, s.dog && this.dog !== null);
   }
 
   /** Combos: the creatures' effect pools, where you are, who could join in. */
@@ -2116,6 +2226,7 @@ export class App {
     this.fx.update(dt);
     this.dogSkills.update(dt);
     this.combos.update(dt);
+    this.updateHealth(dt);
     this.lightning.update(dt, this.camera);
     this.scorcher.update(dt);
     this.smoke.update(dt);

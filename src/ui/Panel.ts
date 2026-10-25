@@ -118,6 +118,7 @@ export class Panel {
   private readonly dragon: ToggleControl;
   private readonly grass: ToggleControl;
   private readonly wild: ToggleControl;
+  private readonly wildAttack: ToggleControl;
   private readonly shark: ToggleControl;
   private readonly thirdPerson: ToggleControl;
   private readonly startAtDesk: ToggleControl;
@@ -316,6 +317,7 @@ export class Panel {
     this.dragon = toggle(vi.creatures.dragonToggle, s.dragon, (on) => settings.update({ dragon: on }));
     this.grass = toggle(vi.creatures.grassToggle, s.grass, (on) => settings.update({ grass: on }));
     this.wild = toggle(vi.creatures.wildToggle, s.wild, (on) => settings.update({ wild: on }));
+    this.wildAttack = toggle(vi.creatures.wildAttackToggle, s.wildAttack, (on) => settings.update({ wildAttack: on }));
     this.shark = toggle(vi.creatures.sharkToggle, s.shark, (on) => settings.update({ shark: on }));
     viewOpts.append(
       withKey(this.thirdPerson.root, 'V'),
@@ -326,6 +328,7 @@ export class Panel {
       withKey(this.dragon.root, 'X'),
       withKey(this.grass.root, 'Z'),
       this.wild.root,
+      this.wildAttack.root,
       this.shark.root,
     );
     const characters = el('div', 'seg-group three');
@@ -653,6 +656,7 @@ export class Panel {
     this.dragon.set(s.dragon);
     this.grass.set(s.grass);
     this.wild.set(s.wild);
+    this.wildAttack.set(s.wildAttack);
     this.shark.set(s.shark);
     this.synthFallback.set(s.synthFallback);
     this.thirdPerson.set(s.walkView === 'third');

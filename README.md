@@ -478,6 +478,19 @@ element (soap bubbles, embers, pollen), then slips back behind the trunk and is 
 and they all hide. The wild dragons hover between the trunks. Two of each are loaded on your
 first visit (skeleton clones of one load each) and reused.
 
+**Ambushes (Góc nhìn → Sinh vật hoang tấn công, on by default).** In the forest, every 25–50 s
+one of the wild ones out watching you attacks: it glows and calls for 0.8 s (time to run, with
+Shift), then throws a shot of its element in an arc at you or at Mochi (a ball of water and
+bubbles, a fireball, a whirl of leaves), aimed where you stood: it bursts where it lands and hurts
+whoever is still within 1.6 m (15–25; water soaks you, fire dries you; the screen's edge flashes
+red). Mochi always strikes back (Lightning Strike or Sonic Bark at the attacker) and drives it
+off: it flashes, squashes and is gone in a burst of sparkles. Another may follow a few seconds
+later, up to three in a row. **Health** bars (you and Mochi, glass, top left) show in the forest
+and while anyone is hurt; health comes back by itself (5/s) after 6 s without a hit, Mochi's
+faster while you stroke it. At 0 you faint: you fall, the screen goes dark, and you wake on the
+beach where walks start, healed. Mochi at 0 lies down for 10 s (no striking back) and gets up at
+half. Off: they only peek out, as before.
+
 **Bé Mập, the baby shark (Góc nhìn → Bé Mập trêu bạn ở biển, on by default).** A small
 friendly blue shark with a big baby head lives out at sea and comes to play while you are on the
 water (kayak, surf, swim, dive), first after ~30 s there and then every ~2–4 minutes, only over

@@ -2328,3 +2328,101 @@ body.cursor-idle canvas {
 @media (prefers-reduced-motion: reduce) {
   .skill-card.on .skill-card-name { animation: none; }
 }
+
+/* ---- Forest health (ui/healthBars.ts): glass bars top left, the hurt flash, fainting ---- */
+.hp-bars {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  min-width: 200px;
+  color: var(--panel-fg);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-shadow);
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 20;
+}
+.hp-bars.on {
+  display: flex;
+}
+.hp-row {
+  display: grid;
+  grid-template-columns: 44px 1fr 26px;
+  align-items: center;
+  gap: 8px;
+}
+.hp-row[hidden] {
+  display: none;
+}
+.hp-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--control-bg);
+  overflow: hidden;
+}
+.hp-fill {
+  display: block;
+  height: 100%;
+  width: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #2bc48a, #7be3a0);
+  transition: width 0.25s ease-out;
+}
+.hp-row.dog .hp-fill {
+  background: linear-gradient(90deg, #e0a030, #ffd36a);
+}
+.hp-fill.low,
+.hp-row.dog .hp-fill.low {
+  background: linear-gradient(90deg, #e04848, #ff8a6a);
+}
+.hp-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.hurt-flash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: inset 0 0 120px 30px rgba(220, 30, 30, 0.55);
+  z-index: 25;
+}
+.hurt-flash.on {
+  animation: hurt-flash 0.6s ease-out;
+}
+@keyframes hurt-flash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.faint {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1s ease;
+  z-index: 40;
+}
+.faint.on {
+  opacity: 0.92;
+}
+.faint-text {
+  color: #f2f6f7;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hurt-flash.on { animation: none; }
+}

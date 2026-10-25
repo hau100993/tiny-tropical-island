@@ -25,11 +25,33 @@ const RETREAT = 0.8;
 const VANISH = 0.3;
 /** Come nearer than this (m) and it startles and vanishes. */
 const SHY = 3.5;
+/**
+ * Ambushes (attacks on): one out watching you now and then attacks instead, this often (s,
+ * random in the range) while you are in the forest; after a creature is driven off another may
+ * follow quickly (`chain` s), up to `fights` in a row. The wind-up (s: it glows and calls) gives
+ * you time to run; then it stays, taunting, until Mochi drives it off (or `linger` s).
+ */
+const AMBUSH = { every: [25, 50], chain: [3, 6], chainChance: 0.5, fights: 3, windup: 0.8, linger: 6 } as const;
+/** Driven off: it flashes, shrinks and is gone in a burst of sparkles (s). */
+const BANISH = 0.45;
 
-type Kind = 'crab' | 'dragon' | 'bunny';
+export type WildKind = 'crab' | 'dragon' | 'bunny';
+type Kind = WildKind;
 const KINDS: Kind[] = ['crab', 'dragon', 'bunny'];
 type Action = 'idle' | 'move' | 'skill' | 'greet' | 'dance';
-type State = 'emerge' | 'watch' | 'retreat' | 'vanish';
+type State = 'emerge' | 'watch' | 'retreat' | 'vanish' | 'windup' | 'taunt' | 'banish';
+
+/** A wild one that has just attacked: where it is, and a way to drive it off. */
+export interface Attacker {
+  kind: WildKind;
+  /** Its head (world), where its attack leaves from. */
+  x: number;
+  y: number;
+  z: number;
+  /** Gone (driven off, or it slipped away). */
+  readonly gone: boolean;
+  banish(): void;
+}
 
 /** One wild creature's model, whatever its kind. */
 interface Wild {
@@ -54,6 +76,8 @@ interface Encounter {
   y: number;
   flourished: boolean;
   greeted: boolean;
+  /** As an attacker (once it has attacked). */
+  attacker: Attacker | null;
 }
 
 export interface WildHost {
@@ -72,6 +96,10 @@ export interface WildHost {
   load(count: number): Promise<{ crabs: CrabModel[]; dragons: DragonModel[]; bunnies: BunnyModel[] }>;
   /** Compiles the models' shaders before they first show. */
   compile(root: THREE.Object3D): Promise<unknown>;
+  /** An ambush: it attacks now (the attack itself and what follows: activities/ambush.ts). */
+  attack(a: Attacker): void;
+  /** Driven off at (x, y, z): the flash and the sparkles. */
+  banished(kind: WildKind, x: number, y: number, z: number): void;
 }
 
 const tmpF = new THREE.Vector3();
@@ -93,12 +121,30 @@ export class WildCreatures {
   private wasInForest = false;
   /** How many may be out at once during this visit (1–3). */
   private limit = 2;
+  /** Ambushes: on, the next in (s), how many in this fight so far. */
+  private attacks = false;
+  private ambushIn = 0;
+  private fights = 0;
 
   constructor(private readonly host: WildHost) {}
 
   setEnabled(on: boolean): void {
     this.enabled = on;
     if (!on) for (const e of this.active) this.startVanish(e, false);
+  }
+
+  /** Whether they attack you (and Mochi) now and then. */
+  setAttacks(on: boolean): void {
+    this.attacks = on;
+  }
+
+  /** In the forest with them about (the health bars show). */
+  get inForest(): boolean {
+    return this.wasInForest;
+  }
+
+  private between(r: readonly [number, number]): number {
+    return r[0] + Math.random() * (r[1] - r[0]);
   }
 
   /** `you`: where you walk (feet), or null when not walking about. */
@@ -108,8 +154,23 @@ export class WildCreatures {
     if (inForest && !this.wasInForest) {
       this.limit = 1 + Math.floor(Math.random() * 3);
       this.gap = 1 + Math.random() * 2;
+      this.ambushIn = this.between(AMBUSH.every);
+      this.fights = 0;
     }
     this.wasInForest = inForest;
+    // An ambush: one of those out watching you winds up an attack.
+    if (inForest && this.attacks && !this.active.some((e) => e.state === 'windup' || e.state === 'taunt')) {
+      this.ambushIn -= dt;
+      const watcher = this.ambushIn <= 0 ? this.active.find((e) => e.state === 'watch') : undefined;
+      if (watcher) {
+        this.go(watcher, 'windup');
+        this.host.voice(watcher.w.kind, watcher.px, watcher.y, watcher.pz);
+        this.fights++;
+        const again = this.fights < AMBUSH.fights && Math.random() < AMBUSH.chainChance;
+        this.ambushIn = this.between(again ? AMBUSH.chain : AMBUSH.every);
+        if (!again) this.fights = 0;
+      }
+    }
 
     if (inForest && you && this.pool) {
       this.gap -= dt;
@@ -140,8 +201,9 @@ export class WildCreatures {
     let speed = 0;
     let face = Math.atan2(e.px - e.hx, e.pz - e.hz);
     const d = you ? Math.hypot(you.x - e.px, you.z - e.pz) : Infinity;
-    // Startled, or you have left the forest: gone.
-    if ((d < SHY || !you) && e.state !== 'vanish') this.startVanish(e, d < SHY);
+    // Startled, or you have left the forest: gone (an attacker stands its ground, unless you leave).
+    const fighting = e.state === 'windup' || e.state === 'taunt' || e.state === 'banish';
+    if ((!you || (d < SHY && !fighting)) && e.state !== 'vanish' && e.state !== 'banish') this.startVanish(e, d < SHY);
 
     switch (e.state) {
       case 'emerge': {
@@ -190,6 +252,37 @@ export class WildCreatures {
         if (k >= 1) return false;
         break;
       }
+      case 'windup':
+        // Facing you, glowing with its element, growing a little: an attack is coming.
+        if (you) face = Math.atan2(you.x - e.px, you.z - e.pz);
+        action = 'skill';
+        scale = 1 + 0.12 * Math.sin(Math.min(1, e.t / AMBUSH.windup) * Math.PI * 3);
+        if (Math.random() < dt * 30) this.puff(w, e.px, e.y, e.pz, 2, 0.3);
+        if (e.t >= AMBUSH.windup) {
+          this.go(e, 'taunt');
+          this.host.attack(this.attackerOf(e));
+        }
+        break;
+      case 'taunt':
+        // Stays out, hopping about, until Mochi drives it off (or it gets bored).
+        if (you) face = Math.atan2(you.x - e.px, you.z - e.pz);
+        action = e.t < 1 ? 'skill' : 'dance';
+        if (e.t >= AMBUSH.linger) this.go(e, 'retreat');
+        break;
+      case 'banish': {
+        // A flash, a squash and stretch, gone.
+        const k = Math.min(1, e.t / BANISH);
+        scale = k < 0.3 ? 1 + k : (1 - k) * 1.86;
+        action = 'skill';
+        if (k >= 1) return false;
+        break;
+      }
+    }
+    if (e.attacker) {
+      const a = e.attacker as Attacker & { x: number; y: number; z: number };
+      a.x = x;
+      a.z = z;
+      a.y = (w.kind === 'dragon' ? e.y : this.host.heightAt(x, z)) + w.head;
     }
     // A wild dragon hovers between the trunks; the others stand on the ground.
     const ground = this.host.heightAt(x, z);
@@ -203,6 +296,30 @@ export class WildCreatures {
   private go(e: Encounter, state: State): void {
     e.state = state;
     e.t = 0;
+  }
+
+  /** This encounter as an attacker: its head, and banishing it (once: a flash and sparkles). */
+  private attackerOf(e: Encounter): Attacker {
+    if (e.attacker) return e.attacker;
+    const self = this;
+    const head = (e.w.kind === 'dragon' ? e.y : this.host.heightAt(e.px, e.pz)) + e.w.head;
+    const a: Attacker = {
+      kind: e.w.kind,
+      x: e.px,
+      y: head,
+      z: e.pz,
+      get gone(): boolean {
+        return !self.active.includes(e) || e.state === 'banish' || e.state === 'vanish' || e.state === 'retreat';
+      },
+      banish(): void {
+        if (a.gone) return;
+        self.go(e, 'banish');
+        self.host.banished(e.w.kind, a.x, a.y, a.z);
+        self.host.voice(e.w.kind, e.px, e.y, e.pz);
+      },
+    };
+    e.attacker = a;
+    return a;
   }
 
   /** Vanishes on the spot; `startled`: with a puff of its element and a call. */
@@ -311,6 +428,7 @@ export class WildCreatures {
       y: kind === 'dragon' ? ground + 1.4 + Math.random() * 1.2 : ground,
       flourished: false,
       greeted: false,
+      attacker: null,
     });
   }
 

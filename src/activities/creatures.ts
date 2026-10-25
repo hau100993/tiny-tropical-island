@@ -10,7 +10,8 @@ import type { SkillElement } from '../ui/skillCard';
 import type { StrikeTarget } from './dogSkills';
 import type { Partner } from './combos';
 import type { SpraySink } from '../water/Spray';
-import { WildCreatures } from './wildCreatures';
+import { WildCreatures, type Attacker } from './wildCreatures';
+import type { BubbleSink } from '../world/creatures/airBubbles';
 import type { TrunkInstance } from '../world/vegetation/forest';
 // Type-only: the models, behaviours and the GLTFLoader are a separate chunk, fetched on first use.
 import type { CrabModel } from '../world/creatures/crabModel';
@@ -69,6 +70,8 @@ export interface CreatureHost {
   rainbow: EmberSink;
   /** Flashes, shock waves, shake, framing and big sounds for the skills. */
   fx: SkillFxSink;
+  /** A wild one in the forest attacks (activities/ambush.ts). */
+  wildAttack(a: Attacker): void;
   /** A skill you set off (a key or a click) started at (x, z): show its name (and maybe a combo). */
   skillCard(skill: string, element: SkillElement, x: number, z: number): void;
 }
@@ -166,6 +169,19 @@ export class Creatures {
         return { crabs, dragons, bunnies };
       },
       compile: (root) => this.compileHidden(root, []),
+      attack: (a) => host.wildAttack(a),
+      banished: (kind, x, y, z) => {
+        // Gone in a flash of its colour and a burst of sparkles.
+        host.fx.flash(x, y, z, kind === 'crab' ? 0x9fe8ff : kind === 'dragon' ? 0xffb060 : 0xb8ff8a, 70, 8, 0.3);
+        host.fx.shock(x, y, z, 'energy', 0xffffff, 2.2, 0.4);
+        for (let i = 0; i < 70; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const c = Math.random() * 2 - 1;
+          const s = Math.sqrt(1 - c * c);
+          const v = 1 + Math.random() * 2.5;
+          host.rainbow.emit(x, y, z, Math.cos(a) * s * v, c * v + 0.5, Math.sin(a) * s * v, 0.04 + Math.random() * 0.05);
+        }
+      },
     });
     const dom = host.renderer.domElement;
     this.crabPointer = new PetPointer(dom, host.camera, {
@@ -252,12 +268,14 @@ export class Creatures {
   }
 
   /** Their effect pools, for the combos (flowers only once Mầm is loaded). */
-  get pools(): { embers: EmberSink; steam: EmberSink; spores: EmberSink; spray: SpraySink; bloom(x: number, z: number, n: number): void } {
+  get pools(): { embers: EmberSink; steam: EmberSink; spores: EmberSink; fluff: EmberSink; spray: SpraySink; bubbles: BubbleSink; bloom(x: number, z: number, n: number): void } {
     return {
       embers: this.embers,
       steam: this.steam,
       spores: this.spores,
+      fluff: this.fluff,
       spray: this.jetSpray,
+      bubbles: this.bubbles,
       bloom: (x, z, n) => this.bunny?.blooms.spawnCluster(x, z, n),
     };
   }
@@ -281,9 +299,15 @@ export class Creatures {
     if (this.bunnyOn && this.bunny && near(this.bunny.brain.x, this.bunny.brain.z)) this.bunny.brain.pat();
   }
 
-  /** Wild creatures peeking out in the rainforest, on or off. */
-  setWild(on: boolean): void {
+  /** Wild creatures peeking out in the rainforest, on or off; and whether they attack. */
+  setWild(on: boolean, attacks: boolean): void {
     this.wild.setEnabled(on);
+    this.wild.setAttacks(on && attacks);
+  }
+
+  /** Walking in the forest with the wild ones about. */
+  get inWildForest(): boolean {
+    return this.wild.inForest;
   }
 
   /** Mầm's grass skills (Z: each press the next); see waterSkill. */

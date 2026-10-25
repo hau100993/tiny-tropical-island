@@ -20,6 +20,12 @@ const BARK = { windup: 0.4, time: 1.5, reach: 10, knock: 8, rings: 3 } as const;
  * creatures, the sea): each scorched black and smoking for `burn` s.
  */
 const ZAP = { charge: 0.9, strikes: 4, every: 0.38, reach: 13, burn: 5 } as const;
+/**
+ * Striking back at a wild one that attacked (activities/ambush.ts): it turns to it, and after
+ * `at` s one bolt (or one bark) hits it, which drives it off; standing its ground `time` s.
+ * Only within `reach` m.
+ */
+const COUNTER = { at: 0.35, time: 1.1, reach: 25 } as const;
 
 /** Something lightning can strike: a point, what it is, and its body to scorch (if any). */
 export interface StrikeTarget {
@@ -72,7 +78,11 @@ interface Smoulder {
  */
 export class DogSkills {
   private nextSkill = 0;
-  private skill: DogSkill | null = null;
+  private skill: DogSkill | 'counter' | null = null;
+  /** Striking back: with what, at what (it moves), and what to do once it hits. */
+  private counterWith: 'zap' | 'bark' = 'zap';
+  private counterAt: { x: number; y: number; z: number } | null = null;
+  private counterHit: (() => void) | null = null;
   private t = 0;
   private struck = 0;
   private crawlIn = 0;
@@ -105,6 +115,25 @@ export class DogSkills {
     const order = [...SKILLS].sort(() => Math.random() - 0.5);
     for (const s of order) if (this.start(s, zoomies)) return true;
     return false;
+  }
+
+  /**
+   * A wild one attacked: Mochi turns on it and strikes back (a bolt or a bark, at random); `hit`
+   * once it lands. Interrupts its own skills but the zoomies; false if it can't (not there,
+   * mid-zoomies, too far).
+   */
+  counter(target: { x: number; y: number; z: number }, hit: () => void): boolean {
+    const h = this.host;
+    const dog = h.dog();
+    if (!dog || dog.zooming || Math.hypot(target.x - dog.x, target.z - dog.z) > COUNTER.reach) return false;
+    if (!dog.act(COUNTER.time, target.x, target.z, 'sniff')) return false;
+    this.skill = 'counter';
+    this.t = 0;
+    this.counterWith = Math.random() < 0.5 ? 'zap' : 'bark';
+    this.counterAt = target;
+    this.counterHit = hit;
+    h.card(this.counterWith);
+    return true;
   }
 
   /** Joining another creature's skill (a combo): its lightning, unless it is busy. */
@@ -149,6 +178,11 @@ export class DogSkills {
     }
     const t0 = this.t;
     this.t += dt;
+    if (s === 'counter') {
+      if (t0 < COUNTER.at && this.t >= COUNTER.at) this.strikeBack(dog);
+      if (this.t >= COUNTER.time) this.skill = null;
+      return;
+    }
     if (s === 'bark') {
       if (t0 < BARK.windup && this.t >= BARK.windup) this.bark(dog);
       if (this.t >= BARK.time) this.skill = null;
@@ -163,6 +197,44 @@ export class DogSkills {
       this.struck++;
     }
     if (this.t >= ZAP.charge + ZAP.strikes * ZAP.every + 0.5) this.skill = null;
+  }
+
+  /** The counter lands: one bolt at it, or a bark whose rings reach it; then it is driven off. */
+  private strikeBack(dog: DogCompanion): void {
+    const h = this.host;
+    const t = this.counterAt;
+    if (!t) return;
+    const g = Math.max(0, h.heightAt(t.x, t.z));
+    if (this.counterWith === 'zap') {
+      this.from.copy(this.head);
+      this.from.y += 0.15;
+      this.to.set(t.x, t.y, t.z);
+      h.lightning.strike(this.from, this.to, 0.45, 0.28);
+      h.lightning.strike(this.from, this.to, 0.3, 0.12);
+      h.fx.flash(t.x, t.y + 0.4, t.z, 0xfff0a0, 140, 14, 0.3);
+      h.fx.shock(t.x, g, t.z, 'spark', 0xffe680, 2.4, 0.6);
+      h.fx.sound('thunder', 0.5, t.x, t.y, t.z);
+      h.fx.sound('zap', 0.6, t.x, t.y, t.z);
+      for (let i = 0; i < 50; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const v = 1 + Math.random() * 3;
+        h.sparks.emit(t.x, t.y, t.z, Math.cos(a) * v, 1 + Math.random() * 3, Math.sin(a) * v, 0.03 + Math.random() * 0.04, 0.12 + Math.random() * 0.06);
+      }
+    } else {
+      const dg = Math.max(0, h.heightAt(dog.x, dog.z));
+      const reach = Math.hypot(t.x - dog.x, t.z - dog.z) + 1.5;
+      h.fx.sound('sonic', 0.8, dog.x, dg, dog.z);
+      h.fx.shock(dog.x, dg, dog.z, 'energy', 0xbfe8ff, reach, 0.6, 1.2);
+      h.fx.shock(this.head.x, this.head.y, this.head.z, 'energy', 0xe6f6ff, reach * 0.8, 0.5);
+      for (let i = 0; i < 30; i++) {
+        const a = Math.random() * Math.PI * 2;
+        h.dust.emit(t.x, g + 0.2, t.z, Math.cos(a) * 2, 0.5 + Math.random(), Math.sin(a) * 2, 0.15 + Math.random() * 0.1);
+      }
+    }
+    h.fx.shake(t.x, t.y, t.z, 0.25, 0.3);
+    const hit = this.counterHit;
+    this.counterHit = null;
+    hit?.();
   }
 
   /** The bark: rings of sound racing out on the ground and in the air, you knocked over, the sea rippling. */

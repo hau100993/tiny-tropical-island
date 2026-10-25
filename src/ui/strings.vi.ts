@@ -333,6 +333,7 @@ export const vi = {
     grassToggle: 'Mầm (thỏ hệ Cỏ)',
     grassOff: 'Bật “Mầm” trong Góc nhìn trước',
     wildToggle: 'Sinh vật hoang trong rừng',
+    wildAttackToggle: 'Sinh vật hoang tấn công (có thanh máu)',
     sharkToggle: 'Bé Mập trêu bạn ở biển',
     sharkFriend: 'Bé Mập đã thành bạn của bạn! Giờ nó hay bơi cùng bạn.',
     sharkShoo: 'Bé Mập phụng phịu bơi đi…',
@@ -358,6 +359,11 @@ export const vi = {
       thunderFire: 'Combo Điện + Lửa: Firestorm Strike',
       glowMeadow: 'Combo Điện + Cỏ: Glowing Meadow',
     } as Record<string, string>,
+  },
+  health: {
+    you: 'Bạn',
+    dog: 'Mochi',
+    fainted: 'Bạn kiệt sức… tỉnh lại trên bãi biển',
   },
   shortcuts: {
     debug: 'Ẩn/hiện thông số',

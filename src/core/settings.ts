@@ -67,6 +67,8 @@ export interface Settings {
   grass: boolean;
   /** Wild ones of the three peek out from behind the trees when you walk in the rainforest. */
   wild: boolean;
+  /** The wild ones attack you and Mochi now and then (health bars; Mochi strikes back). */
+  wildAttack: boolean;
   /** Bé Mập, the baby shark, comes to play pranks while you are at sea. */
   shark: boolean;
   /** Walk mode view: through the eyes, or behind the character. */
@@ -132,6 +134,7 @@ export function defaultSettings(): Settings {
     dragon: true,
     grass: true,
     wild: true,
+    wildAttack: true,
     shark: true,
     walkView: 'third',
     mouseSpeed: 0.4,
@@ -234,6 +237,7 @@ export function parseSettings(json: string | null): Settings {
     dragon: bool(raw.dragon, defaults.dragon),
     grass: bool(raw.grass, defaults.grass),
     wild: bool(raw.wild, defaults.wild),
+    wildAttack: bool(raw.wildAttack, defaults.wildAttack),
     shark: bool(raw.shark, defaults.shark),
     walkView: raw.walkView === 'first' || raw.walkView === 'third' ? raw.walkView : defaults.walkView,
     mouseSpeed: unit(raw.mouseSpeed, defaults.mouseSpeed),
