@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { YT_LOGO } from '../ui/youtube';
+import { ScreenBackdrop } from './screenBackdrop';
 
 const W = 1024;
 const H = 576;
@@ -16,19 +17,20 @@ export interface PxRect {
   h: number;
 }
 
-const TILE = 150;
+const TILE = 92;
 /**
  * The two app icons on the idle left screen (canvas pixels). DeskVideo lays real buttons exactly
  * over them while you sit at the desk.
  */
 export const LAUNCHER: { code: PxRect; youtube: PxRect } = {
-  code: { x: W / 2 - 40 - TILE, y: H / 2 - 105, w: TILE, h: TILE },
-  youtube: { x: W / 2 + 40, y: H / 2 - 105, w: TILE, h: TILE },
+  code: { x: W / 2 - 32 - TILE, y: H / 2 - 66, w: TILE, h: TILE },
+  youtube: { x: W / 2 + 32, y: H / 2 - 66, w: TILE, h: TILE },
 };
-/** The button cluster in the left screen's top-right corner (editor or video open). */
-export const SCREEN_BAR: PxRect = { x: W - 300, y: 10, w: 290, h: 72 };
 /** Redraw rate of the code editor (typing animation). */
 const EDITOR_FPS = 8;
+/** Redraw rate of the idle screen's drifting backdrop: close by, and farther. */
+const IDLE_FPS_NEAR = 10;
+const IDLE_FPS_FAR = 1;
 /** Beyond this distance (m) from the desk the screens are too small to read: don't redraw. */
 const NEAR_ENOUGH = 14;
 
@@ -183,6 +185,10 @@ export class DeskScreens {
   private videoLabel: string | null = null;
   /** The idle and video screens are still pictures: drawn again only when this is set. */
   private leftDirty = true;
+  /** The idle screen's background, like the right monitor's (shifted so the two differ). */
+  private readonly backdrop = new ScreenBackdrop(W, H, 8, 2.7);
+  private time = 0;
+  private idleTimer = 0;
 
   constructor(mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>, anisotropy: number) {
     const canvas = document.createElement('canvas');
@@ -211,7 +217,17 @@ export class DeskScreens {
   }
 
   update(dt: number, camera: THREE.Camera): void {
-    if (camera.position.distanceTo(this.center) > NEAR_ENOUGH) return;
+    this.time += dt;
+    const dist = camera.position.distanceTo(this.center);
+    if (dist > NEAR_ENOUGH) return;
+    if (this.leftMode === 'idle') {
+      this.idleTimer -= dt;
+      if (this.idleTimer <= 0 || this.leftDirty) {
+        this.idleTimer = 1 / (dist < 4 ? IDLE_FPS_NEAR : IDLE_FPS_FAR);
+        this.drawLeft();
+      }
+      return;
+    }
     if (this.leftMode === 'editor') {
       this.editorTimer -= dt;
       if (this.editorTimer <= 0) {
@@ -278,51 +294,56 @@ export class DeskScreens {
     else this.drawIdle();
   }
 
-  /** A monitor at rest: dark glass, a faint sheen, and the two app icons with their names. */
+  /** A monitor at rest: the drifting colour backdrop and the two app icons with their names. */
   private drawIdle(): void {
     const g = this.editor;
-    const bg = g.createLinearGradient(0, 0, W, H);
-    bg.addColorStop(0, '#0d1117');
-    bg.addColorStop(1, '#161c27');
-    g.fillStyle = bg;
-    g.fillRect(0, 0, W, H);
-    const sheen = g.createLinearGradient(0, 0, W * 0.7, H);
-    sheen.addColorStop(0, 'rgba(255,255,255,0.06)');
-    sheen.addColorStop(0.45, 'rgba(255,255,255,0)');
-    g.fillStyle = sheen;
-    g.fillRect(0, 0, W, H);
+    this.backdrop.update(this.time);
+    this.backdrop.paint(g, 0.32);
 
     const { code, youtube } = LAUNCHER;
+    const k = TILE / 150;
+    const radius = 24;
+    // Soft shadows under the tiles.
+    for (const r of [code, youtube]) roundRect(g, r.x + 2, r.y + 6, r.w - 4, r.h, radius, 'rgba(0,0,0,0.22)');
     // Code: a blue tile with a "</>" mark.
     const blue = g.createLinearGradient(0, code.y, 0, code.y + code.h);
     blue.addColorStop(0, '#3aa0ee');
     blue.addColorStop(1, '#0b5fae');
-    roundRect(g, code.x, code.y, code.w, code.h, 34, blue);
+    roundRect(g, code.x, code.y, code.w, code.h, radius, blue);
     g.strokeStyle = '#ffffff';
-    g.lineWidth = 11;
+    g.lineWidth = 11 * k;
     g.lineCap = 'round';
     g.lineJoin = 'round';
     const cx = code.x + code.w / 2;
     const cy = code.y + code.h / 2;
     g.beginPath();
-    g.moveTo(cx - 26, cy - 26);
-    g.lineTo(cx - 50, cy);
-    g.lineTo(cx - 26, cy + 26);
-    g.moveTo(cx + 26, cy - 26);
-    g.lineTo(cx + 50, cy);
-    g.lineTo(cx + 26, cy + 26);
-    g.moveTo(cx + 9, cy - 34);
-    g.lineTo(cx - 9, cy + 34);
+    g.moveTo(cx - 26 * k, cy - 26 * k);
+    g.lineTo(cx - 50 * k, cy);
+    g.lineTo(cx - 26 * k, cy + 26 * k);
+    g.moveTo(cx + 26 * k, cy - 26 * k);
+    g.lineTo(cx + 50 * k, cy);
+    g.lineTo(cx + 26 * k, cy + 26 * k);
+    g.moveTo(cx + 9 * k, cy - 34 * k);
+    g.lineTo(cx - 9 * k, cy + 34 * k);
     g.stroke();
     // YouTube: a white tile with the logo.
-    roundRect(g, youtube.x, youtube.y, youtube.w, youtube.h, 34, '#f4f5f7');
-    this.drawLogo(g, youtube.x + 25, youtube.y + 41, 100);
+    roundRect(g, youtube.x, youtube.y, youtube.w, youtube.h, radius, '#f4f5f7');
+    const logoW = 100 * k;
+    this.drawLogo(g, youtube.x + (youtube.w - logoW) / 2, youtube.y + (youtube.h - (logoW * 17) / 24) / 2, logoW);
+    // A light rim on both, like the glass on the right monitor.
+    g.strokeStyle = 'rgba(255,255,255,0.35)';
+    g.lineWidth = 1.5;
+    for (const r of [code, youtube]) {
+      g.beginPath();
+      g.roundRect(r.x + 0.75, r.y + 0.75, r.w - 1.5, r.h - 1.5, radius);
+      g.stroke();
+    }
 
-    g.font = `24px ${UI_FONT}`;
-    g.fillStyle = '#c3cad5';
+    g.font = `20px ${UI_FONT}`;
+    g.fillStyle = 'rgba(225,236,242,0.85)';
     g.textAlign = 'center';
-    g.fillText('VS Code', code.x + code.w / 2, code.y + code.h + 42);
-    g.fillText('YouTube', youtube.x + youtube.w / 2, youtube.y + youtube.h + 42);
+    g.fillText('VS Code', code.x + code.w / 2, code.y + code.h + 32);
+    g.fillText('YouTube', youtube.x + youtube.w / 2, youtube.y + youtube.h + 32);
     g.textAlign = 'left';
     this.editorTex.needsUpdate = true;
   }

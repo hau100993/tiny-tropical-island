@@ -489,11 +489,8 @@ export class App {
     this.ambience = new AmbienceSwitch((muted) => this.mixer.setAmbienceMuted(muted));
     this.deskVideo = new DeskVideo(container, ui, this.camera, w.house.screens[0], {
       onPlaying: (playing) => this.ambience.setVideoPlaying(playing),
-      ambienceOn: () => this.ambience.on,
-      toggleAmbience: () => this.ambience.toggle(),
       master: () => this.mixer.current.master,
     });
-    this.ambience.onChange(() => this.deskVideo.syncAmbience());
     this.mixer.onChange(() => this.deskVideo.syncVolume());
     // No start screen: sound starts with the first click or key press anywhere (browsers
     // don't allow audio before that).

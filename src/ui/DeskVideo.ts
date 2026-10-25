@@ -5,7 +5,7 @@ import { icons } from './icons';
 import { vi } from './strings.vi';
 import { embedUrl, parseYouTubeUrl, YT_ORIGIN, YT_STATE, type YouTubeRef } from './youtube';
 import { parseJson, readStored, writeStored } from '../core/storage';
-import { LAUNCHER, SCREEN_BAR, SCREEN_PX, type LeftMode, type PxRect } from '../world/deskScreens';
+import { LAUNCHER, SCREEN_PX, type LeftMode, type PxRect } from '../world/deskScreens';
 
 /** The iframe's own size in CSS pixels (16:9 like the screen); CSS3D scales it onto the screen. */
 const PX_W = 640;
@@ -23,9 +23,6 @@ interface Recent {
 export interface DeskVideoDeps {
   /** The video started or stopped playing (the app silences the soundscape while it plays). */
   onPlaying(playing: boolean): void;
-  /** The soundscape switch shared with the right monitor (see AmbienceSwitch). */
-  ambienceOn(): boolean;
-  toggleAmbience(): void;
   /** Master volume (0..1) and mute, applied to the video too. */
   master(): { volume: number; muted: boolean };
 }
@@ -48,8 +45,10 @@ export class DeskVideo {
   private readonly object: CSS3DObject;
   private readonly frame: HTMLDivElement;
   private readonly appsObject: CSS3DObject;
-  private readonly barObject: CSS3DObject;
+  /** Corner buttons: a flat overlay kept over the screen's top-right corner. */
   private readonly bar: HTMLElement;
+  private barX = NaN;
+  private barY = NaN;
   /** The code editor is open (when no video is loaded). */
   private editorOn: boolean;
   private iframe: HTMLIFrameElement | null = null;
@@ -64,8 +63,6 @@ export class DeskVideo {
   private readonly input: HTMLInputElement;
   private readonly recentList: HTMLElement;
   private readonly error: HTMLElement;
-  private readonly playBtn: HTMLButtonElement;
-  private readonly ambienceBtn: HTMLButtonElement;
   private readonly tmp = new THREE.Vector3();
   /** The left screen again, drawn as a see-through hole in the canvas (see `punchHole`). */
   private readonly holeScene = new THREE.Scene();
@@ -129,22 +126,23 @@ export class DeskVideo {
     apps.append(codeBtn, ytBtn);
     this.appsObject = this.onScreen(apps, { x: code.x, y: code.y, w: youtube.x + youtube.w - code.x, h: code.h });
 
-    // ---- Corner buttons: play/pause, soundscape, change link (video only), power ----
+    // ---- Corner buttons: change link (video only) and power ----
+    // Not CSS3D: laid a hair in front of the iframe, almost in its plane, Chrome's GPU hit
+    // testing can give the click to the video under them. A flat element in the UI layer can't
+    // lose it; `update` keeps it over the screen's top-right corner.
     this.bar = el('div', 'screen-bar');
-    this.bar.title = vi.video.focusHint;
-    this.playBtn = button('', () => this.togglePlay(), 'screen-bar-btn video-only');
-    this.ambienceBtn = button('', () => this.deps.toggleAmbience(), 'screen-bar-btn video-only');
+    this.bar.hidden = true;
     const change = button('', () => this.openCard(), 'screen-bar-btn video-only');
     change.innerHTML = icons.link;
     change.title = vi.video.change;
+    change.setAttribute('aria-label', vi.video.change);
     const power = button('', () => this.turnOff(), 'screen-bar-btn');
     power.innerHTML = icons.power;
-    const pill = el('div', 'screen-bar-pill');
-    pill.append(this.playBtn, this.ambienceBtn, change, power);
-    this.bar.append(pill);
-    this.barObject = this.onScreen(this.bar, SCREEN_BAR);
+    this.bar.append(change, power);
+    ui.append(this.bar);
     const syncPower = (): void => {
       power.title = this.active ? vi.video.close : vi.video.closeEditor;
+      power.setAttribute('aria-label', power.title);
     };
     this.bar.addEventListener('pointerenter', syncPower);
     syncPower();
@@ -180,11 +178,9 @@ export class DeskVideo {
     });
     this.error = el('div', 'video-error');
     this.recentList = el('div', 'video-recent');
-    this.card.append(head, form, this.error, this.recentList, el('div', 'hint', vi.video.note));
+    this.card.append(head, form, this.error, this.recentList, el('div', 'hint', vi.video.note), el('div', 'hint', vi.video.focusHint));
     ui.append(this.card);
 
-    this.syncAmbience();
-    this.syncControls();
 
     window.addEventListener('message', this.onMessage);
   }
@@ -254,8 +250,10 @@ export class DeskVideo {
     const mode = this.leftMode;
     this.object.visible = this.active;
     this.appsObject.visible = this.seated && mode === 'idle';
-    this.barObject.visible = this.seated && mode !== 'idle';
+    this.bar.hidden = !(this.seated && mode !== 'idle');
     this.bar.dataset.mode = mode;
+    this.barX = NaN;
+    this.placeBar();
     this.css.render(this.cssScene, this.camera);
   }
 
@@ -287,7 +285,8 @@ export class DeskVideo {
 
   /** Every frame: place the iframe and the buttons on the screen. */
   update(): void {
-    if (!this.object.visible && !this.appsObject.visible && !this.barObject.visible) return;
+    this.placeBar();
+    if (!this.object.visible && !this.appsObject.visible) return;
     this.css.render(this.cssScene, this.camera);
   }
 
@@ -324,10 +323,20 @@ export class DeskVideo {
     this.command(this.playing ? 'pauseVideo' : 'playVideo');
   }
 
-  /** The play button follows the player. */
-  private syncControls(): void {
-    this.playBtn.innerHTML = this.playing ? icons.pause : icons.play;
-    this.playBtn.title = this.playing ? vi.video.pause : vi.video.resume;
+  /** The corner buttons sit inside the screen's top-right corner, wherever the view turns. */
+  private placeBar(): void {
+    if (this.bar.hidden) return;
+    const p = this.screen.geometry.parameters;
+    const v = this.tmp.set(p.width / 2, p.height / 2, 0).applyMatrix4(this.screen.matrixWorld).project(this.camera);
+    const r = this.css.domElement.getBoundingClientRect();
+    // Whole pixels, written only when they change (a style write every frame costs a relayout).
+    const x = Math.round(r.left + (v.x * 0.5 + 0.5) * r.width);
+    const y = Math.round(r.top + (-v.y * 0.5 + 0.5) * r.height);
+    if (x === this.barX && y === this.barY) return;
+    this.barX = x;
+    this.barY = y;
+    this.bar.style.left = `${x}px`;
+    this.bar.style.top = `${y}px`;
   }
 
   private openCard(): void {
@@ -378,7 +387,6 @@ export class DeskVideo {
     f.addEventListener('load', () => this.listen());
     this.frame.replaceChildren(f);
     this.iframe = f;
-    this.syncControls();
     this.show();
     this.remember(url, '');
   }
@@ -389,7 +397,6 @@ export class DeskVideo {
     this.iframe = null;
     this.ready = false;
     this.setPlaying(false);
-    this.syncControls();
   }
 
   /**
@@ -432,7 +439,6 @@ export class DeskVideo {
       if (t && t !== this.title) {
         this.title = t;
         this.remember(this.url, t);
-        this.syncControls();
       }
     }
   };
@@ -455,15 +461,6 @@ export class DeskVideo {
     if (on === this.playing) return;
     this.playing = on;
     this.deps.onPlaying(on);
-    this.syncControls();
-  }
-
-  /** The corner's speaker button follows the shared soundscape switch. */
-  syncAmbience(): void {
-    const on = this.deps.ambienceOn();
-    this.ambienceBtn.innerHTML = on ? icons.speaker : icons.speakerOff;
-    this.ambienceBtn.setAttribute('aria-pressed', String(on));
-    this.ambienceBtn.title = on ? vi.video.ambienceOn : vi.video.ambienceOff;
   }
 
   private command(func: string, args: unknown[] = []): void {

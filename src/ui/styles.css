@@ -2144,7 +2144,7 @@ body.cursor-idle canvas {
   padding: 0;
   background: transparent;
   border: 0;
-  border-radius: 34px;
+  border-radius: 24px;
   cursor: pointer;
   pointer-events: auto;
   transition: background 0.15s, box-shadow 0.15s;
@@ -2157,28 +2157,28 @@ body.cursor-idle canvas {
   outline: none;
 }
 
-/* Corner buttons on the left monitor (editor or video open). */
+/* Corner buttons over the left monitor (editor or video open): a flat overlay that DeskVideo
+   keeps inside the screen's top-right corner (its left/top are that corner). */
 .screen-bar {
+  position: fixed;
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-}
-
-.screen-bar-pill {
-  display: flex;
-  gap: 4px;
-  padding: 5px;
+  gap: 2px;
+  padding: 4px;
+  transform: translate(calc(-100% - 10px), 10px);
   background: rgba(15, 18, 22, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-  pointer-events: auto;
-  opacity: 0.7;
+  opacity: 0.75;
   transition: opacity 0.15s;
 }
 
-.screen-bar-pill:hover,
-.screen-bar-pill:focus-within {
+.screen-bar[hidden] {
+  display: none;
+}
+
+.screen-bar:hover,
+.screen-bar:focus-within {
   opacity: 1;
 }
 
@@ -2189,29 +2189,25 @@ body.cursor-idle canvas {
 .screen-bar-btn {
   display: grid;
   place-items: center;
-  width: 60px;
-  height: 60px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   color: #e8edf0;
   background: transparent;
   border: 0;
-  border-radius: 13px;
+  border-radius: 9px;
   cursor: pointer;
 }
 
 .screen-bar-btn:hover,
 .screen-bar-btn:focus-visible {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.16);
   outline: none;
 }
 
-.screen-bar-btn[aria-pressed='true'] {
-  color: #6ee7d8;
-}
-
 .screen-bar-btn svg {
-  width: 30px;
-  height: 30px;
+  width: 18px;
+  height: 18px;
 }
 
 /* ---- Skill name card (ui/skillCard.ts): big, glowing, in the element's colours ---- */

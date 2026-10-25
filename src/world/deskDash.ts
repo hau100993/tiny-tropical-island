@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { PomodoroSnapshot } from '../ui/PomodoroOverlay';
 import { vi } from '../ui/strings.vi';
+import { ScreenBackdrop } from './screenBackdrop';
 import { parseJson, readStored, writeStored } from '../core/storage';
 import {
   addPomodoro,
@@ -80,17 +81,6 @@ const NEAR_ENOUGH = 14;
 const FPS_SEATED = 24;
 const FPS_NEAR = 4;
 const FPS_FAR = 1;
-/** Background: drawn small, then scaled up (the scaling blurs it for free). */
-const BG_SCALE = 8;
-
-/** Slowly drifting colour blobs behind the glass. */
-const BLOBS: ReadonlyArray<{ color: string; r: number; fx: number; fy: number; phase: number }> = [
-  { color: 'rgba(31,181,168,0.85)', r: 0.55, fx: 0.031, fy: 0.023, phase: 0 },
-  { color: 'rgba(42,111,214,0.8)', r: 0.6, fx: 0.019, fy: 0.029, phase: 2.1 },
-  { color: 'rgba(226,121,143,0.6)', r: 0.42, fx: 0.027, fy: 0.017, phase: 4.2 },
-  { color: 'rgba(243,180,91,0.45)', r: 0.36, fx: 0.015, fy: 0.033, phase: 1.3 },
-];
-
 type RowKind = 'head' | 'task' | 'input' | 'doneHead' | 'done';
 
 interface Row {
@@ -133,7 +123,9 @@ interface HitRect {
 export class DeskDash {
   private readonly g: CanvasRenderingContext2D;
   private readonly tex: THREE.CanvasTexture;
-  private readonly bg: CanvasRenderingContext2D;
+  private readonly backdrop = new ScreenBackdrop(W, H);
+  /** The backdrop's small canvas: what the glass cards see through. */
+  private readonly bg: CanvasRenderingContext2D = this.backdrop.small;
   private readonly center = new THREE.Vector3();
   private todo: TodoState;
   private time = 0;
@@ -172,13 +164,8 @@ export class DeskDash {
     canvas.width = W;
     canvas.height = H;
     const g = canvas.getContext('2d');
-    const bgCanvas = document.createElement('canvas');
-    bgCanvas.width = W / BG_SCALE;
-    bgCanvas.height = H / BG_SCALE;
-    const bg = bgCanvas.getContext('2d');
-    if (!g || !bg) throw new Error('2D canvas unavailable');
+    if (!g) throw new Error('2D canvas unavailable');
     this.g = g;
-    this.bg = bg;
     this.tex = new THREE.CanvasTexture(canvas);
     this.tex.colorSpace = THREE.SRGBColorSpace;
     this.tex.anisotropy = anisotropy;
@@ -460,29 +447,8 @@ export class DeskDash {
   }
 
   private drawBackground(): void {
-    const b = this.bg;
-    const bw = W / BG_SCALE;
-    const bh = H / BG_SCALE;
-    b.fillStyle = '#0b2230';
-    b.fillRect(0, 0, bw, bh);
-    const t = this.time;
-    for (const blob of BLOBS) {
-      const cx = bw * (0.5 + 0.42 * Math.sin(t * blob.fx * 2 * Math.PI + blob.phase));
-      const cy = bh * (0.5 + 0.4 * Math.cos(t * blob.fy * 2 * Math.PI + blob.phase * 1.7));
-      const r = blob.r * bw;
-      const grad = b.createRadialGradient(cx, cy, 0, cx, cy, r);
-      grad.addColorStop(0, blob.color);
-      grad.addColorStop(1, 'rgba(0,0,0,0)');
-      b.fillStyle = grad;
-      b.fillRect(0, 0, bw, bh);
-    }
-    const g = this.g;
-    g.imageSmoothingEnabled = true;
-    g.imageSmoothingQuality = 'high';
-    g.drawImage(b.canvas, 0, 0, W, H);
-    // Darker, for the text on top.
-    g.fillStyle = 'rgba(5,14,22,0.38)';
-    g.fillRect(0, 0, W, H);
+    this.backdrop.update(this.time);
+    this.backdrop.paint(this.g, 0.38);
   }
 
   /**
@@ -523,7 +489,8 @@ export class DeskDash {
       const sw = w / mag;
       const sh = h / mag;
       g.globalAlpha = alpha * 0.9;
-      g.drawImage(this.bg.canvas, (x + (w - sw) / 2) / BG_SCALE, (y + (h - sh) / 2) / BG_SCALE, sw / BG_SCALE, sh / BG_SCALE, x, y, w, h);
+      const k = this.backdrop.scale;
+      g.drawImage(this.bg.canvas, (x + (w - sw) / 2) / k, (y + (h - sh) / 2) / k, sw / k, sh / k, x, y, w, h);
       g.globalAlpha = alpha;
     }
     g.fillStyle = `rgba(255,255,255,${opts.tint ?? 0.08})`;

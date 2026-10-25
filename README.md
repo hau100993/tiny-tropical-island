@@ -237,7 +237,8 @@ something else, put your own image at `src/assets/local/mug-logo.png` (or `.jpg`
 that folder is git-ignored and takes precedence) and restart `npm run dev`. Wood has a procedural grain (shader, no textures); cushions, futon, chair and
 ceramics are rounded and smooth-shaded. Trees are kept out of the view from the glass to the sea.
 
-**The left monitor: VS Code and YouTube.** At rest the left monitor shows two app icons. Seated
+**The left monitor: VS Code and YouTube.** At rest the left monitor shows two small app icons
+over the same drifting colour background as the right monitor. Seated
 at the desk, click **VS Code** for the code editor that slowly types code, or **YouTube** (or
 press `U`) to play a video. With either open, a small button cluster sits in the screen's
 top-right corner; its power button (⏻) closes the editor or the video and brings the icons
@@ -245,9 +246,11 @@ back. The app remembers whether you left the editor open.
 
 **YouTube on the left monitor.** Paste a YouTube link (a video, a live stream, a Short or a
 playlist) into the little card, or pick one of the last five, and it plays on the left screen,
-sitting on it in 3D as you look around or lean in. The corner buttons are: **play / pause**,
-**soundscape** (the island's sound is switched off while a video plays; this turns it back on),
-**change video**, and **power**. Master volume and `M` also set the video's volume. Getting up
+sitting on it in 3D as you look around or lean in. Use YouTube's own controls for play, pause and
+volume. The corner buttons are **change video** (🔗) and **power** (⏻). The island's sound is
+switched off while a video plays; **🌊** on the right monitor turns it back on. (The corner
+buttons are a flat overlay kept over the screen's corner, not part of the 3D layer: laid almost
+in the video's plane, Chrome could give their clicks to the video.) Master volume and `M` also set the video's volume. Getting up
 leaves the video playing: you still see it on the monitor as you walk around the house, and `U`
 anywhere away from the desk pauses or resumes it. Notes:
 
