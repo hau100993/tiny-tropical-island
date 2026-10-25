@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Loop } from './loop';
-import { SettingsStore, safeLocalStorage, type CharacterId, type Settings, type SettingsPatch } from './settings';
+import { SettingsStore, mouseLook, safeLocalStorage, type CharacterId, type Settings, type SettingsPatch } from './settings';
 import { NORMAL_FPS, QUALITY_PROFILES, VIDEO_FPS } from './quality';
 import { sharedUniforms } from './uniforms';
 import { EnvState } from './envState';
@@ -11,6 +11,7 @@ import { createOrbitCamera, type OrbitCamera } from '../controls/orbit';
 import { Keymap } from '../controls/keymap';
 import { onWaterClick, type ClickAim } from '../controls/waterClick';
 import { PetPointer } from '../controls/petPointer';
+import { DragLook } from '../controls/dragLook';
 import { Petting } from '../activities/petting';
 import { Hearts } from '../world/hearts';
 import { PetCursor } from '../ui/PetCursor';
@@ -816,6 +817,7 @@ export class App {
     const profile = QUALITY_PROFILES[s.quality];
     // A new quality preset may change the pixel ratio cap.
     this.onResize();
+    DragLook.sensitivity = mouseLook(s.mouseSpeed);
 
     const shadows = profile.shadowMapSize > 0;
     this.renderer.shadowMap.enabled = shadows;

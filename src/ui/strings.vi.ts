@@ -15,6 +15,8 @@ export const vi = {
     startSound: 'Bật âm thanh',
     startSoundHint: 'Trình duyệt chỉ cho phát âm thanh sau khi bạn nhấp hoặc nhấn phím',
     autoCollapse: 'Nhấp vào cảnh 3D để thu gọn bảng',
+    mouseSpeed: 'Độ nhạy chuột',
+    mouseSpeedHint: 'Tốc độ xoay khi rê chuột lúc đi, chèo kayak, lướt ván',
     expand: 'Mở bảng',
     audio: 'Âm thanh',
     scene: 'Cảnh',

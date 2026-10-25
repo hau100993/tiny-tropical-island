@@ -99,6 +99,7 @@ export class Panel {
   private readonly headerMute: HTMLButtonElement;
   private readonly startBtn: HTMLButtonElement;
   private readonly autoCollapse: ToggleControl;
+  private readonly mouseSpeed: SliderControl;
   private readonly pomoBtn: HTMLButtonElement;
   private readonly pomoText: HTMLElement;
   private readonly statusLine: HTMLElement;
@@ -348,6 +349,8 @@ export class Panel {
     this.autoCollapse = toggle(vi.panel.autoCollapse, s.autoCollapse, (on) => settings.update({ autoCollapse: on }));
     const confOpts = el('div', 'option-list');
     confOpts.append(this.startAtDesk.root, this.autoCollapse.root);
+    this.mouseSpeed = slider(vi.panel.mouseSpeed, s.mouseSpeed, (v) => settings.update({ mouseSpeed: v }));
+    this.mouseSpeed.root.title = vi.panel.mouseSpeedHint;
     const keys = el('details', 'subsection');
     const keysTitle = el('summary', 'subsection-title', vi.panel.shortcuts);
     const list = el('dl', 'shortcut-list');
@@ -355,7 +358,7 @@ export class Panel {
     const keysBody = el('div', 'section-body');
     keysBody.append(list, el('div', 'hint', vi.shortcuts.mouse), el('div', 'hint', vi.shortcuts.sliderWheel), el('div', 'hint', vi.shortcuts.sceneKeys), el('div', 'hint', vi.shortcuts.walkKeys), el('div', 'hint', vi.shortcuts.swimKeys), el('div', 'hint', vi.shortcuts.diveKeys), el('div', 'hint', vi.shortcuts.kayakKeys), el('div', 'hint', vi.shortcuts.surfKeys));
     keys.append(keysTitle, keysBody);
-    conf.body.append(el('div', 'subhead', vi.panel.quality), quality, this.qualityNote, confOpts, keys);
+    conf.body.append(el('div', 'subhead', vi.panel.quality), quality, this.qualityNote, confOpts, this.mouseSpeed.root, keys);
 
     content.append(time, ...[...this.sections.values()].map((x) => x.root));
     this.root.append(header, top, content);
@@ -629,6 +632,7 @@ export class Panel {
     this.thirdPerson.set(s.walkView === 'third');
     this.startAtDesk.set(s.startAtDesk);
     this.autoCollapse.set(s.autoCollapse);
+    this.mouseSpeed.set(s.mouseSpeed);
     const real = s.timeMode === 'real';
     const stopped = !real && s.timePaused;
     // Real clock: the monitor icon is lit; the speed shows the island speed, dimmed.

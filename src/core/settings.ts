@@ -71,6 +71,8 @@ export interface Settings {
   shark: boolean;
   /** Walk mode view: through the eyes, or behind the character. */
   walkView: WalkView;
+  /** Mouse steering speed while walking, paddling and surfing, 0..1 (see mouseLook). */
+  mouseSpeed: number;
   /** Your character (third person, swimming, kayak, surfing). */
   character: CharacterId;
   /** Scene preset last applied ('' = none); its mapped recordings play. */
@@ -90,6 +92,11 @@ export const PANEL_SECTIONS = ['scene', 'sound', 'view', 'settings'] as const;
 export type PanelSection = (typeof PANEL_SECTIONS)[number];
 /** First launch: the scenes and the views, the two things you pick most. */
 const DEFAULT_SECTIONS: readonly PanelSection[] = ['scene', 'view'];
+
+/** The mouse speed setting as a factor on the base look rate: 0.2× … 1.2× (the default 0.4: 0.6×). */
+export function mouseLook(speed: number): number {
+  return 0.2 + speed;
+}
 
 export type SettingsPatch = Partial<Omit<Settings, 'version'>>;
 
@@ -127,6 +134,7 @@ export function defaultSettings(): Settings {
     wild: true,
     shark: true,
     walkView: 'third',
+    mouseSpeed: 0.4,
     character: 'default',
     activeScene: 'b-sunny',
     synthFallback: true,
@@ -228,6 +236,7 @@ export function parseSettings(json: string | null): Settings {
     wild: bool(raw.wild, defaults.wild),
     shark: bool(raw.shark, defaults.shark),
     walkView: raw.walkView === 'first' || raw.walkView === 'third' ? raw.walkView : defaults.walkView,
+    mouseSpeed: unit(raw.mouseSpeed, defaults.mouseSpeed),
     character: (CHARACTER_IDS as readonly unknown[]).includes(raw.character) ? (raw.character as CharacterId) : defaults.character,
     activeScene: typeof raw.activeScene === 'string' ? raw.activeScene.slice(0, 64) : defaults.activeScene,
     // The old one-open accordion (`panelSection`) is dropped: everyone starts from the new default.

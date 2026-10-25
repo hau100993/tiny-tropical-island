@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultSettings, parseSettings, SETTINGS_VERSION } from '../src/core/settings';
+import { defaultSettings, mouseLook, parseSettings, SETTINGS_VERSION } from '../src/core/settings';
 
 describe('parseSettings', () => {
   it('maps the old day-cycle modes onto the island clock', () => {
@@ -25,6 +25,12 @@ describe('parseSettings', () => {
     expect(s.quality).toBe('high');
     expect(s.footsteps).toBe(defaultSettings().footsteps);
     expect(s.autoRotate).toBe(true);
+  });
+
+  it('keeps the mouse speed in [0, 1], slower than before by default', () => {
+    expect(parseSettings(JSON.stringify({ mouseSpeed: 3 })).mouseSpeed).toBe(1);
+    expect(parseSettings(JSON.stringify({ mouseSpeed: 'x' })).mouseSpeed).toBe(0.4);
+    expect(mouseLook(defaultSettings().mouseSpeed)).toBeCloseTo(0.6);
   });
 
   it('rejects unknown quality levels', () => {

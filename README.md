@@ -474,7 +474,7 @@ behind you, so it works inside the small room too.
 
 | Input | Action |
 |---|---|
-| Mouse, while moving | Steers, no button needed (as in a game); the cursor hides meanwhile. With the cursor at the left or right edge of the screen the view keeps turning that way. The mouse is never captured, so there is no browser "press Esc" notice |
+| Mouse, while moving | Steers, no button needed (as in a game); the cursor hides meanwhile. Pushing the cursor into the left or right edge of the screen turns a little further that way (only while you push: a cursor left at the edge no longer spins you round). Speed: **Cài đặt → Độ nhạy chuột** (default 60% of the old rate; moves are smoothed over ~50 ms). The mouse is never captured, so there is no browser "press Esc" notice |
 | Mouse, standing still | The cursor is back: **drag** on the scene to turn the view, point at Mochi to pet it, use the menu |
 | `W` `A` `S` `D` / arrow keys | Walk |
 | `Shift` (hold) | Run |
