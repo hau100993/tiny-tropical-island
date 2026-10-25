@@ -113,6 +113,8 @@ export class DeskDashInput {
     if (hit.kind !== 'input') this.input.blur();
     this.press = { hit, x: e.clientX, y: e.clientY, pointerId: e.pointerId, moved: false };
     this.dom.setPointerCapture(e.pointerId);
+    // A slider follows the press at once, and then the drag.
+    if (hit.kind === 'slider' && p) this.dash.slide(hit.id, p.x);
   };
 
   private readonly onMove = (e: PointerEvent): void => {
@@ -124,18 +126,23 @@ export class DeskDashInput {
       return;
     }
     e.stopImmediatePropagation();
+    const h = press.hit;
+    if (h.kind === 'slider') {
+      const p = this.pick(e);
+      if (p) this.dash.slide(h.id, p.x);
+      return;
+    }
     if (!press.moved && Math.hypot(e.clientX - press.x, e.clientY - press.y) > CLICK_PX) {
       press.moved = true;
-      const h = press.hit;
       if ((h.kind === 'card' || h.kind === 'ring') && !this.dash.dragging) {
         const p = this.pick(e);
-        if (p) this.dash.beginDrag(h.id, p.y);
+        if (p) this.dash.beginDrag(h.id, p.x, p.y);
         this.dom.style.cursor = 'grabbing';
       }
     }
     if (this.dash.dragging) {
       const p = this.pick(e);
-      if (p) this.dash.dragTo(p.y);
+      if (p) this.dash.dragTo(p.x, p.y);
     }
   };
 
@@ -165,11 +172,20 @@ export class DeskDashInput {
   private readonly onWheel = (e: WheelEvent): void => {
     if (!this.active) return;
     const p = this.pick(e);
-    if (!p || !this.dash.inList(p.x, p.y)) return;
-    // Over the list the wheel scrolls it instead of leaning in.
+    if (!p) return;
+    const hit = this.dash.hitAt(p.x, p.y);
+    if (hit?.kind === 'slider') {
+      // Over a volume slider the wheel turns it.
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      this.dash.nudge(hit.id, e.deltaY < 0 ? 1 : -1);
+      return;
+    }
+    if (!this.dash.inList(p.x, p.y)) return;
+    // Over a list the wheel scrolls it instead of leaning in.
     e.preventDefault();
     e.stopImmediatePropagation();
-    this.dash.scrollBy(e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY);
+    this.dash.scrollBy(p.x, p.y, e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY);
   };
 
   private setHover(hit: DashHit | null): void {
@@ -177,6 +193,6 @@ export class DeskDashInput {
     const key = hit ? hit.kind : '';
     if (key === this.hoverKey) return;
     this.hoverKey = key;
-    this.dom.style.cursor = hit ? (hit.kind === 'card' ? 'grab' : 'pointer') : '';
+    this.dom.style.cursor = hit ? (hit.kind === 'card' ? 'grab' : hit.kind === 'slider' ? 'ew-resize' : 'pointer') : '';
   }
 }

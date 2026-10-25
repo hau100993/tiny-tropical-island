@@ -1,4 +1,4 @@
-import { button, el, onWheelNotch, slider, toggle, type ToggleControl } from './components';
+import { button, el, onWheelNotch, slider, toggle, type SliderControl, type ToggleControl } from './components';
 import { icons } from './icons';
 import { vi } from './strings.vi';
 import { isRecord, parseJson, readStored, writeStored } from '../core/storage';
@@ -66,6 +66,7 @@ export class PomodoroOverlay {
   private readonly settingsBox: HTMLElement;
   private readonly inputs = new Map<NumberKey, HTMLInputElement>();
   private readonly toggles: Array<[keyof PomodoroConfig, ToggleControl]> = [];
+  private alertSlider: SliderControl | null = null;
   private config: PomodoroConfig;
   private state: PomodoroState;
   private visible: boolean;
@@ -104,7 +105,7 @@ export class PomodoroOverlay {
     const controls = el('div', 'pomo-controls');
     this.playBtn = button('', () => this.toggleRunning(), 'icon-btn');
     const skipBtn = iconButton(icons.skip, vi.pomodoro.skip, () => this.skipPhase());
-    const resetBtn = iconButton(icons.reset, vi.pomodoro.reset, () => this.update(reset(this.config)));
+    const resetBtn = iconButton(icons.reset, vi.pomodoro.reset, () => this.resetTimer());
     const gearBtn = iconButton(icons.gear, vi.pomodoro.settings, () => {
       this.settingsBox.hidden = !this.settingsBox.hidden;
       gearBtn.setAttribute('aria-expanded', String(!this.settingsBox.hidden));
@@ -149,6 +150,24 @@ export class PomodoroOverlay {
   /** "Chuyển sang phần sau". */
   skipPhase(): void {
     this.update(skip(this.state, this.config, Date.now()));
+  }
+
+  /** Ends the Pomodoro: back to a fresh, stopped focus session (the monitor shows the clock). */
+  resetTimer(): void {
+    this.update(reset(this.config));
+  }
+
+  get alertVolume(): number {
+    return this.config.alertVolume;
+  }
+
+  /** Notification volume (0..1), from the desk monitor's slider. */
+  setAlertVolume(volume: number): void {
+    const v = Math.min(1, Math.max(0, volume));
+    this.config = { ...this.config, alertVolume: v };
+    this.alertSlider?.set(v);
+    this.deps.setAlertVolume(v);
+    this.save();
   }
 
   get chimeOn(): boolean {
@@ -241,12 +260,8 @@ export class PomodoroOverlay {
       toggleRow.append(t.root);
     }
     box.append(toggleRow);
-    const volume = slider(vi.pomodoro.alertVolume, this.config.alertVolume, (v) => {
-      this.config = { ...this.config, alertVolume: v };
-      this.deps.setAlertVolume(v);
-      this.save();
-    });
-    box.append(volume.root);
+    this.alertSlider = slider(vi.pomodoro.alertVolume, this.config.alertVolume, (v) => this.setAlertVolume(v));
+    box.append(this.alertSlider.root);
     return box;
   }
 

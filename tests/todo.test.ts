@@ -10,7 +10,6 @@ import {
   removeTask,
   restoreTask,
   rollDay,
-  toggleCurrent,
   type TodoState,
 } from '../src/ui/todo';
 
@@ -28,18 +27,16 @@ describe('to-do list', () => {
     expect(s.open.map((t) => t.text)).toEqual(['Viết shader', 'Sửa layout']);
   });
 
-  it('finishing moves a task to the top of today’s list and clears it as current', () => {
-    let s = toggleCurrent(withTasks('a', 'b', 'c'), 't1');
+  it('finishing moves a task to the top of today’s list', () => {
+    let s = withTasks('a', 'b', 'c');
     s = completeTask(s, 't0');
     s = completeTask(s, 't1');
     expect(s.open.map((t) => t.id)).toEqual(['t2']);
     expect(s.done.map((t) => t.id)).toEqual(['t1', 't0']);
-    expect(s.current).toBeNull();
   });
 
   it('restoring puts a finished task back at the bottom with its tomatoes', () => {
-    let s = toggleCurrent(withTasks('a', 'b'), 't0');
-    s = addPomodoro(s);
+    let s = addPomodoro(withTasks('a', 'b'));
     s = restoreTask(completeTask(s, 't0'), 't0');
     expect(s.open.map((t) => [t.id, t.pomos])).toEqual([
       ['t1', 0],
@@ -55,14 +52,17 @@ describe('to-do list', () => {
     expect(moveTask(s, 't1', 99).open.map((t) => t.id)).toEqual(['t0', 't2', 't3', 't1']);
   });
 
-  it('counts focus sessions for the day and for the current task only', () => {
-    let s = addPomodoro(withTasks('a', 'b'));
+  it('counts focus sessions for the day and for the task on top only', () => {
+    let s = addPomodoro(emptyTodo(NOON));
     expect(s.pomosToday).toBe(1);
-    expect(s.open.every((t) => t.pomos === 0)).toBe(true);
-    s = addPomodoro(toggleCurrent(s, 't1'), 2);
-    expect(s.pomosToday).toBe(3);
-    expect(s.open[1].pomos).toBe(2);
-    expect(toggleCurrent(s, 't1').current).toBeNull();
+    s = addPomodoro(withTasks('a', 'b'), 2);
+    expect(s.pomosToday).toBe(2);
+    expect(s.open.map((t) => t.pomos)).toEqual([2, 0]);
+    s = addPomodoro(moveTask(s, 't1', 0));
+    expect(s.open.map((t) => [t.id, t.pomos])).toEqual([
+      ['t1', 1],
+      ['t0', 2],
+    ]);
   });
 
   it('a new day clears the finished list and the day’s count, keeping open tasks', () => {
@@ -87,7 +87,6 @@ describe('to-do list', () => {
       {
         open: [{ id: 'a', text: ' x ', pomos: 2.4 }, { id: 'a', text: 'dup' }, { id: 'b', text: '' }, 'junk'],
         done: [{ id: 'c', text: 'y', pomos: -1 }],
-        current: 'zzz',
         day: dayKey(NOON),
         pomosToday: 3,
       },
@@ -95,7 +94,6 @@ describe('to-do list', () => {
     );
     expect(s.open).toEqual([{ id: 'a', text: 'x', pomos: 2 }]);
     expect(s.done).toEqual([{ id: 'c', text: 'y', pomos: 0 }]);
-    expect(s.current).toBeNull();
     expect(s.pomosToday).toBe(3);
     // Stored yesterday: finished tasks are gone.
     expect(parseTodo({ open: [], done: [{ id: 'c', text: 'y' }], day: '2000-01-01' }, NOON).done).toEqual([]);

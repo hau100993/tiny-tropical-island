@@ -8,15 +8,14 @@ export interface Task {
 }
 
 /**
- * The to-do list. Open tasks are in priority order (top first). Finished ones stay in `done`
- * (newest first) for the day they were finished on; `day` is that local date, and a new day
- * clears them and the day's Pomodoro count.
+ * The to-do list. Open tasks are in priority order; the top one is the task being worked on (it
+ * gets the 🍅 when a focus session ends). Finished ones stay in `done` (newest first) for the
+ * day they were finished on; `day` is that local date, and a new day clears them and the day's
+ * Pomodoro count.
  */
 export interface TodoState {
   open: Task[];
   done: Task[];
-  /** The task being worked on (gets the 🍅 when a focus session ends). */
-  current: string | null;
   day: string;
   /** Focus sessions finished today. */
   pomosToday: number;
@@ -33,7 +32,7 @@ export function dayKey(ms: number): string {
 }
 
 export function emptyTodo(now: number): TodoState {
-  return { open: [], done: [], current: null, day: dayKey(now), pomosToday: 0 };
+  return { open: [], done: [], day: dayKey(now), pomosToday: 0 };
 }
 
 /** A new day: yesterday's finished tasks and Pomodoro count go away. */
@@ -57,7 +56,6 @@ export function completeTask(s: Readonly<TodoState>, id: string): TodoState {
     ...s,
     open: s.open.filter((t) => t.id !== id),
     done: [task, ...s.done].slice(0, MAX_DONE),
-    current: s.current === id ? null : s.current,
   };
 }
 
@@ -73,7 +71,6 @@ export function removeTask(s: Readonly<TodoState>, id: string): TodoState {
     ...s,
     open: s.open.filter((t) => t.id !== id),
     done: s.done.filter((t) => t.id !== id),
-    current: s.current === id ? null : s.current,
   };
 }
 
@@ -87,18 +84,12 @@ export function moveTask(s: Readonly<TodoState>, id: string, index: number): Tod
   return { ...s, open };
 }
 
-/** Makes `id` the current task, or clears it if it already is. */
-export function toggleCurrent(s: Readonly<TodoState>, id: string): TodoState {
-  if (!s.open.some((t) => t.id === id)) return s as TodoState;
-  return { ...s, current: s.current === id ? null : id };
-}
-
-/** A focus session ended: counts it for today and for the current task. */
+/** A focus session ended: counts it for today and for the task on top. */
 export function addPomodoro(s: Readonly<TodoState>, count = 1): TodoState {
   return {
     ...s,
     pomosToday: s.pomosToday + count,
-    open: s.open.map((t) => (t.id === s.current ? { ...t, pomos: t.pomos + count } : t)),
+    open: s.open.map((t, i) => (i === 0 ? { ...t, pomos: t.pomos + count } : t)),
   };
 }
 
@@ -127,8 +118,7 @@ export function parseTodo(raw: unknown, now: number): TodoState {
   if (!isRecord(raw)) return emptyTodo(now);
   const open = parseTasks(raw.open, MAX_OPEN);
   const done = parseTasks(raw.done, MAX_DONE).filter((t) => !open.some((o) => o.id === t.id));
-  const current = typeof raw.current === 'string' && open.some((t) => t.id === raw.current) ? raw.current : null;
   const pomosToday = typeof raw.pomosToday === 'number' && Number.isFinite(raw.pomosToday) ? Math.max(0, Math.round(raw.pomosToday)) : 0;
   const day = typeof raw.day === 'string' ? raw.day : '';
-  return rollDay({ open, done, current, day, pomosToday }, now);
+  return rollDay({ open, done, day, pomosToday }, now);
 }

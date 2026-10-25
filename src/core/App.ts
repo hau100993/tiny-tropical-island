@@ -470,19 +470,24 @@ export class App {
       info: () => this.screenInfo(),
       toggleTimer: () => this.pomodoro.toggleRunning(),
       skipPhase: () => this.pomodoro.skipPhase(),
+      resetTimer: () => this.pomodoro.resetTimer(),
       chimeOn: () => this.pomodoro.chimeOn,
       toggleChime: () => this.pomodoro.toggleChime(),
+      alertVolume: () => this.pomodoro.alertVolume,
+      setAlertVolume: (v) => this.pomodoro.setAlertVolume(v),
       ambienceOn: () => this.ambience.on,
       toggleAmbience: () => this.ambience.toggle(),
+      masterVolume: () => this.mixer.current.master.volume,
+      setMasterVolume: (v) => this.mixer.setMaster({ volume: v }),
     });
     this.dashInput = new DeskDashInput(this.renderer.domElement, this.camera, w.house.screens[1], this.deskDash, ui);
     this.scene.add(this.todoBubbles.group);
-    this.deskDash.onTaskDone = (rect, last) => {
-      // Reduced motion: no bubbles, one soft pop.
-      const pops = this.reducedMotion.matches
-        ? [{ delay: 0.05, size: 0.5 }]
-        : this.todoBubbles.burst(w.house.screens[1], DASH_PX.w, DASH_PX.h, rect, last);
-      if (this.pomodoro.chimeOn) this.mixer.schedulePops(pops);
+    this.deskDash.onTaskDone = (done) => {
+      // Reduced motion: no bubbles, one pop and the sparkle.
+      const plan = this.reducedMotion.matches
+        ? { launches: [], pops: [{ delay: 0.05, step: 0.5 }], finale: 0.15 }
+        : this.todoBubbles.burst(w.house.screens[1], DASH_PX.w, DASH_PX.h, done, done.last);
+      if (this.pomodoro.chimeOn) this.mixer.scheduleBubbleBurst(plan);
     };
     this.pomodoro = new PomodoroOverlay(ui, {
       scheduleChime: (atMs, kind) => this.mixer.scheduleChime(atMs, kind),

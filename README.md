@@ -291,24 +291,28 @@ forest; drag to look around, **E** or **Esc** to get out.
 
 **The right monitor: Pomodoro and to-do list.** On top, a compact strip: while the Pomodoro runs
 (or is paused), the phase, the session dots, the time left in large digits, a progress line,
-play/pause and skip; otherwise the clock and date with a **Bắt đầu tập trung** button. Its two
-small round buttons are **🔔** (notification sounds on/off) and **🌊** (the soundscape on/off; it
-is the same switch as the soundscape button on a playing video). `✓` and `🍅` count today's
-finished tasks and focus sessions. Below the strip, the to-do list, on "liquid glass" cards:
+**play/pause**, **skip** and **■ stop** (ends the Pomodoro: the strip goes back to the clock);
+otherwise the clock and date with a **Bắt đầu tập trung** button. On its right, two volume rows:
+**🔔** notifications (bell and bubble pops) and **🌊** the island's sound (the master volume).
+Click the icon to switch it off or on (🌊 is the same switch as the soundscape on a playing
+video), click or drag the bar to set the volume, or turn the wheel over it. Below the strip, two
+columns of "liquid glass" cards:
 
-- **Thêm việc…**: click it and type (Vietnamese input methods work), **Enter** adds the task,
-  **Esc** stops typing.
-- Click a task's **ring ◯** when it is done: the card bursts into a stream of soap bubbles
-  ("Bọt") that fly out of the monitor, float up with the wind and pop into a ring, droplets and
-  sparkles with a soft "bụp" (the 🔔 switch and **Âm lượng thông báo** cover the pops too).
-  Finishing the last task left sends a bigger burst ("Bọt Nước"). With *reduce motion* set in
-  Windows there are no bubbles, just the tick and one pop. The task moves to **Đã xong hôm nay**
-  below. Click a finished task to put it back. The finished list keeps today only (it empties at midnight);
-  click its title to fold it.
-- Click a card to make it the **current task** (it glows, "ĐANG LÀM"); each focus session that
-  ends while it is current adds a 🍅 to it. Click it again to clear.
-- **Drag** a card up or down to change the order; hover a card for its **✕** (delete).
-- The **wheel** over the list scrolls it (elsewhere it leans in, as before). While the Pomodoro
+- **Đang làm** (left): the tasks to do, in order. The top one is the task you are on: it glows,
+  and each focus session that ends adds a 🍅 to it. **Drag** a card up or down to change the
+  order (drag another one to the top to switch tasks); hover a card for its **✕** (delete).
+- **Thêm việc…** at the bottom of that column: click it and type (Vietnamese input methods
+  work), **Enter** adds the task, **Esc** stops typing.
+- Click a task's **ring ◯** when it is done, or drag its card onto the right column: a volley of
+  big cartoon bubbles ("Bọt") shoots out of the monitor toward you with a rising "bloop" each,
+  hangs in the air in front of the monitors, then the bubbles burst one after another in a quick
+  chain (flash, ring, droplets, sparkles, a "pop" that climbs in pitch), ending in a little
+  sparkle of bells. All synthesized; 🔔 and its volume cover them. Finishing the last task left
+  sends a bigger volley ("Bọt Nước"). With *reduce motion* set in Windows there are no bubbles,
+  just the tick, one pop and the sparkle.
+- **Đã xong hôm nay** (right): today's finished tasks and 🍅 count; click one to put it back.
+  It empties at midnight.
+- The **wheel** over a column scrolls it (elsewhere it leans in, as before). While the Pomodoro
   runs, the footer line (what is playing, the scene, the island time) is hidden to give the list
   more room.
 - The list is saved in the browser (`localStorage`, key `tsw.todo`).

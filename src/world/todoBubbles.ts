@@ -40,26 +40,29 @@ void main() {
   vec3 pos = aStart + aVel * (1.0 - exp(-${DRAG.toFixed(1)} * tm)) / ${DRAG.toFixed(1)}
     + vec3(0.0, ${RISE.toFixed(2)} * tm, 0.0) + uWind * (0.5 * tm * tm);
   pos += uCamRight * sin(tm * 3.1 + seed * 40.0) * 0.022;
-  // Born small, then the slight squash and stretch of a soft bubble in flight.
-  float grow = smoothstep(0.0, 0.14, t);
+  // Born small (a bounce past full size), the squash and stretch of a soft bubble in flight, and
+  // flattening just before it pops.
+  float grow = smoothstep(0.0, 0.18, t) + 0.12 * sin(clamp(t / 0.3, 0.0, 1.0) * 3.1416);
   float pop = clamp((t - life) / ${POP.toFixed(2)}, 0.0, 1.0);
-  float wob = sin(tm * 9.0 + seed * 31.0) * 0.08;
-  vec2 size = vec2(1.0 + wob, 1.0 - wob) * aInfo.z * 2.0 * grow * (1.0 + 0.35 * pop);
+  float pre = smoothstep(life - 0.16, life, tm);
+  float wob = sin(tm * 9.0 + seed * 31.0) * 0.07 * (1.0 - pre);
+  vec2 squash = vec2(1.0 + wob + 0.22 * pre, 1.0 - wob - 0.18 * pre);
+  vec2 size = squash * aInfo.z * 2.0 * grow * (1.0 + 0.4 * pop);
   vec3 world = pos + uCamRight * position.x * size.x + uCamUp * position.y * size.y;
   vUv = uv;
   vPop = pop;
-  vFade = grow;
+  vFade = min(grow, 1.0);
   vSeed = seed;
   gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
 }
 `;
 
 /**
- * A soap bubble, cartoon style. The quad's UV gives a point on a sphere seen from the front:
- * r = distance from the centre, z = sqrt(1 − r²) its depth. Fresnel (1 − z)^n makes the rim
- * strong and the middle clear; the rim's colour runs through a rainbow (thin-film interference:
- * the soap film's thickness shifts which colour is reflected) and two fixed white highlights
- * sell it as a Pokémon "Bọt". Popping, it becomes a thin ring that widens and fades.
+ * A Pokémon "Bọt" bubble, cartoon style. The quad's UV gives a point on a sphere seen from the
+ * front: r = distance from the centre, z = sqrt(1 − r²) its depth, (p, z) its normal. The body
+ * is a light, fairly opaque blue shaded by that normal (lighter top left), with a faint rainbow
+ * on the rim (thin-film interference), a white inner rim, a deep-blue outline and big fixed
+ * white highlights. Popping, it becomes a ring that widens and fades.
  */
 const BUBBLE_FRAG = /* glsl */ `
 uniform float uDayLight;
@@ -73,25 +76,39 @@ void main() {
   if (r > 1.0) discard;
   float light = 0.35 + 0.65 * uDayLight;
   if (vPop > 0.0) {
-    float ring = smoothstep(0.1, 0.0, abs(r - (0.72 + 0.26 * vPop)));
-    gl_FragColor = vec4(vec3(0.9, 0.97, 1.0) * light, ring * (1.0 - vPop) * 0.9);
+    // The burst: a white flash filling the bubble for an instant, and a ring that widens.
+    float flash = (1.0 - smoothstep(0.0, 0.35, vPop)) * (1.0 - r * r) * 0.85;
+    float w = 0.12 * (1.0 - vPop) + 0.03;
+    float ring = smoothstep(w, 0.0, abs(r - (0.7 + 0.28 * vPop))) * (1.0 - vPop);
+    vec3 c = mix(vec3(0.45, 0.78, 1.0), vec3(1.0), 0.6 + 0.4 * flash);
+    gl_FragColor = vec4(c * max(light, flash), max(ring, flash));
     return;
   }
   float z = sqrt(1.0 - r * r);
-  float fres = pow(1.0 - z, 2.2);
-  float hue = fres * 2.2 + vSeed * 6.2831 + p.y * 0.8;
-  vec3 film = 0.5 + 0.5 * cos(6.2831 * (vec3(0.0, 0.33, 0.67) + hue));
-  vec3 col = mix(vec3(0.55, 0.82, 1.0), film, 0.5 * fres);
-  float a = 0.13 + 0.7 * fres;
-  // A thin deeper-blue outline, so the bubble still reads against a bright sky.
-  float edge = smoothstep(0.84, 0.97, r);
-  col = mix(col, vec3(0.2, 0.5, 0.88), edge * 0.75);
-  a = max(a, edge * 0.85);
-  float h1 = smoothstep(0.2, 0.12, length(p - vec2(-0.36, 0.4)));
-  float h2 = smoothstep(0.085, 0.045, length(p - vec2(-0.08, 0.62)));
-  float h = max(h1, h2);
-  col = mix(col * light, vec3(1.0), h);
-  a = max(a, h * 0.95) * smoothstep(1.0, 0.95, r);
+  float fres = pow(1.0 - z, 2.0);
+  // Body: light blue, lit from the top left.
+  float shade = 0.5 + 0.5 * dot(vec3(p, z), normalize(vec3(-0.45, 0.55, 0.7)));
+  vec3 col = vec3(0.56, 0.85, 1.0) * (0.72 + 0.4 * shade);
+  float a = 0.3 + 0.3 * fres;
+  vec3 film = 0.5 + 0.5 * cos(6.2831 * (vec3(0.0, 0.33, 0.67) + fres * 1.6 + vSeed * 6.2831));
+  col = mix(col, film, 0.22 * fres);
+  // White inner rim, then a deep-blue outline (reads on a bright sky too).
+  float inner = smoothstep(0.7, 0.83, r) * smoothstep(0.95, 0.85, r);
+  col = mix(col, vec3(1.0), inner * 0.65);
+  a = max(a, inner * 0.7);
+  float edge = smoothstep(0.89, 0.97, r);
+  col = mix(col, vec3(0.15, 0.45, 0.86), edge);
+  a = max(a, edge * 0.95);
+  col *= light;
+  // Highlights: a big tilted oval top left, a dot above it, a soft one bottom right.
+  vec2 q = p - vec2(-0.36, 0.36);
+  q = mat2(0.8, 0.6, -0.6, 0.8) * q;
+  float h1 = smoothstep(1.0, 0.7, length(q * vec2(3.4, 6.0)));
+  float h2 = smoothstep(0.1, 0.06, length(p - vec2(0.06, 0.64)));
+  float h3 = smoothstep(0.16, 0.04, length(p - vec2(0.46, -0.48))) * 0.45;
+  float h = max(max(h1, h2), h3);
+  col = mix(col, vec3(1.0), h);
+  a = max(a, h * 0.95) * smoothstep(1.0, 0.97, r);
   gl_FragColor = vec4(col, a * vFade);
 }
 `;
@@ -146,16 +163,20 @@ void main() {
 }
 `;
 
-export interface BubblePop {
-  /** Seconds from now. */
-  delay: number;
-  /** 0..1, for the pop's pitch. */
-  size: number;
+/** When things happen in a burst (seconds from now), for its sound. */
+export interface BubbleBurstPlan {
+  /** Each bubble shot out ("bloop"). */
+  launches: number[];
+  /** Each pop, with its place in the chain (0..1, the pitch climbs). */
+  pops: Array<{ delay: number; step: number }>;
+  /** After the last pop: the closing sparkle. */
+  finale: number;
 }
 
 /**
- * "Bọt": when a to-do is finished its card bursts into a stream of soap bubbles that fly out of
- * the monitor, wobble, float up with the wind and pop into a ring, droplets and sparkles.
+ * "Bọt": when a to-do is finished, a volley of cartoon bubbles shoots out of the monitor, floats
+ * up with the wind, then the bubbles burst one after another in a quick chain, each into a flash,
+ * a ring, droplets and sparkles.
  * All motion runs in the vertex shaders from a few numbers written once per bubble at launch
  * (start, velocity, birth, life, size, seed); the CPU never touches them per frame. One
  * instanced mesh draws every bubble, one Points object every droplet and sparkle; both are
@@ -245,17 +266,12 @@ export class TodoBubbles {
   }
 
   /**
-   * Bursts the canvas rectangle (x, y, w, h) of `screen` (a plane whose canvas is cw×ch pixels)
-   * into bubbles flying out of its face. `big`: the last task of the list, a bigger "Bọt Nước".
-   * Returns when each bubble pops, for the sound.
+   * Shoots a volley of bubbles out of `screen` (a plane whose canvas is cw×ch pixels) from canvas
+   * point `at`, toward whoever faces it, arcing up. `big`: the last task of the list, a bigger
+   * "Bọt Nước". They all fly a while, then burst in a chain (shuffled, so the pops hop around).
+   * Returns the timing, for the sound.
    */
-  burst(
-    screen: THREE.Mesh<THREE.PlaneGeometry>,
-    cw: number,
-    ch: number,
-    rect: { x: number; y: number; w: number; h: number },
-    big: boolean,
-  ): BubblePop[] {
+  burst(screen: THREE.Mesh<THREE.PlaneGeometry>, cw: number, ch: number, at: { x: number; y: number }, big: boolean): BubbleBurstPlan {
     const now = this.uniforms.uTime.value;
     const p = screen.geometry.parameters;
     screen.updateWorldMatrix(true, false);
@@ -264,25 +280,37 @@ export class TodoBubbles {
     this.right.setFromMatrixColumn(m, 0).normalize();
     this.up.setFromMatrixColumn(m, 1).normalize();
     this.normal.setFromMatrixColumn(m, 2).normalize();
-    const count = big ? 60 : 22;
-    const stream = big ? 1.2 : 0.6;
-    const pops: BubblePop[] = [];
+    const count = big ? 28 : 12;
+    const stream = big ? 0.9 : 0.45;
+    /** Every bubble is in the air this long before the chain of pops starts… */
+    const fly = big ? 1.5 : 1.25;
+    /** …which then lasts this long. */
+    const chain = big ? 1.1 : 0.6;
+    const order = Array.from({ length: count }, (_, i) => i);
+    for (let i = count - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    const plan: BubbleBurstPlan = { launches: [], pops: [], finale: 0 };
     for (let i = 0; i < count; i++) {
       const k = i / count;
-      // Sweep along the card from its ring (left) to the right, a little scatter up and down.
-      const px = rect.x + rect.w * Math.min(1, k * 1.1 + Math.random() * 0.08);
-      const py = rect.y + rect.h * (0.2 + Math.random() * 0.6);
-      this.corner.set((px / cw - 0.5) * p.width, (0.5 - py / ch) * p.height, 0.01).applyMatrix4(m);
-      const radius = (big ? 0.012 : 0.01) + Math.random() * (big ? 0.03 : 0.022);
-      // Out of the screen, arcing up; small ones are lighter and fly faster.
-      const speed = 0.55 + Math.random() * 0.5 + (0.03 - radius) * 8;
+      // A volley from the ring, like a Pokémon's Bubble: each one a little apart.
+      const px = at.x + (Math.random() - 0.5) * 30;
+      const py = at.y + (Math.random() - 0.5) * 24;
+      this.corner.set((px / cw - 0.5) * p.width, (0.5 - py / ch) * p.height, 0.015).applyMatrix4(m);
+      const radius = (big ? 0.026 : 0.024) + Math.random() * (big ? 0.03 : 0.022);
+      // Toward you, fanning out and only a little up, so the chain of pops happens in front of
+      // the monitors where you can see it; smaller ones are lighter and fly faster.
+      const speed = 0.45 + Math.random() * 0.25 + (0.04 - radius) * 5;
       const vel = this.tmp
         .copy(this.normal)
         .multiplyScalar(speed)
-        .addScaledVector(this.up, 0.35 + Math.random() * 0.45)
-        .addScaledVector(this.right, (Math.random() - 0.5) * 0.7);
-      const birth = now + k * stream + Math.random() * 0.05;
-      const life = (big ? 1.6 : 1.2) + Math.random() * (big ? 1.6 : 1.3);
+        .addScaledVector(this.up, 0.05 + Math.random() * 0.3)
+        .addScaledVector(this.right, (Math.random() - 0.5) * (big ? 1.4 : 1.0));
+      const birth = now + k * stream + Math.random() * 0.03;
+      const step = count > 1 ? order[i] / (count - 1) : 0;
+      const popAt = now + stream + fly + step * chain;
+      const life = popAt - birth;
       const seed = Math.random();
       const i3 = this.nextBubble * 3;
       const i4 = this.nextBubble * 4;
@@ -291,8 +319,10 @@ export class TodoBubbles {
       (this.bInfo.array as Float32Array).set([birth, life, radius, seed], i4);
       this.nextBubble = (this.nextBubble + 1) % MAX_BUBBLES;
       this.spawnBits(this.corner, vel, birth, life, radius, seed);
-      pops.push({ delay: birth + life - now, size: Math.min(1, radius / 0.042) });
-      this.endsAt = Math.max(this.endsAt, birth + life + 1.2);
+      plan.launches.push(birth - now);
+      plan.pops.push({ delay: popAt - now, step });
+      plan.finale = Math.max(plan.finale, popAt - now + 0.08);
+      this.endsAt = Math.max(this.endsAt, popAt + 1.2);
     }
     this.bStart.needsUpdate = true;
     this.bVel.needsUpdate = true;
@@ -301,7 +331,7 @@ export class TodoBubbles {
     this.bitsVel.needsUpdate = true;
     this.bitsInfo.needsUpdate = true;
     this.group.visible = true;
-    return pops;
+    return plan;
   }
 
   /** Where the bubble is when it pops (the shader's motion, without the tiny wobble). */
@@ -311,19 +341,22 @@ export class TodoBubbles {
     const x = start.x + vel.x * s + w.x * 0.5 * life * life;
     const y = start.y + vel.y * s + RISE * life + w.y * 0.5 * life * life;
     const z = start.z + vel.z * s + w.z * 0.5 * life * life;
-    const n = 3 + Math.floor(radius * 100);
+    // A splash: droplets thrown outward from the bubble's rim, and a few sparkles.
+    const n = 6 + Math.floor(radius * 60);
     for (let j = 0; j < n; j++) {
       const sparkle = j % 3 === 0;
       const a = (j / n) * Math.PI * 2 + seed * 6.28;
-      const sp = sparkle ? 0.12 + Math.random() * 0.1 : 0.25 + Math.random() * 0.35;
+      const cx = Math.cos(a);
+      const sy = Math.sin(a);
+      const sp = sparkle ? 0.14 + Math.random() * 0.1 : 0.35 + Math.random() * 0.4;
       const i3 = this.nextBit * 3;
       const i4 = this.nextBit * 4;
-      (this.bitsPos.array as Float32Array).set([x, y, z], i3);
-      (this.bitsVel.array as Float32Array).set(
-        [this.right.x * Math.cos(a) * sp + this.up.x * Math.sin(a) * sp, Math.sin(a) * sp + 0.15, this.right.z * Math.cos(a) * sp + this.up.z * Math.sin(a) * sp],
+      (this.bitsPos.array as Float32Array).set(
+        [x + (this.right.x * cx + this.up.x * sy) * radius, y + sy * radius, z + (this.right.z * cx + this.up.z * sy) * radius],
         i3,
       );
-      (this.bitsInfo.array as Float32Array).set([birth + life, sparkle ? 0.55 : 0.45, sparkle ? 0.022 + radius * 0.4 : 0.006 + radius * 0.15, sparkle ? 1 : 0], i4);
+      (this.bitsVel.array as Float32Array).set([(this.right.x * cx + this.up.x * sy) * sp, sy * sp + 0.25, (this.right.z * cx + this.up.z * sy) * sp], i3);
+      (this.bitsInfo.array as Float32Array).set([birth + life, sparkle ? 0.7 : 0.5, sparkle ? 0.03 + radius * 0.5 : 0.008 + radius * 0.2, sparkle ? 1 : 0], i4);
       this.nextBit = (this.nextBit + 1) % MAX_BITS;
     }
   }

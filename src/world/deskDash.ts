@@ -12,7 +12,6 @@ import {
   removeTask,
   restoreTask,
   rollDay,
-  toggleCurrent,
   type Task,
   type TodoState,
 } from '../ui/todo';
@@ -32,16 +31,34 @@ export interface DashDeps {
   /** Start or pause the Pomodoro. */
   toggleTimer(): void;
   skipPhase(): void;
+  /** End the Pomodoro (back to the clock). */
+  resetTimer(): void;
   chimeOn(): boolean;
   toggleChime(): void;
+  alertVolume(): number;
+  setAlertVolume(v: number): void;
   ambienceOn(): boolean;
   toggleAmbience(): void;
+  /** The island's sound (master volume). */
+  masterVolume(): number;
+  setMasterVolume(v: number): void;
 }
+
+export type DashSlider = 'alert' | 'master';
 
 /** Something on the screen that reacts to a click. */
 export type DashHit =
   | { kind: 'ring' | 'card' | 'delete' | 'restore'; id: string }
-  | { kind: 'input' | 'doneHead' | 'timer' | 'skip' | 'chime' | 'ambience' };
+  | { kind: 'slider'; id: DashSlider }
+  | { kind: 'input' | 'timer' | 'skip' | 'stop' | 'chime' | 'ambience' };
+
+/** A finished task: where its ring was on the canvas (the bubbles start there). */
+export interface TaskDone {
+  x: number;
+  y: number;
+  /** No task left: the bigger burst. */
+  last: boolean;
+}
 
 const W = 1280;
 const H = 720;
@@ -50,30 +67,40 @@ export const DASH_PX = { w: W, h: H } as const;
 
 const STORAGE_KEY = 'tsw.todo';
 const UI_FONT = '"Segoe UI", system-ui, sans-serif';
+const EMOJI_FONT = `"Segoe UI Emoji", ${UI_FONT}`;
 const TEAL = '#4fd1c1';
 const AMBER = '#ffd38a';
-const DIM = 'rgba(214,232,238,0.62)';
+const DIM = 'rgba(214,232,238,0.66)';
 
-// Layout (canvas pixels).
-const X = 36;
-const CW = W - 2 * X;
-const STRIP = { x: X, y: 18, w: CW, h: 142 };
-const LIST_TOP = 174;
+// Layout (canvas pixels). The monitor shows this canvas about 0.4× on a 1080p window, so text
+// is large: 34 px here is ~14 px on screen.
+const STRIP = { x: 36, y: 16, w: 1208, h: 136 };
+const LIST_TOP = 168;
 const LIST_BOTTOM = H - 12;
-/** With the footer line (scene, sound, island time) shown. */
-const LIST_BOTTOM_FOOTER = H - 58;
-const HEAD_H = 46;
-const CARD_H = 66;
-const CARD_STEP = CARD_H + 10;
-const DONE_H = 52;
-const DONE_STEP = DONE_H + 8;
+/** With the footer line (what is playing, scene, island time) shown. */
+const LIST_BOTTOM_FOOTER = H - 54;
+type Col = 'L' | 'R';
+const COLS: Record<Col, { x: number; w: number }> = {
+  L: { x: 36, w: 716 },
+  R: { x: 772, w: 472 },
+};
+const HEAD_H = 52;
+const CARD_H = 76;
+const CARD_STEP = CARD_H + 12;
+const DONE_H = 62;
+const DONE_STEP = DONE_H + 10;
+const RING_X = 44;
 const BTN = {
-  play: { x: 990, y: 88, r: 36 },
-  skip: { x: 1076, y: 88, r: 30 },
-  chime: { x: 1176, y: 60, r: 24 },
-  ambience: { x: 1176, y: 116, r: 24 },
+  play: { x: 680, y: 84, r: 40 },
+  skip: { x: 772, y: 84, r: 33 },
+  stop: { x: 852, y: 84, r: 33 },
 } as const;
-const START = { x: 590, y: 56, w: 330, h: 64 };
+const START = { x: 330, y: 52, w: 370, h: 66 };
+/** The two volume rows: icon (a round toggle) and a slider track. */
+const VOL: Record<DashSlider, { y: number; icon: number; x0: number; x1: number }> = {
+  alert: { y: 58, icon: 940, x0: 978, x1: 1214 },
+  master: { y: 112, icon: 940, x0: 978, x1: 1214 },
+};
 
 /** Beyond this distance (m) from the desk the screen is too small to read: don't redraw. */
 const NEAR_ENOUGH = 14;
@@ -81,12 +108,13 @@ const NEAR_ENOUGH = 14;
 const FPS_SEATED = 24;
 const FPS_NEAR = 4;
 const FPS_FAR = 1;
-type RowKind = 'head' | 'task' | 'input' | 'doneHead' | 'done';
+
+type RowKind = 'head' | 'task' | 'input' | 'done' | 'empty';
 
 interface Row {
   key: string;
   kind: RowKind;
-  /** Target top, in list content coordinates (0 = top of the list). */
+  /** Target top, in the column's content coordinates (0 = top of the list). */
   y: number;
   h: number;
   task?: Task;
@@ -115,10 +143,12 @@ interface HitRect {
 }
 
 /**
- * The right desk monitor: a compact Pomodoro strip on top and the to-do list below, as "liquid
- * glass" cards over drifting colour blobs. Everything is drawn on one canvas (the same picture
- * close up, from afar and in reflections); DeskDashInput turns clicks on the 3D screen into
- * canvas pixels and calls `hitAt` / `activate`. The list is kept in localStorage.
+ * The right desk monitor: a compact Pomodoro strip on top (timer, play/pause, skip, stop, and
+ * the notification and soundscape volumes), then two columns of "liquid glass" cards over
+ * drifting colour blobs: what to do ("Đang làm", the top task is the one being worked on) and
+ * what is done today. Everything is drawn on one canvas (the same picture close up, from afar
+ * and in reflections); DeskDashInput turns clicks on the 3D screen into canvas pixels and calls
+ * `hitAt` / `activate`. The list is kept in localStorage.
  */
 export class DeskDash {
   private readonly g: CanvasRenderingContext2D;
@@ -137,10 +167,9 @@ export class DeskDash {
   private ghosts: Ghost[] = [];
   private hits: HitRect[] = [];
   private hover = '';
-  private scroll = 0;
-  private scrollTarget = 0;
+  private readonly scroll: Record<Col, number> = { L: 0, R: 0 };
+  private readonly scrollTarget: Record<Col, number> = { L: 0, R: 0 };
   private listBottom = LIST_BOTTOM;
-  private doneOpen = true;
   // Typing a new task (the text comes from DeskDashInput's hidden input).
   private editing = false;
   private draft = '';
@@ -148,12 +177,13 @@ export class DeskDash {
   private caretTime = 0;
   // Dragging a card.
   private dragId: string | null = null;
-  /** Pointer y on the canvas, and where in the card it grabbed. */
+  /** Pointer on the canvas, and where in the card it grabbed. */
+  private dragX = 0;
   private dragY = 0;
   private dragGrab = 0;
   private dragIndex = 0;
-  /** A task was finished: its card's rectangle on the canvas (the bubbles start there); `last`: no task left. */
-  onTaskDone: ((rect: { x: number; y: number; w: number; h: number }, last: boolean) => void) | null = null;
+  /** A task was finished (clicked ring or dropped on "Đã xong"). */
+  onTaskDone: ((done: TaskDone) => void) | null = null;
 
   constructor(
     mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>,
@@ -173,9 +203,7 @@ export class DeskDash {
     mesh.material.color.set('#ffffff');
     mesh.material.needsUpdate = true;
     mesh.getWorldPosition(this.center);
-    const raw = parseJson(readStored(STORAGE_KEY));
-    this.doneOpen = !(typeof raw === 'object' && raw !== null && (raw as { doneOpen?: unknown }).doneOpen === false);
-    this.todo = parseTodo(raw, Date.now());
+    this.todo = parseTodo(parseJson(readStored(STORAGE_KEY)), Date.now());
   }
 
   // ---- Called by the app and by DeskDashInput ----
@@ -200,7 +228,7 @@ export class DeskDash {
     this.sinceDraw = 0;
   }
 
-  /** Focus sessions ended: a 🍅 for the current task and the day. */
+  /** Focus sessions ended: a 🍅 for the top task and the day. */
   addPomodoros(count: number): void {
     this.set(addPomodoro(rollDay(this.todo, Date.now()), count));
   }
@@ -214,27 +242,50 @@ export class DeskDash {
     return null;
   }
 
-  /** The pointer is over the list (the wheel scrolls it there). */
+  /** The column under (x, y) the wheel scrolls, or null. */
+  private colAt(x: number, y: number): Col | null {
+    if (y < LIST_TOP || y > this.listBottom) return null;
+    for (const c of ['L', 'R'] as const) if (x >= COLS[c].x && x <= COLS[c].x + COLS[c].w) return c;
+    return null;
+  }
+
+  /** The pointer is over a list (the wheel scrolls it there). */
   inList(x: number, y: number): boolean {
-    return x >= X && x <= X + CW && y >= LIST_TOP && y <= this.listBottom;
+    return this.colAt(x, y) !== null;
   }
 
   setHover(hit: DashHit | null): void {
     this.hover = hit ? hitKey(hit) : '';
   }
 
-  scrollBy(dy: number): void {
-    this.scrollTarget = this.clampScroll(this.scrollTarget + dy * 0.6);
+  scrollBy(x: number, y: number, dy: number): void {
+    const c = this.colAt(x, y);
+    if (c) this.scrollTarget[c] = this.clampScroll(c, this.scrollTarget[c] + dy * 0.6);
+  }
+
+  /** Sets a volume slider from canvas x (a click or a drag on it). */
+  slide(id: DashSlider, x: number): void {
+    const v = VOL[id];
+    const value = Math.min(1, Math.max(0, (x - v.x0) / (v.x1 - v.x0)));
+    if (id === 'alert') this.deps.setAlertVolume(value);
+    else this.deps.setMasterVolume(value);
+    this.drawTimer = 0;
+  }
+
+  /** The wheel over a slider: ±5 % a notch. */
+  nudge(id: DashSlider, dir: number): void {
+    const now = id === 'alert' ? this.deps.alertVolume() : this.deps.masterVolume();
+    const value = Math.min(1, Math.max(0, Math.round((now + dir * 0.05) * 20) / 20));
+    if (id === 'alert') this.deps.setAlertVolume(value);
+    else this.deps.setMasterVolume(value);
+    this.drawTimer = 0;
   }
 
   /** A click (press and release without dragging) on `hit`. */
   activate(hit: DashHit): void {
     switch (hit.kind) {
       case 'ring':
-        this.complete(hit.id);
-        break;
-      case 'card':
-        this.set(toggleCurrent(this.todo, hit.id));
+        this.complete(hit.id, null);
         break;
       case 'delete': {
         const a = this.anims.get(`o:${hit.id}`);
@@ -246,15 +297,14 @@ export class DeskDash {
       case 'restore':
         this.set(restoreTask(this.todo, hit.id));
         break;
-      case 'doneHead':
-        this.doneOpen = !this.doneOpen;
-        this.save();
-        break;
       case 'timer':
         this.deps.toggleTimer();
         break;
       case 'skip':
         this.deps.skipPhase();
+        break;
+      case 'stop':
+        this.deps.resetTimer();
         break;
       case 'chime':
         this.deps.toggleChime();
@@ -262,7 +312,9 @@ export class DeskDash {
       case 'ambience':
         this.deps.toggleAmbience();
         break;
+      case 'card':
       case 'input':
+      case 'slider':
         break;
     }
     this.drawTimer = 0;
@@ -285,26 +337,34 @@ export class DeskDash {
     this.reveal('input');
   }
 
-  beginDrag(id: string, y: number): void {
+  beginDrag(id: string, x: number, y: number): void {
     const a = this.anims.get(`o:${id}`);
     if (!a) return;
     this.dragId = id;
+    this.dragX = x;
     this.dragY = y;
-    this.dragGrab = y - (LIST_TOP + a.y - this.scroll);
+    this.dragGrab = y - (LIST_TOP + a.y - this.scroll.L);
     this.dragIndex = this.todo.open.findIndex((t) => t.id === id);
   }
 
-  dragTo(y: number): void {
-    if (this.dragId) this.dragY = y;
+  dragTo(x: number, y: number): void {
+    if (!this.dragId) return;
+    this.dragX = x;
+    this.dragY = y;
   }
 
+  /** Dropped over "Đã xong": finished; elsewhere: moved to its new place. */
   endDrag(): void {
     if (!this.dragId) return;
     const id = this.dragId;
     this.dragId = null;
-    // The card settles from where it was dropped.
+    const top = this.dragY - this.dragGrab;
     const a = this.anims.get(`o:${id}`);
-    if (a) a.y = this.dragY - this.dragGrab - LIST_TOP + this.scroll;
+    if (a) a.y = top - LIST_TOP + this.scroll.L;
+    if (this.overDone()) {
+      this.complete(id, { x: this.dragX - 120, y: top + CARD_H / 2 });
+      return;
+    }
     this.set(moveTask(this.todo, id, this.dragIndex));
   }
 
@@ -325,59 +385,64 @@ export class DeskDash {
   }
 
   private save(): void {
-    writeStored(STORAGE_KEY, { ...this.todo, doneOpen: this.doneOpen });
+    writeStored(STORAGE_KEY, this.todo);
   }
 
-  private complete(id: string): void {
+  private overDone(): boolean {
+    return this.dragId !== null && this.dragX > COLS.R.x - 10;
+  }
+
+  /** `at`: where the bubbles start (canvas px); null = the task's ring in the list. */
+  private complete(id: string, at: { x: number; y: number } | null): void {
     const a = this.anims.get(`o:${id}`);
     const task = this.todo.open.find((t) => t.id === id);
     if (!a || !task) return;
-    this.ghosts.push({ task, y: a.y, t: 0, pop: true });
-    const top = LIST_TOP + a.y - this.scroll;
+    const top = LIST_TOP + a.y - this.scroll.L;
+    if (!at) this.ghosts.push({ task, y: a.y, t: 0, pop: true });
     this.set(completeTask(rollDay(this.todo, Date.now()), id));
-    this.onTaskDone?.({ x: X, y: top, w: CW, h: CARD_H }, this.todo.open.length === 0);
+    const p = at ?? { x: COLS.L.x + RING_X, y: top + CARD_H / 2 };
+    this.onTaskDone?.({ x: p.x, y: p.y, last: this.todo.open.length === 0 });
   }
 
-  /** Scrolls so that the row `key` is in view. */
+  /** Scrolls so that the row `key` (left column) is in view. */
   private reveal(key: string): void {
-    const row = this.layout().find((r) => r.key === key);
+    const row = this.layout('L').find((r) => r.key === key);
     if (!row) return;
     const view = this.listBottom - LIST_TOP;
-    if (row.y < this.scrollTarget) this.scrollTarget = row.y;
-    else if (row.y + row.h > this.scrollTarget + view) this.scrollTarget = row.y + row.h - view + 8;
-    this.scrollTarget = this.clampScroll(this.scrollTarget);
+    let t = this.scrollTarget.L;
+    if (row.y < t) t = row.y;
+    else if (row.y + row.h > t + view) t = row.y + row.h - view + 8;
+    this.scrollTarget.L = this.clampScroll('L', t);
   }
 
-  private clampScroll(v: number): number {
-    const rows = this.layout();
+  private clampScroll(c: Col, v: number): number {
+    const rows = this.layout(c);
     const last = rows[rows.length - 1];
     const content = last ? last.y + last.h + 8 : 0;
     return Math.max(0, Math.min(v, content - (this.listBottom - LIST_TOP)));
   }
 
-  /** The list's rows and where they belong (content coordinates). */
-  private layout(): Row[] {
-    const rows: Row[] = [{ key: 'head', kind: 'head', y: 0, h: HEAD_H }];
+  /** A column's rows and where they belong (content coordinates). */
+  private layout(c: Col): Row[] {
+    const rows: Row[] = [{ key: `head${c}`, kind: 'head', y: 0, h: HEAD_H }];
     let y = HEAD_H;
-    const open = this.dragId ? this.todo.open.filter((t) => t.id !== this.dragId) : this.todo.open;
-    open.forEach((task, i) => {
-      // Leave a gap where the dragged card would land.
-      if (this.dragId && i === this.dragIndex) y += CARD_STEP;
-      rows.push({ key: `o:${task.id}`, kind: 'task', y, h: CARD_H, task });
-      y += CARD_STEP;
-    });
-    if (this.dragId && this.dragIndex >= open.length) y += CARD_STEP;
-    rows.push({ key: 'input', kind: 'input', y, h: CARD_H });
-    y += CARD_STEP;
-    if (this.todo.done.length > 0) {
-      y += 6;
-      rows.push({ key: 'doneHead', kind: 'doneHead', y, h: HEAD_H });
-      y += HEAD_H;
-      if (this.doneOpen) {
-        for (const task of this.todo.done) {
-          rows.push({ key: `d:${task.id}`, kind: 'done', y, h: DONE_H, task });
-          y += DONE_STEP;
-        }
+    if (c === 'L') {
+      const open = this.dragId ? this.todo.open.filter((t) => t.id !== this.dragId) : this.todo.open;
+      const gap = this.dragId && !this.overDone() ? this.dragIndex : -1;
+      open.forEach((task, i) => {
+        // Leave a gap where the dragged card would land.
+        if (i === gap) y += CARD_STEP;
+        rows.push({ key: `o:${task.id}`, kind: 'task', y, h: CARD_H, task });
+        y += CARD_STEP;
+      });
+      if (gap >= open.length) y += CARD_STEP;
+      rows.push({ key: 'input', kind: 'input', y, h: CARD_H });
+    } else if (this.todo.done.length === 0) {
+      rows.push({ key: 'empty', kind: 'empty', y, h: DONE_H });
+    } else {
+      for (const task of this.todo.done) {
+        rows.push({ key: `d:${task.id}`, kind: 'done', y, h: DONE_H, task });
+        y += DONE_STEP;
       }
     }
     return rows;
@@ -386,69 +451,89 @@ export class DeskDash {
   // ---- Drawing ----
 
   private draw(dt: number): void {
-    const g = this.g;
     const info = this.deps.info();
     const p = info.pomodoro;
     const timerOn = p !== null && p.started;
     this.listBottom = timerOn ? LIST_BOTTOM : LIST_BOTTOM_FOOTER;
     this.hits = [];
 
-    this.drawBackground();
-    this.drawStrip(info.pomodoro, timerOn);
+    this.backdrop.update(this.time);
+    this.backdrop.paint(this.g, 0.38);
+    this.drawStrip(p, timerOn);
 
     // Dragging: which slot the card is over, and scroll when held near an edge.
     if (this.dragId) {
-      const contentY = this.dragY - this.dragGrab - LIST_TOP + this.scroll + CARD_H / 2;
+      const contentY = this.dragY - this.dragGrab - LIST_TOP + this.scroll.L + CARD_H / 2;
       const n = this.todo.open.length;
       this.dragIndex = Math.max(0, Math.min(n - 1, Math.floor((contentY - HEAD_H) / CARD_STEP)));
-      if (this.dragY < LIST_TOP + 40) this.scrollTarget = this.clampScroll(this.scrollTarget - 600 * dt);
-      else if (this.dragY > this.listBottom - 40) this.scrollTarget = this.clampScroll(this.scrollTarget + 600 * dt);
+      if (this.dragY < LIST_TOP + 40) this.scrollTarget.L -= 600 * dt;
+      else if (this.dragY > this.listBottom - 40) this.scrollTarget.L += 600 * dt;
     }
-    this.scrollTarget = this.clampScroll(this.scrollTarget);
-    this.scroll += (this.scrollTarget - this.scroll) * Math.min(1, dt * 14);
-
-    const rows = this.layout();
     const k = Math.min(1, dt * 14);
     const live = new Set<string>();
-    for (const r of rows) {
-      live.add(r.key);
-      let a = this.anims.get(r.key);
-      if (!a) {
-        a = { y: r.y, a: 0 };
-        this.anims.set(r.key, a);
+    for (const c of ['L', 'R'] as const) {
+      this.scrollTarget[c] = this.clampScroll(c, this.scrollTarget[c]);
+      this.scroll[c] += (this.scrollTarget[c] - this.scroll[c]) * k;
+      const rows = this.layout(c);
+      for (const r of rows) {
+        live.add(r.key);
+        let a = this.anims.get(r.key);
+        if (!a) {
+          a = { y: r.y, a: 0 };
+          this.anims.set(r.key, a);
+        }
+        a.y += (r.y - a.y) * k;
+        a.a = Math.min(1, a.a + dt * 5);
       }
-      a.y += (r.y - a.y) * k;
-      a.a = Math.min(1, a.a + dt * 5);
+      this.drawColumn(c, rows, dt);
     }
     for (const key of this.anims.keys()) if (!live.has(key) && key !== `o:${this.dragId}`) this.anims.delete(key);
 
-    g.save();
-    g.beginPath();
-    g.rect(0, LIST_TOP - 6, W, this.listBottom - LIST_TOP + 6);
-    g.clip();
-    for (const r of rows) {
-      const a = this.anims.get(r.key);
-      if (!a) continue;
-      const top = LIST_TOP + a.y - this.scroll;
-      if (top > this.listBottom || top + r.h < LIST_TOP - 6) continue;
-      this.drawRow(r, top, a.a);
-    }
-    this.ghosts = this.ghosts.filter((gh) => (gh.t += dt / 0.4) < 1);
-    for (const gh of this.ghosts) this.drawGhost(gh);
-    g.restore();
-    this.drawScrollbar(rows);
-
     if (this.dragId) {
       const task = this.todo.open.find((t) => t.id === this.dragId);
-      if (task) this.drawTask(task, this.dragY - this.dragGrab, 1, true);
+      if (task) {
+        // Over "Đã xong" the card follows the pointer across; otherwise it stays in its column.
+        const over = this.overDone();
+        const x = over ? Math.min(this.dragX - 120, W - 36 - COLS.R.w) : COLS.L.x;
+        this.drawTask(task, x, over ? COLS.R.w : COLS.L.w, this.dragY - this.dragGrab, 1, true, false);
+      }
     }
     if (!timerOn) this.drawFooter(info);
     this.tex.needsUpdate = true;
   }
 
-  private drawBackground(): void {
-    this.backdrop.update(this.time);
-    this.backdrop.paint(this.g, 0.38);
+  private drawColumn(c: Col, rows: Row[], dt: number): void {
+    const g = this.g;
+    const col = COLS[c];
+    g.save();
+    g.beginPath();
+    g.rect(col.x - 8, LIST_TOP - 6, col.w + 16, this.listBottom - LIST_TOP + 6);
+    g.clip();
+    if (c === 'R' && this.dragId && this.overDone()) {
+      // A drop zone lights up under the dragged card.
+      g.fillStyle = 'rgba(79,209,193,0.12)';
+      g.strokeStyle = 'rgba(79,209,193,0.7)';
+      g.lineWidth = 2;
+      g.setLineDash([10, 8]);
+      g.beginPath();
+      g.roundRect(col.x, LIST_TOP + HEAD_H - 4, col.w, this.listBottom - LIST_TOP - HEAD_H, 22);
+      g.fill();
+      g.stroke();
+      g.setLineDash([]);
+    }
+    for (const r of rows) {
+      const a = this.anims.get(r.key);
+      if (!a) continue;
+      const top = LIST_TOP + a.y - this.scroll[c];
+      if (top > this.listBottom || top + r.h < LIST_TOP - 6) continue;
+      this.drawRow(c, r, top, a.a);
+    }
+    if (c === 'L') {
+      this.ghosts = this.ghosts.filter((gh) => (gh.t += dt / 0.4) < 1);
+      for (const gh of this.ghosts) this.drawGhost(gh);
+    }
+    g.restore();
+    this.drawScrollbar(c, rows);
   }
 
   /**
@@ -488,8 +573,8 @@ export class DeskDash {
       const mag = 1.08;
       const sw = w / mag;
       const sh = h / mag;
-      g.globalAlpha = alpha * 0.9;
       const k = this.backdrop.scale;
+      g.globalAlpha = alpha * 0.9;
       g.drawImage(this.bg.canvas, (x + (w - sw) / 2) / k, (y + (h - sh) / 2) / k, sw / k, sh / k, x, y, w, h);
       g.globalAlpha = alpha;
     }
@@ -518,7 +603,7 @@ export class DeskDash {
       g.shadowColor = opts.glow;
       g.shadowBlur = 16;
       g.strokeStyle = opts.glow;
-      g.lineWidth = 2.2;
+      g.lineWidth = 2.4;
       g.stroke();
     }
     g.restore();
@@ -527,142 +612,154 @@ export class DeskDash {
   private drawStrip(p: PomodoroSnapshot | null, timerOn: boolean): void {
     const g = this.g;
     const s = STRIP;
-    this.glass(s.x, s.y, s.w, s.h, 26, 1, { tint: 0.07 });
-    const now = new Date();
-    const stats = `✓ ${this.todo.done.length}   🍅 ${this.todo.pomosToday}`;
+    this.glass(s.x, s.y, s.w, s.h, 28, 1, { tint: 0.07 });
     if (p && timerOn) {
       const color = p.onBreak ? AMBER : TEAL;
-      g.font = `600 28px ${UI_FONT}`;
+      g.font = `700 32px ${UI_FONT}`;
       g.fillStyle = color;
-      g.fillText(p.phase + (p.running ? '' : ` (${vi.dash.paused})`), 70, 62);
-      g.font = `24px ${UI_FONT}`;
-      g.globalAlpha = 0.85;
-      g.fillText(p.dots, 70, 98);
+      g.fillText(p.phase.toUpperCase(), 64, 68);
+      g.font = `28px ${UI_FONT}`;
+      g.globalAlpha = 0.9;
+      g.fillText(p.running ? p.dots : vi.dash.paused, 64, 112);
       g.globalAlpha = 1;
-      g.font = `22px ${UI_FONT}`;
-      g.fillStyle = DIM;
-      g.fillText(stats, 70, 136);
-      g.font = `300 104px ${UI_FONT}`;
+      g.font = `300 116px ${UI_FONT}`;
       g.fillStyle = p.running ? '#ffffff' : 'rgba(255,255,255,0.7)';
-      g.textAlign = 'center';
-      g.fillText(p.remaining, 590, 128);
-      g.textAlign = 'left';
+      g.fillText(p.remaining, 296, 124);
       // Progress along the strip's bottom edge.
       g.fillStyle = 'rgba(255,255,255,0.12)';
       g.beginPath();
-      g.roundRect(70, 148, 1070, 5, 2.5);
+      g.roundRect(64, 138, 1152, 5, 2.5);
       g.fill();
       g.fillStyle = color;
       g.beginPath();
-      g.roundRect(70, 148, Math.max(5, 1070 * Math.min(1, p.progress)), 5, 2.5);
+      g.roundRect(64, 138, Math.max(5, 1152 * Math.min(1, p.progress)), 5, 2.5);
       g.fill();
       this.roundButton(BTN.play, 'timer', p.running ? 'pause' : 'play', true);
       this.roundButton(BTN.skip, 'skip', 'skip', false);
+      this.roundButton(BTN.stop, 'stop', 'stop', false);
     } else {
-      g.font = `200 82px ${UI_FONT}`;
+      const now = new Date();
+      g.font = `200 96px ${UI_FONT}`;
       g.fillStyle = '#ffffff';
-      g.fillText(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`, 64, 108);
+      g.fillText(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`, 58, 106);
       g.font = `24px ${UI_FONT}`;
       g.fillStyle = DIM;
-      g.fillText(`${vi.dash.days[now.getDay()]}, ${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}     ${stats}`, 70, 144);
+      g.fillText(`${vi.dash.days[now.getDay()]}, ${now.getDate()}/${now.getMonth() + 1}`, 64, 140);
       // "Bắt đầu tập trung".
       const b = START;
       const hov = this.hover === 'timer';
       this.glass(b.x, b.y, b.w, b.h, b.h / 2, 1, { tint: hov ? 0.2 : 0.12, glow: hov ? TEAL : undefined });
       g.fillStyle = TEAL;
-      drawIcon(g, 'play', b.x + 44, b.y + b.h / 2, 14);
-      g.font = `600 27px ${UI_FONT}`;
+      drawIcon(g, 'play', b.x + 46, b.y + b.h / 2, 15);
+      g.font = `600 30px ${UI_FONT}`;
       g.fillStyle = '#ffffff';
-      g.fillText(vi.dash.start, b.x + 72, b.y + b.h / 2 + 9);
+      g.fillText(vi.dash.start, b.x + 78, b.y + b.h / 2 + 10);
       this.hits.push({ x: b.x, y: b.y, w: b.w, h: b.h, hit: { kind: 'timer' } });
     }
-    this.emojiButton(BTN.chime, 'chime', '🔔', this.deps.chimeOn());
-    this.emojiButton(BTN.ambience, 'ambience', '🌊', this.deps.ambienceOn());
+    this.volumeRow('alert', '🔔', this.deps.chimeOn(), this.deps.alertVolume());
+    this.volumeRow('master', '🌊', this.deps.ambienceOn(), this.deps.masterVolume());
   }
 
-  private roundButton(b: { x: number; y: number; r: number }, kind: 'timer' | 'skip', icon: 'play' | 'pause' | 'skip', primary: boolean): void {
+  /** A round icon (click: on/off) and a slider (click or drag: volume). */
+  private volumeRow(id: DashSlider, emoji: string, on: boolean, value: number): void {
     const g = this.g;
-    const hov = this.hover === kind;
-    this.glass(b.x - b.r, b.y - b.r, b.r * 2, b.r * 2, b.r, 1, { tint: hov ? 0.24 : primary ? 0.14 : 0.08, glow: hov ? TEAL : undefined });
-    g.fillStyle = '#ffffff';
-    drawIcon(g, icon, b.x, b.y, b.r * 0.42);
-    this.hits.push({ x: b.x - b.r, y: b.y - b.r, w: b.r * 2, h: b.r * 2, hit: { kind } });
-  }
-
-  private emojiButton(b: { x: number; y: number; r: number }, kind: 'chime' | 'ambience', emoji: string, on: boolean): void {
-    const g = this.g;
-    const hov = this.hover === kind;
-    this.glass(b.x - b.r, b.y - b.r, b.r * 2, b.r * 2, b.r, 1, { tint: hov ? 0.22 : 0.06 });
+    const v = VOL[id];
+    const kind = id === 'alert' ? 'chime' : 'ambience';
+    const r = 22;
+    const hovIcon = this.hover === kind;
+    this.glass(v.icon - r, v.y - r, r * 2, r * 2, r, 1, { tint: hovIcon ? 0.22 : 0.06 });
     g.save();
     g.globalAlpha = on ? 1 : 0.35;
-    g.font = `${Math.round(b.r * 1.05)}px "Segoe UI Emoji", ${UI_FONT}`;
+    g.font = `24px ${EMOJI_FONT}`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    g.fillText(emoji, b.x, b.y + 1);
+    g.fillText(emoji, v.icon, v.y + 1);
     g.restore();
     if (!on) {
       g.strokeStyle = 'rgba(255,255,255,0.85)';
       g.lineWidth = 3;
       g.lineCap = 'round';
       g.beginPath();
-      g.moveTo(b.x - b.r * 0.55, b.y + b.r * 0.55);
-      g.lineTo(b.x + b.r * 0.55, b.y - b.r * 0.55);
+      g.moveTo(v.icon - 12, v.y + 12);
+      g.lineTo(v.icon + 12, v.y - 12);
       g.stroke();
     }
+    this.hits.push({ x: v.icon - r, y: v.y - r, w: r * 2, h: r * 2, hit: { kind } });
+    // The track, its filled part and the knob.
+    const hov = this.hover === `slider:${id}`;
+    const x = v.x0 + (v.x1 - v.x0) * value;
+    g.fillStyle = 'rgba(255,255,255,0.16)';
+    g.beginPath();
+    g.roundRect(v.x0, v.y - 4, v.x1 - v.x0, 8, 4);
+    g.fill();
+    g.fillStyle = on ? TEAL : 'rgba(255,255,255,0.4)';
+    g.beginPath();
+    g.roundRect(v.x0, v.y - 4, Math.max(8, x - v.x0), 8, 4);
+    g.fill();
+    g.beginPath();
+    g.arc(x, v.y, hov ? 13 : 11, 0, Math.PI * 2);
+    g.fillStyle = '#ffffff';
+    g.fill();
+    this.hits.push({ x: v.x0 - 14, y: v.y - 20, w: v.x1 - v.x0 + 28, h: 40, hit: { kind: 'slider', id } });
+  }
+
+  private roundButton(b: { x: number; y: number; r: number }, kind: 'timer' | 'skip' | 'stop', icon: 'play' | 'pause' | 'skip' | 'stop', primary: boolean): void {
+    const g = this.g;
+    const hov = this.hover === kind;
+    this.glass(b.x - b.r, b.y - b.r, b.r * 2, b.r * 2, b.r, 1, { tint: hov ? 0.24 : primary ? 0.14 : 0.08, glow: hov ? (kind === 'stop' ? '#ff9a9a' : TEAL) : undefined });
+    g.fillStyle = '#ffffff';
+    drawIcon(g, icon, b.x, b.y, b.r * 0.42);
     this.hits.push({ x: b.x - b.r, y: b.y - b.r, w: b.r * 2, h: b.r * 2, hit: { kind } });
   }
 
-  private drawRow(r: Row, top: number, alpha: number): void {
+  private drawRow(c: Col, r: Row, top: number, alpha: number): void {
     const g = this.g;
+    const col = COLS[c];
     switch (r.kind) {
       case 'head': {
         g.globalAlpha = alpha;
-        g.font = `600 26px ${UI_FONT}`;
-        g.fillStyle = '#ffffff';
-        const title = vi.dash.todo;
-        g.fillText(title, X + 8, top + 32);
-        const tw = g.measureText(title).width;
-        g.font = `24px ${UI_FONT}`;
-        g.fillStyle = DIM;
-        g.fillText(String(this.todo.open.length), X + 22 + tw, top + 32);
-        g.font = `19px ${UI_FONT}`;
+        g.font = `700 25px ${UI_FONT}`;
+        g.fillStyle = c === 'L' ? '#ffffff' : DIM;
+        const title = c === 'L' ? vi.dash.todo.toUpperCase() : vi.dash.doneToday.toUpperCase();
+        const count = c === 'L' ? this.todo.open.length : this.todo.done.length;
+        g.fillText(`${title} · ${count}`, col.x + 8, top + 34);
+        g.font = `22px ${EMOJI_FONT}`;
         g.textAlign = 'right';
-        g.fillText(vi.dash.hint, X + CW - 8, top + 31);
+        g.fillStyle = DIM;
+        g.fillText(c === 'L' ? vi.dash.hint : `🍅 ${this.todo.pomosToday}`, col.x + col.w - 8, top + 33);
         g.textAlign = 'left';
         g.globalAlpha = 1;
         break;
       }
       case 'task':
-        if (r.task) this.drawTask(r.task, top, alpha, false);
+        if (r.task) this.drawTask(r.task, col.x, col.w, top, alpha, false, this.todo.open[0]?.id === r.task.id);
         break;
       case 'input':
         this.drawInput(top, alpha);
         break;
-      case 'doneHead': {
-        g.globalAlpha = alpha;
-        g.font = `24px ${UI_FONT}`;
-        g.fillStyle = this.hover === 'doneHead' ? '#ffffff' : DIM;
-        g.fillText(`${this.doneOpen ? '▾' : '▸'}  ${vi.dash.doneToday} · ${this.todo.done.length}`, X + 8, top + 30);
-        g.globalAlpha = 1;
-        this.pushListHit(X, top, CW, HEAD_H, { kind: 'doneHead' });
-        break;
-      }
       case 'done':
         if (r.task) this.drawDone(r.task, top, alpha);
+        break;
+      case 'empty':
+        g.globalAlpha = alpha;
+        g.font = `24px ${UI_FONT}`;
+        g.fillStyle = 'rgba(214,232,238,0.45)';
+        g.fillText(vi.dash.noneDone, col.x + 12, top + 38);
+        g.globalAlpha = 1;
         break;
     }
   }
 
-  private drawTask(task: Task, top: number, alpha: number, lifted: boolean): void {
+  /** `first`: the top task, the one being worked on (it glows and collects the 🍅). */
+  private drawTask(task: Task, x: number, w: number, top: number, alpha: number, lifted: boolean, first: boolean): void {
     const g = this.g;
-    const current = this.todo.current === task.id;
     const hovCard = this.hover === `card:${task.id}`;
     const hovRing = this.hover === `ring:${task.id}`;
     const hovDel = this.hover === `delete:${task.id}`;
     const hovAny = hovCard || hovRing || hovDel || lifted;
-    this.glass(X, top, CW, CARD_H, 22, alpha, {
-      tint: hovAny ? 0.13 : 0.08,
-      glow: current ? 'rgba(79,209,193,0.9)' : undefined,
+    this.glass(x, top, w, CARD_H, 24, alpha, {
+      tint: hovAny ? 0.14 : first ? 0.11 : 0.08,
+      glow: first && !lifted ? 'rgba(79,209,193,0.9)' : undefined,
       lift: lifted ? 1 : 0,
     });
     const cy = top + CARD_H / 2;
@@ -670,196 +767,188 @@ export class DeskDash {
     g.globalAlpha = alpha;
     // The ring: click it when the task is done.
     g.beginPath();
-    g.arc(X + 40, cy, 16, 0, Math.PI * 2);
+    g.arc(x + RING_X, cy, 18, 0, Math.PI * 2);
     if (hovRing) {
       g.fillStyle = 'rgba(79,209,193,0.35)';
       g.fill();
     }
-    g.strokeStyle = hovRing ? TEAL : 'rgba(255,255,255,0.75)';
-    g.lineWidth = 2.6;
+    g.strokeStyle = hovRing || first ? TEAL : 'rgba(255,255,255,0.78)';
+    g.lineWidth = 3;
     g.stroke();
     if (hovRing) {
       g.strokeStyle = '#ffffff';
-      drawCheck(g, X + 40, cy, 8);
+      drawCheck(g, x + RING_X, cy, 9);
     }
-    // Right side: ✕ on hover, tomatoes, "Đang làm".
-    let right = X + CW - 24;
+    // Right side: ✕ on hover, then the tomatoes.
+    let right = x + w - 22;
     if (hovAny && !lifted) {
       g.strokeStyle = hovDel ? '#ff9a9a' : 'rgba(255,255,255,0.55)';
-      g.lineWidth = 2.6;
+      g.lineWidth = 3;
       g.lineCap = 'round';
       const dx = right - 10;
       g.beginPath();
-      g.moveTo(dx - 8, cy - 8);
-      g.lineTo(dx + 8, cy + 8);
-      g.moveTo(dx + 8, cy - 8);
-      g.lineTo(dx - 8, cy + 8);
+      g.moveTo(dx - 9, cy - 9);
+      g.lineTo(dx + 9, cy + 9);
+      g.moveTo(dx + 9, cy - 9);
+      g.lineTo(dx - 9, cy + 9);
       g.stroke();
-      right -= 44;
+      right -= 46;
     }
-    g.textAlign = 'right';
     if (task.pomos > 0) {
-      g.font = `24px "Segoe UI Emoji", ${UI_FONT}`;
+      g.textAlign = 'right';
+      g.font = `26px ${EMOJI_FONT}`;
       g.fillStyle = '#ffffff';
-      const t = task.pomos > 4 ? `🍅×${task.pomos}` : '🍅'.repeat(task.pomos);
+      const t = task.pomos > 3 ? `🍅×${task.pomos}` : '🍅'.repeat(task.pomos);
       g.fillText(t, right, cy + 9);
-      right -= g.measureText(t).width + 16;
+      right -= g.measureText(t).width + 14;
+      g.textAlign = 'left';
     }
-    if (current) {
-      g.font = `600 19px ${UI_FONT}`;
-      const label = vi.dash.current.toUpperCase();
-      const lw = g.measureText(label).width;
-      g.fillStyle = 'rgba(79,209,193,0.2)';
-      g.beginPath();
-      g.roundRect(right - lw - 14, cy - 15, lw + 28, 30, 15);
-      g.fill();
-      g.fillStyle = TEAL;
-      g.fillText(label, right, cy + 7);
-      right -= lw + 40;
-    }
-    g.textAlign = 'left';
-    g.font = `30px ${UI_FONT}`;
+    g.font = `${first ? 600 : 400} 34px ${UI_FONT}`;
     g.fillStyle = '#ffffff';
-    g.fillText(ellipsize(g, task.text, right - (X + 76)), X + 76, cy + 10);
+    g.fillText(ellipsize(g, task.text, right - (x + 82)), x + 82, cy + 12);
     g.restore();
     if (!lifted) {
-      this.pushListHit(X, top, CW, CARD_H, { kind: 'card', id: task.id });
-      this.pushListHit(X + 8, top, 66, CARD_H, { kind: 'ring', id: task.id });
-      if (hovAny) this.pushListHit(X + CW - 66, top, 66, CARD_H, { kind: 'delete', id: task.id });
+      this.pushListHit(x, top, w, CARD_H, { kind: 'card', id: task.id });
+      this.pushListHit(x + 8, top, 74, CARD_H, { kind: 'ring', id: task.id });
+      if (hovAny) this.pushListHit(x + w - 70, top, 70, CARD_H, { kind: 'delete', id: task.id });
     }
   }
 
   private drawInput(top: number, alpha: number): void {
     const g = this.g;
+    const { x, w } = COLS.L;
     const hov = this.hover === 'input';
-    this.glass(X, top, CW, CARD_H, 22, alpha, { tint: this.editing ? 0.12 : hov ? 0.08 : 0.03, dashed: !this.editing, glow: this.editing ? 'rgba(255,255,255,0.5)' : undefined });
+    this.glass(x, top, w, CARD_H, 24, alpha, { tint: this.editing ? 0.12 : hov ? 0.08 : 0.03, dashed: !this.editing, glow: this.editing ? 'rgba(255,255,255,0.5)' : undefined });
     const cy = top + CARD_H / 2;
     g.save();
     g.globalAlpha = alpha;
     g.strokeStyle = this.editing ? TEAL : 'rgba(255,255,255,0.7)';
-    g.lineWidth = 3;
+    g.lineWidth = 3.4;
     g.lineCap = 'round';
     g.beginPath();
-    g.moveTo(X + 30, cy);
-    g.lineTo(X + 50, cy);
-    g.moveTo(X + 40, cy - 10);
-    g.lineTo(X + 40, cy + 10);
+    g.moveTo(x + RING_X - 12, cy);
+    g.lineTo(x + RING_X + 12, cy);
+    g.moveTo(x + RING_X, cy - 12);
+    g.lineTo(x + RING_X, cy + 12);
     g.stroke();
-    g.font = `30px ${UI_FONT}`;
-    const tx = X + 76;
+    const tx = x + 82;
     if (this.editing) {
       g.font = `19px ${UI_FONT}`;
       g.fillStyle = DIM;
       g.textAlign = 'right';
-      g.fillText(vi.dash.addHint, X + CW - 24, cy + 7);
+      g.fillText(vi.dash.addHint, x + w - 22, cy + 7);
       const hintW = g.measureText(vi.dash.addHint).width;
       g.textAlign = 'left';
-      g.font = `30px ${UI_FONT}`;
-      const maxW = CW - 76 - hintW - 56;
+      g.font = `34px ${UI_FONT}`;
+      const maxW = w - 82 - hintW - 50;
       // Keep the caret in view: show the end of a long draft.
       let start = 0;
       while (start < this.caret && g.measureText(this.draft.slice(start, this.caret)).width > maxW) start++;
       const shown = ellipsize(g, this.draft.slice(start), maxW);
       g.fillStyle = '#ffffff';
-      g.fillText(shown, tx, cy + 10);
+      g.fillText(shown, tx, cy + 12);
       if (this.caretTime % 1 < 0.6) {
         const cx = tx + g.measureText(this.draft.slice(start, this.caret)).width + 1;
         g.fillStyle = TEAL;
-        g.fillRect(cx, cy - 17, 2.5, 34);
+        g.fillRect(cx, cy - 20, 3, 40);
       }
     } else {
-      g.fillStyle = hov ? 'rgba(255,255,255,0.85)' : DIM;
-      g.fillText(vi.dash.add, tx, cy + 10);
+      g.font = `34px ${UI_FONT}`;
+      g.fillStyle = hov ? 'rgba(255,255,255,0.88)' : DIM;
+      g.fillText(vi.dash.add, tx, cy + 12);
     }
     g.restore();
-    this.pushListHit(X, top, CW, CARD_H, { kind: 'input' });
+    this.pushListHit(x, top, w, CARD_H, { kind: 'input' });
   }
 
   private drawDone(task: Task, top: number, alpha: number): void {
     const g = this.g;
+    const { x, w } = COLS.R;
     const hov = this.hover === `restore:${task.id}`;
-    this.glass(X + 24, top, CW - 24, DONE_H, 18, alpha * 0.75, { tint: hov ? 0.1 : 0.04 });
+    this.glass(x, top, w, DONE_H, 20, alpha * 0.8, { tint: hov ? 0.12 : 0.05 });
     const cy = top + DONE_H / 2;
     g.save();
-    g.globalAlpha = alpha * (hov ? 1 : 0.8);
+    g.globalAlpha = alpha * (hov ? 1 : 0.85);
     g.beginPath();
-    g.arc(X + 58, cy, 13, 0, Math.PI * 2);
-    g.fillStyle = hov ? 'rgba(255,255,255,0.25)' : 'rgba(79,209,193,0.75)';
+    g.arc(x + 34, cy, 15, 0, Math.PI * 2);
+    g.fillStyle = hov ? 'rgba(255,255,255,0.25)' : 'rgba(79,209,193,0.8)';
     g.fill();
     g.strokeStyle = '#ffffff';
-    if (hov) drawRestore(g, X + 58, cy, 7);
-    else drawCheck(g, X + 58, cy, 6.5);
-    let right = X + CW - 24;
+    if (hov) drawRestore(g, x + 34, cy, 8);
+    else drawCheck(g, x + 34, cy, 7.5);
+    let right = x + w - 18;
     if (task.pomos > 0) {
-      g.font = `20px "Segoe UI Emoji", ${UI_FONT}`;
+      g.font = `22px ${EMOJI_FONT}`;
       g.textAlign = 'right';
       g.fillStyle = '#ffffff';
-      const t = `🍅×${task.pomos}`;
-      g.fillText(t, right, cy + 7);
-      right -= g.measureText(t).width + 16;
+      const t = `🍅${task.pomos}`;
+      g.fillText(t, right, cy + 8);
+      right -= g.measureText(t).width + 12;
       g.textAlign = 'left';
     }
-    g.font = `25px ${UI_FONT}`;
-    g.fillStyle = 'rgba(230,240,244,0.7)';
-    const text = ellipsize(g, task.text, right - (X + 90));
-    g.fillText(text, X + 90, cy + 8);
+    g.font = `28px ${UI_FONT}`;
+    g.fillStyle = 'rgba(230,240,244,0.75)';
+    const text = ellipsize(g, task.text, right - (x + 62));
+    g.fillText(text, x + 62, cy + 10);
     const tw = g.measureText(text).width;
     g.fillStyle = 'rgba(230,240,244,0.55)';
-    g.fillRect(X + 90, cy - 1, tw, 2);
+    g.fillRect(x + 62, cy, tw, 2);
     g.restore();
-    this.pushListHit(X + 24, top, CW - 24, DONE_H, { kind: 'restore', id: task.id });
+    this.pushListHit(x, top, w, DONE_H, { kind: 'restore', id: task.id });
   }
 
   /** A finished card swells a little and fades as its bubbles fly out; a deleted one just fades. */
   private drawGhost(gh: Ghost): void {
     const g = this.g;
-    const top = LIST_TOP + gh.y - this.scroll;
+    const { x, w } = COLS.L;
+    const top = LIST_TOP + gh.y - this.scroll.L;
+    const cy = top + CARD_H / 2;
     const e = gh.t;
     const s = gh.pop ? 1 + 0.06 * Math.sin(Math.min(1, e * 1.6) * Math.PI) : 1 - 0.04 * e;
     g.save();
-    g.translate(X + CW / 2, top + CARD_H / 2);
+    g.translate(x + w / 2, cy);
     g.scale(s, s);
-    g.translate(-(X + CW / 2), -(top + CARD_H / 2));
+    g.translate(-(x + w / 2), -cy);
     const alpha = (1 - e) * (1 - e);
-    this.glass(X, top, CW, CARD_H, 22, alpha, { tint: gh.pop ? 0.2 * (1 - e) + 0.08 : 0.08 });
+    this.glass(x, top, w, CARD_H, 24, alpha, { tint: gh.pop ? 0.2 * (1 - e) + 0.08 : 0.08 });
     g.globalAlpha = alpha;
-    g.font = `30px ${UI_FONT}`;
+    g.font = `34px ${UI_FONT}`;
     g.fillStyle = '#ffffff';
-    g.fillText(ellipsize(g, gh.task.text, CW - 140), X + 76, top + CARD_H / 2 + 10);
+    g.fillText(ellipsize(g, gh.task.text, w - 140), x + 82, cy + 12);
     if (gh.pop) {
       g.beginPath();
-      g.arc(X + 40, top + CARD_H / 2, 16, 0, Math.PI * 2);
+      g.arc(x + RING_X, cy, 18, 0, Math.PI * 2);
       g.fillStyle = TEAL;
       g.fill();
       g.strokeStyle = '#ffffff';
-      drawCheck(g, X + 40, top + CARD_H / 2, 8);
+      drawCheck(g, x + RING_X, cy, 9);
     }
     g.restore();
   }
 
-  private drawScrollbar(rows: Row[]): void {
+  private drawScrollbar(c: Col, rows: Row[]): void {
     const last = rows[rows.length - 1];
     const content = last.y + last.h + 8;
     const view = this.listBottom - LIST_TOP;
     if (content <= view + 1) return;
     const g = this.g;
     const h = Math.max(40, (view * view) / content);
-    const y = LIST_TOP + ((view - h) * this.scroll) / (content - view);
+    const y = LIST_TOP + ((view - h) * this.scroll[c]) / (content - view);
     g.fillStyle = 'rgba(255,255,255,0.28)';
     g.beginPath();
-    g.roundRect(W - 22, y, 6, h, 3);
+    g.roundRect(COLS[c].x + COLS[c].w + 3, y, 5, h, 2.5);
     g.fill();
   }
 
   private drawFooter(info: ScreenInfo): void {
     const g = this.g;
-    g.font = `21px ${UI_FONT}`;
+    g.font = `22px ${UI_FONT}`;
     g.fillStyle = DIM;
     const line = `♪  ${info.playing}   ·   ${info.scene || '—'}   ·   ${vi.dash.island} ${info.islandTime}`;
-    g.fillText(ellipsize(g, line, CW - 16), X + 8, H - 22);
+    g.fillText(ellipsize(g, line, STRIP.w - 16), STRIP.x + 8, H - 20);
   }
 
-  /** A clickable area inside the list (cut to the list's visible part). */
+  /** A clickable area inside a list (cut to the list's visible part). */
   private pushListHit(x: number, y: number, w: number, h: number, hit: DashHit): void {
     const y0 = Math.max(y, LIST_TOP);
     const y1 = Math.min(y + h, this.listBottom);
@@ -871,7 +960,7 @@ function hitKey(hit: DashHit): string {
   return 'id' in hit ? `${hit.kind}:${hit.id}` : hit.kind;
 }
 
-function drawIcon(g: CanvasRenderingContext2D, icon: 'play' | 'pause' | 'skip', x: number, y: number, s: number): void {
+function drawIcon(g: CanvasRenderingContext2D, icon: 'play' | 'pause' | 'skip' | 'stop', x: number, y: number, s: number): void {
   g.beginPath();
   if (icon === 'play') {
     g.moveTo(x - s * 0.7, y - s);
@@ -882,6 +971,9 @@ function drawIcon(g: CanvasRenderingContext2D, icon: 'play' | 'pause' | 'skip', 
   } else if (icon === 'pause') {
     g.roundRect(x - s * 0.85, y - s, s * 0.6, s * 2, 2);
     g.roundRect(x + s * 0.25, y - s, s * 0.6, s * 2, 2);
+    g.fill();
+  } else if (icon === 'stop') {
+    g.roundRect(x - s * 0.8, y - s * 0.8, s * 1.6, s * 1.6, 3);
     g.fill();
   } else {
     g.moveTo(x - s, y - s);
@@ -894,7 +986,7 @@ function drawIcon(g: CanvasRenderingContext2D, icon: 'play' | 'pause' | 'skip', 
 }
 
 function drawCheck(g: CanvasRenderingContext2D, x: number, y: number, s: number): void {
-  g.lineWidth = Math.max(2.2, s * 0.38);
+  g.lineWidth = Math.max(2.4, s * 0.38);
   g.lineCap = 'round';
   g.lineJoin = 'round';
   g.beginPath();
@@ -906,7 +998,7 @@ function drawCheck(g: CanvasRenderingContext2D, x: number, y: number, s: number)
 
 /** ↺: a circular arrow (put the task back). */
 function drawRestore(g: CanvasRenderingContext2D, x: number, y: number, s: number): void {
-  g.lineWidth = 2.2;
+  g.lineWidth = 2.4;
   g.lineCap = 'round';
   g.beginPath();
   g.arc(x, y, s, -Math.PI * 0.1, Math.PI * 1.45);
@@ -925,4 +1017,3 @@ function ellipsize(g: CanvasRenderingContext2D, text: string, max: number): stri
   while (t.length > 1 && g.measureText(`${t}…`).width > max) t = t.slice(0, -1);
   return `${t}…`;
 }
-
