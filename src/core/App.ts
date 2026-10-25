@@ -672,9 +672,7 @@ export class App {
       keyLabel: 'P',
       label: vi.shortcuts.panel,
       // Right after opening the page, P brings the tucked panel out first.
-      action: () => {
-        if (!this.panel.endIntro()) toggleSetting('panelCollapsed')();
-      },
+      action: () => this.panel.toggle(),
     });
     this.keymap.register({
       code: 'KeyH',

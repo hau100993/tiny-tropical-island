@@ -1,29 +1,41 @@
+/*
+ * Liquid glass (2026-10-25): the panels are clear glass over the scene, blurred and a little
+ * more saturated behind (backdrop-filter), tinted with the sea's teal, with a bright rim of
+ * light along the top edge and a soft inner glow (inset shadows) and a sheen (.panel::before).
+ * Text stays dark on light glass and light on dark glass, a touch heavier than before, so it
+ * reads over a bright sky as over the night sea.
+ */
 :root {
-  --panel-bg: rgba(250, 252, 252, 0.78);
-  --panel-fg: #17323a;
-  --panel-muted: #557078;
-  --panel-border: rgba(23, 50, 58, 0.12);
-  --control-bg: rgba(23, 50, 58, 0.07);
-  --control-bg-hover: rgba(23, 50, 58, 0.13);
-  --accent: #0f9488;
+  --panel-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.62), rgba(222, 246, 248, 0.46));
+  --panel-fg: #0d2a31;
+  --panel-muted: #3c5c64;
+  --panel-border: rgba(255, 255, 255, 0.6);
+  --control-bg: rgba(255, 255, 255, 0.42);
+  --control-bg-hover: rgba(255, 255, 255, 0.66);
+  --accent: #0b8a7f;
   --accent-fg: #ffffff;
-  --warn: #a15c00;
-  --radius: 12px;
+  --warn: #8f5100;
+  --radius: 18px;
+  --glass-filter: blur(20px) saturate(1.7) brightness(1.04);
+  --glass-shadow: 0 10px 36px rgba(0, 40, 50, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.85), inset 0 -1px 0 rgba(255, 255, 255, 0.25), inset 0 0 24px rgba(255, 255, 255, 0.18);
+  --glass-sheen: radial-gradient(120% 60% at 15% 0%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 60%);
   font-family: 'Segoe UI', system-ui, sans-serif;
   color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --panel-bg: rgba(14, 26, 32, 0.74);
-    --panel-fg: #e6f2f3;
-    --panel-muted: #9bb6bc;
-    --panel-border: rgba(230, 242, 243, 0.12);
-    --control-bg: rgba(230, 242, 243, 0.08);
-    --control-bg-hover: rgba(230, 242, 243, 0.15);
-    --accent: #4fd1c1;
-    --accent-fg: #062a27;
+    --panel-bg: linear-gradient(160deg, rgba(18, 44, 54, 0.62), rgba(6, 22, 30, 0.56));
+    --panel-fg: #eef8f9;
+    --panel-muted: #a9c6cc;
+    --panel-border: rgba(255, 255, 255, 0.18);
+    --control-bg: rgba(255, 255, 255, 0.09);
+    --control-bg-hover: rgba(255, 255, 255, 0.17);
+    --accent: #5fe0cf;
+    --accent-fg: #052a26;
     --warn: #ffd38a;
+    --glass-shadow: 0 10px 36px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(255, 255, 255, 0.06), inset 0 0 24px rgba(120, 220, 230, 0.07);
+    --glass-sheen: radial-gradient(120% 60% at 15% 0%, rgba(160, 235, 240, 0.16), rgba(255, 255, 255, 0) 60%);
   }
 }
 
@@ -296,10 +308,26 @@ body.ui-hidden .debug-overlay {
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: var(--radius);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-shadow);
   font-size: 12px;
   overflow: hidden;
+}
+
+/* The sheen: light caught in the top-left of the glass. */
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--glass-sheen);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.panel > * {
+  position: relative;
+  z-index: 1;
 }
 
 .panel.collapsed {
@@ -467,7 +495,7 @@ body.ui-hidden .debug-overlay {
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: 999px;
-  backdrop-filter: blur(10px);
+  backdrop-filter: var(--glass-filter);
   font-size: 12px;
   pointer-events: none;
 }
@@ -485,7 +513,7 @@ body.ui-hidden .debug-overlay {
   color: #eef6f7;
   font-size: 12px;
   line-height: 1.4;
-  backdrop-filter: blur(8px);
+  backdrop-filter: var(--glass-filter);
   user-select: none;
   pointer-events: none;
 }
@@ -606,7 +634,7 @@ body:is(.walking, .ui-hidden, .panel-intro) .panel.handle:hover {
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: 999px;
-  backdrop-filter: blur(12px);
+  backdrop-filter: var(--glass-filter);
   font-size: 13px;
   text-align: center;
   pointer-events: none;
@@ -624,7 +652,7 @@ body:is(.walking, .ui-hidden, .panel-intro) .panel.handle:hover {
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: 999px;
-  backdrop-filter: blur(14px);
+  backdrop-filter: var(--glass-filter);
   font-size: 14px;
   pointer-events: none;
 }
@@ -644,7 +672,7 @@ body:is(.walking, .ui-hidden, .panel-intro) .panel.handle:hover {
   background: rgba(16, 28, 36, 0.72);
   border-radius: 14px;
   font-size: 13px;
-  backdrop-filter: blur(6px);
+  backdrop-filter: var(--glass-filter);
 }
 
 .journal-head {
@@ -820,7 +848,7 @@ body:is(.walking, .ui-hidden, .panel-intro) .panel.handle:hover {
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: var(--radius);
-  backdrop-filter: blur(14px);
+  backdrop-filter: var(--glass-filter);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
   font-size: 13.5px;
   opacity: 0;
@@ -989,7 +1017,7 @@ body:is(.walking, .ui-hidden, .panel-intro) .panel.handle:hover {
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: var(--radius);
-  backdrop-filter: blur(12px);
+  backdrop-filter: var(--glass-filter);
   font-size: 12px;
   box-sizing: border-box;
   transition: box-shadow 0.6s ease;
@@ -1960,7 +1988,7 @@ kbd.key {
   margin: 0 -12px;
   padding: 8px 12px 8px;
   background: var(--panel-bg);
-  backdrop-filter: blur(14px);
+  backdrop-filter: var(--glass-filter);
   border-top: 1px solid var(--panel-border);
 }
 
@@ -2035,7 +2063,7 @@ body.cursor-idle canvas {
   border: 1px solid var(--panel-border);
   border-radius: 12px;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(12px);
+  backdrop-filter: var(--glass-filter);
 }
 
 .video-card-head {
@@ -2174,7 +2202,7 @@ body.cursor-idle canvas {
   background: rgba(15, 18, 22, 0.8);
   border-radius: 10px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(8px);
+  backdrop-filter: var(--glass-filter);
 }
 
 /* Invisible bridge over the gap to the logo, so the mouse can cross it. */

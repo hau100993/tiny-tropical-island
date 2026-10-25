@@ -53,7 +53,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | Right-drag | Pan (up/down lifts the point you look at, e.g. into the sky) |
 | Click on the water | Splash: ripples spread and bounce off the beach |
 | `M` | Mute / unmute everything |
-| `P` | Collapse / expand the control panel (or click its title). The page opens with the panel tucked away as in walk mode (faded, then a small round handle; point at the top-right corner to peek); the first click in it or `P` opens it |
+| `P` | Collapse / expand the control panel (or click its title). The page opens with the panel tucked away as in walk mode (faded, then a small round handle; point at the top-right corner to peek); the first click in it or `P` opens it. Walking, the ›/‹ button and `P` shut or open the peeking panel at once. The panel and the cards are liquid glass: clear, blurred and slightly saturated behind, tinted teal, with a bright top rim; dark glass when Windows is in dark mode |
 | `1` – `9` | Pick a scene, in the order of the panel's cards (the key shows on each card) |
 | `H` | Hide all UI (clean wallpaper view); press again to show. While hidden, the panel stays as a small faint **☰ handle** in the top-right corner: point at it (or the corner) to open it |
 | `F` | Full screen on / off (also the ⛶ button in the panel header; `Esc` leaves it too). In full screen the mouse cursor hides over the scene after 3 s without moving. `F11` (the browser's own full screen) works as well. |

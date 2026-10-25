@@ -188,7 +188,7 @@ export class Panel {
     // --- Fixed top ---
     const header = el('div', 'panel-header');
     const title = el('h1', 'panel-title');
-    this.titleBtn = button(vi.appTitle, () => this.toggleCollapsed(), 'panel-title-btn');
+    this.titleBtn = button(vi.appTitle, () => this.toggle(), 'panel-title-btn');
     title.append(this.titleBtn);
     this.pomoBtn = button('', () => deps.togglePomodoro(), 'pomo-btn');
     this.pomoBtn.title = vi.panel.pomodoroBtn;
@@ -206,7 +206,7 @@ export class Panel {
     };
     syncFs(deps.fullscreen.active);
     deps.fullscreen.onChange(syncFs);
-    this.collapseBtn = button('', () => this.toggleCollapsed(), 'icon-btn');
+    this.collapseBtn = button('', () => this.toggle(), 'icon-btn');
     this.headerScene = el('span', 'header-scene');
     this.headerMute = button('', () => mixer.toggleMuteAll(), 'icon-btn header-mute');
     const headerTools = el('div', 'header-tools');
@@ -498,6 +498,16 @@ export class Panel {
     this.root.classList.toggle('collapsed', tucked ? !this.peek : this.deps.settings.get().panelCollapsed);
     this.root.classList.toggle('peek', tucked && this.peek);
     this.root.classList.toggle('handle', tucked && !this.peek && (this.asleep || this.uiHidden));
+    // The button shows what a press does to the panel as it is now (tucked away while walking,
+    // that isn't the setting).
+    const shut = this.root.classList.contains('collapsed');
+    const label = shut ? vi.panel.expand : vi.panel.collapse;
+    this.collapseBtn.innerHTML = shut ? icons.chevronLeft : icons.chevronRight;
+    this.collapseBtn.title = label;
+    this.collapseBtn.setAttribute('aria-label', label);
+    this.collapseBtn.setAttribute('aria-expanded', String(!shut));
+    this.titleBtn.title = label;
+    this.titleBtn.setAttribute('aria-expanded', String(!shut));
     this.onLayout?.();
   }
 
@@ -514,9 +524,32 @@ export class Panel {
     return { top: r.bottom + 8, right: 12, width: handle ? 0 : r.width };
   }
 
-  private toggleCollapsed(): void {
-    const { settings } = this.deps;
-    settings.update({ panelCollapsed: !settings.get().panelCollapsed });
+  /**
+   * The collapse button, the title, P: shuts the panel if it is open, opens it if shut. In the
+   * overview that is the setting; tucked away (walking, the UI hidden) it closes the peek at once
+   * or opens it (it used to flip the setting, which a tucked panel ignores: nothing happened).
+   */
+  toggle(): void {
+    const open = !this.root.classList.contains('collapsed');
+    if (this.intro) {
+      // The first press ends the opening tuck: the panel comes out (or stays shut if it was out).
+      this.endIntro();
+      if (open) this.deps.settings.update({ panelCollapsed: true });
+      return;
+    }
+    if (this.tucked) {
+      if (open) {
+        window.clearTimeout(this.closeTimer);
+        this.peek = false;
+        this.syncCollapsed();
+        this.scheduleSleep();
+      } else {
+        this.open();
+        this.scheduleClose();
+      }
+      return;
+    }
+    this.deps.settings.update({ panelCollapsed: open });
   }
 
   /** One section: icon, title, the current value on the right, a body. */
@@ -604,13 +637,6 @@ export class Panel {
 
   private syncSettings(s: Readonly<Settings>): void {
     this.syncCollapsed();
-    this.collapseBtn.innerHTML = s.panelCollapsed ? icons.chevronLeft : icons.chevronRight;
-    const label = s.panelCollapsed ? vi.panel.expand : vi.panel.collapse;
-    this.collapseBtn.title = label;
-    this.collapseBtn.setAttribute('aria-label', label);
-    this.collapseBtn.setAttribute('aria-expanded', String(!s.panelCollapsed));
-    this.titleBtn.title = label;
-    this.titleBtn.setAttribute('aria-expanded', String(!s.panelCollapsed));
     for (const id of PANEL_SECTIONS) {
       const sec = this.sections.get(id);
       const open = s.panelSections.includes(id);
