@@ -7,6 +7,7 @@ import { AirBubbles } from '../world/creatures/airBubbles';
 import { Embers, type EmberSink } from '../world/creatures/embers';
 import type { SkillFxSink } from '../world/creatures/skillFx';
 import type { SkillElement } from '../ui/skillCard';
+import type { StrikeTarget } from './dogSkills';
 import { WildCreatures } from './wildCreatures';
 import type { TrunkInstance } from '../world/vegetation/forest';
 // Type-only: the models, behaviours and the GLTFLoader are a separate chunk, fetched on first use.
@@ -232,6 +233,28 @@ export class Creatures {
   fireSkill(): DragonSkill | 'busy' | 'off' {
     if (!this.dragonOn || !this.dragon) return 'off';
     return this.dragon.brain.command() ?? 'busy';
+  }
+
+  /**
+   * The creatures shown within `r` m of (x, z), as things Mochi's lightning can strike (`out`
+   * is appended to); one that is struck hits back with a skill of its own, or dances.
+   */
+  strikeTargets(x: number, z: number, r: number, out: StrikeTarget[]): void {
+    const add = (on: boolean, root: THREE.Object3D, bx: number, by: number, bz: number, up: number, pat: () => void): void => {
+      if (!on || !root.visible || Math.hypot(bx - x, bz - z) > r) return;
+      out.push({ x: bx, y: by + up, z: bz, kind: 'creature', body: root, hit: pat });
+    };
+    if (this.crab) add(this.crabOn, this.crab.model.root, this.crab.brain.x, this.crab.brain.y, this.crab.brain.z, 0.3, () => this.crab?.brain.pat());
+    if (this.dragon) add(this.dragonOn, this.dragon.model.root, this.dragon.brain.x, this.dragon.brain.y, this.dragon.brain.z, 0, () => this.dragon?.brain.pat());
+    if (this.bunny) add(this.bunnyOn, this.bunny.model.root, this.bunny.brain.x, this.bunny.brain.y, this.bunny.brain.z, 0.4, () => this.bunny?.brain.pat());
+  }
+
+  /** A blast (Mochi's bark) at (x, z): those within `r` m jump (a pat: a dance, or a skill back). */
+  startle(x: number, z: number, r: number): void {
+    const near = (bx: number, bz: number): boolean => Math.hypot(bx - x, bz - z) < r;
+    if (this.crabOn && this.crab && near(this.crab.brain.x, this.crab.brain.z)) this.crab.brain.pat();
+    if (this.dragonOn && this.dragon && near(this.dragon.brain.x, this.dragon.brain.z)) this.dragon.brain.pat();
+    if (this.bunnyOn && this.bunny && near(this.bunny.brain.x, this.bunny.brain.z)) this.bunny.brain.pat();
   }
 
   /** Wild creatures peeking out in the rainforest, on or off. */

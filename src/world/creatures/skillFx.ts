@@ -25,6 +25,8 @@ export interface SkillFxSink {
    * `time` s, in `color` (Mầm's tornado, the steam tornado of a combo).
    */
   vortex(x: number, y: number, z: number, color: number, height: number, top: number, time: number): void;
+  /** A scorch mark on the ground at (x, y, z), `radius` m, fading away over `time` s. */
+  mark(x: number, y: number, z: number, radius: number, time: number): void;
   /** The view widens and turns a little toward (x, y, z) for `time` s (a big skill). */
   focus(x: number, y: number, z: number, time: number): void;
   /** A big sound at (x, y, z) (heard with the activity sounds on), `size` 0..1. */
@@ -179,6 +181,30 @@ void main() {
 }
 `;
 
+/** A scorch mark: soot, darkest in the middle, ragged at the edge, a few cracks of ember glow at first. */
+const MARK_FRAG = /* glsl */ `
+uniform float uK;
+uniform float uSeed;
+varying vec2 vP;
+${NOISE}
+void main() {
+  float r = length(vP);
+  float ang = atan(vP.y, vP.x);
+  float edge = 0.75 + 0.25 * noise(vec2(ang * 3.0 + uSeed * 10.0, uSeed));
+  float soot = smoothstep(edge, edge * 0.35, r) * (0.75 + 0.25 * noise(vP * 6.0 + uSeed * 4.0));
+  float fade = 1.0 - smoothstep(0.55, 1.0, uK);
+  float ember = smoothstep(0.6, 0.95, noise(vP * 9.0 + uSeed * 7.0)) * smoothstep(0.6, 0.0, r) * (1.0 - smoothstep(0.0, 0.25, uK));
+  vec3 col = mix(vec3(0.04, 0.035, 0.03), vec3(1.4, 0.4, 0.08), ember);
+  gl_FragColor = vec4(col, max(soot * 0.85, ember) * fade);
+}
+`;
+
+interface Mark {
+  mesh: THREE.Mesh<THREE.CircleGeometry, THREE.ShaderMaterial>;
+  age: number;
+  time: number;
+}
+
 interface Vortex {
   mesh: THREE.Mesh<THREE.CylinderGeometry, THREE.ShaderMaterial>;
   age: number;
@@ -212,6 +238,7 @@ export class SkillFx implements SkillFxSink {
   private flashPower = 0;
   private readonly shocks: Shock[] = [];
   private readonly vortices: Vortex[] = [];
+  private readonly marks: Mark[] = [];
   private trauma = 0;
   private traumaFade = 1;
   private clock = 0;
@@ -237,6 +264,26 @@ export class SkillFx implements SkillFxSink {
     // Unit shapes, scaled per shock: a disc (radius 1) lying flat, an open cylinder (radius 1, 0..1 high).
     const disc = new THREE.CircleGeometry(1, 96).rotateX(-Math.PI / 2);
     const tube = new THREE.CylinderGeometry(1, 1, 1, 96, 1, true).translate(0, 0.5, 0);
+    for (let i = 0; i < 8; i++) {
+      const mesh = new THREE.Mesh(
+        disc,
+        new THREE.ShaderMaterial({
+          uniforms: { uK: { value: 0 }, uSeed: { value: 0 } },
+          vertexShader: RING_VERT,
+          fragmentShader: MARK_FRAG,
+          transparent: true,
+          depthWrite: false,
+          // Over the ground, under everything else that is see-through.
+          polygonOffset: true,
+          polygonOffsetFactor: -2,
+          polygonOffsetUnits: -2,
+        }),
+      );
+      mesh.visible = false;
+      mesh.renderOrder = 1;
+      scene.add(mesh);
+      this.marks.push({ mesh, age: Infinity, time: 1 });
+    }
     // The funnel: radius 1 at the top, narrow at the foot, 0..1 high.
     const cone = new THREE.CylinderGeometry(1, 0.12, 1, 64, 12, true).translate(0, 0.5, 0);
     for (let i = 0; i < 2; i++) {
@@ -363,6 +410,23 @@ export class SkillFx implements SkillFxSink {
     v.mesh.visible = true;
   }
 
+  mark(x: number, y: number, z: number, radius: number, time: number): void {
+    let m = this.marks[0];
+    for (const c of this.marks) {
+      if (c.age >= c.time) {
+        m = c;
+        break;
+      }
+      if (c.age / c.time > m.age / m.time) m = c;
+    }
+    m.age = 0;
+    m.time = time;
+    m.mesh.position.set(x, y + 0.03, z);
+    m.mesh.scale.set(radius, 1, radius);
+    m.mesh.material.uniforms.uSeed.value = Math.random();
+    m.mesh.visible = true;
+  }
+
   focus(x: number, y: number, z: number, time: number): void {
     this.focusAt.set(x, y, z);
     this.focusLeft = Math.max(this.focusLeft, time);
@@ -406,6 +470,12 @@ export class SkillFx implements SkillFxSink {
       v.mesh.material.uniforms.uTime.value = this.clock;
       // It grows up out of the ground over the first quarter.
       v.mesh.scale.y = v.height * Math.min(1, k * 4);
+    }
+    for (const m of this.marks) {
+      if (m.age >= m.time) continue;
+      m.age += dt;
+      m.mesh.material.uniforms.uK.value = Math.min(1, m.age / m.time);
+      m.mesh.visible = m.age < m.time;
     }
     this.trauma = Math.max(0, this.trauma - this.traumaFade * dt);
     this.bloom = Math.max(0, this.bloom - dt * 0.7);

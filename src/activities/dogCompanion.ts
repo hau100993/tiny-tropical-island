@@ -87,7 +87,7 @@ const ZOOM_CENTRES: readonly (readonly [number, number])[] = [
 const ZOOM_BOW = 0.6;
 const ZOOM_LEAP = { height: 0.75, time: 0.75 } as const;
 
-type Mode = 'follow' | 'come' | 'wait' | 'pet' | 'zoom';
+type Mode = 'follow' | 'come' | 'wait' | 'pet' | 'zoom' | 'act';
 
 /**
  * Mochi, the dog that keeps you company. It follows your own path a couple of metres behind
@@ -142,6 +142,11 @@ export class DogCompanion {
   /** The circle's centre, from you (m): 0 when it runs round you. */
   private zoomOx = 0;
   private zoomOz = 0;
+  /** A skill of its own (activities/dogSkills.ts): how long, facing where, in what pose. */
+  private actTime = 0;
+  private actX = 0;
+  private actZ = 0;
+  private actPose: DogAction = 'idle';
   /** Height off the ground (m: the leap) and lean into the turn (rad), for the model. */
   lift = 0;
   bank = 0;
@@ -163,6 +168,26 @@ export class DogCompanion {
     this.events.onBark('woof');
   }
 
+  /**
+   * Stands its ground for `time` s facing (x, z), in `pose` (its bark, its lightning: see
+   * activities/dogSkills.ts); then follows you again. Not mid-zoomies.
+   */
+  act(time: number, x: number, z: number, pose: DogAction): boolean {
+    if (this.mode === 'zoom') return false;
+    this.mode = 'act';
+    this.modeTime = 0;
+    this.actTime = time;
+    this.actX = x;
+    this.actZ = z;
+    this.actPose = pose;
+    return true;
+  }
+
+  /** Busy with a skill (the zoomies, the bark, the lightning). */
+  get busy(): boolean {
+    return this.mode === 'zoom' || this.mode === 'act';
+  }
+
   /** Running its zoomies (for the trail of sparkles behind it). */
   get zooming(): boolean {
     return this.mode === 'zoom' && (this.zoomStage === 'run' || this.zoomStage === 'leap');
@@ -174,7 +199,7 @@ export class DogCompanion {
    * if there is none (it stays put).
    */
   zoomies(p: Readonly<DogPlayer>): boolean {
-    if (!p.onFoot || p.seat || this.mode === 'zoom') return false;
+    if (!p.onFoot || p.seat || this.busy) return false;
     for (const r of ZOOM_RADII) {
       for (const [off, dirs] of ZOOM_CENTRES) {
         for (let d = 0; d < dirs; d++) {
@@ -257,6 +282,20 @@ export class DogCompanion {
     let alone = false;
 
     this.petReady = false;
+    if (this.mode === 'act') {
+      if (this.modeTime > this.actTime) {
+        this.mode = 'follow';
+        this.snapCursor();
+      } else {
+        this.speed = 0;
+        this.still = 0;
+        this.face(dt * 4, this.actX, this.actZ);
+        this.action = this.actPose;
+        this.wag += (0.8 - this.wag) * Math.min(1, dt * 6);
+        this.settleY(p);
+        return;
+      }
+    }
     if (this.mode === 'zoom') {
       if (!p.onFoot || p.seat) this.endZoom();
       else {

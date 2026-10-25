@@ -559,6 +559,7 @@ export class FireDragon {
         w.fx.flash(b.x, floor + 1, b.z, 0xff8a3d, 45, 10, 0.45);
         w.fx.shock(b.x, floor, b.z, 'fire', 0xff6a20, 3.6, 0.9, 1.5);
         w.fx.shake(b.x, floor, b.z, 0.38, 0.5);
+        if (g >= 0) w.fx.mark(b.x, g, b.z, 1.3, 9);
         w.fx.sound('boom', 0.6, b.x, floor, b.z);
         const p = this.player;
         if (p && Math.hypot(p.x - b.x, p.z - b.z) < 1.8) this.events.onHitPlayer();

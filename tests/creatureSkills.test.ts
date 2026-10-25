@@ -14,6 +14,7 @@ function fxLog(): SkillFxSink & { shocks: number; flashes: number } {
     shock: () => log.shocks++,
     shake: () => {},
     vortex: () => {},
+    mark: () => {},
     focus: () => {},
     sound: () => {},
   };

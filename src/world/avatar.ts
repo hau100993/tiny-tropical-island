@@ -5,6 +5,7 @@ import { patchWorldMaterial } from './patchMaterial';
 import { createRng, type Rng } from '../core/rng';
 import { clamp, damp, smoothstep } from '../core/math';
 import { RUN_GAIT_MIN, RUN_STEP, WALK_STEP } from '../core/gait';
+import { KNOCK, knockLevel } from '../core/knock';
 import type { SharedUniforms } from '../core/uniforms';
 
 /**
@@ -885,6 +886,12 @@ export interface AvatarPose {
   pet?: number;
   petYaw?: number;
   petHand?: THREE.Vector3;
+  /**
+   * Knocked over (Mochi's bark): seconds since (undefined or < 0: on your feet), the timeline
+   * in core/knock.ts (KNOCK), and the yaw to face (toward the blast) while down.
+   */
+  fall?: number;
+  fallYaw?: number;
 }
 
 /** Sitting in a boat and holding a paddle (the kayak). */
@@ -1632,8 +1639,10 @@ export class Avatar {
 
     // ---- 2. Foot targets (world space) ----
     const root = this.group;
+    const falling = p.fall !== undefined && p.fall >= 0;
+    if (falling && p.fallYaw !== undefined) this.yaw = p.fallYaw;
     root.position.set(p.x, this.rootY, p.z);
-    root.rotation.y = this.yaw;
+    root.rotation.set(0, this.yaw, 0, 'YXZ');
     root.updateMatrixWorld(true);
     let need = 0;
     for (let i = 0; i < 2; i++) {
@@ -1691,7 +1700,50 @@ export class Avatar {
     this.head.rotation.x = 0.16 * r + 0.04 * g + 0.05 * still * Math.sin(this.time * 0.23) + 0.12 * pw;
     this.head.rotation.y = 0.12 * g * Math.cos(sL) + still * 0.3 * Math.sin(this.time * 0.31) * Math.sin(this.time * 0.13 + 1);
 
+    if (falling) this.fallPose(p.fall as number);
     this.blinkEyes(dt);
+  }
+
+  /**
+   * Knocked over, `t` s ago (timeline: KNOCK in core/knock.ts): the whole body topples
+   * backward about the feet, arms flung up and legs kicking; it lies on its back, arms out,
+   * dazed; then it sits up (knees drawn up, chest forward) and stands. Set over the standing
+   * pose (no IK: the feet leave the ground).
+   */
+  private fallPose(t: number): void {
+    const f = Math.min(1, t / KNOCK.fall);
+    const lying = t >= KNOCK.fall && t < KNOCK.fall + KNOCK.lie;
+    const r = Math.max(0, Math.min(1, (t - KNOCK.fall - KNOCK.lie) / KNOCK.rise));
+    const down = knockLevel(t);
+    // The body's tilt back (rad), a little bounce on landing.
+    const bounce = lying ? 0.1 * Math.exp(-(t - KNOCK.fall) * 7) * Math.sin((t - KNOCK.fall) * 22) : 0;
+    const root = this.group;
+    root.rotation.x = (Math.PI / 2 - 0.06) * down - bounce;
+    // Lifted by the body's thickness as it lies, so the back rests on the ground, not in it.
+    root.position.y += 0.12 * down;
+    // Weights of the three moves: flinging (falling), sprawled (lying), sitting up (rising).
+    const fling = t < KNOCK.fall ? Math.sin((Math.PI / 2) * f) : 0;
+    const sprawl = lying ? 1 : t < KNOCK.fall ? f * f : 1 - smoothstep(0, 0.4, r);
+    const sit = r > 0 ? Math.sin(Math.PI * Math.min(1, r * 1.1)) : 0;
+    this.hips.position.y = HIP_Y;
+    this.hips.position.z = 0;
+    this.hips.rotation.set(0, 0, 0);
+    this.torso.rotation.set(-1.0 * sit + 0.15 * fling, 0, 0);
+    for (let i = 0; i < 2; i++) {
+      const side = i === 0 ? -1 : 1;
+      // Arms: up over the head as you go, out to the sides lying, forward to push up.
+      this.shoulders[i].rotation.set(2.5 * fling + 1.1 * sprawl * (1 - fling) + 0.7 * sit, 0, side * (0.4 * fling + 1.1 * sprawl * (1 - fling)));
+      this.elbows[i].rotation.set(0.25 + 0.5 * sit, 0, 0);
+      this.wrists[i].rotation.set(0, 0, 0);
+      // Legs: kicked up as you topple, slack lying (one knee up), drawn up to sit and stand.
+      const knee = 0.35 * fling + (i === 0 ? 0.9 : 0.15) * sprawl * (1 - fling) + 1.9 * sit;
+      this.hipJoints[i].rotation.set(0.55 * fling + (i === 0 ? 0.45 : 0.1) * sprawl * (1 - fling) + 1.3 * sit, 0, side * 0.12 * sprawl);
+      this.knees[i].rotation.x = -knee;
+      this.ankles[i].rotation.set(0.2 * sprawl, 0, 0);
+    }
+    // Head: tucked going over, then rolling a little side to side, dazed.
+    const dazed = lying ? Math.sin(this.time * 3) * 0.35 : 0;
+    this.head.rotation.set(0.35 * fling - 0.1 * sprawl, dazed, 0);
   }
 
   /**

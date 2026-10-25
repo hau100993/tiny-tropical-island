@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Support } from './collision';
 import type { IslandColliders, Shelter, WalkSurface } from './islandColliders';
 import { clamp, damp } from '../core/math';
+import { KNOCK, knockLevel } from '../core/knock';
 import { RUN_GAIT_MIN, stepLength } from '../core/gait';
 import { isTyping } from './keymap';
 import { DragLook } from './dragLook';
@@ -31,6 +32,8 @@ const DIVE_SPEED = { calm: 0.8, fast: 1.4, up: 0.9 } as const;
 const MAX_DIVE = 14;
 /** Radians per pixel of mouse movement. */
 const LOOK_SPEED = 0.0022;
+/** Knocked over (Mochi's bark): how long until you are up again (s). */
+const KNOCK_TIME = KNOCK.fall + KNOCK.lie + KNOCK.rise;
 /**
  * Look up/down limits per view. Third person looking up: the camera arm drops behind the head
  * and shortens against the ground (cameraDistance), so the sky fills the view.
@@ -124,6 +127,10 @@ export class Walker {
   vy = 0;
   /** 1 full lungs … 0 out of breath (then you float up whatever you press). */
   breath = 1;
+  /** Seconds since you were knocked over (−1: on your feet); see KNOCK. */
+  knockT = -1;
+  private knockDX = 0;
+  private knockDZ = 0;
   /** The sea surface height at (x, z); without it the sea is flat at 0. */
   private sea: ((x: number, z: number) => number) | null = null;
   private placed = false;
@@ -207,6 +214,48 @@ export class Walker {
     this.look.stop();
   }
 
+  /**
+   * Knocked over by a blast from (fromX, fromZ): you fall on your back away from it, facing it,
+   * lie there a moment and get up; no walking meanwhile. Only on your feet on land.
+   */
+  knockDown(fromX: number, fromZ: number): boolean {
+    if (!this.active || this.swimming || this.knockT >= 0) return false;
+    const dx = this.x - fromX;
+    const dz = this.z - fromZ;
+    const d = Math.hypot(dx, dz) || 1;
+    this.knockDX = dx / d;
+    this.knockDZ = dz / d;
+    this.knockT = 0;
+    this.vel.set(0, 0);
+    return true;
+  }
+
+  /** While knocked over: the way to face (toward what knocked you over; the avatar's yaw). */
+  get knockYaw(): number {
+    return Math.atan2(this.knockDX, this.knockDZ);
+  }
+
+  /** 0 on your feet … 1 lying flat (eased), for the camera and the body. */
+  get down(): number {
+    return knockLevel(this.knockT);
+  }
+
+  /** The knock-down's clock and the push back while falling; true while you are down. */
+  private knocked(dt: number): boolean {
+    if (this.knockT < 0) return false;
+    this.knockT += dt;
+    if (this.knockT < KNOCK.fall) {
+      // Pushed back hardest at first (the shove), the slide dying away as you land.
+      const s = ((2 * KNOCK.push) / KNOCK.fall) * (1 - this.knockT / KNOCK.fall) * dt;
+      this.tryMove(this.x + this.knockDX * s, this.z + this.knockDZ * s);
+    }
+    if (this.knockT >= KNOCK_TIME) {
+      this.knockT = -1;
+      return false;
+    }
+    return true;
+  }
+
   /** A key that moves you is held (Shift alone doesn't). */
   private steering(): boolean {
     for (const k of this.keys) if (STEER_KEYS.has(k)) return true;
@@ -220,8 +269,8 @@ export class Walker {
   update(dt: number): void {
     if (!this.active) return;
     dt = Math.min(dt, 0.05);
-    // Moving: the mouse steers (DragLook).
-    this.look.update(dt, this.steering());
+    // Moving: the mouse steers (DragLook). Not while knocked over.
+    this.look.update(dt, this.steering() && this.knockT < 0);
     if (this.swimming) {
       if (this.diving) this.dive(dt);
       else this.swim(dt);
@@ -229,8 +278,9 @@ export class Walker {
     }
     this.breath = Math.min(1, this.breath + dt / BREATH_REFILL);
     const k = this.keys;
-    const fwd = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
-    const side = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
+    const stunned = this.knocked(dt);
+    const fwd = stunned ? 0 : (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
+    const side = stunned ? 0 : (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
     const run = k.has('ShiftLeft') || k.has('ShiftRight');
     this.running = run;
     // Wading slows you down, the deeper the slower.
@@ -458,7 +508,11 @@ export class Walker {
       this.applySwimCamera(dt);
       return;
     }
-    const target = this.feetY + EYE_HEIGHT;
+    // Knocked over: the eyes come down to the ground (lying on your back, looking up). From
+    // behind, the camera only comes down part of the way (at the ground its arm would shrink to
+    // nothing against it and the body would hide).
+    const down = this.down;
+    const target = this.feetY + EYE_HEIGHT - (this.view === 'first' ? EYE_HEIGHT - 0.3 : 0.8) * down;
     const diff = target - this.eyeY;
     // Smooth over steps and bumps; snap on big jumps (first frame, teleports).
     if (Math.abs(diff) > 3 || dt === 0) this.eyeY = target;
@@ -471,7 +525,7 @@ export class Walker {
     const amp = this.reducedMotion() ? 0 : (this.speed > WALK_SPEED * 1.3 ? 0.055 : 0.03) * clamp(this.speed / WALK_SPEED, 0, 1);
     const bob = amp * Math.abs(Math.sin(Math.PI * this.phase));
     this.camera.position.set(this.x, this.eyeY + bob, this.z);
-    this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
+    this.camera.rotation.set(Math.min(1.5, this.pitch + 1.2 * down), this.yaw, 0.25 * down, 'YXZ');
   }
 
   /** Swimming: eyes just above the surface (riding the waves), or the arm behind the head. */

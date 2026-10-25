@@ -15,6 +15,9 @@ import { DragLook } from '../controls/dragLook';
 import { SkillFx } from '../world/creatures/skillFx';
 import { Bloom } from './bloom';
 import { SkillCard, type SkillElement } from '../ui/skillCard';
+import { Lightning } from '../world/creatures/lightning';
+import { Scorcher } from '../world/scorch';
+import { DogSkills, type DogSkill, type StrikeTarget } from '../activities/dogSkills';
 import { Petting } from '../activities/petting';
 import { Hearts } from '../world/hearts';
 import { PetCursor } from '../ui/PetCursor';
@@ -89,6 +92,11 @@ const HIDDEN_CLOCK_MS = 5000;
 const CALM_LEVEL = 0.3;
 /** Time constant of the calm-down, seconds (≈ 20 s to settle). */
 const CALM_EASE = 6;
+
+/** A pat on Mochi sets off one of its skills this often (else a hop and a yip). */
+const PAT_SKILL = 0.35;
+/** Mochi's skills by their name-card keys (vi.creatures.skills). */
+const DOG_SKILL_KEY: Record<DogSkill, string> = { zoom: 'dogZoom', bark: 'dogBark', zap: 'dogZap' };
 
 /**
  * Characters from .glb files (Quaternius, CC0; see README), scaled to these standing heights.
@@ -170,6 +178,13 @@ export class App {
   private readonly fx: SkillFx;
   private readonly bloom: Bloom;
   private skillCard!: SkillCard;
+  /** Mochi's bark and lightning (activities/dogSkills.ts), its bolts, what they scorch, soot and dust. */
+  private readonly dogSkills: DogSkills;
+  private readonly lightning = new Lightning();
+  private readonly scorcher = new Scorcher();
+  private readonly smoke: Embers;
+  private readonly dust: Embers;
+  private readonly you = { x: 0, y: 0, z: 0 };
   /** Petting Mochi with the mouse (activities/petting.ts, controls/petPointer.ts). */
   private readonly petting = new Petting();
   private readonly petPointer: PetPointer;
@@ -352,6 +367,10 @@ export class App {
     });
     this.bloom = new Bloom(this.renderer, this.scene, this.camera, QUALITY_PROFILES[this.settings.get().quality].msaa);
     this.creatures = this.createCreatures();
+    this.smoke = new Embers(sharedUniforms, 'smoke');
+    this.dust = new Embers(sharedUniforms, 'steam');
+    this.scene.add(this.lightning.mesh, this.smoke.points, this.dust.points);
+    this.dogSkills = this.createDogSkills();
     this.seaGlow = new Embers(sharedUniforms, 'sea');
     this.scene.add(this.seaGlow.points);
     this.beMap = this.createShark();
@@ -686,7 +705,7 @@ export class App {
       action: () => {
         const dog = this.dog;
         if (!this.settings.get().dog || !dog) return;
-        if (!dog.zoomies(this.dogPlayer)) this.activityMenu.flash(vi.dog.zoomNoRoom);
+        if (this.dogSkills.next(() => dog.zoomies(this.dogPlayer)) === 'noRoom') this.activityMenu.flash(vi.dog.zoomNoRoom);
       },
     });
     this.keymap.register({
@@ -1033,6 +1052,74 @@ export class App {
     });
   }
 
+  /** Mochi's skills: what they need from the island, you and the other creatures. */
+  private createDogSkills(): DogSkills {
+    const hm = this.world.heightmap;
+    return new DogSkills({
+      dog: () => this.dog,
+      head: (out) => (this.dog && this.dogModel ? this.dogModel.headTop(out) : null),
+      player: () => {
+        const w = this.walker;
+        if (this.cameras.mode !== 'walk' || w.swimming) return null;
+        this.you.x = w.x;
+        this.you.y = w.feetY;
+        this.you.z = w.z;
+        return this.you;
+      },
+      knockDown: (x, z) => this.walker.knockDown(x, z),
+      targets: (x, z, r, out) => this.strikeTargets(x, z, r, out),
+      startle: (x, z, r) => this.creatures.startle(x, z, r),
+      heightAt: (x, z) => hm.heightAt(x, z),
+      ripple: (x, z, radius, strength) => this.world.water.addRipple(x, z, radius, strength),
+      fx: this.fx,
+      lightning: this.lightning,
+      scorch: this.scorcher,
+      sparks: this.rainbow,
+      smoke: this.smoke,
+      dust: this.dust,
+      card: (s) => this.showSkill(DOG_SKILL_KEY[s], s === 'bark' ? 'water' : 'spark'),
+    });
+  }
+
+  /**
+   * What Mochi's lightning may strike from (x, z) within r m: you (walking), a few of the trees
+   * and rocks, the house, the other creatures, and the sea if it is in reach.
+   */
+  private strikeTargets(x: number, z: number, r: number, out: StrikeTarget[]): void {
+    const hm = this.world.heightmap;
+    const w = this.walker;
+    if (this.cameras.mode === 'walk' && !w.swimming && Math.hypot(w.x - x, w.z - z) < r) {
+      out.push({ x: w.x, y: w.feetY + 1.2, z: w.z, kind: 'you', body: this.avatar.group.visible ? this.avatar.group : null });
+    }
+    // A few trees: the nearest ones, at a random height up the trunk.
+    let trees = 0;
+    for (const t of this.world.forest.trunks) {
+      if (trees >= 4 || Math.hypot(t.x - x, t.z - z) > r || Math.random() < 0.5) continue;
+      out.push({ x: t.x, y: hm.heightAt(t.x, t.z) + 1.2 + Math.random() * 2, z: t.z, kind: 'tree', body: null });
+      trees++;
+    }
+    for (const c of this.world.rocks.circles) {
+      if (Math.hypot(c.x - x, c.z - z) > r) continue;
+      out.push({ x: c.x, y: hm.heightAt(c.x, c.z) + c.r * 0.6, z: c.z, kind: 'rock', body: null });
+    }
+    const house = this.world.layout.house;
+    if (Math.hypot(house.x - x, house.z - z) < r + 3) {
+      out.push({ x: house.x, y: hm.heightAt(house.x, house.z) + 4.5, z: house.z, kind: 'house', body: null });
+    }
+    this.creatures.strikeTargets(x, z, r, out);
+    // The sea: a point on the water within reach, if there is one.
+    const a0 = Math.random() * Math.PI * 2;
+    for (let k = 0; k < 8; k++) {
+      const a = a0 + (k / 8) * Math.PI * 2;
+      const sx = x + Math.cos(a) * r * 0.7;
+      const sz = z + Math.sin(a) * r * 0.7;
+      if (hm.heightAt(sx, sz) < -0.3) {
+        out.push({ x: sx, y: 0.1, z: sz, kind: 'sea', body: null });
+        break;
+      }
+    }
+  }
+
   /** A skill you set off (a key or a click): its name card. */
   private showSkill(skill: string, element: SkillElement): void {
     const name = vi.creatures.skills[skill];
@@ -1136,7 +1223,10 @@ export class App {
     else this.petting.end();
     this.dog?.stopPetting();
     if (this.petting.takePat()) {
-      this.dog?.pet();
+      // Now and then a pat sets off one of its skills instead of a hop.
+      const dog = this.dog;
+      if (dog && this.dogSkills.maybeOnPat(PAT_SKILL, () => dog.zoomies(this.dogPlayer))) return;
+      dog?.pet();
       this.dogModel?.hop();
     }
   }
@@ -1832,6 +1922,9 @@ export class App {
     const dog = this.dog;
     p.pet = this.petting.stroking && dog?.petReady ? 1 : 0;
     if (dog) p.petYaw = Math.atan2(-(dog.x - w.x), -(dog.z - w.z));
+    // Knocked over by its bark: falling on your back, facing it.
+    p.fall = w.knockT;
+    p.fallYaw = w.knockYaw;
     this.avatar.update(dt, p);
     this.syncCharacter();
   }
@@ -1915,6 +2008,8 @@ export class App {
     this.creatures.setViewport(this.drawingBuffer.y, this.camera.fov);
     this.seaGlow.setViewport(this.drawingBuffer.y, this.camera.fov);
     this.rainbow.setViewport(this.drawingBuffer.y, this.camera.fov);
+    this.smoke.setViewport(this.drawingBuffer.y, this.camera.fov);
+    this.dust.setViewport(this.drawingBuffer.y, this.camera.fov);
   };
 
   private tick = (dt: number, elapsed: number): void => {
@@ -1970,6 +2065,11 @@ export class App {
     this.seaGlow.update(dt);
     this.rainbow.update(dt);
     this.fx.update(dt);
+    this.dogSkills.update(dt);
+    this.lightning.update(dt, this.camera);
+    this.scorcher.update(dt);
+    this.smoke.update(dt);
+    this.dust.update(dt);
     this.updateWetness(dt);
     this.world.footprints.setClock(elapsed);
     const onFoot = this.cameras.mode === 'walk' && !this.walker.swimming;

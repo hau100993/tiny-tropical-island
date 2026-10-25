@@ -6,7 +6,7 @@ import { FIRE_BLENDING, FIRE_BLEND_GLSL } from './fireBlend';
  * Pool sizes per kind: a rainbow arc is drawn with many motes at once; Hỏa Long's ring of fire
  * and meteors throw thousands of sparks, Mầm's tornado and dandelion gust thousands of motes.
  */
-const MAX: Record<EmberKind, number> = { ember: 3000, steam: 600, spore: 2500, sea: 400, rainbow: 3000, fluff: 2000 };
+const MAX: Record<EmberKind, number> = { ember: 3000, steam: 600, spore: 2500, sea: 400, rainbow: 3000, fluff: 2000, smoke: 600 };
 
 /** Anything that throws embers (or puffs of steam). */
 export interface EmberSink {
@@ -22,9 +22,10 @@ export interface EmberSink {
  * (Mầm's spores): little yellow-green motes that drift up slowly and twinkle; or sea sparkle
  * (Bé Mập's fin at night): cyan glints that stay on the water and fade; or rainbow motes (Bé
  * Mập's celebration): glittering drops in every colour that hang in the air and sink slowly; or
- * dandelion seeds (Mầm): white fluffy stars that float on the breeze for seconds.
+ * dandelion seeds (Mầm): white fluffy stars that float on the breeze for seconds; or smoke
+ * (what Mochi's lightning scorched): dark grey puffs, like steam but sooty, rising slowly.
  */
-export type EmberKind = 'ember' | 'steam' | 'spore' | 'sea' | 'rainbow' | 'fluff';
+export type EmberKind = 'ember' | 'steam' | 'spore' | 'sea' | 'rainbow' | 'fluff' | 'smoke';
 
 const VERT = /* glsl */ `
 attribute float aSize;
@@ -52,12 +53,18 @@ void main() {
   vec2 c = gl_PointCoord * 2.0 - 1.0;
   float r2 = dot(c, c);
   if (r2 > 1.0) discard;
-#ifdef STEAM
+#if defined(STEAM) || defined(SMOKE)
   // A soft puff, a little lumpy, thinning as it ages; lit by the day.
   float lump = 0.85 + 0.15 * sin(atan(c.y, c.x) * 3.0 + vSeed * 6.283);
   float a = smoothstep(1.0, 0.2, r2 / lump) * 0.45 * (1.0 - vLife);
+#ifdef SMOKE
+  // Soot: dark grey, a little browner where it is thick, thicker than steam.
+  vec3 col = mix(vec3(0.16, 0.15, 0.14), vec3(0.3, 0.29, 0.28), vLife) * (0.4 + 0.6 * uDayLight);
+  a *= 1.4;
+#else
   // Still pale at night (lit by the fire that made it).
   vec3 col = vec3(0.92, 0.94, 0.96) * (0.5 + 0.5 * uDayLight);
+#endif
   gl_FragColor = vec4(col, a);
 #elif defined(SPORE)
   // A mote of pollen: a soft glowing dot, lime to gold, twinkling, fading in and out.
@@ -150,10 +157,10 @@ export class Embers implements EmberSink {
       uniforms: { uScale: this.scale, uTime: shared.uTime, uDayLight: shared.uDayLight },
       vertexShader: VERT,
       fragmentShader: FRAG,
-      defines: kind === 'steam' ? { STEAM: '' } : kind === 'spore' ? { SPORE: '' } : kind === 'sea' ? { SEA: '' } : kind === 'rainbow' ? { RAINBOW: '' } : kind === 'fluff' ? { FLUFF: '' } : {},
+      defines: kind === 'steam' ? { STEAM: '' } : kind === 'smoke' ? { SMOKE: '' } : kind === 'spore' ? { SPORE: '' } : kind === 'sea' ? { SEA: '' } : kind === 'rainbow' ? { RAINBOW: '' } : kind === 'fluff' ? { FLUFF: '' } : {},
       transparent: true,
       depthWrite: false,
-      ...(kind === 'steam' ? { blending: THREE.NormalBlending } : FIRE_BLENDING),
+      ...(kind === 'steam' || kind === 'smoke' ? { blending: THREE.NormalBlending } : FIRE_BLENDING),
     });
     this.points = new THREE.Points(geo, mat);
     this.points.name = kind;

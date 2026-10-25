@@ -63,7 +63,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `T` | Pomodoro: show the timer and start / pause it |
 | `B` | Work desk: sit down at the desk in the house (from anywhere) / get up |
 | `G` | Call Mochi the dog: it runs straight to you |
-| `J` | Mochi's special move, **Sao Băng Mochi** (see *Mochi*) |
+| `J` | Mochi's skills, each press the next: **Sao Băng Mochi**, **Sủa Sóng Âm**, **Phóng Điện** (see *Mochi*) |
 | `R` | Bọt the water crab's skills, each press the next: water jet (at you if you stand within 10 m, else out to sea), bubble shower, rainbow geyser (see *Three skills each*) |
 | `X` | Hỏa Long the fire dragon's skills, each press the next: fire breath (at you if you stand within 12 m: it dries you; else onto the sea), ring of fire, meteor shower |
 | `Z` | Mầm the grass bunny's skills, each press the next: Lá Bay (flowers spring up where the leaves land; within 10 m of you: a ring of flowers round you), the pollen dance, dandelion breeze |
@@ -352,12 +352,25 @@ at the desk it sits beside the chair looking up at you, while you're in the bath
 tub (if you jumped to a seat with `B` while it was outside, it is simply there); while you're in
 the hammock it lies beside it; while you swim, paddle or surf it
 waits at the water's edge watching you, and greets you with a bark when you're back. `G` calls
-it. **`J`: Sao Băng Mochi**, its special move (Shiba "zoomies"): a play bow and a yip, then two
+it. **`J`: its three skills**, each press the next (a name card shows each). **Sao Băng Mochi**
+(Shiba "zoomies"): a play bow and a yip, then two
 laps round you at full gallop (7.5 m/s, leaning into the turn) leaving a comet's tail of golden
 sparkles that drift down onto the sand, and a leap with a full turn in the air to finish: a
 burst of gold (and a few colours) and two hearts. It needs open ground: a circle round you
 (3.4, 2.8 or 2.2 m) clear of trees, rocks, walls and the sea, or else one just beside you; if
-there is none a note says so. The model is the file's, rounded off at load (`world/smoothMesh.ts`:
+there is none a note says so. **Sủa Sóng Âm**: it braces and lets out one huge bark (a deep
+"WOOF" with its echo): rings of sound race 10 m out over the ground with a puff of dust all
+round, the camera shakes, the sea ripples, the other creatures jump; within 8 m you are
+**knocked off your feet**: you topple onto your back, arms flung up, lie there dazed, then sit up
+and stand (~3 s; no walking meanwhile; through the eyes the view drops to the ground and looks
+at the sky). **Phóng Điện** (like a Pikachu): it crouches while little arcs crawl over its back,
+then four bolts of lightning crackle out at whatever is within 13 m: you, palms, rocks, the
+house, the other creatures, the sea. Each bolt is a jagged, forking, flickering arc that lights
+up the scene, with a crack of thunder and a burst of sparks; what it hits is **scorched**: you
+or a creature go black for a moment, smoking, and come back to your colours over ~5 s; the ground
+gets a scorch mark that fades; a struck creature hits back with a skill of its own; on the sea
+it ripples. **A pat** (a click) now and then (1 in 3) sets off one of the three at random. The
+model is the file's, rounded off at load (`world/smoothMesh.ts`:
 the file is flat-shaded low poly, ~1.9k triangles; one step of Loop subdivision and smooth
 normals give ~7.7k, like the other animals). **Petting, with the mouse** (no key, no text prompt): point at Mochi (from above the cursor
 turns into a paw; walking, a paw appears at the screen centre when you aim at it). A click is a

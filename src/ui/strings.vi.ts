@@ -348,6 +348,9 @@ export const vi = {
       leaves: 'Mầm: Lá Bay Nở Hoa',
       dance: 'Mầm: Vũ Điệu Mầm Non',
       dandelion: 'Mầm: Gió Bồ Công Anh',
+      dogZoom: 'Mochi: Sao Băng Mochi',
+      dogBark: 'Mochi: Sủa Sóng Âm',
+      dogZap: 'Mochi: Phóng Điện',
     } as Record<string, string>,
   },
   shortcuts: {
@@ -358,7 +361,7 @@ export const vi = {
     fullscreen: 'Bật/tắt toàn màn hình',
     video: 'Ở bàn làm việc: phát video YouTube · nơi khác: tạm dừng/phát tiếp video',
     callDog: 'Gọi Mochi chạy lại',
-    dogSkill: 'Mochi tung Sao Băng: chạy vòng quanh bạn thật nhanh, nhảy xoay một vòng',
+    dogSkill: 'Mochi tung chiêu (bấm lặp để đổi): Sao Băng → Sủa Sóng Âm → Phóng Điện',
     waterSkill: 'Bọt ra chiêu, mỗi lần bấm một chiêu: Vòi Rồng Nước · Mưa Bong Bóng · Mạch Nước Cầu Vồng',
     fireSkill: 'Hỏa Long ra chiêu, mỗi lần bấm một chiêu: Hơi Thở Lửa · Vòng Lửa · Mưa Thiên Thạch',
     grassSkill: 'Mầm ra chiêu, mỗi lần bấm một chiêu: Lá Bay Nở Hoa · Vũ Điệu Mầm Non · Gió Bồ Công Anh',
