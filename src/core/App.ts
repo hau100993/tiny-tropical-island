@@ -1281,7 +1281,7 @@ export class App {
   }
 
   /**
-   * "Sao Băng Mochi": a comet's tail of golden sparkles behind it while it runs (the rainbow
+   * "Shooting Star": a comet's tail of golden sparkles behind it while it runs (the rainbow
    * motes, hues from orange to pale yellow), ~90 a second, drifting up a little off its back.
    */
   private dogTrail(dt: number): void {

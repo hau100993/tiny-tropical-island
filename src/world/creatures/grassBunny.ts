@@ -15,7 +15,7 @@ const HURRY = 0.75;
 const GREET_RANGE = 6;
 const GREET_STOP = 1.4;
 const GREET_EVERY = 45;
-/** "Lá Bay" on its own (gardening: flowers spring up where the leaves land), every this many seconds. */
+/** "Leaf Blossom" on its own (gardening: flowers spring up where the leaves land), every this many seconds. */
 const AUTO_SKILL = [35, 70] as const;
 /** On command it throws at you when you stand this near (m). */
 const AIM_PLAYER = 10;
@@ -26,15 +26,15 @@ const RECOVER = 0.5;
 /** Pollen from the sprout per second while the pointer rests on it; and in a pat's puff. */
 const HOVER_SPORES = 16;
 const PAT_SPORES = 40;
-/** "Vũ Điệu Mầm Non": a longer dance in a rising spiral of pollen (s, motes per second). */
+/** "Verdant Tornado": a longer dance in a rising spiral of pollen (s, motes per second). */
 /**
- * "Vũ Điệu Mầm Non": a green tornado of pollen and seeds rising round it, `height` m tall and
+ * "Verdant Tornado": a green tornado of pollen and seeds rising round it, `height` m tall and
  * `top` m wide at the top, for `time` s; at the end it bursts in a gust of wind and flowers
  * spring up round it in two rings.
  */
 const DANCE = { time: 3.2, rate: 420, height: 6, top: 2.6, swirl: 3.2 } as const;
 /**
- * "Gió Bồ Công Anh": a dandelion clock swells on its sprout for `charge` s, then a gust blows it
+ * "Dandelion Gale": a dandelion clock swells on its sprout for `charge` s, then a gust blows it
  * away: a shock wave of wind and `rate` seeds a second for `time` s, whirling up and away.
  */
 const DANDELION = { charge: 0.9, time: 2.0, rate: 380, up: [0.6, 2.2], swirl: 2.2 } as const;
@@ -78,7 +78,7 @@ type State = 'idle' | 'wander' | 'approach' | 'greet' | 'hover' | 'turn' | 'wind
 
 /**
  * Mầm's behaviour: wanders the grass between the house and the beach, comes over to greet you,
- * and throws "Lá Bay", a spiral of leaves: on its own onto the ground ahead (flowers spring up
+ * and throws "Leaf Blossom", a spiral of leaves: on its own onto the ground ahead (flowers spring up
  * where they land), or on command at you (they swirl round you; the app grows a ring of flowers
  * at your feet). With the pointer resting on it, it turns to you, its bud opens and pollen
  * drifts out; a click is a leaf throw your way or a happy dance in a puff of pollen, at random.
@@ -128,7 +128,7 @@ export class GrassBunny {
   }
 
   /**
-   * A grass skill, on command (Z): each press the next one ("Lá Bay", the dance, dandelions).
+   * A grass skill, on command (Z): each press the next one ("Leaf Blossom", the dance, dandelions).
    * Ignored while one is under way; returns the one started (null: busy).
    */
   command(): BunnySkill | null {
@@ -403,7 +403,7 @@ export class GrassBunny {
     }
   }
 
-  /** "Gió Bồ Công Anh": seeds lifted off the sprout, carried away on the breeze, spreading. */
+  /** "Dandelion Gale": seeds lifted off the sprout, carried away on the breeze, spreading. */
   private blowSeeds(dt: number, bud: { x: number; y: number; z: number }): void {
     const b = this.world.breeze();
     // Some breeze even on a still day (it blows them itself), always away from it.

@@ -67,7 +67,7 @@ const PAT_LINGER = 2.4;
 const PET_LINGER = 1.2;
 
 /**
- * "Sao Băng Mochi" (its zoomies): a play bow, then laps round you this fast (m/s) on the widest
+ * "Shooting Star" (its zoomies): a play bow, then laps round you this fast (m/s) on the widest
  * clear circle of these radii (m), then a leap with a full turn in the air, this high (m) and long (s).
  */
 const ZOOM_SPEED = 7.5;
@@ -194,7 +194,7 @@ export class DogCompanion {
   }
 
   /**
-   * "Sao Băng Mochi": round and round you at full speed, then a leap with a spin. Needs you on
+   * "Shooting Star": round and round you at full speed, then a leap with a spin. Needs you on
    * foot and open ground: a clear circle round you, or else one beside you (trees about); false
    * if there is none (it stays put).
    */

@@ -54,7 +54,7 @@ interface Bolt {
 }
 
 /**
- * Lightning bolts (Mochi's "Phóng Điện"): each a jagged path from where the spark leaves to
+ * Lightning bolts (Mochi's "Lightning Strike"): each a jagged path from where the spark leaves to
  * what it hits, redrawn every 50 ms (midpoint displacement: each segment's middle pushed
  * sideways, less at each level) with two forks, drawn as camera-facing ribbons with an
  * additive white core and blue-yellow glow, flickering. All bolts are one mesh (one draw call),

@@ -266,7 +266,7 @@ export class Footsteps {
   }
 
   /**
-   * Mầm's "Lá Bay" for `dur` s: a rush of leaves (high band of noise, swelling and let go) with
+   * Mầm's "Leaf Blossom" for `dur` s: a rush of leaves (high band of noise, swelling and let go) with
    * crisp flutters through it.
    */
   leaves(dur: number, gain: number, pan: number): void {

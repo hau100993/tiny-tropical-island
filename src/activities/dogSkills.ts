@@ -10,12 +10,12 @@ export type DogSkill = 'zoom' | 'bark' | 'zap';
 const SKILLS: readonly DogSkill[] = ['zoom', 'bark', 'zap'];
 
 /**
- * "Sủa Sóng Âm": it braces (`windup` s), then one huge bark: rings of sound race out `reach` m;
+ * "Sonic Bark": it braces (`windup` s), then one huge bark: rings of sound race out `reach` m;
  * you are knocked over within `knock` m (on foot), creatures within it jump.
  */
 const BARK = { windup: 0.4, time: 1.5, reach: 10, knock: 8, rings: 3 } as const;
 /**
- * "Phóng Điện": it crouches charging (`charge` s, sparks crawling over it), then `strikes` bolts,
+ * "Lightning Strike": it crouches charging (`charge` s, sparks crawling over it), then `strikes` bolts,
  * `every` s apart, at whatever is near within `reach` m (you, palms, rocks, the house, the other
  * creatures, the sea): each scorched black and smoking for `burn` s.
  */
@@ -65,8 +65,8 @@ interface Smoulder {
 }
 
 /**
- * Mochi's three skills: "Sao Băng Mochi" (its zoomies, in DogCompanion), "Sủa Sóng Âm" (a bark
- * that knocks you over) and "Phóng Điện" (lightning, like a Pikachu). J starts the next one; a
+ * Mochi's three skills: "Shooting Star" (its zoomies, in DogCompanion), "Sonic Bark" (a bark
+ * that knocks you over) and "Lightning Strike" (lightning, like a Pikachu). J starts the next one; a
  * pat sometimes starts one at random. This runs the bark's and the lightning's timelines on
  * top of the dog standing its ground (DogCompanion.act) and asks the shared effects for the rest.
  */

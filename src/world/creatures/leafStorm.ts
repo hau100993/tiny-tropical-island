@@ -84,7 +84,7 @@ function petalGeometry(): THREE.BufferGeometry {
 }
 
 /**
- * Mầm's "Lá Bay": a stream of leaves and petals thrown from its sprout toward a target. Each flies
+ * Mầm's "Leaf Blossom": a stream of leaves and petals thrown from its sprout toward a target. Each flies
  * along the line in a widening spiral that arches up, tumbling, shedding sparkles; at the end it
  * falls like a real leaf (a pendulum swing, tilting with it, carried by the wind), lies on the
  * grass a moment and fades; some landings grow a cluster of flowers (`onLand`). Two instanced

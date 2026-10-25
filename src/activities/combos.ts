@@ -73,12 +73,12 @@ interface Running {
  * Two creatures' skills together: when skills of two different elements start within 1.5 s of
  * each other (two keys pressed one after the other, or one creature joining in another's skill
  * when they stand near), a combo goes off on top of them, with its own name card:
- * - Lửa + Nước, "Hơi Nước Cầu Vồng": a white whirlwind of steam 8 m tall, a big rainbow over it.
- * - Lửa + Cỏ, "Hoa Lửa": a ring of fire that leaves a ring of flowers, petals of flame.
- * - Nước + Cỏ, "Mưa Hoa": a shower of drops all round and flowers springing up everywhere.
- * - Điện + Nước, "Cột Nước Sấm Sét": a water spout with lightning spiralling up it.
- * - Điện + Lửa, "Bão Lửa Sấm Sét": bolts from the sky, each blowing up in fire.
- * - Điện + Cỏ, "Đồng Cỏ Phát Sáng": the meadow lights up with glowing pollen, gold and green.
+ * - Lửa + Nước, "Prism Steam": a white whirlwind of steam 8 m tall, a big rainbow over it.
+ * - Lửa + Cỏ, "Blaze Bloom": a ring of fire that leaves a ring of flowers, petals of flame.
+ * - Nước + Cỏ, "Petal Rain": a shower of drops all round and flowers springing up everywhere.
+ * - Điện + Nước, "Thunder Spout": a water spout with lightning spiralling up it.
+ * - Điện + Lửa, "Firestorm Strike": bolts from the sky, each blowing up in fire.
+ * - Điện + Cỏ, "Glowing Meadow": the meadow lights up with glowing pollen, gold and green.
  */
 export class Combos {
   private last: { element: Element; x: number; z: number; at: number } | null = null;

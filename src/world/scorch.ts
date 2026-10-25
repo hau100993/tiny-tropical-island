@@ -14,7 +14,7 @@ interface Burnt {
 }
 
 /**
- * Scorched by lightning for a few seconds (Mochi's "Phóng Điện"): every material under a
+ * Scorched by lightning for a few seconds (Mochi's "Lightning Strike"): every material under a
  * character or a creature goes nearly black at once, glowing a dull ember red for a moment,
  * then its colour comes back over the last half of the time. The colours are kept and put back
  * exactly; a second strike on the same thing starts its clock again.

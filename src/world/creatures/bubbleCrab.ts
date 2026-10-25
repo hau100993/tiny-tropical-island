@@ -29,13 +29,13 @@ const RECOVER = 0.5;
 const HOVER_BUBBLES = 12;
 const PAT_BURST = 30;
 /**
- * "Mưa Bong Bóng": it blows one giant soap bubble (to `radius` m in `blow` s), which floats up
+ * "Bubble Burst": it blows one giant soap bubble (to `radius` m in `blow` s), which floats up
  * `rise` m in `float` s and bursts: a flash, a shock wave, `burst` bubbles and a shower of
  * glittering drops all round (soaking you within `soak` m).
  */
 const BIG = { blow: 1.4, radius: 1.15, float: 1.5, rise: 3.2, burst: 300, drops: 450, glitter: 320, soak: 3.5, blast: 5, blastTime: 0.45 } as const;
 /**
- * "Mạch Nước Cầu Vồng": the sand trembles and pulses for `windup` s, then a geyser bursts from
+ * "Rainbow Geyser": the sand trembles and pulses for `windup` s, then a geyser bursts from
  * it (under you when you are near, else in front of it) for `time` s, ~10 m high, with a crown
  * of spray and a shock wave; in daylight a rainbow arches over it (radius m).
  */

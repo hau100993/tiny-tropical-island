@@ -63,10 +63,10 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `T` | Pomodoro: show the timer and start / pause it |
 | `B` | Work desk: sit down at the desk in the house (from anywhere) / get up |
 | `G` | Call Mochi the dog: it runs straight to you |
-| `J` | Mochi's skills, each press the next: **Sao Băng Mochi**, **Sủa Sóng Âm**, **Phóng Điện** (see *Mochi*) |
+| `J` | Mochi's skills, each press the next: **Shooting Star**, **Sonic Bark**, **Lightning Strike** (see *Mochi*) |
 | `R` | Bọt the water crab's skills, each press the next: water jet (at you if you stand within 10 m, else out to sea), bubble shower, rainbow geyser (see *Three skills each*) |
 | `X` | Hỏa Long the fire dragon's skills, each press the next: fire breath (at you if you stand within 12 m: it dries you; else onto the sea), ring of fire, meteor shower |
-| `Z` | Mầm the grass bunny's skills, each press the next: Lá Bay (flowers spring up where the leaves land; within 10 m of you: a ring of flowers round you), the pollen dance, dandelion breeze |
+| `Z` | Mầm the grass bunny's skills, each press the next: Leaf Blossom (flowers spring up where the leaves land; within 10 m of you: a ring of flowers round you), the pollen dance, dandelion breeze |
 | `U` | Seated at the desk: play a YouTube link on the left monitor, same as clicking the YouTube logo on the right monitor (see *The house and the work desk*). Elsewhere: pause / resume that video |
 | `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up |
 | `K` | Walking on the beach or in the shallows: get into the kayak; in the kayak: step out (see *Kayak*) |
@@ -352,18 +352,18 @@ at the desk it sits beside the chair looking up at you, while you're in the bath
 tub (if you jumped to a seat with `B` while it was outside, it is simply there); while you're in
 the hammock it lies beside it; while you swim, paddle or surf it
 waits at the water's edge watching you, and greets you with a bark when you're back. `G` calls
-it. **`J`: its three skills**, each press the next (a name card shows each). **Sao Băng Mochi**
+it. **`J`: its three skills**, each press the next (a name card shows each). **Shooting Star**
 (Shiba "zoomies"): a play bow and a yip, then two
 laps round you at full gallop (7.5 m/s, leaning into the turn) leaving a comet's tail of golden
 sparkles that drift down onto the sand, and a leap with a full turn in the air to finish: a
 burst of gold (and a few colours) and two hearts. It needs open ground: a circle round you
 (3.4, 2.8 or 2.2 m) clear of trees, rocks, walls and the sea, or else one just beside you; if
-there is none a note says so. **Sủa Sóng Âm**: it braces and lets out one huge bark (a deep
+there is none a note says so. **Sonic Bark**: it braces and lets out one huge bark (a deep
 "WOOF" with its echo): rings of sound race 10 m out over the ground with a puff of dust all
 round, the camera shakes, the sea ripples, the other creatures jump; within 8 m you are
 **knocked off your feet**: you topple onto your back, arms flung up, lie there dazed, then sit up
 and stand (~3 s; no walking meanwhile; through the eyes the view drops to the ground and looks
-at the sky). **Phóng Điện** (like a Pikachu): it crouches while little arcs crawl over its back,
+at the sky). **Lightning Strike** (like a Pikachu): it crouches while little arcs crawl over its back,
 then four bolts of lightning crackle out at whatever is within 13 m: you, palms, rocks, the
 house, the other creatures, the sea. Each bolt is a jagged, forking, flickering arc that lights
 up the scene, with a crack of thunder and a burst of sparks; what it hits is **scorched**: you
@@ -415,7 +415,7 @@ chirrup) follow **Âm thanh hoạt động**. Loaded on first use (0.44 MB).
 (~0.75 m to the ear tips) with a cream belly and a carrot in its paw, a sprout growing from the
 top of its head between the ears (a soft-ribbed bud with a shoot and four leaves that sway in the
 wind). It wanders the lawn by the stepping stones between the house and the beach (it keeps away
-from the house's stilts), waves to greet you, and now and then throws **Lá Bay**: an arching
+from the house's stilts), waves to greet you, and now and then throws **Leaf Blossom**: an arching
 stream of leaves and flower petals in a widening spiral, trailing sparkles; they fall swinging
 like real leaves, lie on the grass a moment and fade, and **flowers spring up where they land**:
 small clusters of daisies, five-petal flowers and tulips in eight colours that grow out of the
@@ -429,20 +429,20 @@ happy hop in a puff of pollen. Sounds (a rush of leaves, little squeaks) follow 
 
 **Three skills each (`R` / `X` / `Z`: each press starts the next; a click on the creature picks
 one at random).** A skill you set off shows its **name card**, big and glowing in the creature's
-colours, like an anime (hidden with the rest of the UI by `H`). Bọt: **Vòi Rồng Nước** (the jet),
-**Mưa Bong Bóng** (it blows one giant soap bubble, 2.3 m across, with a swirling thin-film
+colours, like an anime (hidden with the rest of the UI by `H`). Bọt: **Aqua Jet** (the jet),
+**Bubble Burst** (it blows one giant soap bubble, 2.3 m across, with a swirling thin-film
 rainbow skin, sparkles drawn into it; the bubble floats up and bursts: a flash, its film flying
 apart as a fading sphere, a shock wave on the sand, hundreds of bubbles, drops and glitter all
-round, soaking you within 3.5 m), **Mạch Nước Cầu Vồng** (claws up, the sand trembles and pulses
+round, soaking you within 3.5 m), **Rainbow Geyser** (claws up, the sand trembles and pulses
 with rings, then a geyser bursts out with a flash, a crown of spray and a shock wave: a thick
 column of water ~10 m high for 2.8 s with a skirt of splashes, under you if you stand within 10 m
 (soaking you), else in front of it; in daylight a big rainbow arches over it, facing you). Hỏa
-Long: **Hơi Thở Lửa** (the breath), **Vòng Lửa** (it spins, drawing sparks into itself, then a
+Long: **Flame Breath** (the breath), **Inferno Ring** (it spins, drawing sparks into itself, then a
 flash and a 2.4 m wall of flame race out along the ground in a ring to 10 m, a second ring inside
-it; it dries you as it passes; over the sea it skims the waves), **Mưa Thiên Thạch** (it climbs,
+it; it dries you as it passes; over the sea it skims the waves), **Meteor Storm** (it climbs,
 a circle of fire opens in the sky over you, or over it, and it spits ten fireballs that rain down
 within 7 m, each blowing up where it lands: a flash, a ring of flame, the ground shaking, steam
-on the sea). Mầm: **Lá Bay Nở Hoa** (the leaves and flowers), **Vũ Điệu Mầm Non** (a green
+on the sea). Mầm: **Leaf Blossom** (the leaves and flowers), **Verdant Tornado** (a green
 tornado 6 m tall swirls up round it, a snaking funnel of wind streaks full of pollen and seeds;
 at the end it bursts in a gust and flowers spring up round it in two rings), **Gió Bồ Công
 Anh** (a dandelion clock swells on its sprout, then a gust: a wall of wind races out and
@@ -461,11 +461,11 @@ hoạt động on). On **Cao (High)** they also **glow** (a bloom pass, only whi
 creatures' keys one after the other, or let it happen: when you start a skill and another
 creature stands within 12 m, it joins in 1 time in 3) make a **combo** in front of you, with a
 purple name card (`activities/combos.ts`; then none for 6 s): **Lửa + Nước "Hơi Nước Cầu
-Vồng"** (a white whirlwind of steam 8 m tall under a great rainbow), **Lửa + Cỏ "Hoa Lửa"** (a
-ring of fire racing out, flowers springing up behind it), **Nước + Cỏ "Mưa Hoa"** (a shower of
-drops and glitter, flowers everywhere), **Điện + Nước "Cột Nước Sấm Sét"** (a water spout with
-lightning spiralling up it), **Điện + Lửa "Bão Lửa Sấm Sét"** (five bolts out of the sky, each
-blowing up in fire), **Điện + Cỏ "Đồng Cỏ Phát Sáng"** (glowing pollen all over the meadow, little
+Vồng"** (a white whirlwind of steam 8 m tall under a great rainbow), **Lửa + Cỏ "Blaze Bloom"** (a
+ring of fire racing out, flowers springing up behind it), **Nước + Cỏ "Petal Rain"** (a shower of
+drops and glitter, flowers everywhere), **Điện + Nước "Thunder Spout"** (a water spout with
+lightning spiralling up it), **Điện + Lửa "Firestorm Strike"** (five bolts out of the sky, each
+blowing up in fire), **Điện + Cỏ "Glowing Meadow"** (glowing pollen all over the meadow, little
 arcs jumping between the grass). Mochi counts as Điện; a creature struck by its lightning that
 hits back can make one too.
 

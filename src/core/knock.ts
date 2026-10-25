@@ -1,7 +1,7 @@
 import { smoothstep } from './math';
 
 /**
- * Knocked off your feet (Mochi's "Sủa Sóng Âm"): falling on your back, lying there, getting up
+ * Knocked off your feet (Mochi's "Sonic Bark"): falling on your back, lying there, getting up
  * (s), pushed back this far (m) as you fall.
  */
 export const KNOCK = { fall: 0.5, lie: 1.3, rise: 1.1, push: 1.3 } as const;

@@ -33,13 +33,13 @@ const RECOVER = 0.6;
 /** Embers puffed from the mouth per second while the pointer rests on it. */
 const HOVER_EMBERS = 22;
 /**
- * "Vòng Lửa": it spins in the air drawing fire into itself, then a ring of fire bursts from the
+ * "Inferno Ring": it spins in the air drawing fire into itself, then a ring of fire bursts from the
  * ground under it with a flash and a wall of flame, racing out to `reach` m in `time` s
  * (released `at` s into the spin).
  */
 const RING = { spin: 2.0, at: 0.8, time: 1.4, reach: 10, rate: 1500 } as const;
 /**
- * "Mưa Thiên Thạch": it climbs, nose to the sky, a circle of fire opens in the sky over you
+ * "Meteor Storm": it climbs, nose to the sky, a circle of fire opens in the sky over you
  * (or over it), and it spits `count` fireballs up, `every` s apart, that rain down round you
  * within `spread` m after `flight` s and blow up: flash, shock wave, the ground shaking.
  */

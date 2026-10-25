@@ -58,7 +58,7 @@ void main() {
 `;
 
 /**
- * Bọt's giant soap bubble ("Mưa Bong Bóng"): one sphere with a thin-film shader, drawn only
+ * Bọt's giant soap bubble ("Bubble Burst"): one sphere with a thin-film shader, drawn only
  * while it is blown, rises and pops.
  */
 export class BigBubble implements BigBubbleSink {
