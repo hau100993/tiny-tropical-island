@@ -12,6 +12,7 @@ import { LayerSlot, type LayerSource } from './LayerSlot';
 import { FileLayer } from './file/FileLayer';
 import { loadAudioFileConfig } from './file/config';
 import { scheduleChime, type ChimeKind } from './synth/chime';
+import { schedulePop } from './synth/pop';
 import { MIXER_KEY, parseMixerState } from './mixerState';
 import { LAYER_IDS, type AudioLayer, type LayerId, type LayerState, type MixerState, type SpatialMix } from './types';
 import { parseJson, readStored, writeStored } from '../core/storage';
@@ -113,6 +114,14 @@ export class Mixer {
     if (!this.engine) return null;
     const when = this.engine.now + Math.max(0, (atMs - Date.now()) / 1000);
     return scheduleChime(this.engine, when, kind);
+  }
+
+  /** Bubble pops (to-do finished) on the alerts bus, `delay` seconds from now; quieter when many. */
+  schedulePops(pops: ReadonlyArray<{ delay: number; size: number }>): void {
+    const e = this.engine;
+    if (!e) return;
+    const volume = 0.2 / Math.sqrt(Math.max(1, pops.length / 12));
+    for (const p of pops) schedulePop(e, e.now + p.delay, p.size, volume);
   }
 
   setLayer(id: LayerId, patch: Partial<LayerState>): void {

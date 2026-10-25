@@ -31,7 +31,8 @@ import { CameraManager, type SeatId, type SeatSpot } from '../controls/CameraMan
 import type { HouseSeat } from '../world/house';
 import { DeskView } from '../controls/deskView';
 import { DeskScreens } from '../world/deskScreens';
-import { DeskDash, type ScreenInfo } from '../world/deskDash';
+import { DASH_PX, DeskDash, type ScreenInfo } from '../world/deskDash';
+import { TodoBubbles } from '../world/todoBubbles';
 import { DeskDashInput } from '../controls/deskDashInput';
 import { AmbienceSwitch } from '../audio/ambienceSwitch';
 import { formatClock, windowSkyTurn } from '../world/celestial';
@@ -151,6 +152,8 @@ export class App {
   /** The right desk monitor: Pomodoro strip and to-do list. */
   private readonly deskDash: DeskDash;
   private readonly dashInput: DeskDashInput;
+  /** "Bọt": bubbles out of the right monitor when a to-do is finished. */
+  private readonly todoBubbles = new TodoBubbles(sharedUniforms.uDayLight);
   /** Soundscape on/off, shared by the right monitor and the video's corner button. */
   private readonly ambience: AmbienceSwitch;
   private readonly fader: HTMLElement;
@@ -473,6 +476,14 @@ export class App {
       toggleAmbience: () => this.ambience.toggle(),
     });
     this.dashInput = new DeskDashInput(this.renderer.domElement, this.camera, w.house.screens[1], this.deskDash, ui);
+    this.scene.add(this.todoBubbles.group);
+    this.deskDash.onTaskDone = (rect, last) => {
+      // Reduced motion: no bubbles, one soft pop.
+      const pops = this.reducedMotion.matches
+        ? [{ delay: 0.05, size: 0.5 }]
+        : this.todoBubbles.burst(w.house.screens[1], DASH_PX.w, DASH_PX.h, rect, last);
+      if (this.pomodoro.chimeOn) this.mixer.schedulePops(pops);
+    };
     this.pomodoro = new PomodoroOverlay(ui, {
       scheduleChime: (atMs, kind) => this.mixer.scheduleChime(atMs, kind),
       soundOn: () => this.mixer.started,
@@ -2198,6 +2209,7 @@ export class App {
     this.deskVideo?.setSize(w, h);
     this.world.spray.setViewport(this.drawingBuffer.y, fov);
     this.bubbles.setViewport(this.drawingBuffer.y, fov);
+    this.todoBubbles.setViewport(this.drawingBuffer.y);
     this.creatures.setViewport(this.drawingBuffer.y, fov);
     this.seaGlow.setViewport(this.drawingBuffer.y, fov);
     this.rainbow.setViewport(this.drawingBuffer.y, fov);
@@ -2272,6 +2284,7 @@ export class App {
     this.deskScreens.setLeft(this.deskVideo.leftMode, this.deskVideo.label);
     this.deskScreens.update(dt, this.camera);
     this.deskDash.update(dt, this.camera, this.cameras.mode === 'seat' && this.cameras.seat === 'desk');
+    this.todoBubbles.update(dt, this.camera, sharedUniforms.uWindDir.value, sharedUniforms.uWind.value);
     this.deskVideo.update();
     // The video is decoded and composited on the same GPU: give it room while it plays.
     this.loop.targetFps = this.deskVideo.watching ? VIDEO_FPS : NORMAL_FPS;

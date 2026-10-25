@@ -152,8 +152,8 @@ export class DeskDash {
   private dragY = 0;
   private dragGrab = 0;
   private dragIndex = 0;
-  /** A task was finished: its card's rectangle on the canvas (for the bubbles, Phase 12c). */
-  onTaskDone: ((x: number, y: number, w: number, h: number) => void) | null = null;
+  /** A task was finished: its card's rectangle on the canvas (the bubbles start there); `last`: no task left. */
+  onTaskDone: ((rect: { x: number; y: number; w: number; h: number }, last: boolean) => void) | null = null;
 
   constructor(
     mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>,
@@ -334,8 +334,8 @@ export class DeskDash {
     if (!a || !task) return;
     this.ghosts.push({ task, y: a.y, t: 0, pop: true });
     const top = LIST_TOP + a.y - this.scroll;
-    this.onTaskDone?.(X, top, CW, CARD_H);
     this.set(completeTask(rollDay(this.todo, Date.now()), id));
+    this.onTaskDone?.({ x: X, y: top, w: CW, h: CARD_H }, this.todo.open.length === 0);
   }
 
   /** Scrolls so that the row `key` is in view. */
@@ -810,7 +810,7 @@ export class DeskDash {
     this.pushListHit(X + 24, top, CW - 24, DONE_H, { kind: 'restore', id: task.id });
   }
 
-  /** A finished card swells a little and fades (bubbles join in Phase 12c); a deleted one just fades. */
+  /** A finished card swells a little and fades as its bubbles fly out; a deleted one just fades. */
   private drawGhost(gh: Ghost): void {
     const g = this.g;
     const top = LIST_TOP + gh.y - this.scroll;

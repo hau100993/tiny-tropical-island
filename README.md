@@ -298,8 +298,12 @@ finished tasks and focus sessions. Below the strip, the to-do list, on "liquid g
 
 - **Thêm việc…**: click it and type (Vietnamese input methods work), **Enter** adds the task,
   **Esc** stops typing.
-- Click a task's **ring ◯** when it is done: it moves to **Đã xong hôm nay** below. Click a
-  finished task to put it back. The finished list keeps today only (it empties at midnight);
+- Click a task's **ring ◯** when it is done: the card bursts into a stream of soap bubbles
+  ("Bọt") that fly out of the monitor, float up with the wind and pop into a ring, droplets and
+  sparkles with a soft "bụp" (the 🔔 switch and **Âm lượng thông báo** cover the pops too).
+  Finishing the last task left sends a bigger burst ("Bọt Nước"). With *reduce motion* set in
+  Windows there are no bubbles, just the tick and one pop. The task moves to **Đã xong hôm nay**
+  below. Click a finished task to put it back. The finished list keeps today only (it empties at midnight);
   click its title to fold it.
 - Click a card to make it the **current task** (it glows, "ĐANG LÀM"); each focus session that
   ends while it is current adds a 🍅 to it. Click it again to clear.
