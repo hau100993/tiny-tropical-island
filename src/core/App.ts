@@ -62,6 +62,8 @@ import type { LayerId } from '../audio/types';
 import { DebugOverlay } from '../ui/DebugOverlay';
 import { Panel, type ViewId } from '../ui/Panel';
 import { AudioPrompt } from '../ui/AudioPrompt';
+import { SlowHint } from '../ui/SlowHint';
+import { watchTouch } from '../ui/touch';
 import { PomodoroOverlay } from '../ui/PomodoroOverlay';
 import { Fullscreen } from '../ui/fullscreen';
 import { DeskVideo } from '../ui/DeskVideo';
@@ -82,6 +84,8 @@ const REBOARD_ARM = 2.5;
  * of rendering, or behind a short fade after this many while it stays visible (overview or seat).
  */
 const TIME_RESET_HIDDEN = 3600;
+/** Upright screens zoom out at most this far (camera.zoom): 55° → ~81° vertical fov. */
+const PORTRAIT_MIN_ZOOM = 0.6;
 /**
  * Shadows while walking, paddling or surfing: a square of ±PLAYER_SHADOW_HALF m whose center
  * sits PLAYER_SHADOW_AHEAD m in front of you (you see more ahead than behind).
@@ -145,6 +149,7 @@ export class App {
   private faderTimer = 0;
   private readonly walkHint: WalkHint;
   private readonly audioPrompt: AudioPrompt;
+  private readonly slowHint: SlowHint;
   private audioStarting = false;
   private readonly avatar: Avatar;
   private readonly listener: ListenerState = { walking: false, shoreDistance: 0, seaSide: 0, trees: 0, shelter: 'none' };
@@ -399,6 +404,8 @@ export class App {
     this.settings.onChange((next) => this.applySettings(next));
 
     this.registerShortcuts();
+    // Touch screens get finger-sized UI (body.touch).
+    watchTouch();
     // UI layer above the canvas; hidden as a whole with the H key.
     const ui = document.createElement('div');
     ui.className = 'ui-layer';
@@ -457,6 +464,7 @@ export class App {
       },
     });
     this.audioPrompt = new AudioPrompt(ui);
+    this.slowHint = new SlowHint(ui, () => this.settings.get().quality, (quality) => this.settings.update({ quality }));
     this.deskVideo = new DeskVideo(container, ui, this.camera, w.house.screens[0], w.house.screens[1], {
       onPlaying: (playing) => this.mixer.setAmbienceMuted(playing),
       master: () => this.mixer.current.master,
@@ -2150,19 +2158,25 @@ export class App {
     this.renderer.setPixelRatio(pixelRatio);
     this.world.fireflies.setPixelRatio(pixelRatio);
     this.camera.aspect = w / h;
+    // Upright screen (a phone held upright): the fov is vertical, so the view would be a narrow
+    // slit across. Zooming out (zoom < 1 widens the fov without touching it; the desk view and
+    // the skills animate the fov) keeps more of the island in view.
+    this.camera.zoom = Math.min(1, Math.max(PORTRAIT_MIN_ZOOM, w / h));
     this.camera.updateProjectionMatrix();
+    // The vertical fov as drawn: particle sizes follow it.
+    const fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) / this.camera.zoom));
     this.renderer.setSize(w, h, false);
     this.renderer.getDrawingBufferSize(this.drawingBuffer);
     this.bloom.resize();
     this.world.water.setSize(this.drawingBuffer.x, this.drawingBuffer.y);
     this.deskVideo?.setSize(w, h);
-    this.world.spray.setViewport(this.drawingBuffer.y, this.camera.fov);
-    this.bubbles.setViewport(this.drawingBuffer.y, this.camera.fov);
-    this.creatures.setViewport(this.drawingBuffer.y, this.camera.fov);
-    this.seaGlow.setViewport(this.drawingBuffer.y, this.camera.fov);
-    this.rainbow.setViewport(this.drawingBuffer.y, this.camera.fov);
-    this.smoke.setViewport(this.drawingBuffer.y, this.camera.fov);
-    this.dust.setViewport(this.drawingBuffer.y, this.camera.fov);
+    this.world.spray.setViewport(this.drawingBuffer.y, fov);
+    this.bubbles.setViewport(this.drawingBuffer.y, fov);
+    this.creatures.setViewport(this.drawingBuffer.y, fov);
+    this.seaGlow.setViewport(this.drawingBuffer.y, fov);
+    this.rainbow.setViewport(this.drawingBuffer.y, fov);
+    this.smoke.setViewport(this.drawingBuffer.y, fov);
+    this.dust.setViewport(this.drawingBuffer.y, fov);
   };
 
   private tick = (dt: number, elapsed: number): void => {
@@ -2257,6 +2271,7 @@ export class App {
     this.gpuTimer.end();
     this.maybeResetTimeVisible();
     const cpuMs = performance.now() - cpuStart;
+    this.slowHint.frame(performance.now() / 1000);
     this.overlay.update(dt, this.renderer.info, this.loop, cpuMs, this.gpuTimer.lastMs);
   };
 }

@@ -1,5 +1,6 @@
 import { el } from './components';
 import { vi } from './strings.vi';
+import { isTouch } from './touch';
 
 /**
  * Small, unobtrusive note shown until sound starts. Browsers only allow audio after the user
@@ -9,14 +10,15 @@ export class AudioPrompt {
   private readonly root: HTMLElement;
 
   constructor(parent: HTMLElement) {
-    this.root = el('div', 'audio-prompt', vi.audioPrompt.waiting);
+    this.root = el('div', 'audio-prompt');
     this.root.setAttribute('role', 'status');
     this.root.hidden = true;
     parent.append(this.root);
   }
 
   show(failed = false): void {
-    this.root.textContent = failed ? vi.audioPrompt.failed : vi.audioPrompt.waiting;
+    const t = vi.audioPrompt;
+    this.root.textContent = isTouch() ? (failed ? t.failedTouch : t.waitingTouch) : failed ? t.failed : t.waiting;
     this.root.hidden = false;
   }
 

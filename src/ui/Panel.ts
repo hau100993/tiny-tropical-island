@@ -14,6 +14,7 @@ import { formatClock } from '../world/celestial';
 import { nextSpeed } from './timeSpeed';
 import type { Fullscreen } from './fullscreen';
 import type { ScreenInfo } from '../world/deskScreens';
+import { isTouch } from './touch';
 
 /** Where the camera is, as the "Góc nhìn" tiles show it. */
 export type ViewId = 'orbit' | 'walk' | 'desk' | 'bath' | 'hammock';
@@ -138,6 +139,8 @@ export class Panel {
   private asleep = false;
   /** A press inside the panel is held (dragging a slider): it stays open. */
   private held = false;
+  /** The last press in the panel began while it was shut (touch: that tap opens it). */
+  private pressedShut = false;
   private closeTimer = 0;
   private sleepTimer = 0;
   /** Called whenever it opens, closes or fades (what sits under it follows: dockRect). */
@@ -153,9 +156,13 @@ export class Panel {
     // Tucked away: pointing at the panel (or at the top-right corner, where it waits even when
     // out of sight) opens it; leaving closes it again after a moment, unless a slider is still
     // being dragged or you are typing in it.
-    this.root.addEventListener('pointerenter', () => this.open());
+    // A finger has no hover (and "leaves" on every lift): on touch screens a tap opens the tucked
+    // panel and a tap on the scene or the collapse button shuts it (watchSceneClicks, toggle).
+    this.root.addEventListener('pointerenter', (e) => {
+      if (e.pointerType !== 'touch') this.open();
+    });
     window.addEventListener('pointermove', (e) => {
-      if (!this.tucked || this.peek || e.buttons !== 0) return;
+      if (!this.tucked || this.peek || e.buttons !== 0 || e.pointerType === 'touch') return;
       // Over the activity card under the menu bar: that isn't the corner.
       if (e.target instanceof Element && e.target.closest('[data-no-corner]')) return;
       if (e.clientX > window.innerWidth - CORNER_W && e.clientY < CORNER_H) {
@@ -168,6 +175,7 @@ export class Panel {
     this.root.addEventListener('focusout', () => this.scheduleClose());
     this.root.addEventListener('pointerdown', () => {
       this.held = true;
+      this.pressedShut = this.root.classList.contains('collapsed');
     });
     window.addEventListener('pointerup', () => {
       if (!this.held) return;
@@ -177,7 +185,11 @@ export class Panel {
     // The page opens with the scene in front: the panel waits tucked away (styles:
     // body.panel-intro) until something in it is clicked.
     document.body.classList.add('panel-intro');
-    this.root.addEventListener('click', () => this.endIntro());
+    this.root.addEventListener('click', () => {
+      if (this.endIntro()) return;
+      // (A tap on the collapse button of an open panel shut it just before: pressedShut is false.)
+      if (isTouch() && this.tucked && !this.peek && this.pressedShut) this.open();
+    });
 
     // --- Fixed top ---
     const header = el('div', 'panel-header');
@@ -333,7 +345,7 @@ export class Panel {
     confOpts.append(this.startAtDesk.root, this.autoCollapse.root);
     this.mouseSpeed = slider(vi.panel.mouseSpeed, s.mouseSpeed, (v) => settings.update({ mouseSpeed: v }));
     this.mouseSpeed.root.title = vi.panel.mouseSpeedHint;
-    const keys = el('details', 'subsection');
+    const keys = el('details', 'subsection shortcuts');
     const keysTitle = el('summary', 'subsection-title', vi.panel.shortcuts);
     const list = el('dl', 'shortcut-list');
     for (const sc of deps.keymap.list()) list.append(el('dt', '', sc.keyLabel), el('dd', '', sc.label));
@@ -373,9 +385,19 @@ export class Panel {
     }, { capture: true });
     window.addEventListener('pointerup', (e) => {
       const s = this.deps.settings.get();
-      if (!down || !s.autoCollapse || s.panelCollapsed) return;
-      if (Math.hypot(e.clientX - down.x, e.clientY - down.y) < 6) this.deps.settings.update({ panelCollapsed: true });
+      const tap = down !== null && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 6;
       down = null;
+      if (!tap) return;
+      // Touch: a tap on the scene shuts the tucked panel (there is no pointing away from it).
+      if (this.tucked && this.peek && isTouch()) {
+        window.clearTimeout(this.closeTimer);
+        this.peek = false;
+        this.syncCollapsed();
+        this.scheduleSleep();
+        return;
+      }
+      // (Touch: always, as a sheet over a phone's small screen is shut by tapping outside it.)
+      if ((s.autoCollapse || isTouch()) && !s.panelCollapsed) this.deps.settings.update({ panelCollapsed: true });
     }, { capture: true });
   }
 
@@ -453,7 +475,8 @@ export class Panel {
   }
 
   private scheduleClose(): void {
-    if (!this.tucked || !this.peek) return;
+    // Touch: it stays open until shut by a tap (a lifted finger always "leaves").
+    if (!this.tucked || !this.peek || isTouch()) return;
     window.clearTimeout(this.closeTimer);
     this.closeTimer = window.setTimeout(() => {
       if (this.held || this.root.matches(':hover') || (isTyping(document.activeElement) && this.root.contains(document.activeElement))) return;
@@ -501,6 +524,8 @@ export class Panel {
   dockRect(): { top: number; right: number; width: number } | null {
     if (this.tucked && this.peek) return null;
     const r = this.root.getBoundingClientRect();
+    // A sheet along the bottom (upright phone): the top right corner is free.
+    if (r.top > window.innerHeight / 2) return { top: 12, right: 12, width: 0 };
     if (!this.tucked) return { top: 12, right: window.innerWidth - r.left + 12, width: 0 };
     const handle = this.asleep || this.uiHidden;
     return { top: r.bottom + 8, right: 12, width: handle ? 0 : r.width };

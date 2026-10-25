@@ -9,6 +9,13 @@ export const vi = {
   audioPrompt: {
     waiting: '🔊 Nhấp chuột hoặc nhấn phím bất kỳ để bật âm thanh',
     failed: 'Không khởi động được âm thanh. Nhấp lại để thử.',
+    waitingTouch: '🔊 Chạm vào màn hình để bật âm thanh',
+    failedTouch: 'Không khởi động được âm thanh. Chạm lại để thử.',
+  },
+  slowHint: {
+    text: (fps: number, level: string) => `Máy đang chạy ${fps} khung hình/giây. Chuyển chất lượng sang "${level}" cho mượt hơn?`,
+    lower: 'Chuyển',
+    keep: 'Để nguyên',
   },
   panel: {
     collapse: 'Thu gọn bảng',

@@ -22,6 +22,8 @@ const EDGE_RAMP = 0.3;
  *   Over the menu or a card (not over the scene) it doesn't steer.
  * - Standing still: the cursor shows again; a left drag on the scene turns the view, as in the
  *   overview; clicks pet Mochi, splash the water, work the menu.
+ * - Touch: a finger dragged on the scene turns the view. Its moves are measured from its
+ *   positions: `movementX/Y` of touch pointers is 0 in some browsers (Safari).
  */
 export class DragLook {
   /** The mouse speed setting, for every DragLook (a factor on the owner's rad per px). */
@@ -30,6 +32,10 @@ export class DragLook {
   private moving = false;
   private pressed = false;
   private travel = 0;
+  /** The press that turns the view (a second finger doesn't), and its last position. */
+  private pointerId = -1;
+  private lastX = 0;
+  private lastY = 0;
   /** The pointer was last over the scene (not the menu, a card or outside it at the top). */
   private overScene = false;
   /** Its last position across the scene, 0 (left) … 1 (right). */
@@ -46,9 +52,12 @@ export class DragLook {
   ) {
     // A press on Mochi never gets here (PetPointer takes it first).
     dom.addEventListener('pointerdown', (e) => {
-      if (!this.active || e.button !== 0) return;
+      if (!this.active || e.button !== 0 || this.pressed) return;
       this.pressed = true;
       this.travel = 0;
+      this.pointerId = e.pointerId;
+      this.lastX = e.clientX;
+      this.lastY = e.clientY;
     });
     window.addEventListener('pointermove', (e) => {
       // Back over the scene from the menu or a card: that move's distance was travelled over
@@ -61,13 +70,19 @@ export class DragLook {
       }
       if (!this.active) return;
       if (this.pressed) {
+        if (e.pointerId !== this.pointerId) return;
         if ((e.buttons & 1) === 0) {
           this.pressed = false;
           return;
         }
-        this.travel += Math.abs(e.movementX) + Math.abs(e.movementY);
+        const touch = e.pointerType === 'touch';
+        const dx = touch ? e.clientX - this.lastX : e.movementX;
+        const dy = touch ? e.clientY - this.lastY : e.movementY;
+        this.lastX = e.clientX;
+        this.lastY = e.clientY;
+        this.travel += Math.abs(dx) + Math.abs(dy);
         const k = DragLook.sensitivity;
-        if (this.travel >= DRAG_PX) look(e.movementX * k, e.movementY * k);
+        if (this.travel >= DRAG_PX) look(dx * k, dy * k);
       } else if (this.moving && this.overScene && !back) {
         // (Chrome sometimes reports a huge jump, e.g. after the window got the focus back.)
         if (Math.abs(e.movementX) < 300 && Math.abs(e.movementY) < 300) {
@@ -77,7 +92,10 @@ export class DragLook {
       }
     });
     window.addEventListener('pointerup', (e) => {
-      if (e.button === 0) this.pressed = false;
+      if (e.button === 0 && e.pointerId === this.pointerId) this.pressed = false;
+    });
+    window.addEventListener('pointercancel', (e) => {
+      if (e.pointerId === this.pointerId) this.pressed = false;
     });
   }
 

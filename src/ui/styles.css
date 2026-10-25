@@ -44,7 +44,14 @@ body {
   margin: 0;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none; /* no pull-to-refresh or bounce on phones */
   background: #9fd2ec;
+}
+
+/* Fingers on the scene drive the camera: without this the browser takes a drag as scrolling
+   or a pinch as page zoom, and cancels the pointer (pointercancel) half way. */
+#app canvas {
+  touch-action: none;
 }
 
 #app,
@@ -302,6 +309,7 @@ body.ui-hidden .debug-overlay {
   width: 340px;
   max-width: calc(100vw - 24px);
   max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px); /* phones: the visible height, without the address bar */
   display: flex;
   flex-direction: column;
   color: var(--panel-fg);
@@ -2379,4 +2387,114 @@ body.cursor-idle canvas {
 }
 @media (prefers-reduced-motion: reduce) {
   .hurt-flash.on { animation: none; }
+}
+
+/* ---------- Slow-device hint (ui/SlowHint.ts) ---------- */
+.slow-hint {
+  position: fixed;
+  left: 50%;
+  top: max(12px, env(safe-area-inset-top));
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  padding: 8px 12px;
+  color: var(--panel-fg);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-shadow);
+  font-size: 13px;
+  z-index: 20;
+}
+
+.slow-hint[hidden] {
+  display: none;
+}
+
+/* ---------- Touch screens (body.touch, ui/touch.ts) ---------- */
+
+body.touch {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Taps on the UI act at once: no double-tap zoom (the scene canvas has touch-action: none). */
+body.touch .ui-layer {
+  touch-action: manipulation;
+}
+
+/* Finger-sized controls: ~40 px targets, larger text. */
+body.touch .panel {
+  font-size: 14px;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+}
+
+body.touch :is(.btn, .seg, .toggle) {
+  font-size: 14px;
+  min-height: 40px;
+}
+
+body.touch .icon-btn {
+  width: 40px;
+  height: 40px;
+}
+
+body.touch .panel-title {
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+body.touch .section-title {
+  font-size: 15px;
+  padding: 10px 0;
+}
+
+body.touch .slider-label {
+  font-size: 13px;
+}
+
+body.touch .slider-input {
+  height: 32px;
+}
+
+/* Keys mean nothing without a keyboard: no key caps, no shortcut list, no key hints. */
+body.touch kbd.key,
+body.touch .shortcuts,
+body.touch .walk-hint {
+  display: none;
+}
+
+body:is(.walking, .ui-hidden, .panel-intro).touch .panel.handle {
+  width: 44px;
+  height: 44px;
+  opacity: 0.6;
+}
+
+/* Upright phone: the panel is a sheet along the bottom, full width (the thumbs' reach); walking
+   it stays tucked in the top corner, out of the way of the controls. */
+@media (orientation: portrait) {
+  body.touch:not(.walking) .panel {
+    top: auto;
+    left: max(8px, env(safe-area-inset-left));
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    width: auto;
+    max-width: none;
+    max-height: 62dvh;
+  }
+
+  body.touch:not(.walking) .panel.handle {
+    left: auto;
+  }
+
+  body.touch:not(.walking) .pomodoro {
+    top: max(12px, env(safe-area-inset-top));
+    bottom: auto;
+  }
 }

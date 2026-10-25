@@ -75,6 +75,32 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `Esc` | Seated (desk or bathtub): get up |
 | `` ` `` (backquote) | Show/hide the stats overlay (FPS, CPU/GPU ms, draw calls) |
 
+### Phones and tablets (touch)
+
+On a touch screen (detected with `pointer: coarse`, so a tablet with a mouse keeps the PC
+layout) the page switches to a touch layout. Walking, kayak, surfing and diving still need a
+keyboard for now; on-screen joystick and buttons come in Phase 11b–11c (see `PLAN.md`).
+
+| Touch | Action |
+|---|---|
+| One-finger drag | Rotate the camera |
+| Pinch / two-finger drag | Zoom / pan |
+| Tap on the water | Splash |
+| Tap the panel bar (or the ☰ handle) | Open the panel; tap the scene to close it |
+| Rows on the activity card | Tap them (same as their keys) |
+
+- **Held upright:** the panel is a sheet along the bottom of the screen (up to 62% of the height),
+  the Pomodoro card moves to the top, and the camera zooms out (vertical view up to ~81°, was
+  55°) so the island isn't cut off at the sides.
+- **Sideways:** the panel stays at the top right, with larger text and finger-sized buttons (~40 px).
+- Key caps, the shortcut list and the keyboard hints are hidden.
+- **Slow device hint (any device):** about 13 s after the island appears the frame rate is
+  measured once over 10 s. Below 40 fps a card offers one quality level down (**Chuyển**) or
+  **Để nguyên**, which is remembered for that quality level on this device (`tsw.slowHintDismissed`).
+  Nothing changes on its own.
+- **Try it on your phone:** `npm run dev -- --host`, then open the *Network* address it prints
+  on a phone on the same Wi-Fi. Android: `chrome://inspect` on the PC shows the phone's console.
+
 ### Control panel (top right)
 
 Always visible at the top: the **Pomodoro clock** button (shows the time left while a session
