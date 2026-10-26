@@ -98,6 +98,7 @@ export class Underwater {
   /** Shared with the water shader (its underside fades into this). */
   readonly color = new THREE.Color();
   private readonly fog: THREE.Fog;
+  /** Fog above water (near and far change with clear air, see setAirFog). */
   private readonly airFog: { color: THREE.Color; near: number; far: number };
   /** The "sky" under water: a gradient dome around the camera (light from above). */
   private readonly dome: THREE.Mesh;
@@ -168,6 +169,12 @@ export class Underwater {
     scene.add(this.rays);
   }
 
+  /** The haze range above water (clear air pushes it back); applied while not diving. */
+  setAirFog(near: number, far: number): void {
+    this.airFog.near = near;
+    this.airFog.far = far;
+  }
+
   /** `surfaceY`: the sea surface above the camera; `depth`: how deep the camera is (m). */
   update(camera: THREE.Camera, surfaceY: number): void {
     const under = camera.position.y < surfaceY - 0.02;
@@ -176,6 +183,10 @@ export class Underwater {
     const light = (0.04 + 0.96 * this.shared.uDayLight.value) * (1 - 0.45 * Math.min(1, depth / 14)) * (1 - 0.4 * this.shared.uCloudCover.value);
     this.color.copy(SHALLOW).lerp(DEEP, Math.min(1, depth / 12)).multiplyScalar(light);
     this.dome.position.copy(camera.position);
+    if (!this.under) {
+      this.fog.near = this.airFog.near;
+      this.fog.far = this.airFog.far;
+    }
     this.camPos.copy(camera.position);
     if (under === this.under) return;
     this.under = under;

@@ -140,6 +140,7 @@ export const vi = {
     sunBrightness: 'Độ sáng',
     sunSize: 'Kích thước',
     gloom: 'Trời u ám',
+    clarity: 'Trời trong',
     rainbow: 'Cầu vồng sau mưa',
   },
   library: {

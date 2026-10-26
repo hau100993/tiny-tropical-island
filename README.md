@@ -150,7 +150,7 @@ moonlight, stars, shooting stars, aurora, fireflies), optionally a time of day, 
 the recordings chosen for it, or, with none chosen, the synthesized ambience that follows its
 effects (rain sound with rain, and so on). Recordings and the synthesized ambience don't mix:
 to layer sounds, choose several recordings.
-Built in: *Bình minh ơi* (sunrise, 06:12), *Ngày nắng*, *Hoàng hôn yên ả* (sunset, 17:54, the sun touching the sea),
+Built in: *Bình minh ơi* (sunrise, 06:12), *Ngày nắng* (clear air, a deep blue sea), *Hoàng hôn yên ả* (sunset, 17:54, the sun touching the sea),
 *Bão nhiệt đới*, *Mưa rừng*, *Đêm lửa trại*, *Đêm trăng tròn* (19:15, a big bright full moon and
 its path on the sea), *Sáng sương mù*, *Đêm tuyết cực quang*.
 
@@ -821,6 +821,7 @@ The other sky options are scene effects (*Cảnh → Sửa cảnh / Tạo cảnh
 | Mặt trời: Kích thước | Size of the sun disc; 50 % is normal (×0.6 … ×2.2). |
 | Mây dạng sợi | Cirrus: clouds as thin streaks drawn across the view from the desk (thin, see-through, catching the low sun's light) instead of puffs. |
 | Trời u ám | Grey, gloomy sky without rain. |
+| Trời trong | Clear air by day: a deeper blue sky, a clearer horizon, a bluer sea and the haze pushed far out. It fades out toward sunrise and sunset (their colours stay) and under cloud or rain. *Ngày nắng* uses it at 100 %. |
 | Cầu vồng sau mưa | After rain, with a low sun behind you, a rainbow appears at the real 42° angle. |
 | Sao & Ngân Hà | Twinkling stars and a faint Milky Way that slowly wheel across the night sky. |
 | Sao băng | How often shooting stars cross the visible sky: thin, star-sized streaks with a fading tail, in random directions, sometimes two or three at once. |
@@ -936,6 +937,14 @@ Settings, presets and the panel state are saved in `localStorage`; your recordin
   is reflected it uses the sky color.
 - **Caustics:** a fine grid of "sun rays" is refracted through the surface and drawn where it
   lands on the seabed; where rays converge, triangles shrink and get brighter.
+- **Sun and moon glitter** (`world/shaders/glitter.glsl`, after open-water): the sea's total
+  wave slope variance is known (the Gerstner table plus small "capillary" ripples that grow with
+  the wave strength). Whatever part of it the drawn surface doesn't carry (waves faded out with
+  distance, ripples smaller than a pixel) widens the reflection lobe instead (a Beckmann BRDF,
+  Bruneton et al. 2010), so the road of light is as wide as the sea is rough, near and far.
+  Near the camera that average is split into a few bright, pixel-sized sparkles (a Poisson count
+  of glinting facets per pixel, re-drawn ~12 times a second); far away they merge into the
+  smooth road. Six fine normal-only waves (1.3–0.3 m) add detail near the camera.
 - **Swash (the moving waterline):** near the shore the water surface itself runs up the beach
   in ~2 s and drains back over ~7 s. Every ~12 m stretch of beach has its own timing and every
   wave its own size, so the waterline never keeps one shape. One shared function
@@ -1011,6 +1020,7 @@ audio files in the repo.
 | Simplex noise | public domain | reimplemented after Stefan Gustavson's reference |
 | Gerstner waves | — | technique from *GPU Gems* (2004), ch. 1 |
 | [WebGL Water](https://madebyevan.com/webgl-water/) by Evan Wallace | MIT | the heightfield ripple simulation (drop + update passes) and the caustics-by-area-ratio technique are reimplemented after it in `src/water/` |
+| [open-water](https://github.com/Leonxlnx/open-water) by Leonxlnx | MIT | the sun-glitter shading is ported after its water shader: the slope-variance Beckmann BRDF with Smith masking (after Bruneton, Neyret & Holzschuch 2010), the Poisson glint count per pixel and specular anti-aliasing (`src/world/shaders/glitter.glsl`, `glintSparkle` in `src/water/shaders/water.frag.glsl`) |
 | Planar reflection camera (`src/water/PlanarReflection.ts`) | MIT | mirrored camera and oblique near plane adapted from three.js `examples/jsm/objects/Reflector.js` |
 | YouTube icon on the desk's left monitor (`YT_LOGO` in `src/ui/youtube.ts`) | path data from [Simple Icons](https://simpleicons.org/), CC0; the logo is a trademark of Google | drawn as the launcher icon that opens the YouTube player |
 | `src/assets/animals/shiba.glb` ("Shiba Inu") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/y4wdQpg767) | CC0 1.0 (public domain) | Mochi the dog; its walk, gallop, idle, sniff and jump clips are used |

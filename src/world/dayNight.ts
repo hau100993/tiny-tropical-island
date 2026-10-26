@@ -27,6 +27,10 @@ const SKY_TURN_KEY = 'tsw.skyTurn';
 const TURN_EASE = 1.2;
 const MOON_COLOR = new THREE.Color('#9fb4ff');
 const MOON_LOW_COLOR = new THREE.Color('#ffb27a');
+/** Clear air ("Trời trong"): the day sky's top and horizon, and the deep sea it turns to. */
+const CLEAR_TOP = new THREE.Color('#1d68cc');
+const CLEAR_HORIZON = new THREE.Color('#8ec8f0');
+const CLEAR_DEEP = new THREE.Color('#0656a0');
 
 /** What the weather contributes to the sky this frame. */
 export interface SkyWeather {
@@ -41,6 +45,8 @@ export interface SkyOptions {
   clock: ClockOptions;
   clouds: number;
   gloom: number;
+  /** Clear air by day, 0..1 (see `clarity`). */
+  clarity: number;
   rainbow: boolean;
   stars: boolean;
   meteors: number;
@@ -55,7 +61,14 @@ export interface SkyOptions {
  */
 export class DayNight {
   hours: number;
+  /**
+   * How clear the air is right now, 0..1: the scene's "Trời trong" by day, fading out toward
+   * sunrise and sunset (their colours stay) and under overcast. The app pushes the haze back with it.
+   */
+  clarity = 0;
   private readonly sun = new THREE.Vector3();
+  /** The deep sea colour without clear air (uniforms.ts). */
+  private readonly deepBase: THREE.Color;
   private readonly moon = new THREE.Vector3();
   private readonly palette: SkyPalette = createPalette();
   private readonly grey = new THREE.Color();
@@ -79,6 +92,7 @@ export class DayNight {
     private readonly lighting: Lighting,
     private readonly house: HouseInfo,
   ) {
+    this.deepBase = shared.uDeepColor.value.clone();
     const stored = parseJson(readStored(CLOCK_KEY));
     this.hours = typeof stored === 'number' && stored >= 0 && stored < 24 ? stored : 9.5;
     const turn = parseJson(readStored(SKY_TURN_KEY));
@@ -168,8 +182,10 @@ export class DayNight {
     u.uDawn.value = morning;
     const p = dawnDuskShift(paletteFor(e, this.palette), e, morning);
     const oc = Math.min(1, Math.max(weather.overcast, opts.gloom));
-    greyOut(u.uSkyTop.value.copy(p.top), oc * 0.85, this.grey);
-    greyOut(u.uSkyHorizon.value.copy(p.horizon), oc * 0.85, this.grey);
+    this.clarity = opts.clarity * smoothstep(0.15, 0.35, e) * (1 - oc);
+    greyOut(u.uSkyTop.value.copy(p.top).lerp(CLEAR_TOP, this.clarity), oc * 0.85, this.grey);
+    greyOut(u.uSkyHorizon.value.copy(p.horizon).lerp(CLEAR_HORIZON, this.clarity), oc * 0.85, this.grey);
+    u.uDeepColor.value.copy(this.deepBase).lerp(CLEAR_DEEP, this.clarity);
     greyOut(u.uSunColor.value.copy(p.sun), oc * 0.7, this.grey);
 
     // Main light: the sun by day, the moon by night, crossfading while both are near zero.

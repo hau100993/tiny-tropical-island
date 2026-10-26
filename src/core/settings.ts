@@ -37,6 +37,8 @@ export interface Settings {
   clouds: number;
   /** Extra gloom ("âm u"): grey sky without rain, 0..1. */
   gloom: number;
+  /** Clear air ("trời trong") by day: deeper blue sky and sea, less haze, 0..1. */
+  clarity: number;
   /** Cirrus: clouds as thin streaks instead of puffs, 0..1. */
   cirrus: number;
   rainbow: boolean;
@@ -106,6 +108,7 @@ export function defaultSettings(): Settings {
     timePaused: false,
     clouds: 0.35,
     gloom: 0,
+    clarity: 0,
     cirrus: 0,
     rainbow: true,
     stars: true,
@@ -204,6 +207,7 @@ export function parseSettings(json: string | null): Settings {
     ...parseClock(raw, defaults),
     clouds: unit(raw.clouds, defaults.clouds),
     gloom: unit(raw.gloom, defaults.gloom),
+    clarity: unit(raw.clarity, defaults.clarity),
     cirrus: unit(raw.cirrus, defaults.cirrus),
     rainbow: bool(raw.rainbow, defaults.rainbow),
     stars: bool(raw.stars, defaults.stars),

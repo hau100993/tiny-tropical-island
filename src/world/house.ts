@@ -383,8 +383,8 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
   glow.box(0.12, 0.22, 0.06, 3.38, F + 2.15, ZF + 0.12, '#ffffff');
 
   // Monitors: two 27" screens with thin bezels (7 mm sides and top, a slim chin) on aluminium
-  // stands, angled toward the chair. Their top edge stays below eye level, so the sea is in
-  // view above them.
+  // stands, angled toward the chair. They stand low: their top edge is ~16 cm under the eyes
+  // (~8.6° down), so the whole sea out to the beach is in view above them.
   const screens: HouseInfo['screens'] = [];
   const seatX = DESK.seatX;
   const seatZ = DESK.seatZ;
@@ -393,7 +393,7 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
   // Seated facing the sea (local +Z), local −X is on your right: list the left screen first.
   const monitorFeet: Array<[number, number, number]> = [];
   for (const [mx, theta] of [[-0.485, 0.2], [-1.115, -0.2]] as const) {
-    const my = F + 1.0;
+    const my = F + 0.95;
     const mz = 2.17;
     const c = Math.cos(theta);
     const sn = Math.sin(theta);
@@ -408,7 +408,7 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
     parts.soft.add(at(new RoundedBoxGeometry(SW + 0.01, SH + 0.016, 0.01, 2, 0.004), 0, -0.004, 0.012), '#26282c');
     parts.soft.add(at(new RoundedBoxGeometry(0.36, 0.22, 0.03, 2, 0.012), 0, -0.02, 0.03), '#2c2f34');
     // Stand: a flat aluminium neck behind and a thin rectangular base.
-    parts.plain.add(at(new RoundedBoxGeometry(0.055, 0.25, 0.012, 1, 0.004), 0, -0.16, 0.055), '#7f858c');
+    parts.plain.add(at(new RoundedBoxGeometry(0.055, 0.25, 0.012, 1, 0.004), 0, -0.11, 0.055), '#7f858c');
     parts.plain.add(at(new RoundedBoxGeometry(0.2, 0.007, 0.13, 1, 0.003), 0, F + 0.744 - my, 0.055), '#7f858c');
     monitorFeet.push([mx + 0.055 * sn, mz + 0.055 * c, theta]);
     const mat = new THREE.MeshBasicMaterial({ color: '#000000', toneMapped: false });
@@ -513,7 +513,7 @@ export function createHouse(hm: Heightmap, placement: Placement, seed: number): 
     roof: { x0: -roofHalfX, x1: roofHalfX, z0: roofZ0, z1: roofZ1 },
     eaveY: top(ZB) - 0.1,
     stairs: { x: stairsX, halfWidth: stairsHalf, z0: D.deckFront, count, rise, depth: STEP_DEPTH },
-    desk: { seatX, seatZ, eyeY: F + 1.24, standX: -0.15, standZ: 0.75, facesSea: true, pitch: -0.13 },
+    desk: { seatX, seatZ, eyeY: F + 1.28, standX: -0.15, standZ: 0.75, facesSea: true, pitch: -0.13 },
     bath: { seatX: 2.62, seatZ: -1.72, eyeY: F + 0.86, standX: 1.75, standZ: -0.9, facesSea: false, pitch: -0.14 },
     screens,
   };

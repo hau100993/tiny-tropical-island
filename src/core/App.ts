@@ -5,7 +5,7 @@ import { NORMAL_FPS, QUALITY_PROFILES, VIDEO_FPS } from './quality';
 import { sharedUniforms } from './uniforms';
 import { EnvState } from './envState';
 import { GpuTimer } from './gpuTimer';
-import { createWorld, type World } from '../world/World';
+import { createWorld, FOG_FAR, FOG_FAR_CLEAR, FOG_NEAR, FOG_NEAR_CLEAR, type World } from '../world/World';
 import { ISLAND_SHADOW_HALF } from '../world/lighting';
 import { createOrbitCamera, type OrbitCamera } from '../controls/orbit';
 import { Keymap } from '../controls/keymap';
@@ -2180,7 +2180,7 @@ export class App {
   private readonly drawingBuffer = new THREE.Vector2();
   // Reused every frame (no per-frame allocations).
   private readonly skyOptions: SkyOptions = {
-    clock: { mode: 'free', speed: 60, paused: false }, clouds: 0, gloom: 0, rainbow: true, stars: true, meteors: 0, aurora: 0, moonlight: 0.3,
+    clock: { mode: 'free', speed: 60, paused: false }, clouds: 0, gloom: 0, clarity: 0, rainbow: true, stars: true, meteors: 0, aurora: 0, moonlight: 0.3,
   };
   private readonly skyWeather: SkyWeather = { overcast: 0, rain: 0, wetness: 0 };
 
@@ -2241,6 +2241,7 @@ export class App {
     this.skyOptions.clock.paused = s.timePaused;
     this.skyOptions.clouds = s.clouds;
     this.skyOptions.gloom = s.gloom;
+    this.skyOptions.clarity = s.clarity;
     sharedUniforms.uCirrus.value = s.cirrus;
     // Sliders 0..1 with 0.5 = normal: brightness ×0.4…×1.8, size ×0.6…×2.2.
     sharedUniforms.uSunBright.value = s.sunBrightness < 0.5 ? 0.4 + 1.2 * s.sunBrightness : 1 + 1.6 * (s.sunBrightness - 0.5);
@@ -2254,6 +2255,8 @@ export class App {
     this.skyWeather.rain = weather.rainAmount;
     this.skyWeather.wetness = weather.wetness;
     dayNight.update(dt, this.skyOptions, this.skyWeather, this.camera);
+    const clear = dayNight.clarity;
+    this.world.underwater.setAirFog(FOG_NEAR + (FOG_NEAR_CLEAR - FOG_NEAR) * clear, FOG_FAR + (FOG_FAR_CLEAR - FOG_FAR) * clear);
     const night = dayNight.night;
     this.world.fireflies.update(s.fireflies ? night * (1 - weather.rainAmount) * (1 - sharedUniforms.uSnow.value) : 0);
     this.mixer.setNight(night);

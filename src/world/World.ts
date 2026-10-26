@@ -33,6 +33,11 @@ import type { SharedUniforms } from '../core/uniforms';
 
 /** Fixed seed: the island looks the same every launch. */
 export const WORLD_SEED = 20261017;
+/** Haze range above water (m); clear air ("Trời trong") pushes it out to FOG_*_CLEAR. */
+export const FOG_NEAR = 260;
+export const FOG_FAR = 2800;
+export const FOG_NEAR_CLEAR = 900;
+export const FOG_FAR_CLEAR = 7000;
 
 export interface World {
   heightmap: Heightmap;
@@ -107,7 +112,7 @@ export function createWorld(
   const sky = createSky(shared);
   scene.add(sky.mesh);
   // Fog shares the horizon color object, so the far sea melts into the sky.
-  scene.fog = new THREE.Fog(0xffffff, 260, 2800);
+  scene.fog = new THREE.Fog(0xffffff, FOG_NEAR, FOG_FAR);
   scene.fog.color = shared.uSkyHorizon.value;
 
   const lighting = createLighting(scene);
