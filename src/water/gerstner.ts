@@ -52,6 +52,12 @@ const CONSTS: WaveConst[] = WAVES.map((w) => {
   };
 });
 
+/**
+ * Mean square slope of the waves at strength 1: a sine of slope amplitude k·A has mean square
+ * slope (k·A)²/2. The glitter lobe (glitter.glsl) widens by whatever part of it isn't drawn.
+ */
+export const GERSTNER_MSS = CONSTS.reduce((m, c) => m + (c.k * c.amplitude) ** 2 / 2, 0);
+
 /** Uniform arrays: A = (dir.x, dir.z, k, amplitude), B = (omega, Q, phase, 0). */
 export function createWaveUniforms(): { uWaveA: { value: THREE.Vector4[] }; uWaveB: { value: THREE.Vector4[] } } {
   return {

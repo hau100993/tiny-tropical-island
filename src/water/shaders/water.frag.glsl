@@ -32,8 +32,69 @@ varying float vCrest;
 varying float vCloudShadow;
 varying vec2 vSwash;
 varying vec3 vSurf;
+varying vec2 vSlopeVar;
 
 #include <fog_pars_fragment>
+
+// Area of one glinting wave facet (m²). Real capillary facets are ~1 cm², but our sun disc is
+// drawn ~6× wider than the real one; this keeps the near sparkles few and bright at orbit range.
+#define GLINT_FACET 0.0008
+
+// Fine wave detail for the normal only (1.3 m … 0.27 m). Each wave shows while a pixel can hold
+// it and fades as the footprint `pix` (m) grows; what fades, and the ripples smaller still, stays
+// in the glitter lobe as roughness. Carries 35% of the capillary slope variance `capMss`.
+// Returns the slope gradient (xy) and the mean square slope drawn (z).
+vec3 detailWaves(vec2 p, float t, float pix, float capMss) {
+  // Pixels wider than half the longest wave (1.3 m) hold none of them (the far sea).
+  if (pix > 0.66) return vec3(0.0);
+  float a = sqrt(2.0 * capMss * 0.35 / 6.0);
+  // Wave groups: two slow patch fields modulate the amplitudes (mean square ≈ 1), so the
+  // crests don't run on as endless parallel stripes.
+  vec2 grp = vec2(valueNoise(p * 0.11 + vec2(t * 0.05, 3.7)), valueNoise(p * 0.13 - vec2(5.1, t * 0.04)));
+  grp = 0.3 + 1.3 * grp;
+  vec3 r = vec3(0.0);
+  for (int i = 0; i < 6; i++) {
+    float fi = float(i);
+    float k = 4.8 * pow(1.38, fi);
+    // Spread widely around the swell's direction (gerstner.ts), so no stripes line up.
+    float ang = 3.6 + sin(fi * 2.4) * 1.4;
+    vec2 D = vec2(cos(ang), sin(ang));
+    float lambda = 6.2831853 / k;
+    float w = (1.0 - smoothstep(lambda * 0.15, lambda * 0.5, pix)) * (mod(fi, 2.0) < 0.5 ? grp.x : grp.y);
+    r.xy += D * (a * w * cos(k * dot(D, p) - sqrt(9.81 * k) * t + fi * 1.7));
+    r.z += 0.5 * a * a * w * w;
+  }
+  return r;
+}
+
+// Near the camera the glitter's mean is carried by a few wave facets that happen to mirror the
+// light into the eye: `lam` of them in this pixel on average (a Poisson count, after
+// open-water). Few: sparse, full-brightness sparkles on dark water; many (far away): the smooth
+// road. Each lives about 1/12 s. Returns the factor on the mean.
+float glintSparkle(float lam, vec2 cell, float t) {
+  if (lam < 1e-5 || lam > 400.0) return 1.0;
+  float frame = mod(floor(t * 12.0 + hash12(cell * 0.37 + 1.3)), 4096.0);
+  float u = hash12(cell + vec2(frame * 7.13, frame * 3.71));
+  float k = 0.0;
+  if (lam < 12.0) {
+    // Inverse transform sampling of the Poisson distribution.
+    float pk = exp(-lam);
+    float cdf = pk;
+    for (int i = 0; i < 24; i++) {
+      if (u <= cdf) break;
+      k += 1.0;
+      pk *= lam / k;
+      cdf += pk;
+    }
+  } else {
+    // Many facets: Gaussian shot noise around the mean.
+    float u2 = hash12(cell.yx + vec2(frame * 5.3, 11.0));
+    k = max(lam + sqrt(lam) * sqrt(-2.0 * log(max(u, 1e-6))) * cos(6.2831853 * u2), 0.0);
+  }
+  // Lone sparkles vary in brightness (facet size and tilt); many average out.
+  float u3 = hash12(cell * 1.7 + vec2(frame * 2.9, 5.0));
+  return k / lam * mix(min(-log(max(u3, 1e-3)), 3.0) / 0.95, 1.0, min(k * 0.25, 1.0));
+}
 
 // Distance to the nearest of a jittered grid of points (Worley / cellular noise), 0 … ~0.8.
 float cellDist(vec2 p) {
@@ -93,6 +154,13 @@ void main() {
     vec2 pit = vec2(valueNoise(rp + vec2(t * 7.1, 0.0)), valueNoise(rp + vec2(13.7, -t * 6.3))) - 0.5;
     g += pit * 0.22 * uRain * (1.0 - smoothstep(30.0, 120.0, dist));
   }
+  // Pixel footprint on the water: its two edges (m) and area (m²).
+  vec2 ex = dFdx(xz);
+  vec2 ey = dFdy(xz);
+  float footA = max(length(cross(dFdx(vWorldPos), dFdy(vWorldPos))), 1e-6);
+  float capMss = capillaryMss(uWaveStrength, uRain);
+  vec3 det = detailWaves(xz, t, max(length(ex), length(ey)), capMss);
+  g += det.xy;
   vec3 N = normalize(vNormalW + vec3(-g.x, 0.0, -g.y));
   // Far away, many steep wave facets per pixel average out to a flatter surface; without this
   // the sun glint and reflections turn into blocky blobs when seen from high above.
@@ -200,24 +268,41 @@ void main() {
   vec3 faceGlow = mix(uShallowColor, uDeepColor, 0.35) * lit * 1.25;
 
   // Glint of the light (uGlintDir: the sun while any of its disc shows, else the moon's silver
-  // path); widens and dims with distance like a rougher surface. No glint under a cloud.
-  vec3 H = normalize(V + uGlintDir);
-  float spec = pow(max(dot(N, H), 0.0), mix(350.0, 120.0, far)) * mix(3.0, 0.5, far) * step(0.0, uGlintDir.y);
-  // Glitter path: in a wider cone around the mirror direction, single wave facets catch the
-  // light and flash (a moving sparkle pattern), so the moon or sun lays a road of glints on the
-  // sea. More waves give a wider, more broken road. Far away the sparkles would be smaller
-  // than a pixel and flicker, so they blend into their average there.
-  float lobe = pow(max(dot(N, H), 0.0), mix(45.0, 18.0, far)) * step(0.0, uGlintDir.y);
-  vec2 gp = xz * 2.3;
-  float sp = valueNoise(gp + vec2(t * 1.9, -t * 1.4)) * valueNoise(gp * 1.7 - vec2(t * 1.2, t * 2.1));
-  float sparkle = mix(smoothstep(0.4, 0.75, sp) * 3.0, 0.35, smoothstep(30.0, 140.0, dist));
-  // A low sun lays a strong golden road of sparkles.
-  spec += lobe * sparkle * (0.35 + 0.9 * uWaveStrength) * mix(1.4, 0.3, uDayLight) * (1.0 + 2.5 * golden);
-  // Further out the waves are no longer drawn and the flattened normal would shrink the road
-  // to a thin line: there it is statistical, as on the open sea beyond (farSea.glsl).
+  // path). The slopes the normal doesn't carry (waves faded out with distance, ripples below a
+  // pixel, the flattening far away) widen a Beckmann lobe instead (glitter.glsl), so the road is
+  // as wide as the sea is rough. Specular anti-aliasing (Kaplanyan & Hoffman 2016): the normal's
+  // change across the pixel counts as roughness too, so sub-pixel ripples don't flicker.
+  float flatK = 1.0 - 0.7 * far;
+  float mssTotal = vSlopeVar.x + capMss;
+  float mssDrawn = (vSlopeVar.y + det.z) * flatK * flatK;
+  // (Derivatives outside the branches below: they need all pixels of a 2×2 quad.)
+  vec3 dNx = dFdx(N);
+  vec3 dNy = dFdy(N);
+  float kv = min(0.5 * (dot(dNx, dNx) + dot(dNy, dNy)), 0.08);
+  float sigmaSq = min(0.5 * max(mssTotal - mssDrawn, 2e-4) + kv, 0.5 * mssTotal);
+  // Further out the waves are no longer drawn: the road is statistical, with the crests' dashes,
+  // as on the open sea beyond (farSea.glsl, the same lobe). Each part is computed only where it
+  // shows; the BRDF itself stops early outside the lobe (most of the sea).
   float sigma = seaRoughness(uWaveStrength);
   float roadFar = smoothstep(120.0, 450.0, dist);
-  vec3 glint = mix(uGlintColor * spec, farGlint(-V, sigma, t), roadFar) * (1.0 - vCloudShadow);
+  vec3 glint = vec3(0.0);
+  if (roadFar < 1.0 && uGlintDir.y >= 0.0) {
+    vec3 Lg = glintAim(reflect(-V, N), uGlintDir, uGlintSize);
+    float brdf = glitterBRDF(Lg, V, N, sigmaSq);
+    if (brdf > 0.0) {
+      // Facets glinting in this pixel: the mean over (Fresnel × the light's disc, π r² sr) ×
+      // facets in the footprint. A night exposure is longer: more facets per frame, a calmer path.
+      vec3 Hg = normalize(Lg + V);
+      float fH = 0.02 + 0.98 * pow(1.0 - max(dot(V, Hg), 0.0), 5.0);
+      float lam = brdf * 3.14159 * uGlintSize * uGlintSize / fH * (footA / GLINT_FACET) * mix(1.0, 6.0, uNight);
+      // Cells of about one pixel, laid out along the footprint, so sparkles stay pixel-sized.
+      vec2 qc = xz - cameraPosition.xz;
+      vec2 cell = floor(vec2(dot(qc, ex) / max(dot(ex, ex), 1e-12), dot(qc, ey) / max(dot(ey, ey), 1e-12)));
+      glint = uGlintColor * brdf * GLINT_IRRADIANCE * glintSparkle(lam, cell, t) * (1.0 - roadFar);
+    }
+  }
+  if (roadFar > 0.0) glint += farGlint(-V, sigma, t) * roadFar;
+  glint *= 1.0 - vCloudShadow;
   // Glint fades in with water thickness so the waterline blends into the sand.
   float glintMask = 1.0;
 
@@ -292,7 +377,7 @@ void main() {
 
   #include <tonemapping_fragment>
   // The low sun's road in the disc's own colour, after tone mapping like the disc (sky.frag).
-  vec3 road = sunRoadDisplay(-V, sigma, t) * roadFar * glintMask * (1.0 - foam) * (1.0 - vCloudShadow) * (1.0 - 0.4 * haze);
+  vec3 road = roadFar > 0.0 ? sunRoadDisplay(-V, sigma, t) * roadFar * glintMask * (1.0 - foam) * (1.0 - vCloudShadow) * (1.0 - 0.4 * haze) : vec3(0.0);
   gl_FragColor.rgb = 1.0 - (1.0 - gl_FragColor.rgb) * (1.0 - road);
   #include <colorspace_fragment>
 }

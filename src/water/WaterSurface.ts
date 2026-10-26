@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createWaveUniforms, NUM_WAVES } from './gerstner';
+import { createWaveUniforms, GERSTNER_MSS, NUM_WAVES } from './gerstner';
 import { surfGlsl, type SurfFrame } from './surf';
 import type { SharedUniforms } from '../core/uniforms';
 import waterCommon from './shaders/waterCommon.glsl?raw';
@@ -9,6 +9,7 @@ import waterFrag from './shaders/water.frag.glsl?raw';
 import skyCommon from '../world/shaders/skyCommon.glsl?raw';
 import clouds from '../world/shaders/clouds.glsl?raw';
 import aurora from '../world/shaders/aurora.glsl?raw';
+import glitter from '../world/shaders/glitter.glsl?raw';
 import farSea from '../world/shaders/farSea.glsl?raw';
 
 /**
@@ -74,7 +75,7 @@ export class WaterSurface {
 
   constructor(shared: SharedUniforms, inputs: WaterSurfaceInputs, camera: THREE.PerspectiveCamera) {
     const material = new THREE.ShaderMaterial({
-      defines: { NUM_WAVES },
+      defines: { NUM_WAVES, SEA_GERSTNER_MSS: GERSTNER_MSS.toFixed(6) },
       uniforms: {
         ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
         ...createWaveUniforms(),
@@ -129,7 +130,7 @@ export class WaterSurface {
       },
       vertexShader: `${waterCommon}\n${swash}\n${clouds}\n${surfGlsl}\n${waterVert}`,
       // One aurora ribbon is enough in the reflection (cheaper per water pixel).
-      fragmentShader: `${waterCommon}\n${swash}\n${skyCommon}\n${farSea}\n#define AURORA_LAYERS 1\n${aurora}\n${waterFrag}`,
+      fragmentShader: `${waterCommon}\n${swash}\n${skyCommon}\n${glitter}\n${farSea}\n#define AURORA_LAYERS 1\n${aurora}\n${waterFrag}`,
       fog: true,
       // Both faces: the underside is what you see when diving.
       side: THREE.DoubleSide,

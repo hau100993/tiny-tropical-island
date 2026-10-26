@@ -3,7 +3,9 @@ import type { SharedUniforms } from '../core/uniforms';
 import skyCommon from './shaders/skyCommon.glsl?raw';
 import clouds from './shaders/clouds.glsl?raw';
 import aurora from './shaders/aurora.glsl?raw';
+import glitter from './shaders/glitter.glsl?raw';
 import farSea from './shaders/farSea.glsl?raw';
+import { GERSTNER_MSS } from '../water/gerstner';
 import skyVert from './shaders/sky.vert.glsl?raw';
 import skyFrag from './shaders/sky.frag.glsl?raw';
 
@@ -16,6 +18,7 @@ export interface Sky {
 export function createSky(shared: SharedUniforms): Sky {
   const u = shared;
   const material = new THREE.ShaderMaterial({
+    defines: { SEA_GERSTNER_MSS: GERSTNER_MSS.toFixed(6) },
     uniforms: {
       uTime: u.uTime,
       uSunDir: u.uSunDir,
@@ -49,7 +52,7 @@ export function createSky(shared: SharedUniforms): Sky {
       uCloudOffset: u.uCloudOffset,
     },
     vertexShader: skyVert,
-    fragmentShader: `${skyCommon}\n${farSea}\n${clouds}\n${aurora}\n${skyFrag}`,
+    fragmentShader: `${skyCommon}\n${glitter}\n${farSea}\n${clouds}\n${aurora}\n${skyFrag}`,
     side: THREE.BackSide,
     depthWrite: false,
     depthTest: false,

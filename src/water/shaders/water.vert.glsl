@@ -12,6 +12,7 @@ varying float vCrest;
 varying float vCloudShadow;
 varying vec2 vSwash; // x: wave front running up (0..1), y: near-shore weight
 varying vec3 vSurf; // surf break: foam coverage, lit face, broken
+varying vec2 vSlopeVar; // Gerstner mean square slope: x all waves here, y the part drawn (glitter.glsl)
 uniform vec3 uSunDir;
 #ifdef REFLECTION
 uniform mat4 uReflectMatrix;
@@ -26,19 +27,23 @@ void main() {
   float depth = -terrainHeight(p);
   float dist = length(p - cameraPosition.xz);
   // Must match waveAttenuation() in gerstner.ts.
-  float atten = uWaveStrength * smoothstep(-0.2, 3.0, depth) * (1.0 - smoothstep(450.0, 1300.0, dist));
+  float seaAtten = uWaveStrength * smoothstep(-0.2, 3.0, depth);
+  float atten = seaAtten * (1.0 - smoothstep(450.0, 1300.0, dist));
 
   vec3 disp = vec3(0.0);
   float nx = 0.0;
   float nz = 0.0;
   float ny = 0.0;
   float ampSum = 0.0;
+  vec2 slopeVar = vec2(0.0);
   for (int i = 0; i < NUM_WAVES; i++) {
     vec2 D = uWaveA[i].xy;
     float k = uWaveA[i].z;
     // Short waves fade out sooner with distance (fade starts at ~12 wavelengths): prevents moiré.
     float lambda = 6.2831853 / k;
     float A = uWaveA[i].w * atten * (1.0 - smoothstep(lambda * 12.0, lambda * 40.0, dist));
+    float kA0 = k * uWaveA[i].w * seaAtten;
+    slopeVar += vec2(kA0 * kA0, k * k * A * A) * 0.5;
     float Q = uWaveB[i].y;
     float f = k * dot(D, p) - uWaveB[i].x * uTime + uWaveB[i].z;
     float c = cos(f);
@@ -81,6 +86,7 @@ void main() {
   vReflCoord = uReflectMatrix * vec4(wp.x, 0.0, wp.z, 1.0);
 #endif
   vNormalW = normalize(vec3(-nx, 1.0 - ny, -nz));
+  vSlopeVar = slopeVar;
   vCrest = ampSum > 0.0 ? disp.y / ampSum : 0.0;
   // Only near the island: far away the shadow patches would alias.
   vCloudShadow = cloudShadow(wp.xz, uSunDir) * (1.0 - smoothstep(300.0, 700.0, dist));

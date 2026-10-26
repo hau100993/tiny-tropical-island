@@ -33,9 +33,10 @@ float goldenHour() {
   return (1.0 - smoothstep(0.0, 0.25, abs(uSunDir.y))) * smoothstep(-0.03, 0.02, uSunDir.y);
 }
 
-// Spread of the wave slopes (std of the facet tilt, radians) for the wave strength.
+// Spread of the wave slopes (rms facet tilt, radians) for the wave strength: all the waves,
+// as none are drawn out there (glitter.glsl).
 float seaRoughness(float waveStrength) {
-  return 0.04 + 0.09 * waveStrength;
+  return sqrt(seaMss(waveStrength, 0.0));
 }
 
 // The sky as the sea mirrors it. `rough` 0..1: far away, the facets you see tilt toward you
@@ -83,9 +84,18 @@ float glintDashes(vec3 d, float t) {
   return mix(dashes, 0.6 + 0.4 * dashes, 1.0 - smoothstep(0.0, 0.015, -d.y));
 }
 
-// The far road's light, before tone mapping.
+// The dashes average about half: scaled so the far road keeps the mean of the near one.
+#define FAR_DASH_GAIN 1.8
+
+// The far road's light, before tone mapping: the same lobe as on the near water (water.frag),
+// on a flat mean surface whose whole slope variance is unresolved.
 vec3 farGlint(vec3 d, float sigma, float t) {
-  return uGlintColor * glintRoad(d, sigma) * glintDashes(d, t) * 2.5;
+  if (uGlintDir.y < 0.0) return vec3(0.0);
+  vec3 L = glintAim(vec3(d.x, -d.y, d.z), uGlintDir, uGlintSize);
+  float brdf = glitterBRDF(L, -d, vec3(0.0, 1.0, 0.0), 0.5 * sigma * sigma);
+  // The dashes (noise, the costly part) only inside the road.
+  if (brdf <= 0.0) return vec3(0.0);
+  return uGlintColor * brdf * GLINT_IRRADIANCE * glintDashes(d, t) * FAR_DASH_GAIN;
 }
 
 // The low sun's road in the disc's own display colour, screen-blended after tone mapping like
