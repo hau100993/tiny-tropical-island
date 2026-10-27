@@ -1,5 +1,6 @@
 import { el } from './components';
 import { vi } from './strings.vi';
+import { isTouch } from './touch';
 
 /**
  * Surfing, lying on the board: when the next wave comes ("Sóng tiếp theo: 4 s", a bar filling up),
@@ -33,7 +34,7 @@ export class WaveMeter {
       this.root.hidden = !visible;
     }
     if (!next) return;
-    const text = next.ready ? vi.surf.meterReady : vi.surf.meter(Math.ceil(next.seconds));
+    const text = next.ready ? (isTouch() ? vi.surf.touch.meterReady : vi.surf.meterReady) : vi.surf.meter(Math.ceil(next.seconds));
     if (text !== this.lastText) {
       this.lastText = text;
       this.label.textContent = text;

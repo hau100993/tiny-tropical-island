@@ -67,9 +67,11 @@ import { DebugOverlay } from '../ui/DebugOverlay';
 import { Panel, type ViewId } from '../ui/Panel';
 import { AudioPrompt } from '../ui/AudioPrompt';
 import { SlowHint } from '../ui/SlowHint';
-import { watchTouch } from '../ui/touch';
+import { isTouch, watchTouch } from '../ui/touch';
+import { TouchControls, type TouchLayout } from '../ui/TouchControls';
+import { touchInput } from '../controls/touchInput';
 import { PomodoroOverlay } from '../ui/PomodoroOverlay';
-import { Fullscreen } from '../ui/fullscreen';
+import { Fullscreen, lockLandscape } from '../ui/fullscreen';
 import { DeskVideo } from '../ui/DeskVideo';
 import { vi } from '../ui/strings.vi';
 import { Mixer } from '../audio/mixer';
@@ -159,6 +161,10 @@ export class App {
   private readonly fader: HTMLElement;
   private faderTimer = 0;
   private readonly walkHint: WalkHint;
+  /** Joystick and buttons on touch screens (see touchLayout). */
+  private readonly touchControls: TouchControls;
+  /** Full screen was entered by starting to play on a phone (left again in the overview). */
+  private autoFullscreen = false;
   private readonly audioPrompt: AudioPrompt;
   private readonly slowHint: SlowHint;
   private audioStarting = false;
@@ -220,6 +226,13 @@ export class App {
   /** Petting Mochi with the mouse (activities/petting.ts, controls/petPointer.ts). */
   private readonly petting = new Petting();
   private readonly petPointer: PetPointer;
+  /**
+   * Touch: a press on Mochi held still this long (s) sets off its skill (the J key) instead of
+   * stroking; `petHold` is how long the current press has lasted, `petTravel` how far (px) it moved.
+   */
+  private static readonly PET_HOLD = 0.5;
+  private petHold = 0;
+  private petTravel = 0;
   private readonly petCursor: PetCursor;
   private readonly hearts: Hearts;
   /** Where the hand strokes the fur (world), and the far end of a stroke. */
@@ -387,7 +400,10 @@ export class App {
         return d !== null && (this.cameras.mode !== 'walk' || d < 14);
       },
       onStart: () => this.startPetting(),
-      onMove: (dx, dy) => this.petting.move(dx, dy),
+      onMove: (dx, dy) => {
+        this.petTravel += Math.abs(dx) + Math.abs(dy);
+        this.petting.move(dx, dy);
+      },
       onEnd: (cancelled) => this.endPetting(cancelled),
     });
     // Rainbow motes: Bé Mập's and Mochi's celebrations, Bọt's geyser and more (shared).
@@ -515,6 +531,11 @@ export class App {
     }
     // The panel offers a "Bật âm thanh" button; the prompt only reports a failed start.
     this.walkHint = new WalkHint(ui);
+    this.touchControls = new TouchControls(ui);
+    const rotateHint = document.createElement('div');
+    rotateHint.className = 'rotate-hint';
+    rotateHint.textContent = vi.touch.rotate;
+    ui.append(rotateHint);
     this.petCursor = new PetCursor();
     this.activityMenu = new ActivityMenu(ui);
     // The card sits under the menu bar; it follows the panel (opened over it, faded out of sight).
@@ -550,6 +571,7 @@ export class App {
       const seat = this.cameras.seat;
       this.walkHint.showSeat(mode === 'seat', seat === 'bath' ? vi.bath.controls : seat === 'hammock' ? vi.hammock.controls : vi.desk.controls);
       this.listenerTimer = 0;
+      this.playScreen(mode !== 'orbit');
       if (walking) this.avatar.setYaw(this.walker.yaw);
       if (mode === 'orbit') {
         this.listener.walking = false;
@@ -1098,7 +1120,7 @@ export class App {
       },
       trunks: this.world.forest.trunks,
       treesNear: (x, z, r) => this.colliders.treesNear(x, z, r),
-      aim: () => this.petAimMode(),
+      aim: () => this.creatureAimMode(),
       dogHover: () => this.petPointer.hover,
       player: (out) => {
         const w = this.walker;
@@ -1400,6 +1422,16 @@ export class App {
     return 'cursor';
   }
 
+  /**
+   * Clicking or tapping a creature (its skill): also from the water, the kayak and the board
+   * (on a phone that's the only way to set them off there). Not under water.
+   */
+  private creatureAimMode(): ClickAim {
+    const m = this.cameras.mode;
+    if (m === 'orbit' || m === 'kayak' || m === 'surf') return 'cursor';
+    return m === 'walk' && !this.walker.diving ? 'cursor' : 'none';
+  }
+
   /** Walking, paddling or surfing: a click splashes at the cursor. */
   private walkClickAim(): ClickAim {
     const m = this.cameras.mode;
@@ -1409,6 +1441,8 @@ export class App {
   /** Pressed on Mochi: walking, it comes to sit in front of you for your hand; from above it stays put. */
   private startPetting(): void {
     if (!this.dog) return;
+    this.petHold = 0;
+    this.petTravel = 0;
     const walking = this.cameras.mode === 'walk';
     this.petting.start();
     // It sits ahead of you, seen from behind a little to the right (so your body doesn't hide
@@ -1496,6 +1530,14 @@ export class App {
     pp.update();
     // Walking off (or swimming, sitting, another view) ends the stroking.
     if (pp.active && (!p.onFoot || p.seat !== null || w.speed > 0.6 || this.petAim() === 'none')) pp.cancel();
+    // Touch: held still on it, a long press: its skill (J) instead of a stroke.
+    if (pp.active && isTouch()) {
+      this.petHold += dt;
+      if (this.petHold >= App.PET_HOLD && this.petTravel < 12) {
+        pp.cancel();
+        this.keymap.run('KeyJ');
+      }
+    }
     this.petting.update(dt);
     dog.affection = this.petting.affection;
     this.petCursor.set(pp.active ? 'grab' : pp.hover || this.creatures.hover ? 'hover' : 'none');
@@ -1734,7 +1776,8 @@ export class App {
 
   /** Space on the board: catching the wave, or why not. */
   private onPopUp(r: PopUp): void {
-    this.activityMenu.flash(vi.surf.popUp[r]);
+    const touch = isTouch() && (r === 'noWave' || r === 'early') ? vi.surf.touch[r] : null;
+    this.activityMenu.flash(touch ?? vi.surf.popUp[r]);
   }
 
   /** The board reports standing up, a wipeout, the end of a ride, or the beach. */
@@ -1895,6 +1938,79 @@ export class App {
   }
 
   private readonly tmpSpot = { x: 0, z: 0, yaw: 0 };
+
+  // On-screen controls per moment (ui/TouchControls.ts): only what a key-less player can't do
+  // otherwise. Held buttons write touchInput (read with the keys); skills come from tapping the
+  // animals (a long press on Mochi), places and boats from the activity card.
+  private readonly walkTouch: TouchLayout = { stick: true, buttons: [] };
+  private readonly swimTouch: TouchLayout = {
+    stick: true,
+    buttons: [{ label: vi.touch.dive, icon: 'dive', main: true, down: () => (touchInput.jump = true), up: () => (touchInput.jump = false) }],
+  };
+  private readonly diveTouch: TouchLayout = {
+    stick: true,
+    buttons: [{ label: vi.touch.rise, icon: 'rise', main: true, down: () => (touchInput.jump = true), up: () => (touchInput.jump = false) }],
+  };
+  /** Kayak: the joystick paddles; leaving lands where it's shallow, else over the side (K / Space). */
+  private readonly kayakTouch: TouchLayout = {
+    stick: true,
+    buttons: [],
+    exit: () => {
+      if (this.kayak.landingSpot(this.tmpSpot)) this.keymap.run('KeyK');
+      else this.jumpFromKayak();
+    },
+  };
+  /** The board: "Bắt sóng" only while a wave can be caught. */
+  private readonly surfTouch: TouchLayout = { stick: true, buttons: [], exit: () => this.keymap.run('KeyL') };
+  private readonly surfWaveTouch: TouchLayout = {
+    stick: true,
+    buttons: [{ label: vi.touch.catchWave, icon: 'surf', main: true, down: () => this.surf.catchWave() }],
+    exit: () => this.keymap.run('KeyL'),
+  };
+  private readonly seatTouch: TouchLayout = { stick: false, buttons: [], exit: () => this.keymap.run('Escape') };
+
+  /** On touch a card is only worth showing with something to tap (not key hints alone). */
+  private touchCard(card: ActivityCard | null): ActivityCard | null {
+    if (!card || !isTouch()) return card;
+    return card.items.some((it) => it.run) ? card : null;
+  }
+
+  /** What the on-screen controls show now: null without a touch screen or in the overview. */
+  private touchLayout(): TouchLayout | null {
+    if (!isTouch()) return null;
+    switch (this.cameras.mode) {
+      case 'walk':
+        return this.walker.diving ? this.diveTouch : this.walker.swimming ? this.swimTouch : this.walkTouch;
+      case 'kayak':
+        return this.kayakTouch;
+      case 'surf':
+        return this.surf.waveComing ? this.surfWaveTouch : this.surfTouch;
+      case 'seat':
+        return this.seatTouch;
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Phones: starting to play (walking, the kayak, the board, a seat) goes full screen and
+   * sideways, like a game; back in the overview both are undone (upright viewing). Android Chrome
+   * allows this from the tap that started playing; iPhone allows neither, and a "turn the phone"
+   * hint shows instead (styles: .rotate-hint).
+   */
+  private playScreen(playing: boolean): void {
+    if (!isTouch()) return;
+    if (playing && !this.fullscreen.active) {
+      this.autoFullscreen = true;
+      void this.fullscreen.enter().then((ok) => {
+        if (ok) lockLandscape();
+      });
+    } else if (!playing && this.autoFullscreen) {
+      this.autoFullscreen = false;
+      screen.orientation?.unlock?.();
+      this.fullscreen.exit();
+    }
+  }
 
   /** Space in the kayak: over the side into the water (swimming if it's deep there). */
   private jumpFromKayak(): void {
@@ -2147,7 +2263,7 @@ export class App {
       // What you can do here: sit at the desk, the bath, the hammock; the sea's activities.
       const near = this.nearSeat();
       const seatCard = near === 'desk' ? this.deskCard : near === 'bath' ? this.bathCard : near === 'hammock' ? this.hammockCard : null;
-      this.activityMenu.set(seatCard ?? (this.inSea() ? this.seaOffer() : null));
+      this.activityMenu.set(this.touchCard(seatCard ?? (this.inSea() ? this.seaOffer() : null)));
       this.activityMenu.update(dt, this.walker.speed > 0.15);
     } else if (mode === 'kayak') {
       this.activityMenu.update(dt, Math.abs(this.kayak.body.speed) > 0.3);
@@ -2161,8 +2277,9 @@ export class App {
     const paddling = mode === 'kayak';
     const surfing = mode === 'surf';
     const sb = this.surf.body;
-    if (paddling) this.activityMenu.set(k.landingSpot(this.tmpSpot) ? this.kayakLandCard : this.kayakCard);
-    if (surfing) this.walkHint.setPrompt(this.surf.waveComing ? vi.surf.cue : null);
+    // (On touch the corner button leaves the kayak: no card.)
+    if (paddling) this.activityMenu.set(isTouch() ? null : k.landingSpot(this.tmpSpot) ? this.kayakLandCard : this.kayakCard);
+    if (surfing) this.walkHint.setPrompt(this.surf.waveComing ? (isTouch() ? vi.surf.touch.cue : vi.surf.cue) : null);
     const x = atDesk ? seat.x : paddling ? k.body.x : surfing ? sb.x : this.walker.x;
     const z = atDesk ? seat.z : paddling ? k.body.z : surfing ? sb.z : this.walker.z;
     const yaw = atDesk ? seat.yaw : paddling ? k.body.yaw + k.lookYaw : surfing ? sb.yaw + this.surf.lookYaw : this.walker.yaw;
@@ -2269,6 +2386,7 @@ export class App {
 
     this.updateHammock(dt);
     this.cameras.update(dt);
+    this.touchControls.set(this.touchLayout());
     this.updateListener(dt);
     this.updateSurfing();
     this.updateAvatar(dt);

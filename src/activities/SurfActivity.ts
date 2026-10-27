@@ -6,6 +6,7 @@ import type { WalkView } from '../controls/walker';
 import { clamp, damp } from '../core/math';
 import { DragLook } from '../controls/dragLook';
 import { isTyping } from '../controls/keymap';
+import { moveInput, readMove } from '../controls/touchInput';
 import { SURF, createSurfSample, crestX, surfPeelSpeed, type SurfFrame } from '../water/surf';
 import { WakeKind } from '../water/WakeMap';
 import type { KayakEffects } from './KayakActivity';
@@ -16,6 +17,8 @@ const PITCH = { first: [-1.2, 1.2], third: [-1.0, 0.7] } as const;
 /** Third person: camera distance behind the rider's head. */
 const ARM = 4.8;
 const KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight']);
+/** The joystick pushed this far forward / back paddles or pumps (W) / stalls (S); less only steers. */
+const STICK_PUSH = 0.35;
 /** Seconds without mouse movement before the camera drifts back behind the board. */
 const RECENTER_AFTER = 1.2;
 /** Standing up takes this long (s). */
@@ -69,6 +72,7 @@ export class SurfActivity {
   /** What the avatar needs (world space), refreshed every frame. */
   readonly pose: SurfPose = { board: new THREE.Matrix4(), stand: 0, stroke: 0, paddling: 0, crouch: 0, lean: 0, firstPerson: false };
   private readonly keys = new Set<string>();
+  private readonly mv = moveInput();
   private readonly ctl: SurfControls = { forward: false, back: false, steer: 0, hard: false };
   /** Mouse look: drag on the scene (see DragLook). */
   readonly look: DragLook;
@@ -114,7 +118,7 @@ export class SurfActivity {
       if (!this.active || e.ctrlKey || e.altKey || e.metaKey || isTyping(e.target)) return;
       if (e.code === 'Space') {
         e.preventDefault();
-        if (!e.repeat && this.body.state === 'prone') this.events.onPopUp(this.body.popUp());
+        if (!e.repeat) this.catchWave();
         return;
       }
       if (!KEYS.has(e.code)) return;
@@ -134,6 +138,11 @@ export class SurfActivity {
       },
       LOOK_SPEED,
     );
+  }
+
+  /** Space (or the "Bắt sóng" button): lying on the board, try to catch the wave. */
+  catchWave(): void {
+    if (this.active && this.body.state === 'prone') this.events.onPopUp(this.body.popUp());
   }
 
   /** Where the board waits at first: on the sand above the break. */
@@ -261,12 +270,13 @@ export class SurfActivity {
     dt = Math.min(dt, 0.05);
     let ev: SurfEvent = 'none';
     if (this.active) {
-      const k = this.keys;
+      // Keys or the joystick: sideways turns / carves (all the way: hard), forward paddles / pumps.
+      const m = readMove(this.keys, this.mv);
       const c = this.ctl;
-      c.forward = k.has('KeyW') || k.has('ArrowUp');
-      c.back = k.has('KeyS') || k.has('ArrowDown');
-      c.steer = (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0) - (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0);
-      c.hard = k.has('ShiftLeft') || k.has('ShiftRight');
+      c.forward = m.fwd > STICK_PUSH;
+      c.back = m.fwd < -STICK_PUSH;
+      c.steer = -m.side;
+      c.hard = m.run;
       const moving = c.forward || c.back || c.steer !== 0;
       // Paddling, or riding a wave (fast even with no key held): the mouse steers (DragLook).
       this.look.update(dt, moving || this.body.state === 'ride');

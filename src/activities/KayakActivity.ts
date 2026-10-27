@@ -7,6 +7,7 @@ import type { WalkView } from '../controls/walker';
 import { clamp, damp } from '../core/math';
 import { DragLook } from '../controls/dragLook';
 import { isTyping } from '../controls/keymap';
+import { moveInput, readMove } from '../controls/touchInput';
 import { WakeKind, type WakeSink } from '../water/WakeMap';
 import type { SpraySink } from '../water/Spray';
 
@@ -21,6 +22,8 @@ const LATCH = 0.6;
 /** Deepest water you can step out into (m), as deep as you can wade. */
 const MAX_STEP_OUT = 0.9;
 const KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight']);
+/** The joystick pushed this far forward / back paddles (W / S); less only steers. */
+const STICK_STROKE = 0.35;
 /** Seconds without mouse movement before the camera drifts back behind the boat. */
 const RECENTER_AFTER = 1.2;
 
@@ -68,6 +71,7 @@ export class KayakActivity {
     firstPerson: false,
   };
   private readonly keys = new Set<string>();
+  private readonly mv = moveInput();
   private readonly latch = { left: 0, right: 0 };
   private readonly ctl: PaddleControls = { left: false, right: false, steer: 0, cruise: false, back: false, sweep: false, sprint: false };
   /** Mouse look: drag on the scene (see DragLook). */
@@ -119,8 +123,8 @@ export class KayakActivity {
       }
       if (!this.active || !KEYS.has(e.code) || e.ctrlKey || e.altKey || e.metaKey || isTyping(e.target)) return;
       if (!e.repeat) {
-        if (e.code === 'KeyQ') this.latch.left = LATCH;
-        if (e.code === 'KeyE') this.latch.right = LATCH;
+        if (e.code === 'KeyQ') this.stroke(-1);
+        if (e.code === 'KeyE') this.stroke(1);
       }
       this.keys.add(e.code);
       e.preventDefault();
@@ -138,6 +142,12 @@ export class KayakActivity {
       },
       LOOK_SPEED,
     );
+  }
+
+  /** A stroke on the left (−1) or right (1) side starts (Q / E). */
+  stroke(side: -1 | 1): void {
+    if (side < 0) this.latch.left = LATCH;
+    else this.latch.right = LATCH;
   }
 
   /**
@@ -281,25 +291,27 @@ export class KayakActivity {
     dt = Math.min(dt, 0.05);
     if (this.active) {
       const k = this.keys;
-      // Paddling (a key held, or a Q/E stroke running): the mouse steers (DragLook).
-      let paddling = this.latch.left > 0 || this.latch.right > 0;
+      const m = readMove(k, this.mv);
+      // Paddling (a key or the joystick held, or a Q/E stroke running): the mouse steers (DragLook).
+      let paddling = this.latch.left > 0 || this.latch.right > 0 || m.fwd !== 0 || m.side !== 0;
       for (const key of k) if (!key.startsWith('Shift')) paddling = true;
       this.look.update(dt, paddling);
       this.latch.left = Math.max(0, this.latch.left - dt);
       this.latch.right = Math.max(0, this.latch.right - dt);
       const c = this.ctl;
       // A/D steer (the paddle picks the strokes); Q/E stroke one side by hand. Not while
-      // capsized (the paddler is busy rolling back up).
+      // capsized (the paddler is busy rolling back up). The joystick: sideways steers, pushed
+      // forward / back it paddles, all the way forward a sprint.
       const free = this.capT < 0;
       c.left = free && (k.has('KeyQ') || this.latch.left > 0);
       c.right = free && (k.has('KeyE') || this.latch.right > 0);
-      c.steer = free ? (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0) - (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) : 0;
-      c.cruise = free && (k.has('KeyW') || k.has('ArrowUp'));
-      c.back = free && (k.has('KeyS') || k.has('ArrowDown'));
+      c.steer = free ? -m.side : 0;
+      c.cruise = free && m.fwd > STICK_STROKE;
+      c.back = free && m.fwd < -STICK_STROKE;
       const shift = k.has('ShiftLeft') || k.has('ShiftRight');
       // Shift: sweeps with Q / E, otherwise (W) a sprint.
       c.sweep = free && shift;
-      c.sprint = free && shift;
+      c.sprint = free && m.run;
       this.paddle.update(dt, c, this.body.speed);
       // Not looking around and moving: the view settles back behind the boat, like a car cam.
       this.mouseIdle += dt;

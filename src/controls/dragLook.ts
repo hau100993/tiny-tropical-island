@@ -10,6 +10,11 @@ const EDGE = 0.06;
 const EDGE_SPEED = 2;
 /** Reaching the band, the turn builds up over this long (s): brushing the edge barely turns. */
 const EDGE_RAMP = 0.3;
+/**
+ * A finger turns this many times faster than the mouse: a phone's screen is short, and a swipe
+ * across half of it (~400 px) should turn about 90° (it was ~30°, 2026-10-27).
+ */
+const TOUCH_GAIN = 3;
 
 /**
  * Mouse look for walking, paddling and surfing, without capturing the mouse (the browser shows
@@ -60,10 +65,13 @@ export class DragLook {
       this.lastY = e.clientY;
     });
     window.addEventListener('pointermove', (e) => {
+      // Fingers never steer by hovering (a touch on the joystick, or one that last let go at the
+      // screen's edge, would otherwise turn the view while moving): only the mouse counts.
+      const mouse = e.pointerType !== 'touch';
       // Back over the scene from the menu or a card: that move's distance was travelled over
       // them, it isn't steering.
       const back = e.target === dom && !this.overScene;
-      this.overScene = e.target === dom;
+      this.overScene = mouse && e.target === dom;
       if (this.overScene) {
         const r = dom.getBoundingClientRect();
         this.across = r.width > 0 ? (e.clientX - r.left) / r.width : 0.5;
@@ -81,7 +89,7 @@ export class DragLook {
         this.lastX = e.clientX;
         this.lastY = e.clientY;
         this.travel += Math.abs(dx) + Math.abs(dy);
-        const k = DragLook.sensitivity;
+        const k = DragLook.sensitivity * (touch ? TOUCH_GAIN : 1);
         if (this.travel >= DRAG_PX) look(dx * k, dy * k);
       } else if (this.moving && this.overScene && !back) {
         // (Chrome sometimes reports a huge jump, e.g. after the window got the focus back.)
@@ -106,6 +114,16 @@ export class DragLook {
     this.moving = false;
     this.edgeTime = 0;
     this.setSteering(false);
+  }
+
+  /** A press (mouse or finger) is turning the view right now. */
+  get dragging(): boolean {
+    return this.pressed;
+  }
+
+  /** Lets go of the press that turns the view (a second finger came down: a pinch). */
+  release(): void {
+    this.pressed = false;
   }
 
   /** Leaving it. */

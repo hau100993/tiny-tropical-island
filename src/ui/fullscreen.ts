@@ -1,3 +1,12 @@
+/**
+ * Turns the screen sideways and keeps it there (phones, in full screen only). TypeScript's DOM
+ * types leave `lock` out (Safari lacks it), hence the optional method.
+ */
+export function lockLandscape(): void {
+  const o = screen.orientation as ScreenOrientation & { lock?: (to: 'landscape') => Promise<void> };
+  o?.lock?.('landscape').catch(() => undefined);
+}
+
 /** Seconds without moving the mouse before the cursor hides (full screen only). */
 const IDLE_MS = 3000;
 
@@ -38,6 +47,20 @@ export class Fullscreen {
         console.info('Full screen refused:', e instanceof Error ? e.message : e);
       });
     }
+  }
+
+  /** Enters full screen quietly (only from a tap or key press); true if it worked. */
+  enter(): Promise<boolean> {
+    if (this.active) return Promise.resolve(true);
+    if (!document.documentElement.requestFullscreen) return Promise.resolve(false);
+    return document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(
+      () => true,
+      () => false,
+    );
+  }
+
+  exit(): void {
+    if (this.active) void document.exitFullscreen().catch(() => undefined);
   }
 
   onChange(fn: (on: boolean) => void): void {

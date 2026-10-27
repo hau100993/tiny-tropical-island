@@ -6,6 +6,8 @@ import { KNOCK, knockLevel } from '../core/knock';
 import { RUN_GAIT_MIN, stepLength } from '../core/gait';
 import { isTyping } from './keymap';
 import { DragLook } from './dragLook';
+import { moveInput, readMove, touchInput } from './touchInput';
+import { Pinch } from './pinch';
 
 /** Eye height above the feet (m). */
 export const EYE_HEIGHT = 1.65;
@@ -49,6 +51,13 @@ const HEAD = 1.4;
 const ZOOM = { min: 1.6, max: 18, step: 1.18 } as const;
 /** Wheel delta (px) of one notch (trackpads send many small ones). */
 const NOTCH_PX = 100;
+/** A pinch zooms in steps of this many notches (a trembling finger doesn't flip the view). */
+const PINCH_STEP = 0.2;
+/**
+ * Joystick pushed sideways: the view swings round toward where you walk at up to this rate
+ * (rad/s, full push), as in mobile games, so one thumb can steer. Moving back doesn't swing it.
+ */
+const FOLLOW_RATE = 1.4;
 
 export type WalkView = 'first' | 'third';
 
@@ -147,9 +156,13 @@ export class Walker {
   private eyeY = 0;
   readonly vel = new THREE.Vector2();
   private readonly keys = new Set<string>();
+  /** This frame's movement (keys or the on-screen joystick). */
+  private readonly mv = moveInput();
   /** Mouse look: drag on the scene (see DragLook). */
   readonly look: DragLook;
   private readonly tmp = { x: 0, z: 0 };
+  /** Pinch notches not applied yet (see PINCH_STEP). */
+  private pinchNotches = 0;
   private readonly sup: Support<WalkSurface> = { y: 0, surface: 'sand', onPlatform: false };
 
   constructor(
@@ -188,6 +201,22 @@ export class Walker {
       },
       LOOK_SPEED,
     );
+    // Two fingers: the camera arm in and out, like the wheel (fingers apart: closer).
+    new Pinch(
+      dom,
+      () => {
+        if (!this.active) return;
+        this.look.release();
+        this.pinchNotches = 0;
+      },
+      (factor) => {
+        if (!this.active) return;
+        this.pinchNotches -= Math.log(factor) / Math.log(ZOOM.step);
+        if (Math.abs(this.pinchNotches) < PINCH_STEP) return;
+        this.zoom(this.pinchNotches);
+        this.pinchNotches = 0;
+      },
+    );
   }
 
   /** Starts walking: at the last position, or at `spawn` the first time. */
@@ -213,6 +242,13 @@ export class Walker {
 
   /** Puts the walker at (x, z) facing `yaw` (e.g. next to the chair after getting up). */
   placeAt(x: number, z: number, yaw: number): void {
+    // Put down on your feet: no longer swimming (sitting down from the sea left you "swimming"
+    // indoors, the eyes at sea level). Quietly (no splash: it's a jump cut); in deep water the
+    // next update starts swimming again.
+    this.diving = false;
+    this.vy = 0;
+    this.swimming = false;
+    this.running = false;
     this.x = x;
     this.z = z;
     this.yaw = yaw;
@@ -296,8 +332,24 @@ export class Walker {
     return true;
   }
 
-  /** A key that moves you is held (Shift alone doesn't). */
+  /** A key that moves you is held (Shift alone doesn't), or the joystick is pushed. */
   private steering(): boolean {
+    return this.steeringByKey() || touchInput.x !== 0 || touchInput.y !== 0;
+  }
+
+  /**
+   * Joystick only (keys keep the PC's mouse steering) and the view isn't being dragged: turn the
+   * view toward the walking direction, by how far the stick leans sideways (less when pulled back).
+   */
+  private follow(dt: number): void {
+    if (this.look.dragging || this.steeringByKey()) return;
+    const t = touchInput;
+    if (t.x === 0) return;
+    const back = clamp(1 + t.y, 0, 1);
+    this.yaw -= t.x * back * FOLLOW_RATE * dt;
+  }
+
+  private steeringByKey(): boolean {
     for (const k of this.keys) if (STEER_KEYS.has(k)) return true;
     return false;
   }
@@ -317,15 +369,16 @@ export class Walker {
       return;
     }
     this.breath = Math.min(1, this.breath + dt / BREATH_REFILL);
-    const k = this.keys;
+    const m = readMove(this.keys, this.mv);
     const stunned = this.knocked(dt);
-    const fwd = stunned ? 0 : (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
-    const side = stunned ? 0 : (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
-    const run = k.has('ShiftLeft') || k.has('ShiftRight');
+    if (!stunned) this.follow(dt);
+    const fwd = stunned ? 0 : m.fwd;
+    const side = stunned ? 0 : m.side;
+    const run = m.run;
     this.running = run;
-    // Wading slows you down, the deeper the slower.
+    // Wading slows you down, the deeper the slower. A half-pushed joystick walks slowly.
     const wade = 1 - 0.55 * clamp(this.depth / MAX_WADE, 0, 1);
-    const max = (run ? RUN_SPEED : WALK_SPEED) * wade;
+    const max = (run ? RUN_SPEED : WALK_SPEED * m.amount) * wade;
     const len = Math.hypot(fwd, side) || 1;
     // Forward is −Z rotated by yaw; right is +X rotated by yaw.
     const s = Math.sin(this.yaw);
@@ -398,10 +451,9 @@ export class Walker {
    * stand up and walk out.
    */
   private swim(dt: number): void {
-    const k = this.keys;
     this.breath = Math.min(1, this.breath + dt / BREATH_REFILL);
-    // Duck dive: Space where the water is deep enough.
-    if (k.has('Space') && this.depth > 1.8 && this.breath > 0.15) {
+    // Duck dive: Space (or the dive button) where the water is deep enough.
+    if ((this.keys.has('Space') || touchInput.jump) && this.depth > 1.8 && this.breath > 0.15) {
       this.diving = true;
       this.bodyY = this.surfaceY - 0.15;
       this.vy = -1.1;
@@ -409,12 +461,14 @@ export class Walker {
       this.dive(dt);
       return;
     }
-    const fwd = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
-    const side = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
-    const crawl = k.has('ShiftLeft') || k.has('ShiftRight');
+    const m = readMove(this.keys, this.mv);
+    this.follow(dt);
+    const fwd = m.fwd;
+    const side = m.side;
+    const crawl = m.run;
     this.running = crawl;
     this.crawl += ((crawl ? 1 : 0) - this.crawl) * damp(3, dt);
-    const max = SWIM_SPEED.breast + (SWIM_SPEED.crawl - SWIM_SPEED.breast) * this.crawl;
+    const max = (SWIM_SPEED.breast + (SWIM_SPEED.crawl - SWIM_SPEED.breast) * this.crawl) * (crawl ? 1 : m.amount);
     const len = Math.hypot(fwd, side);
     const s = Math.sin(this.yaw);
     const c = Math.cos(this.yaw);
@@ -478,15 +532,16 @@ export class Walker {
    * (faster when swimming hard); out of breath you float up to the surface on your own.
    */
   private dive(dt: number): void {
-    const k = this.keys;
-    const fast = k.has('ShiftLeft') || k.has('ShiftRight');
+    const m = readMove(this.keys, this.mv);
+    const fast = m.run;
     this.running = fast;
     this.crawl += ((fast ? 1 : 0) - this.crawl) * damp(3, dt);
     this.breath = Math.max(0, this.breath - (dt / BREATH_SECONDS) * (fast ? 1.4 : 1));
     const out = this.breath <= 0;
-    const fwd = out ? 0 : (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
-    const side = out ? 0 : (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
-    const up = out || k.has('Space') ? 1 : 0;
+    // The joystick's push scales the speed (a level vector: forward still follows the eyes).
+    const fwd = out ? 0 : m.fwd * (fast ? 1 : m.amount) / (Math.hypot(m.fwd, m.side) || 1);
+    const side = out ? 0 : m.side * (fast ? 1 : m.amount) / (Math.hypot(m.fwd, m.side) || 1);
+    const up = out || this.keys.has('Space') || touchInput.jump ? 1 : 0;
     const max = fast ? DIVE_SPEED.fast : DIVE_SPEED.calm;
     const s = Math.sin(this.yaw);
     const c = Math.cos(this.yaw);

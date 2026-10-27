@@ -1,5 +1,6 @@
 import { el } from './components';
 import { icons } from './icons';
+import { isTouch } from './touch';
 
 /** Shown this long (ms) after it appears, then it fades out; standing still brings it back. */
 const SHOW_MS = 5000;
@@ -151,7 +152,8 @@ export class ActivityMenu {
 
   private scheduleHide(): void {
     window.clearTimeout(this.hideTimer);
-    if (this.hovered) return;
+    // On a touch screen its rows are the action buttons: it stays while something is on offer.
+    if (this.hovered || isTouch()) return;
     this.hideTimer = window.setTimeout(() => {
       if (this.hovered) return;
       this.visible = false;

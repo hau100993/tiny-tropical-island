@@ -57,4 +57,8 @@ export const icons = {
   desk: svg('<rect x="3" y="4" width="18" height="11" rx="1.5"/><path d="M12 15v4M8 21h8"/>'),
   bath: svg('<path d="M3 12h18v2a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5z"/><path d="M6 12V5a2 2 0 0 1 4 0M7 19l-1 2M17 19l1 2"/>'),
   hammock: svg('<path d="M4 21V5M20 21V5M4 8l3 3h10l3-3M7 11c1 4 9 4 10 0"/><path d="M2 21h20"/>'),
+  // On-screen controls (ui/TouchControls.ts).
+  rise: svg('<path d="M12 21v-9M8.5 15.5 12 12l3.5 3.5"/><path d="M2 7c2 0 2.5-1.5 4.5-1.5S9 7 11 7s2.5-1.5 4.5-1.5S18 7 20 7"/><path d="M5 3h14"/>'),
+  /** Leave what you're on or in (a door with an arrow out). */
+  exit: svg('<path d="M14 4h5v16h-5"/><path d="M10 12H3M6.5 8.5 3 12l3.5 3.5"/>'),
 };

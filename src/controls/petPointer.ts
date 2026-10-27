@@ -36,10 +36,14 @@ export class PetPointer {
     private readonly hooks: PetPointerHooks,
   ) {
     dom.addEventListener('pointermove', (e) => {
+      // A finger's movementX/Y is 0 in some browsers: measured from its positions instead.
+      const touch = e.pointerType === 'touch';
+      const dx = touch ? e.clientX - this.clientX : e.movementX;
+      const dy = touch ? e.clientY - this.clientY : e.movementY;
       this.clientX = e.clientX;
       this.clientY = e.clientY;
       this.seen = true;
-      if (this.active) this.hooks.onMove(e.movementX, e.movementY);
+      if (this.active) this.hooks.onMove(dx, dy);
     });
     dom.addEventListener('pointerleave', () => {
       this.seen = false;

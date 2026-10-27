@@ -250,6 +250,14 @@ export const vi = {
     soundOff: 'Chưa bật âm thanh',
     synth: 'Âm nền tự tạo',
   },
+  touch: {
+    dive: 'Lặn',
+    rise: 'Nổi lên',
+    catchWave: 'Bắt sóng',
+    /** The small corner button: get up, leave the kayak or the board. */
+    exit: 'Thoát',
+    rotate: 'Xoay ngang điện thoại để chơi dễ hơn',
+  },
   walk: {
     controls: 'W A S D: đi · Shift: chạy · Chuột: lái hướng khi đi · Đứng lại: kéo chuột để xoay, rê lên Mochi để vuốt · V: đổi góc nhìn · Nhấp: té nước · C: toàn cảnh',
   },
@@ -304,6 +312,13 @@ export const vi = {
     missed: 'Lỡ sóng, chờ con sau',
     meter: (s: number): string => `Sóng tiếp theo: ${s} s`,
     meterReady: 'Space!',
+    /** The same cues on a touch screen (the "Bắt sóng" button instead of Space and W). */
+    touch: {
+      cue: 'Sóng tới! Bấm "Bắt sóng"',
+      noWave: 'Chưa có sóng ở đây: đẩy cần ra xa bờ hơn chờ sóng',
+      early: 'Sóng còn xa, bấm "Bắt sóng" khi hiện "Sóng tới!"',
+      meterReady: 'Bấm!',
+    },
     wipeout: 'Ngã rồi!',
     waveGone: 'Sóng đã qua, nằm xuống chèo tiếp',
     beach: 'Vào tới bờ',

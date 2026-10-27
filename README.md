@@ -78,8 +78,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 ### Phones and tablets (touch)
 
 On a touch screen (detected with `pointer: coarse`, so a tablet with a mouse keeps the PC
-layout) the page switches to a touch layout. Walking, kayak, surfing and diving still need a
-keyboard for now; on-screen joystick and buttons come in Phase 11b–11c (see `PLAN.md`).
+layout) the page switches to a touch layout.
 
 | Touch | Action |
 |---|---|
@@ -87,7 +86,25 @@ keyboard for now; on-screen joystick and buttons come in Phase 11b–11c (see `P
 | Pinch / two-finger drag | Zoom / pan |
 | Tap on the water | Splash |
 | Tap the panel bar (or the ☰ handle) | Open the panel; tap the scene to close it |
-| Rows on the activity card | Tap them (same as their keys) |
+| Rows on the activity card | Tap them (same as their keys); on touch the card stays while something is on offer |
+
+**Playing on a phone** (walking, swimming, diving, kayak, surfboard, seats): on-screen controls
+appear, like a mobile game.
+
+| Control | Action |
+|---|---|
+| Joystick (thumb anywhere on the left half) | Move: a small push walks slowly, all the way runs (Shift). Pushed sideways, the view swings round toward where you go (one thumb steers). Kayak: forward paddles, sideways steers, all the way sprints. Surfboard: forward paddles/pumps, back stalls, sideways turns/carves (all the way: hard) |
+| Drag on the right half | Look around (a finger turns 3× faster than the mouse: half the screen ≈ 90°) |
+| Pinch (walking) | Camera closer/further; pinch in past the nearest: through the eyes |
+| Tap Bọt, Hỏa Long, Mầm | Their skill (also from the water, the kayak and the board) |
+| Tap and stroke Mochi / hold still on it ~½ s | Pet it / its skill (J) |
+| **Lặn** / **Nổi lên** (swimming / under water) | Dive (in water deeper than ~1.8 m) / hold to rise |
+| **Bắt sóng** (surfboard, only while "Sóng tới!") | Catch the wave (Space) |
+| Small ⇦ button beside ☰ | Leave: get up (desk, bath, hammock), off the board (L), out of the kayak (lands where it's shallow, else over the side to swim) |
+
+- **Starting to play goes full screen and sideways** (Android Chrome); back in the overview
+  ("Toàn cảnh") both are undone. iPhone Safari allows neither: a short "Xoay ngang điện thoại để
+  chơi dễ hơn" hint shows instead while the phone is upright.
 
 - **Held upright:** the panel is a sheet along the bottom of the screen (up to 62% of the height),
   the Pomodoro card moves to the top, and the camera zooms out (vertical view up to ~81°, was
