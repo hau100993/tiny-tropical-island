@@ -70,19 +70,27 @@ export interface Settings {
   activeScene: string;
   /** Play the synthesized soundscape while no recording is playing. */
   synthFallback: boolean;
-  /** Open the app sitting at the desk in the house. */
-  startAtDesk: boolean;
-  /** Clicking the 3D scene (without dragging) collapses the panel. */
-  autoCollapse: boolean;
-  /** Control panel: the sections that are open (each opens and closes on its own). */
-  panelSections: PanelSection[];
+  /** Control panel: the tab shown. */
+  panelTab: PanelTab;
 }
 
 // The time bar is always shown above them (Panel), so it isn't one of these.
-export const PANEL_SECTIONS = ['scene', 'sound', 'view', 'settings'] as const;
-export type PanelSection = (typeof PANEL_SECTIONS)[number];
-/** First launch: the scenes and the views, the two things you pick most. */
-const DEFAULT_SECTIONS: readonly PanelSection[] = ['scene', 'view'];
+export const PANEL_TABS = ['scene', 'sound', 'view', 'settings'] as const;
+export type PanelTab = (typeof PANEL_TABS)[number];
+
+/**
+ * "Bầu trời" (one two-way slider): gloom and clarity as one value, −1 (grey, gloomy) … 0 …
+ * +1 (clear, deep blue). They stay two fields because the sky shader uses each on its own; only
+ * one of them is ever above 0.
+ */
+export function skyBalance(v: { gloom: number; clarity: number }): number {
+  return v.clarity - v.gloom;
+}
+
+export function fromSkyBalance(balance: number): { gloom: number; clarity: number } {
+  const b = Math.min(1, Math.max(-1, balance));
+  return { gloom: Math.max(0, -b), clarity: Math.max(0, b) };
+}
 
 /** The mouse speed setting as a factor on the base look rate: 0.2× … 1.2× (the default 0.4: 0.6×). */
 export function mouseLook(speed: number): number {
@@ -98,7 +106,7 @@ export function defaultSettings(): Settings {
     autoRotate: false,
     showDebug: false,
     waveStrength: 0.45,
-    panelCollapsed: false,
+    panelCollapsed: true,
     weatherLinked: false,
     visualRain: 0,
     visualSnow: 0,
@@ -124,9 +132,7 @@ export function defaultSettings(): Settings {
     character: 'default',
     activeScene: 'b-sunny',
     synthFallback: true,
-    startAtDesk: false,
-    autoCollapse: false,
-    panelSections: [...DEFAULT_SECTIONS],
+    panelTab: 'scene',
   };
 }
 
@@ -193,21 +199,25 @@ export function parseSettings(json: string | null): Settings {
     ? (raw.quality as QualityLevel)
     : defaults.quality;
 
+  // Before 2026-10-27 gloom and clarity were two sliders and could both be up: keep the net.
+  const sky = fromSkyBalance(skyBalance({ gloom: unit(raw.gloom, defaults.gloom), clarity: unit(raw.clarity, defaults.clarity) }));
+
   return {
     version: SETTINGS_VERSION,
     quality,
     autoRotate: bool(raw.autoRotate, defaults.autoRotate),
     showDebug: bool(raw.showDebug, defaults.showDebug),
     waveStrength: unit(raw.waveStrength, defaults.waveStrength),
-    panelCollapsed: bool(raw.panelCollapsed, defaults.panelCollapsed),
+    // The app always opens with the scene in front, the panel shut to its ☰ (2026-10-27). Set here,
+    // not by the panel: an update while the app is still being built would reach it half made.
+    panelCollapsed: true,
     weatherLinked: bool(raw.weatherLinked, defaults.weatherLinked),
     visualRain: unit(raw.visualRain, defaults.visualRain),
     visualSnow: unit(raw.visualSnow, defaults.visualSnow),
     visualWind: unit(raw.visualWind, defaults.visualWind),
     ...parseClock(raw, defaults),
     clouds: unit(raw.clouds, defaults.clouds),
-    gloom: unit(raw.gloom, defaults.gloom),
-    clarity: unit(raw.clarity, defaults.clarity),
+    ...sky,
     cirrus: unit(raw.cirrus, defaults.cirrus),
     rainbow: bool(raw.rainbow, defaults.rainbow),
     stars: bool(raw.stars, defaults.stars),
@@ -222,13 +232,10 @@ export function parseSettings(json: string | null): Settings {
     mouseSpeed: unit(raw.mouseSpeed, defaults.mouseSpeed),
     character: (CHARACTER_IDS as readonly unknown[]).includes(raw.character) ? (raw.character as CharacterId) : defaults.character,
     activeScene: typeof raw.activeScene === 'string' ? raw.activeScene.slice(0, 64) : defaults.activeScene,
-    // The old one-open accordion (`panelSection`) is dropped: everyone starts from the new default.
-    panelSections: Array.isArray(raw.panelSections)
-      ? PANEL_SECTIONS.filter((id) => (raw.panelSections as unknown[]).includes(id))
-      : [...defaults.panelSections],
+    // The accordion's open sections (`panelSections`), "start at the desk" and "click the scene
+    // to collapse" (2026-10-27) are dropped: unknown fields are simply ignored.
+    panelTab: (PANEL_TABS as readonly unknown[]).includes(raw.panelTab) ? (raw.panelTab as PanelTab) : defaults.panelTab,
     synthFallback: bool(raw.synthFallback, defaults.synthFallback),
-    startAtDesk: bool(raw.startAtDesk, defaults.startAtDesk),
-    autoCollapse: bool(raw.autoCollapse, defaults.autoCollapse),
   };
 }
 

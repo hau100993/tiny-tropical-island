@@ -33,6 +33,8 @@ export interface PomodoroDeps {
   setAlertVolume: (volume: number) => void;
   /** `count` focus sessions just ended (the to-do list counts them). */
   onFocusDone: (count: number) => void;
+  /** The task being worked on (the desk's to-do list), shown under the phase; null with none. */
+  currentTask: () => string | null;
 }
 
 /** What the right desk monitor shows of the timer. */
@@ -51,14 +53,17 @@ export interface PomodoroSnapshot {
 type NumberKey = 'focusMin' | 'breakMin' | 'longBreakMin' | 'longEvery';
 
 /**
- * Small Pomodoro card (bottom left). The timer state lives in localStorage, so a reload or a
- * restart of the browser continues where it was. The chime is scheduled ahead on the audio
+ * Small Pomodoro card (bottom left): the one place for the timer in the overview. It shows
+ * itself when the timer starts (T) and hides when it is ended (↺ here, ⏹ on the desk monitor);
+ * ✕ hides it while the timer runs on (the ring round the panel's ☰ still shows it). The timer
+ * state lives in localStorage, so a reload or a restart of the browser continues where it was. The chime is scheduled ahead on the audio
  * clock, because a hidden tab runs JS timers only about once a minute.
  */
 export class PomodoroOverlay {
   private readonly root: HTMLElement;
   private readonly phaseEl: HTMLElement;
   private readonly timeEl: HTMLElement;
+  private readonly taskEl: HTMLElement;
   private readonly bar: HTMLElement;
   private readonly dots: HTMLElement;
   private readonly playBtn: HTMLButtonElement;
@@ -95,6 +100,8 @@ export class PomodoroOverlay {
     close.title = vi.pomodoro.hide;
     close.setAttribute('aria-label', vi.pomodoro.hide);
     head.append(this.phaseEl, this.dots, close);
+    // The current task in full (up to two lines).
+    this.taskEl = el('div', 'pomo-task');
 
     this.timeEl = el('div', 'pomo-time');
     this.timeEl.setAttribute('role', 'timer');
@@ -118,7 +125,7 @@ export class PomodoroOverlay {
     this.settingsBox = this.buildSettings();
     this.settingsBox.hidden = true;
 
-    this.root.append(head, this.timeEl, track, controls, this.notice, this.settingsBox);
+    this.root.append(head, this.taskEl, this.timeEl, track, controls, this.notice, this.settingsBox);
     parent.append(this.root);
 
     window.setInterval(this.tick, 1000);
@@ -152,8 +159,12 @@ export class PomodoroOverlay {
     this.update(skip(this.state, this.config, Date.now()));
   }
 
-  /** Ends the Pomodoro: back to a fresh, stopped focus session (the monitor shows the clock). */
+  /**
+   * Ends the Pomodoro: back to a fresh, stopped focus session (the monitor shows the clock).
+   * The card goes too: it shows itself again on the next start (T).
+   */
   resetTimer(): void {
+    this.visible = false;
     this.update(reset(this.config));
   }
 
@@ -202,6 +213,18 @@ export class PomodoroOverlay {
     const now = Date.now();
     if (!this.visible) this.visible = true;
     this.update(this.state.running ? pause(this.state, now) : start(this.state, now));
+  }
+
+  /**
+   * A task's ▶ on the desk monitor: focus now. On a break, the rest of the break is skipped;
+   * a running focus session just keeps running.
+   */
+  startFocus(): void {
+    const now = Date.now();
+    let s = this.state;
+    if (isBreak(s.phase)) s = { ...skip(s, this.config, now), running: false };
+    this.visible = true;
+    this.update(start(s, now));
   }
 
   /** Call when sound starts or stops ("Chỉ ngắm cảnh"), so the chime can be (un)scheduled. */
@@ -346,10 +369,13 @@ export class PomodoroOverlay {
     this.root.classList.toggle('paused', !s.running);
     const phase = vi.pomodoro.phases[s.phase];
     // Only touch the DOM when something visible changed (this runs every second).
-    const key = `${text}|${phase}|${s.running}|${s.completed}|${this.visible}`;
+    const task = this.deps.currentTask() ?? '';
+    const key = `${text}|${phase}|${s.running}|${s.completed}|${this.visible}|${task}`;
     if (key === this.shownText) return;
     this.shownText = key;
     this.phaseEl.textContent = phase;
+    this.taskEl.textContent = task;
+    this.taskEl.title = task;
     this.timeEl.textContent = text;
     this.bar.style.width = `${(100 * (1 - left / phaseMs(s.phase, this.config))).toFixed(2)}%`;
     this.dots.textContent = this.dotsText();

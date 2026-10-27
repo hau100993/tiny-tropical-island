@@ -1,11 +1,18 @@
 import { isRecord } from '../core/storage';
 
-/** A task on the desk's to-do list. `pomos`: focus sessions finished while it was the current task. */
+/**
+ * A task on the desk's to-do list. `pomos`: focus sessions finished while it was the current
+ * task; `est`: how many it was expected to take (missing or 0: no estimate).
+ */
 export interface Task {
   id: string;
   text: string;
   pomos: number;
+  est?: number;
 }
+
+/** The largest estimate (a click on 🍅 past it goes back to none). */
+export const MAX_EST = 8;
 
 /**
  * The to-do list. Open tasks are in priority order; the top one is the task being worked on (it
@@ -66,6 +73,31 @@ export function restoreTask(s: Readonly<TodoState>, id: string): TodoState {
   return { ...s, done: s.done.filter((t) => t.id !== id), open: [...s.open, task] };
 }
 
+/** New text for a task (open or done). Blank text keeps the old one. */
+export function renameTask(s: Readonly<TodoState>, id: string, text: string): TodoState {
+  const t = cleanText(text);
+  if (!t) return s as TodoState;
+  const rename = (list: Task[]): Task[] => list.map((x) => (x.id === id ? { ...x, text: t } : x));
+  return { ...s, open: rename(s.open), done: rename(s.done) };
+}
+
+/** Sets a task's estimate in focus sessions (0: none). */
+export function setEstimate(s: Readonly<TodoState>, id: string, est: number): TodoState {
+  const e = Math.max(0, Math.min(MAX_EST, Math.round(est)));
+  const apply = (list: Task[]): Task[] => list.map((x) => (x.id === id ? withEstimate(x, e) : x));
+  return { ...s, open: apply(s.open), done: apply(s.done) };
+}
+
+function withEstimate(t: Task, est: number): Task {
+  const { est: _old, ...rest } = t;
+  return est > 0 ? { ...rest, est } : rest;
+}
+
+/** "Xóa hết": today's finished tasks go (the day's 🍅 count stays). */
+export function clearDone(s: Readonly<TodoState>): TodoState {
+  return { ...s, done: [] };
+}
+
 export function removeTask(s: Readonly<TodoState>, id: string): TodoState {
   return {
     ...s,
@@ -107,7 +139,8 @@ function parseTasks(v: unknown, max: number): Task[] {
     if (!text) continue;
     seen.add(t.id);
     const pomos = typeof t.pomos === 'number' && Number.isFinite(t.pomos) ? Math.max(0, Math.round(t.pomos)) : 0;
-    out.push({ id: t.id.slice(0, 40), text, pomos });
+    const est = typeof t.est === 'number' && Number.isFinite(t.est) ? Math.max(0, Math.min(MAX_EST, Math.round(t.est))) : 0;
+    out.push(est > 0 ? { id: t.id.slice(0, 40), text, pomos, est } : { id: t.id.slice(0, 40), text, pomos });
     if (out.length >= max) break;
   }
   return out;

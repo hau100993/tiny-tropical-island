@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { YT_LOGO } from '../ui/youtube';
-import { ScreenBackdrop } from './screenBackdrop';
+import { attachScreenCanvas, type ScreenBackdrop } from './screenBackdrop';
 
 const W = 1024;
 const H = 576;
@@ -28,9 +28,6 @@ export const LAUNCHER: { code: PxRect; youtube: PxRect } = {
 };
 /** Redraw rate of the code editor (typing animation). */
 const EDITOR_FPS = 8;
-/** Redraw rate of the idle screen's drifting backdrop: close by, and farther. */
-const IDLE_FPS_NEAR = 10;
-const IDLE_FPS_FAR = 1;
 /** Beyond this distance (m) from the desk the screens are too small to read: don't redraw. */
 const NEAR_ENOUGH = 14;
 
@@ -186,9 +183,8 @@ export class DeskScreens {
   /** The idle and video screens are still pictures: drawn again only when this is set. */
   private leftDirty = true;
   /** The idle screen's background, like the right monitor's (shifted so the two differ). */
-  private readonly backdrop = new ScreenBackdrop(W, H, 8, 2.7);
+  private readonly backdrop: ScreenBackdrop;
   private time = 0;
-  private idleTimer = 0;
 
   constructor(mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>, anisotropy: number) {
     const canvas = document.createElement('canvas');
@@ -197,12 +193,9 @@ export class DeskScreens {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('2D canvas unavailable');
     this.editor = ctx;
-    this.editorTex = new THREE.CanvasTexture(canvas);
-    this.editorTex.colorSpace = THREE.SRGBColorSpace;
-    this.editorTex.anisotropy = anisotropy;
-    mesh.material.map = this.editorTex;
-    mesh.material.color.set('#ffffff');
-    mesh.material.needsUpdate = true;
+    const screen = attachScreenCanvas(mesh.material, canvas, anisotropy, 2.7);
+    this.editorTex = screen.texture;
+    this.backdrop = screen.backdrop;
     mesh.getWorldPosition(this.center);
     this.drawLeft();
   }
@@ -218,16 +211,9 @@ export class DeskScreens {
 
   update(dt: number, camera: THREE.Camera): void {
     this.time += dt;
+    this.backdrop.time.value = this.time;
     const dist = camera.position.distanceTo(this.center);
     if (dist > NEAR_ENOUGH) return;
-    if (this.leftMode === 'idle') {
-      this.idleTimer -= dt;
-      if (this.idleTimer <= 0 || this.leftDirty) {
-        this.idleTimer = 1 / (dist < 4 ? IDLE_FPS_NEAR : IDLE_FPS_FAR);
-        this.drawLeft();
-      }
-      return;
-    }
     if (this.leftMode === 'editor') {
       this.editorTimer -= dt;
       if (this.editorTimer <= 0) {
@@ -294,11 +280,15 @@ export class DeskScreens {
     else this.drawIdle();
   }
 
-  /** A monitor at rest: the drifting colour backdrop and the two app icons with their names. */
+  /**
+   * A monitor at rest: the two app icons with their names over the drifting colour backdrop
+   * (the screen's shader, screenBackdrop.ts), darkened a little for the text. A still picture.
+   */
   private drawIdle(): void {
     const g = this.editor;
-    this.backdrop.update(this.time);
-    this.backdrop.paint(g, 0.32);
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = 'rgba(5,14,22,0.32)';
+    g.fillRect(0, 0, W, H);
 
     const { code, youtube } = LAUNCHER;
     const k = TILE / 150;

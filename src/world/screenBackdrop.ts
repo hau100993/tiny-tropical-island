@@ -1,60 +1,84 @@
-/** Slowly drifting colour blobs (centre colour, radius as a fraction of the width, drift rates in Hz). */
-const BLOBS: ReadonlyArray<{ color: string; r: number; fx: number; fy: number; phase: number }> = [
-  { color: 'rgba(31,181,168,0.85)', r: 0.55, fx: 0.031, fy: 0.023, phase: 0 },
-  { color: 'rgba(42,111,214,0.8)', r: 0.6, fx: 0.019, fy: 0.029, phase: 2.1 },
-  { color: 'rgba(226,121,143,0.6)', r: 0.42, fx: 0.027, fy: 0.017, phase: 4.2 },
-  { color: 'rgba(243,180,91,0.45)', r: 0.36, fx: 0.015, fy: 0.033, phase: 1.3 },
-];
+import * as THREE from 'three';
 
 /**
- * The desk monitors' background: colour blobs drifting over dark teal. They are drawn on a canvas
- * `scale` times smaller than the screen and scaled up when painted; the scaling blurs them for
- * free (no blur filter). The small canvas is also what the glass cards "see through".
+ * The desk monitors' background: colour blobs drifting over dark teal, computed in the screen's
+ * fragment shader. The monitor's canvas holds only what is drawn on top (transparent elsewhere),
+ * so the backdrop moves at full frame rate without redrawing or re-uploading the canvas: each
+ * canvas → texture upload makes the CPU wait for the GPU (measured: 24 uploads/s cost the desk
+ * view ~25 fps).
+ *
+ * Each blob is a canvas-style radial gradient from its colour to transparent black (colour and
+ * alpha fade together), laid over the base colour in sRGB like the 2D canvas did.
  */
-export class ScreenBackdrop {
-  readonly small: CanvasRenderingContext2D;
+const BACKDROP_GLSL = /* glsl */ `
+uniform float uBackdropTime;
+uniform float uBackdropPhase;
+uniform vec2 uBackdropSize;
 
-  /** `w`×`h`: the screen canvas size; `phase` shifts the drift so two screens differ. */
-  constructor(
-    private readonly w: number,
-    private readonly h: number,
-    readonly scale = 8,
-    private readonly phase = 0,
-  ) {
-    const c = document.createElement('canvas');
-    c.width = Math.round(w / scale);
-    c.height = Math.round(h / scale);
-    const g = c.getContext('2d');
-    if (!g) throw new Error('2D canvas unavailable');
-    this.small = g;
-  }
+// One blob: centre drifting at (fx, fy) Hz, radius r × the screen width, peak alpha a.
+vec3 backdropBlob(vec3 col, vec2 px, vec3 rgb, float a, float r, float fx, float fy, float phase) {
+  float t = uBackdropTime;
+  float p = phase + uBackdropPhase;
+  vec2 c = uBackdropSize * vec2(0.5 + 0.42 * sin(t * fx * 6.2831853 + p), 0.5 + 0.4 * cos(t * fy * 6.2831853 + p * 1.7));
+  float k = 1.0 - min(length(px - c) / (r * uBackdropSize.x), 1.0);
+  float alpha = a * k;
+  return col * (1.0 - alpha) + rgb * k * alpha;
+}
 
-  /** Moves the blobs to time `t` (s) on the small canvas. */
-  update(t: number): void {
-    const b = this.small;
-    const bw = b.canvas.width;
-    const bh = b.canvas.height;
-    b.fillStyle = '#0b2230';
-    b.fillRect(0, 0, bw, bh);
-    for (const blob of BLOBS) {
-      const p = blob.phase + this.phase;
-      const cx = bw * (0.5 + 0.42 * Math.sin(t * blob.fx * 2 * Math.PI + p));
-      const cy = bh * (0.5 + 0.4 * Math.cos(t * blob.fy * 2 * Math.PI + p * 1.7));
-      const r = blob.r * bw;
-      const grad = b.createRadialGradient(cx, cy, 0, cx, cy, r);
-      grad.addColorStop(0, blob.color);
-      grad.addColorStop(1, 'rgba(0,0,0,0)');
-      b.fillStyle = grad;
-      b.fillRect(0, 0, bw, bh);
-    }
-  }
+// sRGB colour of the backdrop at canvas position uv (0..1, y down).
+vec3 screenBackdrop(vec2 uv) {
+  vec2 px = uv * uBackdropSize;
+  vec3 col = vec3(11.0, 34.0, 48.0) / 255.0;
+  col = backdropBlob(col, px, vec3(31.0, 181.0, 168.0) / 255.0, 0.85, 0.55, 0.031, 0.023, 0.0);
+  col = backdropBlob(col, px, vec3(42.0, 111.0, 214.0) / 255.0, 0.8, 0.6, 0.019, 0.029, 2.1);
+  col = backdropBlob(col, px, vec3(226.0, 121.0, 143.0) / 255.0, 0.6, 0.42, 0.027, 0.017, 4.2);
+  col = backdropBlob(col, px, vec3(243.0, 180.0, 91.0) / 255.0, 0.45, 0.36, 0.015, 0.033, 1.3);
+  return col;
+}
+`;
 
-  /** Paints it over the whole screen canvas, darkened by `shade` (0..1) for the text on top. */
-  paint(g: CanvasRenderingContext2D, shade: number): void {
-    g.imageSmoothingEnabled = true;
-    g.imageSmoothingQuality = 'high';
-    g.drawImage(this.small.canvas, 0, 0, this.w, this.h);
-    g.fillStyle = `rgba(5,14,22,${shade})`;
-    g.fillRect(0, 0, this.w, this.h);
-  }
+// The canvas (premultiplied, raw sRGB values) over the backdrop, composited in sRGB as the 2D
+// canvas would, then decoded to linear like any colour texture.
+const MAP_FRAGMENT = /* glsl */ `
+#ifdef USE_MAP
+  vec4 ui = texture2D( map, vMapUv );
+  vec3 bg = screenBackdrop( vec2( vMapUv.x, 1.0 - vMapUv.y ) );
+  diffuseColor *= sRGBTransferEOTF( vec4( bg * ( 1.0 - ui.a ) + ui.rgb, 1.0 ) );
+#endif
+`;
+
+export interface ScreenBackdrop {
+  /** Seconds; the blobs drift with it. */
+  readonly time: { value: number };
+}
+
+/**
+ * Shows `canvas` on the monitor `material` over the drifting backdrop. Transparent parts of the
+ * canvas show the backdrop; `phase` shifts the drift so the two screens differ.
+ */
+export function attachScreenCanvas(
+  material: THREE.MeshBasicMaterial,
+  canvas: HTMLCanvasElement,
+  anisotropy: number,
+  phase = 0,
+): { texture: THREE.CanvasTexture; backdrop: ScreenBackdrop } {
+  const texture = new THREE.CanvasTexture(canvas);
+  // Raw sRGB values, premultiplied (the 2D canvas's own format, so the upload converts nothing).
+  texture.colorSpace = THREE.NoColorSpace;
+  texture.premultiplyAlpha = true;
+  texture.anisotropy = anisotropy;
+  const time = { value: 0 };
+  material.map = texture;
+  material.color.set('#ffffff');
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uBackdropTime = time;
+    shader.uniforms.uBackdropPhase = { value: phase };
+    shader.uniforms.uBackdropSize = { value: new THREE.Vector2(canvas.width, canvas.height) };
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>\n${BACKDROP_GLSL}`)
+      .replace('#include <map_fragment>', MAP_FRAGMENT);
+  };
+  material.customProgramCacheKey = () => 'screenBackdrop';
+  material.needsUpdate = true;
+  return { texture, backdrop: { time } };
 }

@@ -1,5 +1,5 @@
 import { bool, clamp01, isRecord, parseJson, readStored, writeStored } from './storage';
-import type { Settings } from './settings';
+import { fromSkyBalance, skyBalance, type Settings } from './settings';
 
 export const SCENE_PRESETS_KEY = 'tsw.scenePresets';
 /** The user's edits of built-in presets: { [builtInId]: SceneValues }. */
@@ -113,7 +113,8 @@ export function parseSceneValues(raw: unknown): SceneValues {
     const d = DEFAULT_SCENE[k];
     (out as Record<SceneKey, number | boolean>)[k] = BOOL_KEYS.has(k) ? bool(r[k], d as boolean) : clamp01(r[k], d as number);
   }
-  return out;
+  // Gloom and clarity were two sliders before 2026-10-27: one direction only (the net).
+  return { ...out, ...fromSkyBalance(skyBalance(out)) };
 }
 
 /** Trims and shortens a user-typed name; null if nothing usable is left. */

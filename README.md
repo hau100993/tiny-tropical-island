@@ -121,13 +121,18 @@ appear, like a mobile game.
 ### Control panel (top right)
 
 Always visible at the top: the **Pomodoro clock** button (shows the time left while a session
-runs; click to show or hide the timer card), full screen (`F`), collapse (or click the title **Đảo Nhiệt Đới**), a
-**status line** (scene · what is playing · island time) and **Âm lượng chung** with mute. Below,
-five sections that each open and close on their own (remembered; on first launch **Cảnh**, with
-*Ngày nắng* selected, and **Góc nhìn** are open); a closed section shows its current value next
-to its title (hidden while the section is open). Collapsed, the panel keeps a one-line header:
-title, the current scene, mute, Pomodoro and expand. The selected scene card is tinted and has a
-✓ on its icon; cards keep an even height (only a long name makes its own row taller).
+runs; click to show or hide the timer card), the keyboard button (the shortcut card, also `?`),
+full screen (`F`), **☰** (collapse), **Âm lượng chung** with mute and the time bar. Below, four
+**tabs**, one shown at a time (remembered; **Cảnh** on first launch): **Cảnh**, **Âm thanh**,
+**Góc nhìn**, **Cài đặt**. Collapsed (☰, `P`, or a click on the island outside the panel, which
+still makes its ripple; not while a scene is being edited), only a small round **☰** stays in
+the top right corner, where the panel's own ☰ was: click it (or `P`) to open the panel again.
+Its tooltip names the scene and what is playing. The app always opens with the panel shut to
+its ☰, the scene in front. `Esc` in the overview shuts the open panel too. While a Pomodoro runs,
+a thin ring round the ☰ fills through the phase (accent while focusing, blue on a break).
+Walking and with `H` the same ☰ is fainter (and fades further when left alone; not while a
+Pomodoro runs); pointing at it opens the panel. The selected scene card is tinted and has a ✓ on its icon; cards keep an even height
+(only a long name makes its own row taller).
 Every slider also moves with the **mouse wheel** over it (wheel up = more): 5% per notch,
 15 minutes on the **Giờ** sliders (wrapping past midnight); hold **Shift** for fine steps (1%,
 or the slider's own time step). Volume sliders move 2% per notch below 20%, where the ear hears
@@ -138,25 +143,27 @@ effects their normal level). Small ticks mark 06:00 / 12:00 / 18:00 on the **Gi�
 the normal 50% (30% for **Trăng sáng**) on the sun and moon sliders. The Pomodoro minute boxes
 also take the wheel when the pointer is over their row (±1, Shift ±5).
 
-- **Time bar** (always shown above *Cảnh*, nothing to open): the hh:mm clock with three icon
-  buttons (pause/play, speed, computer clock) and a day-coloured hour slider, see *Day, night
-  and sky*.
-- **Cảnh:** scenes as cards: icon, name, and a second line with the scene's time (or *Giữ
-  giờ*) and ♪ when it plays recordings of its own. Clicking a card switches to the scene and
-  its sound. Below: **+ Tạo cảnh**, **Sửa cảnh**, **Khôi phục gốc** (edited built-ins) and
-  **Xóa** (your scenes); see *Scenes and your recordings*.
-- **Âm thanh:** **Âm thanh của tôi** (your recordings) and **Âm nền tự tạo khi không phát
-  file** (the synthesized fallback, see below).
-- **Góc nhìn:** tiles for **Toàn cảnh**, **Đi bộ**, **Góc làm việc**, **Bồn tắm**, **Nằm võng**
-  (the current one is highlighted, each shows its key), and switches: character view (`V`),
-  **Âm thanh hoạt động** (footsteps, paddle and swim splashes, the surf's crash and rush, the
-  creatures' voices and skills; on by default), camera auto-rotate. Mochi, the creatures, the wild
-  ones and Bé Mập are always there (their switches were removed 2026-10-25), and **Nhân vật**: **Mặc định** (the built-in body), **Nam** or
-  **Nữ** (see *Characters* below).
+- **Time bar** (always shown above the tabs): the hh:mm clock with three icon buttons
+  (pause/play, speed, computer clock) and a day-coloured hour slider, see *Day, night and sky*.
+- **Cảnh:** scenes as cards: icon, name, and a second line with the scene's time (if it sets
+  one) and ♪ when it plays recordings of its own. Clicking a card switches to the scene and its
+  sound (keys `1`–`9`, shown in the card's tooltip). Pointing at a card shows a pencil that opens
+  the scene editor for it; the dashed **Tạo cảnh** card at the end makes a new one. The editor
+  takes the whole panel (the time bar and the tabs step aside); **Xóa** (your scenes) and
+  **Khôi phục gốc** (edited built-ins) are at its bottom; see *Scenes and your recordings*.
+- **Âm thanh:** **Âm thanh của tôi** (your recordings), **Âm nền tự tạo khi không phát file**
+  (the synthesized fallback, see below) and **Tiếng bước chân & hoạt động** (footsteps, paddle
+  and swim splashes, the surf's crash and rush, the creatures' voices and skills; on by default).
+- **Góc nhìn:** one row of **Toàn cảnh** (`C`), **Đi bộ** (`C`) and **Góc làm việc** (`B`), the
+  current one highlighted; the tub and the hammock are offered when you walk up to them (`E`).
+  Below: **Tự xoay camera** (overview) and the walking view **Sau lưng / Qua mắt** (`V`).
 - **Cài đặt:** quality (Thấp / Vừa / Cao; anti-aliasing changes between Low and the others
-  apply after a reload), **Mở app ở góc làm việc**, **Nhấp vào cảnh 3D để thu gọn bảng** (off by
-  default: a click on the island without dragging collapses the panel), and the keyboard
-  shortcuts.
+  apply after a reload), **Nhân vật**: **Mặc định** (the built-in body), **Nam** or **Nữ** (see
+  *Characters* below), **Độ nhạy chuột**, and a button for the shortcut card.
+
+**Shortcut card** (`?` or the keyboard buttons): every key and the hints for walking, swimming,
+diving, the kayak and surfing, over the scene; `Esc` or a click beside it closes it. Mochi, the
+creatures, the wild ones and Bé Mập are always there (their switches were removed 2026-10-25).
 
 On/off options are switches; buttons only do things.
 
@@ -171,8 +178,8 @@ Built in: *Bình minh ơi* (sunrise, 06:12), *Ngày nắng* (clear air, a deep b
 *Bão nhiệt đới*, *Mưa rừng*, *Đêm lửa trại*, *Đêm trăng tròn* (19:15, a big bright full moon and
 its path on the sea), *Sáng sương mù*, *Đêm tuyết cực quang*.
 
-**+ Tạo cảnh** and **Sửa cảnh** (the selected scene) open the scene editor in place of the
-cards. Everything you change shows on the island right away; **Hủy** (or ‹) puts the island
+The dashed **Tạo cảnh** card and the pencil on a scene card open the scene editor in place of
+the cards. Everything you change shows on the island right away; **Hủy** (or ‹) puts the island
 back as it was, **Lưu cảnh** stores the scene and plays it. The editor has four parts:
 
 1. **Tên cảnh** (a built-in keeps its name; names must be unique).
@@ -181,12 +188,16 @@ back as it was, **Lưu cảnh** stores the scene and plays it. The editor has fo
    sổ bàn làm việc** (on by default), which turns the sky so that hour's sun, or at night the
    moon, sits in the desk window. Picking a scene with a time jumps there and the clock runs on
    from it (at the chosen speed); while you edit, the preview holds that time still.
-3. **Hiệu ứng:** the weather and night-sky sliders and switches.
+3. **Hiệu ứng:** *Thời tiết* (Mưa, Tuyết rơi, Gió, Sóng biển), *Mây & bầu trời* (Mây trôi,
+   Mây dạng sợi, **Bầu trời** U ám ↔ Trong, Cầu vồng sau mưa), and two folded blocks,
+   *Mặt trời* (Độ sáng, Kích thước) and *Ban đêm* (Trăng sáng, Sao băng, Cực quang, Sao & Ngân
+   Hà, Đom đóm).
 4. **Âm thanh:** switch on the recordings that play with the scene, each with its volume, or
    **+ Thêm file từ máy…** (the new file is switched on). None on: the synthesized ambience.
 
-Built-ins can be edited too (effects, time, sound); **Khôi phục gốc** restores their original
-effects and time. **Xóa** and **Khôi phục gốc** ask for a second click. Up to 30 scenes of
+Built-ins can be edited too (effects, time, sound); **Khôi phục gốc** (at the bottom of the
+editor, once edited) restores their original effects and time. **Xóa** (your own scenes, at the
+bottom of the editor) and **Khôi phục gốc** ask for a second click. Up to 30 scenes of
 your own.
 
 **Âm thanh của tôi** holds your recordings (e.g. a one-hour rain MP3 you downloaded):
@@ -300,13 +311,13 @@ and press **E** next to the chair. At the desk:
 - **Left monitor:** VS Code (a code editor that slowly types code) or YouTube; see below.
 - **Right monitor: Pomodoro and to-do list** (see below).
 - Rain is muffled indoors; at night the pendant lamp and the desk lamp light the room.
-- **Mở app ở góc làm việc** in the *Hiển thị* section opens the app straight at the desk.
 
-**Soaking in the tub:** **Ngâm bồn tắm** in the panel (from anywhere), or walk to the bath corner
-and press **E** next to the tub. You sit in the water looking out of the big window at the
+**Soaking in the tub:** walk to the bath corner and press **E** next to the tub. You sit in the water looking out of the big window at the
 forest; drag to look around, **E** or **Esc** to get out.
 
-**The right monitor: Pomodoro and to-do list.** On top, a compact strip: while the Pomodoro runs
+**The right monitor: Pomodoro and to-do list.** On top, a compact strip; its second line shows the
+task you are on in full (**Đang làm** while focusing, **Tiếp theo** on a break or before you
+start). While the Pomodoro runs
 (or is paused), the phase, the session dots, the time left in large digits, a progress line,
 **play/pause**, **skip** and **■ stop** (ends the Pomodoro: the strip goes back to the clock);
 otherwise the clock and date with a **Bắt đầu tập trung** button. On its right, two volume rows:
@@ -315,30 +326,51 @@ Click the icon to switch it off or on (🌊 is the same switch as the soundscape
 video), click or drag the bar to set the volume, or turn the wheel over it. Below the strip, two
 columns of "liquid glass" cards:
 
-- **Đang làm** (left): the tasks to do, in order. The top one is the task you are on: it glows,
-  and each focus session that ends adds a 🍅 to it. **Drag** a card up or down to change the
-  order (drag another one to the top to switch tasks); hover a card for its **✕** (delete).
+- **Đang làm** (left): the tasks to do, in order, in large type (about 16 px on a 1080p
+  screen). The top one is the task you are on: it glows, and each focus session that ends adds a
+  🍅 to it. Its **▶** starts a focus session (it turns into a green **⏸** while you focus; click
+  to pause). Hover another task for its **▶**: that task moves to the top and focus starts (on a
+  break, the rest of the break is skipped). **Drag** a card up or down to change the order; hover
+  a card for its **✕** (delete; its place is kept, so ▶ never moves under the pointer).
+  **Double-click** a task to edit its text in place: **Enter** or clicking elsewhere saves,
+  **Esc** drops the change.
 - **Thêm việc…** at the bottom of that column: click it and type (Vietnamese input methods
   work), **Enter** adds the task, **Esc** stops typing.
-- Click a task's **ring ◯** when it is done, or drag its card onto the right column: a volley of
-  big cartoon bubbles ("Bọt") shoots out of the monitor toward you with a rising "bloop" each,
-  hangs in the air in front of the monitors, then the bubbles burst one after another in a quick
-  chain (flash, ring, droplets, sparkles, a "pop" that climbs in pitch), ending in a little
-  sparkle of bells. All synthesized; 🔔 and its volume cover them. Finishing the last task left
-  sends a bigger volley ("Bọt Nước"). With *reduce motion* set in Windows there are no bubbles,
-  just the tick, one pop and the sparkle.
-- **Đã xong hôm nay** (right): today's finished tasks and 🍅 count; click one to put it back.
-  It empties at midnight.
+- Click a task's **ring ◯** when it is done, or drag its card onto the right column: Bọt's
+  **Bubble Burst** at desk size. One soap bubble (Bọt's own thin-film shader, rainbow at the
+  rim) swells out of the ring (0.7 s), lets go and floats up toward you, wobbling (1.3 s), then
+  bursts: its film races out and fades, and small bubbles, droplets and sparkles fly off all
+  round. The sound is just that one **pop** (synthesized; 🔔 and its volume cover it). The last
+  task of the list blows a bigger bubble with a lower pop. With *reduce motion* set in Windows
+  there is no bubble, just the pop.
+- **🍅 estimate:** click a task's 🍅 (a faint **🍅+** on hover when it has none) to count up how
+  many focus sessions you expect it to take: it then shows **🍅 2/4** (done / expected), amber
+  once past the estimate. Past 8 it goes back to none. Finished tasks keep it.
+- **Đã xong hôm nay** (right): today's finished tasks and 🍅 count; click one to put it back,
+  or its **✕** (on hover) to delete it; **Xóa hết** under the list clears them all (the day's
+  🍅 count stays). Scroll it with the wheel when it is longer than the screen. It empties at
+  midnight.
+- **Hoàn tác:** after deleting a task (or clearing the finished ones) a note at the bottom of the
+  screen says what went, with **Hoàn tác** to bring it back, for 6 s.
 - The **wheel** over a column scrolls it (elsewhere it leans in, as before). While the Pomodoro
   runs, the footer line (what is playing, the scene, the island time) is hidden to give the list
   more room.
 - The list is saved in the browser (`localStorage`, key `tsw.todo`).
+- Performance: both monitors' drifting colour background is drawn by the screen's shader, and
+  the canvas on top is redrawn only when something changes (once a second for the clock, fast
+  only while cards move or you type). Re-uploading the canvas every frame used to cost the desk
+  view a third of its frame rate.
 
-## Pomodoro (`T` or **Pomodoro (T)** in the panel)
+## Pomodoro (`T`, or **Cài đặt → Thẻ Pomodoro** in the panel)
 
-A small card in the bottom-left corner: **25 min focus → 5 min break**, and a 15 min long break
-after every 4 focus sessions (the dots show how many are done). Buttons: start/pause, skip to
-the next part, reset, settings (⚙), hide (✕).
+A small card in the bottom-left corner, the one place for the timer in the overview:
+**25 min focus → 5 min break**, and a 15 min long break after every 4 focus sessions (the dots
+show how many are done). Buttons: start/pause, skip to the next part, reset, settings (⚙), hide
+(✕). Under the phase it shows the task you are on (the top task of the desk's to-do list) in
+full, on up to two lines. The card **shows itself** when the timer starts (`T`, or a task's ▶ on the desk monitor)
+and **hides itself** when the Pomodoro is ended (↺ here, ■ on the monitor). ✕ hides it while the
+timer runs on; the ring round the panel's ☰ still shows the progress. Without a keyboard, open it
+from **Cài đặt → Thẻ Pomodoro**.
 
 - **Settings (⚙):** lengths of focus, short and long break (minutes), long break after N
   sessions (0 = never), and three switches:
@@ -400,9 +432,9 @@ memory (~20 MB per stereo minute) and at most two per layer are kept. Check the 
 every file you use (e.g. [Freesound](https://freesound.org) with the CC0 filter); don't commit
 files you may not redistribute. More details in [`public/audio/README.md`](public/audio/README.md).
 
-## Walking on the island (`C` or **Đi bộ trên đảo** in the panel)
+## Walking on the island (`C` or **Đi bộ** in the panel)
 
-Two views, switched with `V` (or **Thấy nhân vật** in the panel): behind your character, like
+Two views, switched with `V` (or **Sau lưng / Qua mắt** in *Góc nhìn*): behind your character, like
 a game (default), or through the character's eyes. The character is a young man dressed for
 the beach, built entirely in code (Korean-style curtain hair: a middle part, volume on top and two swept
 bangs framing the forehead, slim-fit
@@ -460,7 +492,7 @@ front of you, your character crouches and strokes its head and neck with the rig
 left on the knee) while you move the mouse (the view holds still meanwhile); it tilts its head
 into your hand, wags harder the longer you pet it, and little hearts float up. Let go and it
 follows again. Walking off ends it. Its paws leave prints in the
-sand and snow, and with **Âm thanh hoạt động** on you hear its paws on the deck and its bark
+sand and snow, and with **Tiếng bước chân & hoạt động** on you hear its paws on the deck and its bark
 (synthesized). Its walk and gallop are the model's own clips, played faster or slower with its
 speed so the paws don't slide; lying down and sitting are poses built in code (the file has none).
 
@@ -476,7 +508,7 @@ into a paw) and it turns to you and blows rainbow soap bubbles that float off on
 pop; click it and, at random, it either dances in a burst of bubbles or fires its water jet your
 way (at you if you are walking within 10 m, else onto the ground between it and the camera).
 The jet flies hard and flat (up to ~10 m out to sea), a wide stream with a big splash. Sounds (the jet's hiss, its voice) follow
-**Âm thanh hoạt động**. Loaded on first use (0.2 MB), its shaders compiled in the background.
+**Tiếng bước chân & hoạt động**. Loaded on first use (0.2 MB), its shaders compiled in the background.
 
 **Hỏa Long, the fire creature (always there).** A small red
 dragon (~1.5 m wingspan) always on the wing, looping lazily over the beach in front of the house,
@@ -490,7 +522,7 @@ orders it: standing within 12 m of it you are the target, and the fire **dries y
 (steam rises off you), the opposite of Bọt's jet. **With the mouse:** rest the pointer on it and
 it hovers, turns to you, its tail flame flares and it puffs embers; click it and it does an
 excited dance with a burst of fire straight up. Sounds (the roar and crackle of the flame, its
-chirrup) follow **Âm thanh hoạt động**. Loaded on first use (0.44 MB).
+chirrup) follow **Tiếng bước chân & hoạt động**. Loaded on first use (0.44 MB).
 
 **Mầm, the grass creature (always there).** A spring-green bunny
 (~0.75 m to the ear tips) with a cream belly and a carrot in its paw, a sprout growing from the
@@ -592,9 +624,9 @@ does **Cầu Vồng Mập**, a high leap across your line (~4.4 m) with two barr
 rainbow in the air behind it (seven bands of glittering motes that hang for a couple of
 seconds), a burst of coloured sparkles at the top, a note (**Lướt 8 giây liền!…**) and a big
 splash; once a ride, never a prank. **At night** the water it stirs glows: a cyan trail of sea sparkle behind its fin and
-round its splashes. Its splashes and giggle follow **Âm thanh hoạt động**.
+round its splashes. Its splashes and giggle follow **Tiếng bước chân & hoạt động**.
 
-**Characters (Góc nhìn → Nhân vật).** Besides the built-in body you can walk around as a man or a
+**Characters (Cài đặt → Nhân vật).** Besides the built-in body you can walk around as a man or a
 woman from Quaternius' low-poly character pack (`src/assets/characters/*.glb`, CC0). They load
 the first time you pick them (about a second) and wear the same motion as the built-in body:
 walking with planted feet, stopping, swimming, the kayak and the surfboard all work. How: the
@@ -638,14 +670,14 @@ behind you, so it works inside the small room too.
   glossy skin, drops falling) and dries in about a minute in sun and wind, a few minutes on a
   grey day or at night, not while it rains on you. Rain wets him only outdoors.
 - **The hammock:** past the beach umbrella, between two palms on the sand. Stand next to it and
-  press `E` (or the panel tile **Nằm võng**): you lie in it, looking up into the palms and the sky,
+  press `E`: you lie in it, looking up into the palms and the sky,
   gently rocking (more in wind). Drag to look around, scroll to look closer, `E` or `Esc` to get
   up.
 - **Animals:** seagulls circle over the beaches by day (they roost at night); dolphins cruise off
   the house beach and leap now and then (watch from the desk window); ghost crabs scurry on the
   damp sand and dig in when you come close; sea turtles glide over the reef (dive to see them).
 - **Sound follows where you are:** footsteps change with the ground (sand, grass, rock, wooden
-  floor, splashing water, snow crunch; with **Âm thanh hoạt động**, on by default). The surf is loud on
+  floor, splashing water, snow crunch; with **Tiếng bước chân & hoạt động**, on by default). The surf is loud on
   the beach and fades inland, coming from the sea's side; birds get louder among the trees;
   inside the room everything is muffled and rain sounds like rain on the roof. No rain or snow
   falls under the roof, and the floor stays dry.
@@ -799,7 +831,7 @@ wet part of the blade, applied where the blade is, pushes and turns the boat, so
 less when you're already fast, and a stroke far out turns more. The waves (the same ones the
 water draws) lift, pitch and roll the boat; it runs aground on the sand and is stopped by rocks
 and the rowboat. The empty kayak keeps floating where you left it. The paddle sounds (left
-or right ear by the side) follow **Âm thanh hoạt động**.
+or right ear by the side) follow **Tiếng bước chân & hoạt động**.
 
 What you see on the water: the bow pushes out a V of little waves and bubbles that opens
 behind you at ~19.5° (the angle of every wake on deep water), the stern leaves a band of
@@ -827,9 +859,8 @@ Hover any button for its name.
   the island speed dimmed; a click switches to the island clock at that speed.
 - **Pause/play icon** (or `N`) stops and restarts the clock. A scene with a time of day starts
   the clock from that time (it keeps running).
-- Closed, the section's title shows e.g. *10:14 · ×60*, *21:30 · đã dừng* or *09:38 · giờ thật*.
 
-The other sky options are scene effects (*Cảnh → Sửa cảnh / Tạo cảnh → Hiệu ứng*):
+The other sky options are scene effects (*Cảnh → ✎ on a card / Tạo cảnh → Hiệu ứng*):
 
 | Option | What it does |
 |---|---|
@@ -837,8 +868,7 @@ The other sky options are scene effects (*Cảnh → Sửa cảnh / Tạo cảnh
 | Mặt trời: Độ sáng | Brightness of the sun disc and its glare; 50 % is normal (×0.4 … ×1.8), brighter pushes it toward white. |
 | Mặt trời: Kích thước | Size of the sun disc; 50 % is normal (×0.6 … ×2.2). |
 | Mây dạng sợi | Cirrus: clouds as thin streaks drawn across the view from the desk (thin, see-through, catching the low sun's light) instead of puffs. |
-| Trời u ám | Grey, gloomy sky without rain. |
-| Trời trong | Clear air by day: a deeper blue sky, a clearer horizon, a bluer sea and the haze pushed far out. It fades out toward sunrise and sunset (their colours stay) and under cloud or rain. *Ngày nắng* uses it at 100 %. |
+| Bầu trời | One two-way slider (double-click: back to *Thường* in the middle). Left, **U ám**: a grey, gloomy sky without rain. Right, **Trong**: clear air by day, a deeper blue sky, a clearer horizon, a bluer sea and the haze pushed far out; it fades out toward sunrise and sunset (their colours stay) and under cloud or rain. *Ngày nắng* uses Trong 100 %. (Until 2026-10-27 these were two sliders, *Trời u ám* and *Trời trong*; scenes that had both up keep the difference.) |
 | Cầu vồng sau mưa | After rain, with a low sun behind you, a rainbow appears at the real 42° angle. |
 | Sao & Ngân Hà | Twinkling stars and a faint Milky Way that slowly wheel across the night sky. |
 | Sao băng | How often shooting stars cross the visible sky: thin, star-sized streaks with a fading tail, in random directions, sometimes two or three at once. |

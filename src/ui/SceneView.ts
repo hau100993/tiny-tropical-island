@@ -20,6 +20,8 @@ export interface SceneViewDeps {
   getSkyTurn: () => number;
   setSky: (hours: number, skyTurn: number) => void;
   windowTurn: (hours: number) => number;
+  /** The editor opened (true) or closed: the panel gives it the whole page. */
+  onEditing: (on: boolean) => void;
 }
 
 /** Icon per built-in scene; the user's own get one from their weather and time. */
@@ -52,44 +54,26 @@ function sceneIcon(p: ScenePreset): string {
 }
 
 /**
- * "Cảnh" section body: scenes as a grid of cards (icon, name, its time and a note when it has
- * its own recordings; the active one is highlighted) and the actions Tạo cảnh / Sửa cảnh /
- * Khôi phục gốc / Xóa. Creating or editing opens the SceneEditor in place of the grid.
+ * "Cảnh" tab: scenes as a grid of cards (icon, name, its time and ♪ when it has its own
+ * recordings; the active one is highlighted), each with a pencil to edit it, and a "+" card at
+ * the end to create one. The SceneEditor opens in place of the grid; deleting a scene of your
+ * own, or resetting an edited built-in, is done from there.
  */
 export class SceneView {
   readonly root: HTMLElement;
-  private readonly home: HTMLElement;
   private readonly grid: HTMLElement;
   private readonly cards = new Map<string, { card: HTMLButtonElement; meta: HTMLElement }>();
-  private readonly editBtn: HTMLButtonElement;
-  private readonly deleteBtn: HTMLButtonElement;
-  private readonly resetBtn: HTMLButtonElement;
   private readonly msg: HTMLElement;
   private editor: SceneEditor | null = null;
-  /** Delete / reset wait for a second click (a browser confirm() can be blocked). */
-  private armed: 'delete' | 'reset' | '' = '';
-  private armTimer = 0;
 
   constructor(private readonly deps: SceneViewDeps) {
     const { settings } = deps;
     this.root = el('div', 'scene-view');
-    this.home = el('div', 'editor-stack');
     this.grid = el('div', 'preset-grid');
     this.grid.setAttribute('role', 'radiogroup');
     this.grid.setAttribute('aria-label', vi.scene.preset);
-
-    const actions = el('div', 'button-row scene-actions');
-    const create = button(vi.scene.create, () => this.openEditor(null), 'btn small primary');
-    this.editBtn = button(vi.scene.edit, () => this.openEditor(deps.scenes.get(settings.get().activeScene) ?? null), 'btn small');
-    this.editBtn.title = vi.scene.editHint;
-    this.resetBtn = button(vi.scene.reset, () => this.arm('reset'), 'btn small');
-    this.resetBtn.title = vi.scene.resetTitle;
-    this.deleteBtn = button(vi.scene.delete, () => this.arm('delete'), 'btn small');
-    actions.append(create, this.editBtn, this.resetBtn, this.deleteBtn);
     this.msg = el('div', 'note');
-
-    this.home.append(this.grid, actions, this.msg);
-    this.root.append(this.home);
+    this.root.append(this.grid, this.msg);
     deps.scenes.onChange(() => this.refresh());
     settings.onChange((next) => this.sync(next));
     // Badges only (no rebuild: the library emits often, and rebuilding mid-click loses clicks).
@@ -102,11 +86,18 @@ export class SceneView {
     this.grid.replaceChildren();
     this.cards.clear();
     this.deps.scenes.all().forEach((p, i) => this.grid.append(this.card(p, i)));
+    const add = button('', () => this.openEditor(null), 'preset-card preset-add');
+    const icon = el('span', 'preset-icon');
+    icon.innerHTML = icons.plus;
+    add.append(icon, el('span', 'preset-name', vi.scene.create));
+    this.grid.append(add);
     this.updateMeta();
     this.sync(this.deps.settings.get());
   }
 
-  private card(p: ScenePreset, index: number): HTMLButtonElement {
+  /** A card (picks the scene) and its pencil (edits it), side by side in one grid cell. */
+  private card(p: ScenePreset, index: number): HTMLElement {
+    const cell = el('div', 'preset-cell');
     const b = button('', () => {
       this.deps.startAudio();
       this.deps.applyScene(p.id);
@@ -117,48 +108,39 @@ export class SceneView {
     const text = el('span', 'preset-text');
     const meta = el('span', 'preset-meta');
     text.append(el('span', 'preset-name', p.name), meta);
-    // A check on the icon of the selected scene; keys 1–9 pick the first nine.
+    // A check on the icon of the selected scene; keys 1–9 pick the first nine (tooltip).
     const check = el('span', 'preset-check');
     check.innerHTML = icons.check;
     icon.append(check);
     b.append(icon, text);
-    b.title = p.name;
-    if (index < 9) {
-      b.append(el('kbd', 'key', String(index + 1)));
-      b.title = `${p.name} (${index + 1})`;
-    }
+    b.title = index < 9 ? `${p.name} (${index + 1})` : p.name;
+    const edit = button('', () => this.openEditor(p), 'icon-btn preset-edit');
+    edit.innerHTML = icons.pencil;
+    edit.title = vi.scene.edit(p.name);
+    edit.setAttribute('aria-label', vi.scene.edit(p.name));
+    cell.append(b, edit);
     this.cards.set(p.id, { card: b, meta });
-    return b;
+    return cell;
   }
 
-  /** Each card's second line: its time (or none) and ♪ when it plays its own recordings. */
+  /** Each card's second line: its time (if it sets one) and ♪ when it plays its own recordings. */
   private updateMeta(): void {
     for (const p of this.deps.scenes.all()) {
       const c = this.cards.get(p.id);
       if (!c) continue;
       const sounds = this.deps.library.sceneSounds(p.id).size;
-      const time = p.hours === null ? vi.scene.keepTime : formatClock(p.hours);
-      const html = `<span>${time}</span>${sounds > 0 ? `<span class="preset-note" title="${vi.scene.hasSound}">♪</span>` : ''}`;
+      const time = p.hours === null ? '' : `<span>${formatClock(p.hours)}</span>`;
+      const html = `${time}${sounds > 0 ? `<span class="preset-note" title="${vi.scene.hasSound}">♪</span>` : ''}`;
       if (c.meta.innerHTML !== html) c.meta.innerHTML = html;
     }
   }
 
   private sync(s: Readonly<Settings>): void {
-    const p = this.deps.scenes.get(s.activeScene);
     for (const [id, c] of this.cards) c.card.setAttribute('aria-checked', String(id === s.activeScene));
-    this.editBtn.disabled = !p;
-    // Built-ins can't be deleted, but edits to them can be undone.
-    this.deleteBtn.hidden = !p || p.builtIn;
-    this.resetBtn.hidden = !p || !p.builtIn || !this.deps.scenes.isModified(p.id);
-    this.deleteBtn.textContent = this.armed === 'delete' ? vi.scene.confirmDeleteBtn : vi.scene.delete;
-    this.resetBtn.textContent = this.armed === 'reset' ? vi.scene.confirmResetBtn : vi.scene.reset;
-    this.deleteBtn.classList.toggle('danger', this.armed === 'delete');
-    this.resetBtn.classList.toggle('danger', this.armed === 'reset');
   }
 
   private openEditor(p: ScenePreset | null): void {
     this.msg.textContent = '';
-    this.disarm();
     const editor = new SceneEditor(
       {
         ...this.deps,
@@ -167,54 +149,17 @@ export class SceneView {
       p,
     );
     this.editor = editor;
-    this.home.hidden = true;
+    this.grid.hidden = true;
     this.root.append(editor.root);
-    editor.root.scrollIntoView({ block: 'start' });
+    this.deps.onEditing(true);
     editor.focus();
   }
 
   private closeEditor(savedId: string | null): void {
     this.editor?.root.remove();
     this.editor = null;
-    this.home.hidden = false;
+    this.grid.hidden = false;
     this.msg.textContent = savedId ? vi.scene.saved : '';
-  }
-
-  /** First click arms delete/reset on the button itself; a second one within 4 s does it. */
-  private arm(what: 'delete' | 'reset'): void {
-    window.clearTimeout(this.armTimer);
-    if (this.armed === what) {
-      this.armed = '';
-      if (what === 'delete') this.deleteScene();
-      else this.resetScene();
-      this.sync(this.deps.settings.get());
-      return;
-    }
-    this.armed = what;
-    this.armTimer = window.setTimeout(() => this.disarm(), 4000);
-    this.sync(this.deps.settings.get());
-  }
-
-  private disarm(): void {
-    window.clearTimeout(this.armTimer);
-    this.armed = '';
-    this.sync(this.deps.settings.get());
-  }
-
-  private resetScene(): void {
-    const { scenes, settings } = this.deps;
-    const p = scenes.get(settings.get().activeScene);
-    if (!p || !p.builtIn) return;
-    scenes.resetBuiltIn(p.id);
-    this.deps.applyScene(p.id);
-  }
-
-  private deleteScene(): void {
-    const { scenes, settings } = this.deps;
-    const p = scenes.get(settings.get().activeScene);
-    if (!p || p.builtIn) return;
-    scenes.remove(p.id);
-    this.deps.onDeleted(p.id);
-    settings.update({ activeScene: '' });
+    this.deps.onEditing(false);
   }
 }

@@ -361,53 +361,71 @@ body.ui-hidden .debug-overlay {
   letter-spacing: 0.01em;
 }
 
-/* The title is a button: click it to collapse or expand the panel. */
-.panel-title-btn {
-  margin: -4px -6px;
-  padding: 4px 6px;
-  font: inherit;
-  color: inherit;
-  background: none;
-  border: 0;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.panel-title-btn:hover {
-  background: var(--control-bg-hover);
-}
-
-.panel-title-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
 .panel-content {
   overflow-y: auto;
   padding: 0 12px 6px;
 }
 
-.section {
-  border-top: 1px solid var(--panel-border);
-  padding: 6px 0;
+/* Keys mean nothing without a keyboard (touch screens: body.touch). */
+body.touch .kbd-only {
+  display: none;
 }
 
-.section-title {
+/* Tabs under the fixed top: icon over a short name; the open one underlined in the accent. */
+.panel-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.panel.collapsed .panel-tabs {
+  display: none;
+}
+
+.panel-tab {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
+  padding: 6px 2px 7px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--panel-muted);
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
   cursor: pointer;
-  font-weight: 600;
-  font-size: 13px;
-  padding: 4px 0;
-  user-select: none;
-  list-style: none;
 }
 
-.section-body {
+.panel-tab svg {
+  width: 17px;
+  height: 17px;
+}
+
+.panel-tab:hover {
+  color: var(--panel-fg);
+}
+
+.panel-tab[aria-selected='true'] {
+  color: var(--accent);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+
+.tab-body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  padding: 10px 0 6px;
+}
+
+/* The scene editor is a page of its own: the time bar and the tabs step aside. */
+.panel.editing .time-bar,
+.panel.editing .panel-tabs {
+  display: none;
 }
 
 .mix-row {
@@ -580,33 +598,43 @@ body.ui-hidden .debug-overlay {
 
 /* ---------- Walk mode ---------- */
 
-/* Walking, paddling, surfing, or the page just opened (.panel-intro): the panel waits collapsed
+/* Walking, paddling, surfing: the panel waits collapsed
    and faded in its corner, out of the scene; pointing at it opens it (Panel.setWalking). */
-body:is(.walking, .panel-intro) .panel {
+body.walking .panel {
   opacity: 0.35;
   transition: opacity 0.2s, transform 0.4s;
 }
 
-body:is(.walking, .panel-intro) .panel:hover,
-body:is(.walking, .panel-intro) .panel.peek {
+body.walking .panel:hover,
+body.walking .panel.peek {
   opacity: 1;
 }
 
-/* Out of sight (walking and left alone, just opened, or H): only a small round handle where the
-   bar was, faint; it lights up as it appears (that's where the menu went) and when pointed at. */
-body:is(.walking, .ui-hidden, .panel-intro) .panel.handle {
-  width: 34px;
-  height: 34px;
+/* Shut, the panel is only a small round ☰ where its own ☰ button was. Walking, just opened or
+   with H it is fainter, and fainter still once left alone (.faint); pointed at, it lights up. */
+.panel.handle {
+  width: 36px;
+  height: 36px;
   padding: 0;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: stretch;
   border-radius: 50%;
-  opacity: 0.25;
-  animation: panel-handle-in 1.8s ease-out;
+  opacity: 0.9;
+  transition: opacity 0.6s;
 }
 
-body:is(.walking, .ui-hidden, .panel-intro) .panel.handle:hover {
-  opacity: 0.9;
+body:is(.walking, .ui-hidden) .panel.handle {
+  opacity: 0.55;
+}
+
+.panel.handle.faint {
+  opacity: 0.25;
+}
+
+.panel.handle:hover,
+body:is(.walking, .ui-hidden) .panel.handle:hover {
+  opacity: 1;
+  transition-duration: 0.15s;
 }
 
 .panel.handle > :not(.panel-handle) {
@@ -615,20 +643,48 @@ body:is(.walking, .ui-hidden, .panel-intro) .panel.handle:hover {
 
 .panel-handle {
   display: none;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
   color: var(--panel-fg);
+  background: none;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.panel-handle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .panel.handle .panel-handle {
-  display: inline-flex;
+  display: grid;
 }
 
-@keyframes panel-handle-in {
-  from {
-    opacity: 0.95;
-  }
-  to {
-    opacity: 0.25;
-  }
+/* Pomodoro running: a thin ring round the ☰ fills through the phase (--pomo, 0..1; set by
+   Panel.tick), accent while focusing, blue on a break. */
+.panel.handle.pomo-on::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(var(--ring, var(--accent)) calc(var(--pomo, 0) * 360deg), transparent 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+  pointer-events: none;
+  z-index: 2;
+}
+
+.panel.handle.pomo-break {
+  --ring: #4aa3df;
+}
+
+/* While the timer runs the ☰ stays readable, even walking. */
+.panel.handle.pomo-on,
+body:is(.walking, .ui-hidden) .panel.handle.pomo-on {
+  opacity: 0.9;
 }
 
 .walk-hint {
@@ -1061,6 +1117,22 @@ body:is(.walking, .ui-hidden, .panel-intro) .panel.handle:hover {
   letter-spacing: 2px;
 }
 
+/* The current task (from the desk's to-do list), in full on up to two lines. */
+.pomo-task {
+  margin: 2px 0;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--panel-fg);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.pomo-task:empty {
+  display: none;
+}
+
 .pomo-time {
   font-size: 34px;
   font-weight: 300;
@@ -1282,40 +1354,6 @@ body.walking .pomo-settings:focus-within {
   gap: 6px;
 }
 
-/* Pomodoro clock in the header: icon + time left; accent while running. */
-.pomo-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 8px;
-  font: inherit;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: var(--panel-fg);
-  background: var(--control-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.pomo-btn:hover {
-  background: var(--control-bg-hover);
-}
-
-.pomo-btn.running {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.pomo-btn[aria-pressed='true'] {
-  border-color: var(--accent);
-}
-
-.pomo-text:empty {
-  display: none;
-}
-
 .panel-top {
   display: flex;
   flex-direction: column;
@@ -1327,28 +1365,7 @@ body.walking .pomo-settings:focus-within {
   display: none;
 }
 
-/* Collapsed: the header also shows the scene and a mute button. */
-.header-scene,
-.header-mute {
-  display: none;
-}
-
-.panel.collapsed .header-scene {
-  display: block;
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11px;
-  color: var(--panel-muted);
-}
-
-.panel.collapsed .header-mute {
-  display: inline-grid;
-}
-
-/* No sound yet: the start button replaces the mute buttons. */
-.panel.sound-off .header-mute,
+/* No sound yet: the start button replaces the mute button. */
 .panel.sound-off .mix-row.master .icon-btn {
   visibility: hidden;
 }
@@ -1366,90 +1383,6 @@ body.walking .pomo-settings:focus-within {
 .start-sound svg {
   width: 16px;
   height: 16px;
-}
-
-/* An open section shows its contents, so the value next to its title would repeat them. */
-.section[open] .section-meta {
-  visibility: hidden;
-}
-
-.status-line {
-  font-size: 11px;
-  color: var(--panel-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Accordion sections: icon, name, current value on the right, a chevron. */
-.section-title::-webkit-details-marker {
-  display: none;
-}
-
-.section-title::after {
-  content: '';
-  width: 7px;
-  height: 7px;
-  margin: 0 4px 0 2px;
-  border-right: 2px solid var(--panel-muted);
-  border-bottom: 2px solid var(--panel-muted);
-  transform: rotate(-45deg);
-  transition: transform 0.15s;
-  flex: none;
-}
-
-.section[open] > .section-title::after {
-  transform: rotate(45deg);
-}
-
-.section-icon {
-  display: inline-grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  color: var(--accent);
-  background: var(--control-bg);
-  flex: none;
-}
-
-.section-name {
-  flex: none;
-}
-
-.section-meta {
-  flex: 1;
-  min-width: 0;
-  text-align: right;
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--panel-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.section[open] > .section-title .section-meta {
-  visibility: hidden;
-}
-
-.section-body {
-  padding-top: 6px;
-}
-
-/* Folded sub-blocks inside a section ("Tùy chỉnh hiệu ứng", "Phím tắt"). */
-.subsection {
-  border-top: 1px dashed var(--panel-border);
-  padding-top: 6px;
-}
-
-.subsection-title {
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 12px;
-  color: var(--panel-muted);
-  padding: 2px 0;
-  user-select: none;
 }
 
 /* On/off switches: every toggle shows a small track and knob before its label. */
@@ -1570,8 +1503,7 @@ kbd.key {
 }
 
 /* Scene preset cards and view tiles. */
-.preset-grid,
-.view-grid {
+.preset-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-auto-rows: minmax(44px, auto); /* even rows; only a card with a long name grows */
@@ -1689,22 +1621,153 @@ kbd.key {
   display: block;
 }
 
-.preset-card kbd.key {
-  position: absolute;
-  right: 5px;
-  bottom: 5px;
-}
-
-.view-tile kbd.key {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-}
-
 .scene-view {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* A scene card with its pencil (edit) in the bottom right corner (beside the short time
+   line, so it never covers the name), shown on hover. */
+.preset-cell {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+
+.preset-edit {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 22px;
+  height: 22px;
+  color: var(--panel-muted);
+  background: var(--panel-bg);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.preset-edit svg {
+  width: 13px;
+  height: 13px;
+}
+
+.preset-edit:hover {
+  color: var(--accent);
+}
+
+.preset-cell:hover .preset-edit,
+.preset-edit:focus-visible,
+body.touch .preset-edit {
+  opacity: 1;
+}
+
+/* "+ Tạo cảnh": the last card, dashed. */
+.preset-card.preset-add {
+  color: var(--panel-muted);
+  background: transparent;
+  border-style: dashed;
+}
+
+.preset-card.preset-add:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.preset-add .preset-icon {
+  color: inherit;
+  background: none;
+}
+
+/* The three views in one row: icon over the name. */
+.view-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.view-row .view-tile {
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px;
+  text-align: center;
+}
+
+.btn.with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Xóa cảnh / Khôi phục gốc in the editor's footer: quiet until armed. */
+.editor-remove {
+  align-self: flex-start;
+  color: var(--panel-muted);
+}
+
+/* Shortcut card (ui/ShortcutsView.ts, ?): over the scene, two key columns on a wide screen. */
+.shortcuts-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(8, 16, 22, 0.35);
+}
+
+.shortcuts-card {
+  width: min(680px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 14px 18px 16px;
+  color: var(--panel-fg);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-shadow);
+  font-size: 12.5px;
+}
+
+.shortcuts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.shortcuts-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.shortcuts-card .shortcut-list {
+  grid-template-columns: auto 1fr auto 1fr;
+  gap: 6px 10px;
+  align-items: baseline;
+}
+
+.shortcuts-hints {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.shortcuts-hints .hint {
+  margin: 0;
+  font-size: 11.5px;
+}
+
+@media (max-width: 560px) {
+  .shortcuts-card .shortcut-list {
+    grid-template-columns: auto 1fr;
+  }
 }
 
 /*
@@ -1792,13 +1855,12 @@ kbd.key {
   font-weight: 400;
 }
 
-/* Time bar: always shown above the sections, nothing to open; the clock row and the hour
-   slider in one slim block. */
+/* Time bar: always shown above the tabs; the clock row and the hour slider in one slim block. */
 .time-bar {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin: 6px 0 8px;
+  margin-top: 2px;
   padding: 4px 8px 4px 10px;
   border-radius: 10px;
   background: var(--control-bg);
@@ -1959,6 +2021,47 @@ kbd.key {
 .editor-group-icon svg {
   width: 15px;
   height: 15px;
+}
+
+/* Folded effects in the editor (Mặt trời, Ban đêm): a small caret before the title. */
+.editor-fold > .editor-stack {
+  padding-top: 6px;
+}
+
+.editor-fold-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--panel-muted);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  padding: 2px 0;
+}
+
+.editor-fold-title::-webkit-details-marker {
+  display: none;
+}
+
+.editor-fold-title::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+}
+
+.editor-fold[open] > .editor-fold-title::before {
+  transform: rotate(45deg);
+}
+
+/* Bầu trời: the value reads "U ám 40%" / "Thường" / "Trong 60%", wider than a percentage. */
+.slider.sky-slider {
+  grid-template-columns: 92px 1fr 62px;
 }
 
 .editor-name {
@@ -2386,9 +2489,9 @@ body.touch .panel-title {
   white-space: nowrap;
 }
 
-body.touch .section-title {
-  font-size: 15px;
-  padding: 10px 0;
+body.touch .panel-tab {
+  font-size: 13px;
+  padding: 8px 2px 9px;
 }
 
 body.touch .slider-label {
@@ -2401,12 +2504,11 @@ body.touch .slider-input {
 
 /* Keys mean nothing without a keyboard: no key caps, no shortcut list, no key hints. */
 body.touch kbd.key,
-body.touch .shortcuts,
 body.touch .walk-hint {
   display: none;
 }
 
-body:is(.walking, .ui-hidden, .panel-intro).touch .panel.handle {
+body:is(.walking, .ui-hidden).touch .panel.handle {
   width: 44px;
   height: 44px;
   opacity: 0.6;

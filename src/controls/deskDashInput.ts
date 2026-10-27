@@ -5,6 +5,8 @@ import { vi } from '../ui/strings.vi';
 
 /** A press only counts as a click below this movement (px); more starts a drag (cards) or nothing. */
 const CLICK_PX = 5;
+/** Two clicks on the same card within this time (ms): edit its text. */
+const DOUBLE_MS = 400;
 
 interface Press {
   hit: DashHit;
@@ -21,7 +23,8 @@ interface Press {
  * Listeners run in the capture phase on the canvas, so a press on the screen's controls is taken
  * before the desk view starts turning the head (it stops the event there). Typing goes into a
  * hidden <input>, which is what lets Vietnamese input methods (Unikey, Telex) work; DeskDash draws
- * its text and caret.
+ * its text and caret. The same input edits a task after a double click on its card: Enter or
+ * leaving the field saves, Esc drops the change.
  */
 export class DeskDashInput {
   private readonly ray = new THREE.Raycaster();
@@ -31,6 +34,12 @@ export class DeskDashInput {
   private active = false;
   private press: Press | null = null;
   private hoverKey = '';
+  /** The task being edited (null: the input adds new tasks). */
+  private editId: string | null = null;
+  /** Esc while editing: leave without saving. */
+  private discard = false;
+  /** The last click on a card, to spot a double click. */
+  private lastCard = { id: '', at: 0 };
 
   constructor(
     private readonly dom: HTMLCanvasElement,
@@ -52,7 +61,17 @@ export class DeskDashInput {
     };
     this.input.addEventListener('input', sync);
     this.input.addEventListener('focus', sync);
-    this.input.addEventListener('blur', sync);
+    this.input.addEventListener('blur', () => {
+      // Leaving an edited task saves it (unless Esc), and the input goes back to adding tasks.
+      if (this.editId !== null) {
+        if (!this.discard) this.dash.renameTask(this.editId, this.input.value);
+        this.editId = null;
+        this.discard = false;
+        this.input.value = '';
+        this.dash.beginEdit(null);
+      }
+      sync();
+    });
     this.input.addEventListener('keyup', sync);
     document.addEventListener('selectionchange', () => {
       if (document.activeElement === this.input) sync();
@@ -61,11 +80,16 @@ export class DeskDashInput {
       // Enter while an input method is still composing a word only ends the word.
       if (e.key === 'Enter' && !e.isComposing) {
         e.preventDefault();
+        if (this.editId !== null) {
+          this.input.blur();
+          return;
+        }
         this.dash.submit(this.input.value);
         this.input.value = '';
         sync();
       } else if (e.key === 'Escape') {
         e.preventDefault();
+        this.discard = true;
         this.input.value = '';
         this.input.blur();
       }
@@ -110,7 +134,8 @@ export class DeskDashInput {
     // Ours: the desk view doesn't turn the head, and the press doesn't move the focus.
     e.stopImmediatePropagation();
     e.preventDefault();
-    if (hit.kind !== 'input') this.input.blur();
+    const onEdited = hit.kind === 'card' && hit.id === this.editId;
+    if (hit.kind !== 'input' && !onEdited) this.input.blur();
     this.press = { hit, x: e.clientX, y: e.clientY, pointerId: e.pointerId, moved: false };
     this.dom.setPointerCapture(e.pointerId);
     // A slider follows the press at once, and then the drag.
@@ -159,9 +184,29 @@ export class DeskDashInput {
       return;
     }
     if (press.moved) return;
-    if (press.hit.kind === 'input') this.input.focus();
-    else this.dash.activate(press.hit);
+    const hit = press.hit;
+    if (hit.kind === 'input') {
+      // From editing a task straight to adding one: save the edit first.
+      if (this.editId !== null) this.input.blur();
+      this.input.focus();
+    } else if (hit.kind === 'card') this.cardClick(hit.id);
+    else this.dash.activate(hit);
   };
+
+  /** A second click on the same card soon after the first: edit its text in place. */
+  private cardClick(id: string): void {
+    const now = performance.now();
+    const double = this.lastCard.id === id && now - this.lastCard.at < DOUBLE_MS;
+    this.lastCard = double ? { id: '', at: 0 } : { id, at: now };
+    if (!double || this.editId === id) return;
+    const text = this.dash.beginEdit(id);
+    if (text === null) return;
+    this.editId = id;
+    this.input.value = text;
+    this.input.focus();
+    this.input.setSelectionRange(text.length, text.length);
+    this.dash.setDraft(text, text.length, true);
+  }
 
   private readonly onCancel = (): void => {
     this.press = null;

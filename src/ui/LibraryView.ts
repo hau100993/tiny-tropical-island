@@ -12,10 +12,6 @@ export interface LibraryViewDeps {
   scenes: ScenePresetStore;
   /** Adding a file is a click: start sound if it isn't running yet. */
   startAudio: () => void;
-  /** Switches to a scene preset (effects, time, its recordings). */
-  applyScene: (id: string) => void;
-  /** Deselects the scene preset (its recordings fade out; the effects stay as they are). */
-  clearScene: () => void;
 }
 
 /**
@@ -155,29 +151,14 @@ export class LibraryView {
     wrap.classList.toggle('sounding', (t.playing || mappedActive) && !failed);
 
     const line = el('div', 'track-line');
-    // A track mapped to scenes plays *with* its scene: ▶ switches to that scene (the first one it
-    // is mapped to, unless the active scene is one of them); ⏸ leaves the scene. Unmapped tracks
-    // play on their own.
-    const sounding = (t.playing || mappedActive) && !failed;
-    const firstScene = t.mappings.map((m) => scenes.get(m.presetId)).find((p) => p !== undefined);
+    // ▶ / ⏸ only play or stop the recording on its own: the scene never changes from here (the
+    // scene decides its own sound). The accent bar on the left shows it also plays with the scene.
     const play = button('', () => {
-      if (sounding) {
-        if (t.playing) library.setPlaying(t.id, false);
-        if (mappedActive) this.deps.clearScene();
-      } else if (firstScene) {
-        this.deps.startAudio();
-        this.deps.applyScene(firstScene.id);
-      } else {
-        this.deps.startAudio();
-        library.setPlaying(t.id, true);
-      }
+      if (!t.playing) this.deps.startAudio();
+      library.setPlaying(t.id, !t.playing);
     }, 'icon-btn');
-    play.innerHTML = sounding ? icons.pause : icons.play;
-    const playLabel = sounding
-      ? vi.library.stop
-      : firstScene
-        ? vi.library.playWithScene(firstScene.name)
-        : vi.library.play;
+    play.innerHTML = t.playing && !failed ? icons.pause : icons.play;
+    const playLabel = t.playing && !failed ? vi.library.stop : vi.library.play;
     play.title = playLabel;
     play.setAttribute('aria-label', `${playLabel}: ${t.name}`);
     const bundled = library.isBundled(t.id);

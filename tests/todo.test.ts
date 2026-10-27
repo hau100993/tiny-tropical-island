@@ -8,6 +8,10 @@ import {
   moveTask,
   parseTodo,
   removeTask,
+  renameTask,
+  setEstimate,
+  clearDone,
+  MAX_EST,
   restoreTask,
   rollDay,
   type TodoState,
@@ -97,5 +101,37 @@ describe('to-do list', () => {
     expect(s.pomosToday).toBe(3);
     // Stored yesterday: finished tasks are gone.
     expect(parseTodo({ open: [], done: [{ id: 'c', text: 'y' }], day: '2000-01-01' }, NOON).done).toEqual([]);
+  });
+});
+
+describe('renameTask', () => {
+  it('changes an open or a finished task, and keeps the old text when blank', () => {
+    let s = addTask(addTask(emptyTodo(NOON), 'viết báo cáo', 'a'), 'gọi điện', 'b');
+    s = completeTask(s, 'b');
+    s = renameTask(s, 'a', '  viết   báo cáo tuần ');
+    expect(s.open[0].text).toBe('viết báo cáo tuần');
+    expect(renameTask(s, 'b', 'gọi khách').done[0].text).toBe('gọi khách');
+    expect(renameTask(s, 'a', '   ').open[0].text).toBe('viết báo cáo tuần');
+  });
+});
+
+describe('setEstimate and clearDone', () => {
+  it('sets, clamps and clears an estimate, and keeps it through a reload', () => {
+    let s = addTask(emptyTodo(NOON), 'viết báo cáo', 'a');
+    s = setEstimate(s, 'a', 3);
+    expect(s.open[0].est).toBe(3);
+    expect(setEstimate(s, 'a', 99).open[0].est).toBe(MAX_EST);
+    expect('est' in setEstimate(s, 'a', 0).open[0]).toBe(false);
+    expect(parseTodo(JSON.parse(JSON.stringify(s)), NOON).open[0].est).toBe(3);
+    expect(parseTodo({ open: [{ id: 'x', text: 't', est: -2 }] }, NOON).open[0].est).toBeUndefined();
+  });
+
+  it('clears the finished list but keeps the day count', () => {
+    let s = addTask(addTask(emptyTodo(NOON), 'a', 'a'), 'b', 'b');
+    s = addPomodoro(s, 2);
+    s = completeTask(completeTask(s, 'a'), 'b');
+    const c = clearDone(s);
+    expect(c.done).toEqual([]);
+    expect(c.pomosToday).toBe(2);
   });
 });

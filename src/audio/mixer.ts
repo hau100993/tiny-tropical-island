@@ -12,7 +12,7 @@ import { LayerSlot, type LayerSource } from './LayerSlot';
 import { FileLayer } from './file/FileLayer';
 import { loadAudioFileConfig } from './file/config';
 import { scheduleChime, type ChimeKind } from './synth/chime';
-import { scheduleBloop, schedulePop, scheduleSparkle } from './synth/pop';
+import { schedulePop } from './synth/pop';
 import { MIXER_KEY, parseMixerState } from './mixerState';
 import { LAYER_IDS, type AudioLayer, type LayerId, type LayerState, type MixerState, type SpatialMix } from './types';
 import { parseJson, readStored, writeStored } from '../core/storage';
@@ -117,20 +117,13 @@ export class Mixer {
   }
 
   /**
-   * A to-do's bubble burst on the alerts bus (times in seconds from now): a "bloop" for each
-   * bubble shot out, a climbing chain of pops, and a closing sparkle. Quieter per sound when many.
+   * A finished to-do's bubble bursting, on the alerts bus, `delay` s from now: one pop (`big`,
+   * the last task's bigger bubble: lower and a little louder).
    */
-  scheduleBubbleBurst(plan: {
-    launches: readonly number[];
-    pops: ReadonlyArray<{ delay: number; step: number }>;
-    finale: number;
-  }): void {
+  scheduleBubblePop(delay: number, big: boolean): void {
     const e = this.engine;
     if (!e) return;
-    const scale = 1 / Math.sqrt(Math.max(1, plan.pops.length / 12));
-    for (const d of plan.launches) scheduleBloop(e, e.now + d, 0.09 * scale);
-    for (const p of plan.pops) schedulePop(e, e.now + p.delay, p.step, 0.2 * scale);
-    scheduleSparkle(e, e.now + plan.finale, 0.09);
+    schedulePop(e, e.now + delay, big ? 0.05 : 0.3, big ? 0.3 : 0.24);
   }
 
   setLayer(id: LayerId, patch: Partial<LayerState>): void {

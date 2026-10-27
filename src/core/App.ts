@@ -155,7 +155,7 @@ export class App {
   private readonly deskDash: DeskDash;
   private readonly dashInput: DeskDashInput;
   /** "Bọt": bubbles out of the right monitor when a to-do is finished. */
-  private readonly todoBubbles = new TodoBubbles(sharedUniforms.uDayLight);
+  private readonly todoBubbles = new TodoBubbles(sharedUniforms);
   /** Soundscape on/off, shared by the right monitor and the video's corner button. */
   private readonly ambience: AmbienceSwitch;
   private readonly fader: HTMLElement;
@@ -475,7 +475,7 @@ export class App {
       goTo: (view) => this.goTo(view),
       pomodoro: () => {
         const p = this.pomodoro.snapshot();
-        return p ? { remaining: p.remaining, running: p.running, visible: this.pomodoro.isVisible } : null;
+        return p ? { running: p.running, progress: p.progress, onBreak: p.onBreak } : null;
       },
       togglePomodoro: () => this.pomodoro.setVisible(!this.pomodoro.isVisible),
       toggleTimePaused: () => this.toggleTimePaused(),
@@ -485,6 +485,7 @@ export class App {
     this.deskDash = new DeskDash(w.house.screens[1], this.renderer.capabilities.getMaxAnisotropy(), {
       info: () => this.screenInfo(),
       toggleTimer: () => this.pomodoro.toggleRunning(),
+      startFocus: () => this.pomodoro.startFocus(),
       skipPhase: () => this.pomodoro.skipPhase(),
       resetTimer: () => this.pomodoro.resetTimer(),
       chimeOn: () => this.pomodoro.chimeOn,
@@ -499,11 +500,11 @@ export class App {
     this.dashInput = new DeskDashInput(this.renderer.domElement, this.camera, w.house.screens[1], this.deskDash, ui);
     this.scene.add(this.todoBubbles.group);
     this.deskDash.onTaskDone = (done) => {
-      // Reduced motion: no bubbles, one pop and the sparkle.
+      // Reduced motion: no bubble, just its pop.
       const plan = this.reducedMotion.matches
-        ? { launches: [], pops: [{ delay: 0.05, step: 0.5 }], finale: 0.15 }
+        ? { pop: 0.05, big: done.last }
         : this.todoBubbles.burst(w.house.screens[1], DASH_PX.w, DASH_PX.h, done, done.last);
-      if (this.pomodoro.chimeOn) this.mixer.scheduleBubbleBurst(plan);
+      if (this.pomodoro.chimeOn) this.mixer.scheduleBubblePop(plan.pop, plan.big);
     };
     this.pomodoro = new PomodoroOverlay(ui, {
       scheduleChime: (atMs, kind) => this.mixer.scheduleChime(atMs, kind),
@@ -515,6 +516,7 @@ export class App {
       },
       setAlertVolume: (v) => this.mixer.setAlertVolume(v),
       onFocusDone: (count) => this.deskDash.addPomodoros(count),
+      currentTask: () => this.deskDash.currentTask,
     });
     this.audioPrompt = new AudioPrompt(ui);
     this.slowHint = new SlowHint(ui, () => this.settings.get().quality, (quality) => this.settings.update({ quality }));
@@ -597,7 +599,6 @@ export class App {
     // queries belong to the old context.
     this.renderer.domElement.addEventListener('webglcontextrestored', () => this.gpuTimer.reset());
     this.applySettings(s);
-    if (s.startAtDesk) this.cameras.sit('desk', false);
     // Start in the saved weather instead of easing in from a clear sky.
     this.world.weather.setTargets(this.weatherTargets());
     this.world.weather.snapToTargets();
@@ -857,6 +858,8 @@ export class App {
       label: vi.shortcuts.leaveDesk,
       action: () => {
         if (this.cameras.mode === 'seat') this.toggleSeat(this.cameras.seat);
+        // In the overview, Esc shuts the open panel.
+        else if (this.cameras.mode === 'orbit') this.panel.close();
       },
     });
     this.keymap.register({ code: 'KeyC', keyLabel: 'C', label: vi.shortcuts.walk, action: () => this.cameras.toggle() });
@@ -898,6 +901,8 @@ export class App {
       });
     }
     this.keymap.register({ code: 'Backquote', keyLabel: '`', label: vi.shortcuts.debug, action: toggleSetting('showDebug') });
+    // The ? key (Shift + /): any layout's / key works, Shift or not.
+    this.keymap.register({ code: 'Slash', keyLabel: '?', label: vi.shortcuts.help, action: () => this.panel.toggleShortcuts() });
   }
 
   /** Shader clock back to 0 (see Loop.resetElapsed), with everything timed on it. */

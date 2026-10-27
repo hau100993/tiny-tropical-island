@@ -1,10 +1,14 @@
 import * as THREE from 'three';
 import type { PomodoroSnapshot } from '../ui/PomodoroOverlay';
 import { vi } from '../ui/strings.vi';
-import { ScreenBackdrop } from './screenBackdrop';
+import { attachScreenCanvas, type ScreenBackdrop } from './screenBackdrop';
 import { parseJson, readStored, writeStored } from '../core/storage';
 import {
   addPomodoro,
+  clearDone,
+  MAX_EST,
+  renameTask,
+  setEstimate,
   addTask,
   completeTask,
   moveTask,
@@ -30,6 +34,8 @@ export interface DashDeps {
   info(): ScreenInfo;
   /** Start or pause the Pomodoro. */
   toggleTimer(): void;
+  /** A task's ▶: start focusing now (skips the rest of a break). */
+  startFocus(): void;
   skipPhase(): void;
   /** End the Pomodoro (back to the clock). */
   resetTimer(): void;
@@ -48,9 +54,9 @@ export type DashSlider = 'alert' | 'master';
 
 /** Something on the screen that reacts to a click. */
 export type DashHit =
-  | { kind: 'ring' | 'card' | 'delete' | 'restore'; id: string }
+  | { kind: 'ring' | 'card' | 'delete' | 'restore' | 'play' | 'remove' | 'estimate'; id: string }
   | { kind: 'slider'; id: DashSlider }
-  | { kind: 'input' | 'timer' | 'skip' | 'stop' | 'chime' | 'ambience' };
+  | { kind: 'input' | 'timer' | 'skip' | 'stop' | 'chime' | 'ambience' | 'undo' | 'clearDone' };
 
 /** A finished task: where its ring was on the canvas (the bubbles start there). */
 export interface TaskDone {
@@ -73,9 +79,12 @@ const AMBER = '#ffd38a';
 const DIM = 'rgba(214,232,238,0.66)';
 
 // Layout (canvas pixels). The monitor shows this canvas about 0.4× on a 1080p window, so text
-// is large: 34 px here is ~14 px on screen.
-const STRIP = { x: 36, y: 16, w: 1208, h: 136 };
-const LIST_TOP = 168;
+// is large: 40 px here is ~16 px on screen (2026-10-27: bigger, user request).
+// The strip: the timer row, then a line with the current (or next) task, then the progress.
+const STRIP = { x: 36, y: 16, w: 1208, h: 176 };
+const LIST_TOP = 208;
+/** "Đã xóa … · Hoàn tác" stays this long (s). */
+const UNDO_S = 6;
 const LIST_BOTTOM = H - 12;
 /** With the footer line (what is playing, scene, island time) shown. */
 const LIST_BOTTOM_FOOTER = H - 54;
@@ -84,12 +93,18 @@ const COLS: Record<Col, { x: number; w: number }> = {
   L: { x: 36, w: 716 },
   R: { x: 772, w: 472 },
 };
-const HEAD_H = 52;
-const CARD_H = 76;
+const HEAD_H = 56;
+const CARD_H = 88;
 const CARD_STEP = CARD_H + 12;
-const DONE_H = 62;
+const DONE_H = 72;
 const DONE_STEP = DONE_H + 10;
-const RING_X = 44;
+const RING_X = 46;
+/** Where a card's text starts (after the ring). */
+const TEXT_X = 90;
+const TASK_FONT = 40;
+const DONE_FONT = 33;
+/** A task's ▶ / ⏸ (radius, canvas px). */
+const PLAY_R = 24;
 const BTN = {
   play: { x: 680, y: 84, r: 40 },
   skip: { x: 772, y: 84, r: 33 },
@@ -104,12 +119,18 @@ const VOL: Record<DashSlider, { y: number; icon: number; x0: number; x1: number 
 
 /** Beyond this distance (m) from the desk the screen is too small to read: don't redraw. */
 const NEAR_ENOUGH = 14;
-/** Redraws per second: seated (animations, typing, dragging), close by, farther. */
-const FPS_SEATED = 24;
-const FPS_NEAR = 4;
-const FPS_FAR = 1;
+/**
+ * Redraws per second. Each redraw re-uploads the canvas, which makes the CPU wait for the GPU,
+ * so it only redraws fast while something moves (cards sliding or fading, scrolling, dragging)
+ * or while typing (the caret blinks); otherwise once a second for the clock. The backdrop
+ * drifts in the shader (screenBackdrop.ts) and needs no redraw. Clicks redraw at once.
+ */
+const FPS_ANIMATING = 24;
+const FPS_TYPING = 6;
+const FPS_IDLE = 1;
+const FPS_FAR = 0.5;
 
-type RowKind = 'head' | 'task' | 'input' | 'done' | 'empty';
+type RowKind = 'head' | 'task' | 'input' | 'done' | 'empty' | 'clear';
 
 interface Row {
   key: string;
@@ -153,9 +174,9 @@ interface HitRect {
 export class DeskDash {
   private readonly g: CanvasRenderingContext2D;
   private readonly tex: THREE.CanvasTexture;
-  private readonly backdrop = new ScreenBackdrop(W, H);
-  /** The backdrop's small canvas: what the glass cards see through. */
-  private readonly bg: CanvasRenderingContext2D = this.backdrop.small;
+  private readonly backdrop: ScreenBackdrop;
+  /** Something moved in the last draw (it redraws fast until everything has settled). */
+  private animating = false;
   private readonly center = new THREE.Vector3();
   private todo: TodoState;
   private time = 0;
@@ -170,8 +191,13 @@ export class DeskDash {
   private readonly scroll: Record<Col, number> = { L: 0, R: 0 };
   private readonly scrollTarget: Record<Col, number> = { L: 0, R: 0 };
   private listBottom = LIST_BOTTOM;
-  // Typing a new task (the text comes from DeskDashInput's hidden input).
+  // Typing a new task, or editing one (`editId`); the text comes from DeskDashInput's hidden input.
   private editing = false;
+  private editId: string | null = null;
+  /** A focus session is running (a task's ⏸ shows on the top one). */
+  private focusing = false;
+  /** Just deleted something: the list before, and what the toast says, until `until` (this.time). */
+  private undo: { prev: TodoState; text: string; until: number } | null = null;
   private draft = '';
   private caret = 0;
   private caretTime = 0;
@@ -196,12 +222,9 @@ export class DeskDash {
     const g = canvas.getContext('2d');
     if (!g) throw new Error('2D canvas unavailable');
     this.g = g;
-    this.tex = new THREE.CanvasTexture(canvas);
-    this.tex.colorSpace = THREE.SRGBColorSpace;
-    this.tex.anisotropy = anisotropy;
-    mesh.material.map = this.tex;
-    mesh.material.color.set('#ffffff');
-    mesh.material.needsUpdate = true;
+    const screen = attachScreenCanvas(mesh.material, canvas, anisotropy);
+    this.tex = screen.texture;
+    this.backdrop = screen.backdrop;
     mesh.getWorldPosition(this.center);
     this.todo = parseTodo(parseJson(readStored(STORAGE_KEY)), Date.now());
   }
@@ -211,6 +234,7 @@ export class DeskDash {
   /** Seated at the desk: draws fast enough for animations and typing. */
   update(dt: number, camera: THREE.Camera, seated: boolean): void {
     this.time += dt;
+    this.backdrop.time.value = this.time;
     this.sinceDraw += dt;
     this.caretTime += dt;
     this.dayCheck -= dt;
@@ -223,9 +247,17 @@ export class DeskDash {
     if (dist > NEAR_ENOUGH) return;
     this.drawTimer -= dt;
     if (this.drawTimer > 0) return;
-    this.drawTimer = 1 / (seated ? FPS_SEATED : dist < 4 ? FPS_NEAR : FPS_FAR);
-    this.draw(Math.min(this.sinceDraw, 0.25));
+    // An animation starting after a quiet spell starts from its first step, not a 1 s jump.
+    const step = Math.min(this.sinceDraw, this.animating ? 0.25 : 1 / FPS_ANIMATING);
+    this.draw(step);
     this.sinceDraw = 0;
+    const moving = this.animating || this.dragId !== null;
+    this.drawTimer = 1 / (moving ? FPS_ANIMATING : seated && this.editing ? FPS_TYPING : seated || dist < 4 ? FPS_IDLE : FPS_FAR);
+  }
+
+  /** The task being worked on (the top one), for the Pomodoro card; null with none. */
+  get currentTask(): string | null {
+    return this.todo.open[0]?.text ?? null;
   }
 
   /** Focus sessions ended: a 🍅 for the top task and the day. */
@@ -255,7 +287,10 @@ export class DeskDash {
   }
 
   setHover(hit: DashHit | null): void {
-    this.hover = hit ? hitKey(hit) : '';
+    const hover = hit ? hitKey(hit) : '';
+    if (hover === this.hover) return;
+    this.hover = hover;
+    this.drawTimer = 0;
   }
 
   scrollBy(x: number, y: number, dy: number): void {
@@ -291,11 +326,42 @@ export class DeskDash {
         const a = this.anims.get(`o:${hit.id}`);
         const task = this.todo.open.find((t) => t.id === hit.id);
         if (a && task) this.ghosts.push({ task, y: a.y, t: 0, pop: false });
+        if (task) this.keepUndo(vi.dash.deleted(task.text));
         this.set(removeTask(this.todo, hit.id));
         break;
       }
+      case 'estimate': {
+        // 🍅: one more expected session each click, past MAX_EST back to none.
+        const task = this.todo.open.find((t) => t.id === hit.id);
+        if (task) this.set(setEstimate(this.todo, hit.id, ((task.est ?? 0) + 1) % (MAX_EST + 1)));
+        break;
+      }
+      case 'clearDone':
+        if (this.todo.done.length === 0) break;
+        this.keepUndo(vi.dash.cleared(this.todo.done.length));
+        this.set(clearDone(this.todo));
+        break;
+      case 'undo':
+        if (this.undo) this.set(rollDay(this.undo.prev, Date.now()));
+        this.undo = null;
+        break;
       case 'restore':
         this.set(restoreTask(this.todo, hit.id));
+        break;
+      case 'remove': {
+        const task = this.todo.done.find((t) => t.id === hit.id);
+        if (task) this.keepUndo(vi.dash.deleted(task.text));
+        this.set(removeTask(this.todo, hit.id));
+        break;
+      }
+      case 'play':
+        // The top task's ⏸ pauses; any other ▶ makes that task the current one and focuses.
+        if (this.focusing && this.todo.open[0]?.id === hit.id) this.deps.toggleTimer();
+        else {
+          if (this.todo.open[0]?.id !== hit.id) this.set(moveTask(this.todo, hit.id, 0));
+          this.reveal(`o:${hit.id}`);
+          this.deps.startFocus();
+        }
         break;
       case 'timer':
         this.deps.toggleTimer();
@@ -320,9 +386,28 @@ export class DeskDash {
     this.drawTimer = 0;
   }
 
+  /**
+   * Double-click on a card: edit that task in place (null: stop editing). Returns the task's
+   * text to put in the hidden input, or null if there is no such open task.
+   */
+  beginEdit(id: string | null): string | null {
+    this.editId = null;
+    this.drawTimer = 0;
+    const task = id === null ? undefined : this.todo.open.find((t) => t.id === id);
+    if (!task) return null;
+    this.editId = task.id;
+    this.reveal(`o:${task.id}`);
+    return task.text;
+  }
+
+  /** Enter (or leaving the field) while editing a task: its new text. */
+  renameTask(id: string, text: string): void {
+    this.set(renameTask(this.todo, id, text));
+  }
+
   /** The hidden input's text and caret; `editing` while it has the focus. */
   setDraft(text: string, caret: number, editing: boolean): void {
-    if (editing && !this.editing) this.reveal('input');
+    if (editing && !this.editing && !this.editId) this.reveal('input');
     this.editing = editing;
     this.draft = text;
     this.caret = caret;
@@ -388,6 +473,11 @@ export class DeskDash {
     writeStored(STORAGE_KEY, this.todo);
   }
 
+  /** About to delete: remember the list as it is, for "Hoàn tác". */
+  private keepUndo(text: string): void {
+    this.undo = { prev: this.todo, text, until: this.time + UNDO_S };
+  }
+
   private overDone(): boolean {
     return this.dragId !== null && this.dragX > COLS.R.x - 10;
   }
@@ -444,6 +534,8 @@ export class DeskDash {
         rows.push({ key: `d:${task.id}`, kind: 'done', y, h: DONE_H, task });
         y += DONE_STEP;
       }
+      // "Xóa hết" under the last one (it can be undone).
+      rows.push({ key: 'clear', kind: 'clear', y, h: 44 });
     }
     return rows;
   }
@@ -454,11 +546,15 @@ export class DeskDash {
     const info = this.deps.info();
     const p = info.pomodoro;
     const timerOn = p !== null && p.started;
+    this.focusing = p !== null && p.running && !p.onBreak;
     this.listBottom = timerOn ? LIST_BOTTOM : LIST_BOTTOM_FOOTER;
     this.hits = [];
 
-    this.backdrop.update(this.time);
-    this.backdrop.paint(this.g, 0.38);
+    // The backdrop is the screen's shader (screenBackdrop.ts); here only a veil darkening it
+    // for the text, which the glass cards cut through (see glass).
+    this.g.clearRect(0, 0, W, H);
+    this.g.fillStyle = 'rgba(5,14,22,0.38)';
+    this.g.fillRect(0, 0, W, H);
     this.drawStrip(p, timerOn);
 
     // Dragging: which slot the card is over, and scroll when held near an edge.
@@ -471,9 +567,13 @@ export class DeskDash {
     }
     const k = Math.min(1, dt * 14);
     const live = new Set<string>();
+    let moving = false;
     for (const c of ['L', 'R'] as const) {
       this.scrollTarget[c] = this.clampScroll(c, this.scrollTarget[c]);
       this.scroll[c] += (this.scrollTarget[c] - this.scroll[c]) * k;
+      // Settled (within half a pixel): snap, so the screen can stop redrawing.
+      if (Math.abs(this.scrollTarget[c] - this.scroll[c]) > 0.5) moving = true;
+      else this.scroll[c] = this.scrollTarget[c];
       const rows = this.layout(c);
       for (const r of rows) {
         live.add(r.key);
@@ -484,9 +584,12 @@ export class DeskDash {
         }
         a.y += (r.y - a.y) * k;
         a.a = Math.min(1, a.a + dt * 5);
+        if (Math.abs(r.y - a.y) > 0.5 || a.a < 1) moving = true;
+        else a.y = r.y;
       }
       this.drawColumn(c, rows, dt);
     }
+    this.animating = moving || this.ghosts.length > 0;
     for (const key of this.anims.keys()) if (!live.has(key) && key !== `o:${this.dragId}`) this.anims.delete(key);
 
     if (this.dragId) {
@@ -499,6 +602,8 @@ export class DeskDash {
       }
     }
     if (!timerOn) this.drawFooter(info);
+    if (this.undo && this.time > this.undo.until) this.undo = null;
+    if (this.undo) this.drawUndo(this.undo.text);
     this.tex.needsUpdate = true;
   }
 
@@ -570,12 +675,12 @@ export class DeskDash {
     g.roundRect(x, y, w, h, r);
     g.clip();
     if (!opts.dashed) {
-      const mag = 1.08;
-      const sw = w / mag;
-      const sh = h / mag;
-      const k = this.backdrop.scale;
+      // The backdrop shows through the glass: cut 90 % of the darkening veil (and of anything
+      // drawn under the card) inside it, so the colours behind it read brighter.
+      g.globalCompositeOperation = 'destination-out';
       g.globalAlpha = alpha * 0.9;
-      g.drawImage(this.bg.canvas, (x + (w - sw) / 2) / k, (y + (h - sh) / 2) / k, sw / k, sh / k, x, y, w, h);
+      g.fillRect(x, y, w, h);
+      g.globalCompositeOperation = 'source-over';
       g.globalAlpha = alpha;
     }
     g.fillStyle = `rgba(255,255,255,${opts.tint ?? 0.08})`;
@@ -628,12 +733,13 @@ export class DeskDash {
       // Progress along the strip's bottom edge.
       g.fillStyle = 'rgba(255,255,255,0.12)';
       g.beginPath();
-      g.roundRect(64, 138, 1152, 5, 2.5);
+      g.roundRect(64, 178, 1152, 5, 2.5);
       g.fill();
       g.fillStyle = color;
       g.beginPath();
-      g.roundRect(64, 138, Math.max(5, 1152 * Math.min(1, p.progress)), 5, 2.5);
+      g.roundRect(64, 178, Math.max(5, 1152 * Math.min(1, p.progress)), 5, 2.5);
       g.fill();
+      this.drawTaskLine(p.onBreak ? vi.dash.next : vi.dash.now, color);
       this.roundButton(BTN.play, 'timer', p.running ? 'pause' : 'play', true);
       this.roundButton(BTN.skip, 'skip', 'skip', false);
       this.roundButton(BTN.stop, 'stop', 'stop', false);
@@ -655,9 +761,50 @@ export class DeskDash {
       g.fillStyle = '#ffffff';
       g.fillText(vi.dash.start, b.x + 78, b.y + b.h / 2 + 10);
       this.hits.push({ x: b.x, y: b.y, w: b.w, h: b.h, hit: { kind: 'timer' } });
+      this.drawTaskLine(vi.dash.next, TEAL);
     }
     this.volumeRow('alert', '🔔', this.deps.chimeOn(), this.deps.alertVolume());
     this.volumeRow('master', '🌊', this.deps.ambienceOn(), this.deps.masterVolume());
+  }
+
+  /** The strip's second line: "Đang làm · <the top task>" across the whole strip. */
+  private drawTaskLine(label: string, color: string): void {
+    const task = this.todo.open[0];
+    if (!task) return;
+    const g = this.g;
+    g.font = `600 26px ${UI_FONT}`;
+    g.fillStyle = color;
+    const head = `${label.toUpperCase()}  `;
+    g.fillText(head, 64, 164);
+    const x = 64 + g.measureText(head).width;
+    g.font = `30px ${UI_FONT}`;
+    g.fillStyle = 'rgba(255,255,255,0.92)';
+    g.fillText(ellipsize(g, task.text, STRIP.x + STRIP.w - 28 - x), x, 165);
+  }
+
+  /** "Đã xóa … · Hoàn tác" at the bottom, over the lists, for UNDO_S seconds. */
+  private drawUndo(text: string): void {
+    const g = this.g;
+    g.save();
+    g.font = `26px ${UI_FONT}`;
+    const label = ellipsize(g, text, 620);
+    const lw = g.measureText(label).width;
+    g.font = `700 26px ${UI_FONT}`;
+    const uw = g.measureText(vi.dash.undo).width;
+    const w = lw + uw + 88;
+    const h = 56;
+    const x = (W - w) / 2;
+    const y = H - h - 14;
+    const hov = this.hover === 'undo';
+    this.glass(x, y, w, h, h / 2, 1, { tint: hov ? 0.24 : 0.16, lift: 1 });
+    g.fillStyle = '#ffffff';
+    g.font = `26px ${UI_FONT}`;
+    g.fillText(label, x + 28, y + 37);
+    g.fillStyle = TEAL;
+    g.font = `700 26px ${UI_FONT}`;
+    g.fillText(vi.dash.undo, x + 60 + lw, y + 37);
+    g.restore();
+    this.hits.push({ x, y, w, h, hit: { kind: 'undo' } });
   }
 
   /** A round icon (click: on/off) and a slider (click or drag: volume). */
@@ -718,15 +865,15 @@ export class DeskDash {
     switch (r.kind) {
       case 'head': {
         g.globalAlpha = alpha;
-        g.font = `700 25px ${UI_FONT}`;
+        g.font = `700 28px ${UI_FONT}`;
         g.fillStyle = c === 'L' ? '#ffffff' : DIM;
         const title = c === 'L' ? vi.dash.todo.toUpperCase() : vi.dash.doneToday.toUpperCase();
         const count = c === 'L' ? this.todo.open.length : this.todo.done.length;
-        g.fillText(`${title} · ${count}`, col.x + 8, top + 34);
-        g.font = `22px ${EMOJI_FONT}`;
+        g.fillText(`${title} · ${count}`, col.x + 8, top + 36);
+        g.font = `24px ${EMOJI_FONT}`;
         g.textAlign = 'right';
         g.fillStyle = DIM;
-        g.fillText(c === 'L' ? vi.dash.hint : `🍅 ${this.todo.pomosToday}`, col.x + col.w - 8, top + 33);
+        g.fillText(c === 'L' ? vi.dash.hint : `🍅 ${this.todo.pomosToday}`, col.x + col.w - 8, top + 35);
         g.textAlign = 'left';
         g.globalAlpha = 1;
         break;
@@ -740,26 +887,47 @@ export class DeskDash {
       case 'done':
         if (r.task) this.drawDone(r.task, top, alpha);
         break;
+      case 'clear': {
+        g.globalAlpha = alpha;
+        g.font = `600 24px ${UI_FONT}`;
+        g.textAlign = 'right';
+        const hov = this.hover === 'clearDone';
+        g.fillStyle = hov ? '#ff9a9a' : DIM;
+        const x = col.x + col.w - 12;
+        g.fillText(vi.dash.clearDone, x, top + 30);
+        const w = g.measureText(vi.dash.clearDone).width;
+        if (hov) g.fillRect(x - w, top + 35, w, 2);
+        g.textAlign = 'left';
+        g.globalAlpha = 1;
+        this.pushListHit(x - w - 12, top, w + 24, 44, { kind: 'clearDone' });
+        break;
+      }
       case 'empty':
         g.globalAlpha = alpha;
-        g.font = `24px ${UI_FONT}`;
+        g.font = `28px ${UI_FONT}`;
         g.fillStyle = 'rgba(214,232,238,0.45)';
-        g.fillText(vi.dash.noneDone, col.x + 12, top + 38);
+        g.fillText(vi.dash.noneDone, col.x + 12, top + 42);
         g.globalAlpha = 1;
         break;
     }
   }
 
-  /** `first`: the top task, the one being worked on (it glows and collects the 🍅). */
+  /**
+   * `first`: the top task, the one being worked on (it glows, collects the 🍅 and always shows
+   * its ▶, or ⏸ while a focus session runs). Other tasks show ▶ on hover.
+   */
   private drawTask(task: Task, x: number, w: number, top: number, alpha: number, lifted: boolean, first: boolean): void {
     const g = this.g;
     const hovCard = this.hover === `card:${task.id}`;
     const hovRing = this.hover === `ring:${task.id}`;
     const hovDel = this.hover === `delete:${task.id}`;
-    const hovAny = hovCard || hovRing || hovDel || lifted;
+    const hovPlay = this.hover === `play:${task.id}`;
+    const hovAny = hovCard || hovRing || hovDel || hovPlay || lifted;
+    const editing = this.editId === task.id && this.editing;
+    const running = first && this.focusing;
     this.glass(x, top, w, CARD_H, 24, alpha, {
-      tint: hovAny ? 0.14 : first ? 0.11 : 0.08,
-      glow: first && !lifted ? 'rgba(79,209,193,0.9)' : undefined,
+      tint: editing ? 0.16 : hovAny ? 0.14 : first ? 0.11 : 0.08,
+      glow: editing ? 'rgba(255,255,255,0.6)' : first && !lifted ? 'rgba(79,209,193,0.9)' : undefined,
       lift: lifted ? 1 : 0,
     });
     const cy = top + CARD_H / 2;
@@ -767,7 +935,7 @@ export class DeskDash {
     g.globalAlpha = alpha;
     // The ring: click it when the task is done.
     g.beginPath();
-    g.arc(x + RING_X, cy, 18, 0, Math.PI * 2);
+    g.arc(x + RING_X, cy, 20, 0, Math.PI * 2);
     if (hovRing) {
       g.fillStyle = 'rgba(79,209,193,0.35)';
       g.fill();
@@ -779,7 +947,13 @@ export class DeskDash {
       g.strokeStyle = '#ffffff';
       drawCheck(g, x + RING_X, cy, 9);
     }
-    // Right side: ✕ on hover, then the tomatoes.
+    if (editing) {
+      g.restore();
+      this.drawDraft(x + TEXT_X, cy, w - TEXT_X - 22, vi.dash.editHint);
+      this.pushListHit(x, top, w, CARD_H, { kind: 'card', id: task.id });
+      return;
+    }
+    // Right side: ✕ on hover, ▶ / ⏸, then the tomatoes.
     let right = x + w - 22;
     if (hovAny && !lifted) {
       g.strokeStyle = hovDel ? '#ff9a9a' : 'rgba(255,255,255,0.55)';
@@ -792,24 +966,48 @@ export class DeskDash {
       g.moveTo(dx + 9, cy - 9);
       g.lineTo(dx - 9, cy + 9);
       g.stroke();
-      right -= 46;
     }
-    if (task.pomos > 0) {
+    // The ✕ slot is kept even when ✕ is hidden, so ▶ doesn't jump when the pointer comes in.
+    if (!lifted) right -= 46;
+    const showPlay = (first || hovAny) && !lifted;
+    const playX = right - PLAY_R;
+    if (showPlay) {
+      g.beginPath();
+      g.arc(playX, cy, PLAY_R, 0, Math.PI * 2);
+      g.fillStyle = running ? TEAL : hovPlay ? 'rgba(79,209,193,0.45)' : 'rgba(255,255,255,0.14)';
+      g.fill();
+      g.fillStyle = running ? '#06302b' : '#ffffff';
+      drawIcon(g, running ? 'pause' : 'play', playX + (running ? 0 : 2), cy, 10);
+      right -= PLAY_R * 2 + 16;
+    }
+    // 🍅: sessions done, "2/4" with an estimate (amber once past it), a faint "🍅+" on hover to
+    // set one. Clicking it counts the estimate up.
+    const est = task.est ?? 0;
+    const hovEst = this.hover === `estimate:${task.id}`;
+    const tom = est > 0 ? `🍅 ${task.pomos}/${est}` : task.pomos > 0 ? (task.pomos > 3 ? `🍅×${task.pomos}` : '🍅'.repeat(task.pomos)) : hovAny && !lifted ? '🍅+' : '';
+    let estHit: { x: number; w: number } | null = null;
+    if (tom) {
       g.textAlign = 'right';
-      g.font = `26px ${EMOJI_FONT}`;
-      g.fillStyle = '#ffffff';
-      const t = task.pomos > 3 ? `🍅×${task.pomos}` : '🍅'.repeat(task.pomos);
-      g.fillText(t, right, cy + 9);
-      right -= g.measureText(t).width + 14;
+      g.font = `28px ${EMOJI_FONT}`;
+      g.globalAlpha = alpha * (est === 0 && task.pomos === 0 && !hovEst ? 0.45 : 1);
+      g.fillStyle = est > 0 && task.pomos > est ? AMBER : hovEst ? TEAL : '#ffffff';
+      g.fillText(tom, right, cy + 10);
+      const tw = g.measureText(tom).width;
+      estHit = { x: right - tw - 8, w: tw + 16 };
+      right -= tw + 14;
       g.textAlign = 'left';
+      g.globalAlpha = alpha;
     }
-    g.font = `${first ? 600 : 400} 34px ${UI_FONT}`;
+    g.font = `${first ? 600 : 400} ${TASK_FONT}px ${UI_FONT}`;
     g.fillStyle = '#ffffff';
-    g.fillText(ellipsize(g, task.text, right - (x + 82)), x + 82, cy + 12);
+    g.fillText(ellipsize(g, task.text, right - (x + TEXT_X)), x + TEXT_X, cy + 14);
     g.restore();
     if (!lifted) {
       this.pushListHit(x, top, w, CARD_H, { kind: 'card', id: task.id });
-      this.pushListHit(x + 8, top, 74, CARD_H, { kind: 'ring', id: task.id });
+      this.pushListHit(x + 8, top, TEXT_X - 8, CARD_H, { kind: 'ring', id: task.id });
+      // ▶ is there to press only where it shows (always on the top task).
+      if (showPlay) this.pushListHit(playX - PLAY_R - 6, top, PLAY_R * 2 + 12, CARD_H, { kind: 'play', id: task.id });
+      if (estHit) this.pushListHit(estHit.x, top, estHit.w, CARD_H, { kind: 'estimate', id: task.id });
       if (hovAny) this.pushListHit(x + w - 70, top, 70, CARD_H, { kind: 'delete', id: task.id });
     }
   }
@@ -818,11 +1016,13 @@ export class DeskDash {
     const g = this.g;
     const { x, w } = COLS.L;
     const hov = this.hover === 'input';
-    this.glass(x, top, w, CARD_H, 24, alpha, { tint: this.editing ? 0.12 : hov ? 0.08 : 0.03, dashed: !this.editing, glow: this.editing ? 'rgba(255,255,255,0.5)' : undefined });
+    // Typing a new task (not editing one).
+    const typing = this.editing && !this.editId;
+    this.glass(x, top, w, CARD_H, 24, alpha, { tint: typing ? 0.12 : hov ? 0.08 : 0.03, dashed: !typing, glow: typing ? 'rgba(255,255,255,0.5)' : undefined });
     const cy = top + CARD_H / 2;
     g.save();
     g.globalAlpha = alpha;
-    g.strokeStyle = this.editing ? TEAL : 'rgba(255,255,255,0.7)';
+    g.strokeStyle = typing ? TEAL : 'rgba(255,255,255,0.7)';
     g.lineWidth = 3.4;
     g.lineCap = 'round';
     g.beginPath();
@@ -831,70 +1031,95 @@ export class DeskDash {
     g.moveTo(x + RING_X, cy - 12);
     g.lineTo(x + RING_X, cy + 12);
     g.stroke();
-    const tx = x + 82;
-    if (this.editing) {
-      g.font = `19px ${UI_FONT}`;
-      g.fillStyle = DIM;
-      g.textAlign = 'right';
-      g.fillText(vi.dash.addHint, x + w - 22, cy + 7);
-      const hintW = g.measureText(vi.dash.addHint).width;
-      g.textAlign = 'left';
-      g.font = `34px ${UI_FONT}`;
-      const maxW = w - 82 - hintW - 50;
-      // Keep the caret in view: show the end of a long draft.
-      let start = 0;
-      while (start < this.caret && g.measureText(this.draft.slice(start, this.caret)).width > maxW) start++;
-      const shown = ellipsize(g, this.draft.slice(start), maxW);
-      g.fillStyle = '#ffffff';
-      g.fillText(shown, tx, cy + 12);
-      if (this.caretTime % 1 < 0.6) {
-        const cx = tx + g.measureText(this.draft.slice(start, this.caret)).width + 1;
-        g.fillStyle = TEAL;
-        g.fillRect(cx, cy - 20, 3, 40);
-      }
+    const tx = x + TEXT_X;
+    if (typing) {
+      g.restore();
+      this.drawDraft(tx, cy, w - TEXT_X - 22, vi.dash.addHint);
     } else {
-      g.font = `34px ${UI_FONT}`;
+      g.font = `${TASK_FONT}px ${UI_FONT}`;
       g.fillStyle = hov ? 'rgba(255,255,255,0.88)' : DIM;
-      g.fillText(vi.dash.add, tx, cy + 12);
+      g.fillText(vi.dash.add, tx, cy + 14);
+      g.restore();
+    }
+    this.pushListHit(x, top, w, CARD_H, { kind: 'input' });
+  }
+
+  /** The text being typed with its caret, from `tx` across `w` px, and a key hint on the right. */
+  private drawDraft(tx: number, cy: number, w: number, hint: string): void {
+    const g = this.g;
+    g.save();
+    g.font = `22px ${UI_FONT}`;
+    g.fillStyle = DIM;
+    g.textAlign = 'right';
+    g.fillText(hint, tx + w, cy + 8);
+    const hintW = g.measureText(hint).width;
+    g.textAlign = 'left';
+    g.font = `${TASK_FONT}px ${UI_FONT}`;
+    const maxW = w - hintW - 28;
+    // Keep the caret in view: show the end of a long draft.
+    let start = 0;
+    while (start < this.caret && g.measureText(this.draft.slice(start, this.caret)).width > maxW) start++;
+    const shown = ellipsize(g, this.draft.slice(start), maxW);
+    g.fillStyle = '#ffffff';
+    g.fillText(shown, tx, cy + 14);
+    if (this.caretTime % 1 < 0.6) {
+      const cx = tx + g.measureText(this.draft.slice(start, this.caret)).width + 1;
+      g.fillStyle = TEAL;
+      g.fillRect(cx, cy - 23, 3, 46);
     }
     g.restore();
-    this.pushListHit(x, top, w, CARD_H, { kind: 'input' });
   }
 
   private drawDone(task: Task, top: number, alpha: number): void {
     const g = this.g;
     const { x, w } = COLS.R;
-    const hov = this.hover === `restore:${task.id}`;
+    const hovRemove = this.hover === `remove:${task.id}`;
+    const hov = this.hover === `restore:${task.id}` || hovRemove;
     this.glass(x, top, w, DONE_H, 20, alpha * 0.8, { tint: hov ? 0.12 : 0.05 });
     const cy = top + DONE_H / 2;
     g.save();
     g.globalAlpha = alpha * (hov ? 1 : 0.85);
     g.beginPath();
-    g.arc(x + 34, cy, 15, 0, Math.PI * 2);
+    g.arc(x + 34, cy, 17, 0, Math.PI * 2);
     g.fillStyle = hov ? 'rgba(255,255,255,0.25)' : 'rgba(79,209,193,0.8)';
     g.fill();
     g.strokeStyle = '#ffffff';
     if (hov) drawRestore(g, x + 34, cy, 8);
     else drawCheck(g, x + 34, cy, 7.5);
     let right = x + w - 18;
+    // ✕ on hover: delete it from the list (a click elsewhere on the row puts it back to do).
+    if (hov) {
+      g.strokeStyle = hovRemove ? '#ff9a9a' : 'rgba(255,255,255,0.55)';
+      g.lineWidth = 3;
+      g.lineCap = 'round';
+      const dx = right - 9;
+      g.beginPath();
+      g.moveTo(dx - 8, cy - 8);
+      g.lineTo(dx + 8, cy + 8);
+      g.moveTo(dx + 8, cy - 8);
+      g.lineTo(dx - 8, cy + 8);
+      g.stroke();
+      right -= 40;
+    }
     if (task.pomos > 0) {
-      g.font = `22px ${EMOJI_FONT}`;
+      g.font = `24px ${EMOJI_FONT}`;
       g.textAlign = 'right';
       g.fillStyle = '#ffffff';
-      const t = `🍅${task.pomos}`;
+      const t = task.est ? `🍅${task.pomos}/${task.est}` : `🍅${task.pomos}`;
       g.fillText(t, right, cy + 8);
       right -= g.measureText(t).width + 12;
       g.textAlign = 'left';
     }
-    g.font = `28px ${UI_FONT}`;
-    g.fillStyle = 'rgba(230,240,244,0.75)';
+    g.font = `${DONE_FONT}px ${UI_FONT}`;
+    g.fillStyle = 'rgba(230,240,244,0.78)';
     const text = ellipsize(g, task.text, right - (x + 62));
-    g.fillText(text, x + 62, cy + 10);
+    g.fillText(text, x + 62, cy + 12);
     const tw = g.measureText(text).width;
     g.fillStyle = 'rgba(230,240,244,0.55)';
     g.fillRect(x + 62, cy, tw, 2);
     g.restore();
     this.pushListHit(x, top, w, DONE_H, { kind: 'restore', id: task.id });
+    if (hov) this.pushListHit(x + w - 60, top, 60, DONE_H, { kind: 'remove', id: task.id });
   }
 
   /** A finished card swells a little and fades as its bubbles fly out; a deleted one just fades. */
@@ -912,12 +1137,12 @@ export class DeskDash {
     const alpha = (1 - e) * (1 - e);
     this.glass(x, top, w, CARD_H, 24, alpha, { tint: gh.pop ? 0.2 * (1 - e) + 0.08 : 0.08 });
     g.globalAlpha = alpha;
-    g.font = `34px ${UI_FONT}`;
+    g.font = `${TASK_FONT}px ${UI_FONT}`;
     g.fillStyle = '#ffffff';
-    g.fillText(ellipsize(g, gh.task.text, w - 140), x + 82, cy + 12);
+    g.fillText(ellipsize(g, gh.task.text, w - 140), x + TEXT_X, cy + 14);
     if (gh.pop) {
       g.beginPath();
-      g.arc(x + RING_X, cy, 18, 0, Math.PI * 2);
+      g.arc(x + RING_X, cy, 20, 0, Math.PI * 2);
       g.fillStyle = TEAL;
       g.fill();
       g.strokeStyle = '#ffffff';

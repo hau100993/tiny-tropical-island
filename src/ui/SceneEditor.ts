@@ -1,7 +1,7 @@
 import { button, CLOCK_MARKS, el, PERCENT, slider, toggle, VOLUME, type SliderControl } from './components';
 import { icons } from './icons';
 import { vi } from './strings.vi';
-import type { SettingsStore } from '../core/settings';
+import { fromSkyBalance, skyBalance, type SettingsStore } from '../core/settings';
 import { DEFAULT_SCENE, sceneValuesOf, type ScenePreset, type ScenePresetStore, type SceneValues } from '../core/scenePresets';
 import type { SoundLibrary } from '../audio/library/SoundLibrary';
 import { formatClock } from '../world/celestial';
@@ -19,11 +19,13 @@ export interface SceneEditorDeps {
   setSky: (hours: number, skyTurn: number) => void;
   /** Sky turn (degrees) that brings this hour's sun or moon into the desk window. */
   windowTurn: (hours: number) => number;
+  /** A scene of your own was deleted (its recording mappings go too). */
+  onDeleted: (id: string) => void;
   /** Called when the editor closes (saved or not). */
   onClose: (savedId: string | null) => void;
 }
 
-type EffectKey = 'visualRain' | 'visualSnow' | 'visualWind' | 'waveStrength' | 'clouds' | 'cirrus' | 'gloom' | 'clarity' | 'meteors' | 'aurora' | 'moonlight' | 'sunBrightness' | 'sunSize';
+type EffectKey = 'visualRain' | 'visualSnow' | 'visualWind' | 'waveStrength' | 'clouds' | 'cirrus' | 'meteors' | 'aurora' | 'moonlight' | 'sunBrightness' | 'sunSize';
 type FlagKey = 'rainbow' | 'stars' | 'fireflies';
 
 /** The island as it was when the editor opened (Hủy puts it back). */
@@ -43,7 +45,8 @@ const NORMAL_MARKED: readonly EffectKey[] = ['sunBrightness', 'sunSize', 'moonli
 /**
  * "Tạo cảnh" / "Sửa cảnh": one page inside the Cảnh section with the scene's name, time of day
  * (optionally aimed at the desk window), effects and sound. Every change shows on the island
- * right away; Hủy restores what was there, Lưu stores the scene and plays it.
+ * right away; Hủy restores what was there, Lưu stores the scene and plays it. At the bottom, a
+ * scene of your own can be deleted and an edited built-in reset (each asks for a second click).
  */
 export class SceneEditor {
   readonly root: HTMLElement;
@@ -62,6 +65,9 @@ export class SceneEditor {
   private readonly soundHint: HTMLElement;
   private readonly fileInput: HTMLInputElement;
   private clock!: SliderControl;
+  /** Delete / reset wait for a second click (a browser confirm() can be blocked). */
+  private armed = false;
+  private armTimer = 0;
   private aimToggle!: ReturnType<typeof toggle>;
 
   constructor(
@@ -154,29 +160,33 @@ export class SceneEditor {
       });
       return t.root;
     };
-    const weatherFlags = el('div', 'button-row');
+    // Gloom and clarity as one two-way slider: left grey, right clear (the middle is normal).
+    const sky = slider(vi.scene.sky, skyBalance(this.values), (b) => {
+      const v = fromSkyBalance(b);
+      this.values.gloom = v.gloom;
+      this.values.clarity = v.clarity;
+      this.deps.settings.update(v);
+    }, { min: -1, max: 1, step: 0.01, wheelStep: 0.05, format: vi.scene.skyValue, defaultValue: 0, marks: [0] });
+    sky.root.classList.add('sky-slider');
+    sky.root.title = `${vi.scene.skyHint}\n${sky.root.title}`;
+    const weatherFlags = el('div', 'option-list');
     weatherFlags.append(flag('rainbow', vi.scene.rainbow));
-    const nightFlags = el('div', 'button-row');
+    const nightFlags = el('div', 'option-list');
     nightFlags.append(flag('stars', vi.panel.stars), flag('fireflies', vi.panel.fireflies));
+    // What most scenes change stays open; the sun and the night sky fold away.
     fx.body.append(
       el('div', 'subhead', vi.panel.weather),
       add('visualRain', vi.scene.rain),
       add('visualSnow', vi.scene.snow),
       add('visualWind', vi.scene.wind),
       add('waveStrength', vi.scene.waves),
+      el('div', 'subhead', vi.scene.skyGroup),
       add('clouds', vi.scene.clouds),
       add('cirrus', vi.scene.cirrus),
-      add('gloom', vi.scene.gloom),
-      add('clarity', vi.scene.clarity),
+      sky.root,
       weatherFlags,
-      el('div', 'subhead', vi.scene.sun),
-      add('sunBrightness', vi.scene.sunBrightness),
-      add('sunSize', vi.scene.sunSize),
-      el('div', 'subhead', vi.panel.nightSky),
-      add('moonlight', vi.panel.moonlight),
-      add('meteors', vi.panel.meteors),
-      add('aurora', vi.panel.aurora),
-      nightFlags,
+      this.fold(vi.scene.sun, add('sunBrightness', vi.scene.sunBrightness), add('sunSize', vi.scene.sunSize)),
+      this.fold(vi.scene.nightGroup, add('moonlight', vi.panel.moonlight), add('meteors', vi.panel.meteors), add('aurora', vi.panel.aurora), nightFlags),
     );
 
     // Sound: the recordings that play with the scene; none = the synthesized fallback.
@@ -200,7 +210,32 @@ export class SceneEditor {
     const actions = el('div', 'editor-actions');
     const save = button(vi.scene.saveScene, () => this.save(), 'btn primary');
     actions.append(button(vi.scene.cancel, () => this.cancel(), 'btn'), save);
-    foot.append(this.msg, actions);
+    foot.append(this.msg);
+    // Delete (your own scene) or reset (a built-in you have edited).
+    const remove = p && !p.builtIn ? 'delete' : p && deps.scenes.isModified(p.id) ? 'reset' : null;
+    if (remove) {
+      const label = remove === 'delete' ? vi.scene.delete : vi.scene.reset;
+      const confirm = remove === 'delete' ? vi.scene.confirmDeleteBtn : vi.scene.confirmResetBtn;
+      const b = button(label, () => {
+        window.clearTimeout(this.armTimer);
+        if (this.armed) {
+          if (remove === 'delete') this.deleteScene();
+          else this.resetScene();
+          return;
+        }
+        this.armed = true;
+        b.textContent = confirm;
+        b.classList.add('danger');
+        this.armTimer = window.setTimeout(() => {
+          this.armed = false;
+          b.textContent = label;
+          b.classList.remove('danger');
+        }, 4000);
+      }, 'btn small ghost editor-remove');
+      if (remove === 'reset') b.title = vi.scene.resetTitle;
+      foot.append(b);
+    }
+    foot.append(actions);
     this.nameInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this.save();
     });
@@ -227,6 +262,15 @@ export class SceneEditor {
     const body = el('div', 'editor-stack');
     root.append(h, body);
     return { root, body };
+  }
+
+  /** A folded block of effects inside a group (closed at first). */
+  private fold(title: string, ...children: HTMLElement[]): HTMLElement {
+    const d = el('details', 'editor-fold');
+    const body = el('div', 'editor-stack');
+    body.append(...children);
+    d.append(el('summary', 'editor-fold-title', title), body);
+    return d;
   }
 
   private setValue<K extends keyof SceneValues>(key: K, v: SceneValues[K]): void {
@@ -337,10 +381,35 @@ export class SceneEditor {
 
   /** Hủy / back: the island goes back to how it was. */
   cancel(): void {
-    const { settings } = this.deps;
+    this.restore(this.snap.activeScene);
+    this.deps.onClose(null);
+  }
+
+  /** The island as it was when the editor opened, with this scene selected. */
+  private restore(activeScene: string): void {
+    window.clearTimeout(this.armTimer);
     const s = this.snap;
-    settings.update({ ...s.values, activeScene: s.activeScene, timeMode: s.timeMode, timePaused: s.timePaused });
+    this.deps.settings.update({ ...s.values, activeScene, timeMode: s.timeMode, timePaused: s.timePaused });
     this.deps.setSky(s.hours, s.skyTurn);
+  }
+
+  /** Deletes the scene of your own being edited; the effects on screen stay as they were. */
+  private deleteScene(): void {
+    const p = this.editing;
+    if (!p || p.builtIn) return;
+    this.restore(this.snap.activeScene === p.id ? '' : this.snap.activeScene);
+    this.deps.scenes.remove(p.id);
+    this.deps.onDeleted(p.id);
+    this.deps.onClose(null);
+  }
+
+  /** Puts the built-in being edited back as shipped, and plays it. */
+  private resetScene(): void {
+    const p = this.editing;
+    if (!p || !p.builtIn) return;
+    window.clearTimeout(this.armTimer);
+    this.deps.scenes.resetBuiltIn(p.id);
+    this.deps.applyScene(p.id);
     this.deps.onClose(null);
   }
 }

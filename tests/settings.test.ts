@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { defaultSettings, mouseLook, parseSettings, SETTINGS_VERSION } from '../src/core/settings';
+import { defaultSettings, fromSkyBalance, mouseLook, parseSettings, SETTINGS_VERSION, skyBalance } from '../src/core/settings';
+import { parseSceneValues } from '../src/core/scenePresets';
 
 describe('parseSettings', () => {
   it('maps the old day-cycle modes onto the island clock', () => {
@@ -51,5 +52,29 @@ describe('parseSettings', () => {
     expect(parseSettings(JSON.stringify({ waveStrength: 3 })).waveStrength).toBe(1);
     expect(parseSettings(JSON.stringify({ waveStrength: -1 })).waveStrength).toBe(0);
     expect(parseSettings(JSON.stringify({ waveStrength: 'big' })).waveStrength).toBe(defaultSettings().waveStrength);
+  });
+});
+
+describe('sky balance (gloom and clarity as one slider)', () => {
+  it('maps −1 … +1 onto one of the two fields', () => {
+    expect(fromSkyBalance(-0.4)).toEqual({ gloom: 0.4, clarity: 0 });
+    expect(fromSkyBalance(0.7)).toEqual({ gloom: 0, clarity: 0.7 });
+    expect(fromSkyBalance(0)).toEqual({ gloom: 0, clarity: 0 });
+    expect(fromSkyBalance(3)).toEqual({ gloom: 0, clarity: 1 });
+    expect(skyBalance(fromSkyBalance(-0.25))).toBeCloseTo(-0.25);
+  });
+
+  it('keeps the net when old data had both up', () => {
+    const s = parseSettings(JSON.stringify({ gloom: 0.3, clarity: 1 }));
+    expect(s.gloom).toBe(0);
+    expect(s.clarity).toBeCloseTo(0.7);
+    const v = parseSceneValues({ gloom: 0.8, clarity: 0.2 });
+    expect(v.gloom).toBeCloseTo(0.6);
+    expect(v.clarity).toBe(0);
+  });
+
+  it('leaves the panel tab valid', () => {
+    expect(parseSettings(JSON.stringify({ panelTab: 'sound' })).panelTab).toBe('sound');
+    expect(parseSettings(JSON.stringify({ panelTab: 'nope', panelSections: ['view'] })).panelTab).toBe('scene');
   });
 });

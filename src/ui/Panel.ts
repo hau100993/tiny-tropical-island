@@ -9,7 +9,9 @@ import type { SoundLibrary } from '../audio/library/SoundLibrary';
 import { isTyping, type Keymap } from '../controls/keymap';
 import { QUALITY_LEVELS, type QualityLevel } from '../core/quality';
 import type { ScenePresetStore } from '../core/scenePresets';
-import { CHARACTER_IDS, PANEL_SECTIONS, type CharacterId, type PanelSection, type Settings, type SettingsStore } from '../core/settings';
+import { CHARACTER_IDS, PANEL_TABS, type CharacterId, type PanelTab, type Settings, type SettingsStore } from '../core/settings';
+import type { WalkView } from '../controls/walker';
+import { ShortcutsView } from './ShortcutsView';
 import { formatClock } from '../world/celestial';
 import { nextSpeed } from './timeSpeed';
 import type { Fullscreen } from './fullscreen';
@@ -44,8 +46,11 @@ export interface PanelDeps {
   onViewChange: (fn: () => void) => void;
   /** Goes to a view: orbit, walking, sitting at the desk, in the tub. */
   goTo: (view: ViewId) => void;
-  /** Pomodoro: the timer's state for the header button, and showing/hiding its card. */
-  pomodoro: () => { remaining: string; running: boolean; visible: boolean } | null;
+  /**
+   * Pomodoro: the timer's state for the ring round the shut panel's ☰ (progress 0..1 through
+   * the phase), and showing/hiding its card (the button in Cài đặt).
+   */
+  pomodoro: () => { running: boolean; progress: number; onBreak: boolean } | null;
   /** Stops or restarts the clock (N). */
   toggleTimePaused: () => void;
   togglePomodoro: () => void;
@@ -53,60 +58,55 @@ export interface PanelDeps {
   fullscreen: Fullscreen;
 }
 
-const SECTION_ICONS: Readonly<Record<PanelSection, string>> = {
+const TAB_ICONS: Readonly<Record<PanelTab, string>> = {
   scene: icons.scene,
   sound: icons.music,
   view: icons.eye,
   settings: icons.settings,
 };
+/**
+ * The views you pick from the panel, with their key (in the tooltip: C goes back and forth
+ * between the first two). The tub and the hammock are offered when you walk up to them.
+ */
 const VIEWS: ReadonlyArray<[ViewId, string, string]> = [
   ['orbit', icons.globe, 'C'],
   ['walk', icons.walk, 'C'],
   ['desk', icons.desk, 'B'],
-  ['bath', icons.bath, 'E'],
-  ['hammock', icons.hammock, 'E'],
 ];
-/** Status line and header clock refresh rate (ms). */
+const WALK_VIEWS: readonly WalkView[] = ['third', 'first'];
+/** Handle tooltip and Pomodoro clock refresh rate (ms). */
 const TICK_MS = 500;
 /**
  * Tucked away (walking, or the UI hidden with H): it closes this long (ms) after the pointer
- * leaves; walking, the faded panel then fades out completely after SLEEP_MS more. Pointing at
- * the top-right corner (CORNER_W × CORNER_H px) brings it back.
+ * leaves; walking, its handle then grows faint after SLEEP_MS more. Pointing at the top-right
+ * corner (CORNER_W × CORNER_H px) brings it back.
  */
 const CLOSE_MS = 600;
 const SLEEP_MS = 5000;
 const CORNER_W = 200;
 const CORNER_H = 120;
 
-interface Section {
-  root: HTMLDetailsElement;
+interface Tab {
+  button: HTMLButtonElement;
   body: HTMLElement;
-  meta: HTMLElement;
 }
 
 /**
- * The control panel. A fixed top: title, the Pomodoro clock button and collapse; a status
- * line (scene · what is playing · island time); master volume. Below, sections that open and
- * close on their own (remembered; Cảnh and Góc nhìn open on first launch): Cảnh, Âm thanh,
- * Thời gian, Góc nhìn, Cài đặt. Closed sections still show their current value on the right of
- * their title. Clicking the title collapses or expands the whole panel.
+ * The control panel. A fixed top: title, shortcuts, full screen and
+ * collapse; master volume; the time bar. Below, four tabs (one shown at a time, remembered):
+ * Cảnh, Âm thanh, Góc nhìn, Cài đặt. Clicking the title collapses or expands the whole panel.
  */
 export class Panel {
   readonly root: HTMLElement;
   private readonly collapseBtn: HTMLButtonElement;
-  private readonly titleBtn: HTMLButtonElement;
-  /** Shown only while the panel is collapsed: the scene's name and a mute button. */
-  private readonly headerScene: HTMLElement;
-  private readonly headerMute: HTMLButtonElement;
+  /** All that shows of a shut panel: a round ☰ button (its tooltip: scene and what plays). */
+  private readonly handle: HTMLButtonElement;
   private readonly startBtn: HTMLButtonElement;
-  private readonly autoCollapse: ToggleControl;
   private readonly mouseSpeed: SliderControl;
-  private readonly pomoBtn: HTMLButtonElement;
-  private readonly pomoText: HTMLElement;
-  private readonly statusLine: HTMLElement;
   private readonly masterVolume: SliderControl;
   private readonly masterMute: HTMLButtonElement;
-  private readonly sections = new Map<PanelSection, Section>();
+  private readonly tabs = new Map<PanelTab, Tab>();
+  private readonly shortcuts: ShortcutsView;
   private readonly synthFallback: ToggleControl;
   private readonly synthStatus: HTMLElement;
   private readonly qualityBtns = new Map<QualityLevel, HTMLButtonElement>();
@@ -114,8 +114,7 @@ export class Panel {
   private readonly qualityNote: HTMLElement;
   private readonly autoRotate: ToggleControl;
   private readonly footsteps: ToggleControl;
-  private readonly thirdPerson: ToggleControl;
-  private readonly startAtDesk: ToggleControl;
+  private readonly walkViewBtns = new Map<WalkView, HTMLButtonElement>();
   private readonly startQuality: QualityLevel;
   private readonly bigClock: HTMLElement;
   /** Running / stopped / real clock, as a small dot before the time (its tooltip says which). */
@@ -132,10 +131,8 @@ export class Panel {
   private walking = false;
   /** The UI is hidden (H): the panel only shows while pointed at, from the top-right corner. */
   private uiHidden = false;
-  /** Just opened: tucked away as when walking, until the panel is clicked or P pressed (endIntro). */
-  private intro = true;
   private peek = false;
-  /** Walking, left alone SLEEP_MS: faded out completely until the corner is pointed at. */
+  /** Walking, left alone SLEEP_MS: the handle grows faint until the corner is pointed at. */
   private asleep = false;
   /** A press inside the panel is held (dragging a slider): it stays open. */
   private held = false;
@@ -182,27 +179,19 @@ export class Panel {
       this.held = false;
       this.scheduleClose();
     });
-    // The page opens with the scene in front: the panel waits tucked away (styles:
-    // body.panel-intro) until something in it is clicked.
-    document.body.classList.add('panel-intro');
     this.root.addEventListener('click', () => {
-      if (this.endIntro()) return;
       // (A tap on the collapse button of an open panel shut it just before: pressedShut is false.)
       if (isTouch() && this.tucked && !this.peek && this.pressedShut) this.open();
     });
 
     // --- Fixed top ---
     const header = el('div', 'panel-header');
-    const title = el('h1', 'panel-title');
-    this.titleBtn = button(vi.appTitle, () => this.toggle(), 'panel-title-btn');
-    title.append(this.titleBtn);
-    this.pomoBtn = button('', () => deps.togglePomodoro(), 'pomo-btn');
-    this.pomoBtn.title = vi.panel.pomodoroBtn;
-    this.pomoBtn.setAttribute('aria-label', vi.panel.pomodoroBtn);
-    const pomoIcon = el('span', 'pomo-icon');
-    pomoIcon.innerHTML = icons.clock;
-    this.pomoText = el('span', 'pomo-text');
-    this.pomoBtn.append(pomoIcon, this.pomoText);
+    const title = el('h1', 'panel-title', vi.appTitle);
+    this.shortcuts = new ShortcutsView(parent, deps.keymap);
+    const keysBtn = button('', () => this.toggleShortcuts(), 'icon-btn kbd-only');
+    keysBtn.innerHTML = icons.keyboard;
+    keysBtn.title = vi.panel.shortcutsBtn;
+    keysBtn.setAttribute('aria-label', vi.panel.shortcutsBtn);
     const fsBtn = button('', () => deps.fullscreen.toggle(), 'icon-btn fs-btn');
     const syncFs = (on: boolean): void => {
       fsBtn.innerHTML = on ? icons.minimize : icons.maximize;
@@ -212,63 +201,17 @@ export class Panel {
     };
     syncFs(deps.fullscreen.active);
     deps.fullscreen.onChange(syncFs);
+    // ☰ shuts the panel; shut, the same ☰ in the same corner (the handle) opens it again.
     this.collapseBtn = button('', () => this.toggle(), 'icon-btn');
-    this.headerScene = el('span', 'header-scene');
-    this.headerMute = button('', () => mixer.toggleMuteAll(), 'icon-btn header-mute');
+    this.collapseBtn.innerHTML = icons.menu;
     const headerTools = el('div', 'header-tools');
-    headerTools.append(this.headerMute, this.pomoBtn, fsBtn, this.collapseBtn);
-    header.append(title, this.headerScene, headerTools);
-
-    const top = el('div', 'panel-top');
-    this.statusLine = el('div', 'status-line');
-    const masterRow = el('div', 'mix-row master');
-    this.masterVolume = slider(vi.panel.master, mixer.current.master.volume, (v) => mixer.setMaster({ volume: v }), { ...VOLUME, defaultValue: 0.8 });
-    this.masterMute = button('', () => mixer.toggleMuteAll(), 'icon-btn');
-    masterRow.append(this.masterVolume.root, this.masterMute);
-    // Browsers allow sound only after a click or key press: until then, say so right here.
-    this.startBtn = button('', () => deps.startAudio(), 'btn primary start-sound');
-    this.startBtn.innerHTML = `${icons.speaker}<span>${vi.panel.startSound}</span>`;
-    this.startBtn.title = vi.panel.startSoundHint;
-    top.append(this.statusLine, this.startBtn, masterRow);
-
-    const content = el('div', 'panel-content');
-
-    // --- Cảnh ---
-    const scene = this.section('scene');
-    scene.body.append(
-      new SceneView({
-        settings,
-        scenes: deps.scenes,
-        library: deps.library,
-        applyScene: deps.applyScene,
-        onDeleted: deps.onSceneDeleted,
-        startAudio: deps.startAudio,
-        getHours: deps.getHours,
-        getSkyTurn: deps.getSkyTurn,
-        setSky: deps.setSky,
-        windowTurn: deps.windowTurn,
-      }).root,
-    );
-
-    // --- Âm thanh ---
-    const sound = this.section('sound');
-    this.synthFallback = toggle(vi.panel.synthFallbackLong, s.synthFallback, (on) => settings.update({ synthFallback: on }));
-    this.synthStatus = el('div', 'hint');
-    const library = new LibraryView({
-      library: deps.library,
-      scenes: deps.scenes,
-      startAudio: deps.startAudio,
-      applyScene: deps.applyScene,
-      clearScene: () => settings.update({ activeScene: '' }),
-    });
-    const synthRow = el('div', 'option-list');
-    synthRow.append(this.synthFallback.root);
-    sound.body.append(library.root, synthRow, this.synthStatus);
+    headerTools.append(keysBtn, fsBtn, this.collapseBtn);
+    header.append(title, headerTools);
 
     // --- Thời gian ---
-    // Always shown above the sections, nothing to open: the hh:mm clock with three icon buttons
-    // (stop/run, speed, the computer's clock), and the hour slider painted with the colours of
-    // the day. Labels live in tooltips.
+    // Always shown above the tabs: the hh:mm clock with three icon buttons (stop/run, speed, the
+    // computer's clock), and the hour slider painted with the colours of the day. Labels live in
+    // tooltips.
     const time = el('div', 'time-bar');
     this.clockFace = el('div', 'clock-face');
     const clockMain = el('div', 'clock-main');
@@ -302,36 +245,97 @@ export class Panel {
     this.clock.input.setAttribute('aria-label', vi.panel.time);
     time.append(this.clockFace, this.clock.root);
 
+    const top = el('div', 'panel-top');
+    const masterRow = el('div', 'mix-row master');
+    this.masterVolume = slider(vi.panel.master, mixer.current.master.volume, (v) => mixer.setMaster({ volume: v }), { ...VOLUME, defaultValue: 0.8 });
+    this.masterMute = button('', () => mixer.toggleMuteAll(), 'icon-btn');
+    masterRow.append(this.masterVolume.root, this.masterMute);
+    // Browsers allow sound only after a click or key press: until then, say so right here.
+    this.startBtn = button('', () => deps.startAudio(), 'btn primary start-sound');
+    this.startBtn.innerHTML = `${icons.speaker}<span>${vi.panel.startSound}</span>`;
+    this.startBtn.title = vi.panel.startSoundHint;
+    top.append(this.startBtn, masterRow, time);
+
+    // --- Tabs ---
+    const tabBar = el('div', 'panel-tabs');
+    tabBar.setAttribute('role', 'tablist');
+    const content = el('div', 'panel-content');
+    for (const id of PANEL_TABS) {
+      const b = button('', () => settings.update({ panelTab: id }), 'panel-tab');
+      b.setAttribute('role', 'tab');
+      b.innerHTML = `${TAB_ICONS[id]}<span>${vi.panel.sections[id]}</span>`;
+      const body = el('div', 'tab-body');
+      body.setAttribute('role', 'tabpanel');
+      body.setAttribute('aria-label', vi.panel.sections[id]);
+      this.tabs.set(id, { button: b, body });
+      tabBar.append(b);
+      content.append(body);
+    }
+
+    // --- Cảnh ---
+    // The scene editor is a page of its own: the time bar and the tabs step aside meanwhile.
+    this.tab('scene').append(
+      new SceneView({
+        settings,
+        scenes: deps.scenes,
+        library: deps.library,
+        applyScene: deps.applyScene,
+        onDeleted: deps.onSceneDeleted,
+        startAudio: deps.startAudio,
+        getHours: deps.getHours,
+        getSkyTurn: deps.getSkyTurn,
+        setSky: deps.setSky,
+        windowTurn: deps.windowTurn,
+        onEditing: (on) => {
+          this.root.classList.toggle('editing', on);
+          content.scrollTop = 0;
+        },
+      }).root,
+    );
+
+    // --- Âm thanh ---
+    this.synthFallback = toggle(vi.panel.synthFallbackLong, s.synthFallback, (on) => settings.update({ synthFallback: on }));
+    this.synthStatus = el('div', 'hint');
+    this.footsteps = toggle(vi.panel.footsteps, s.footsteps, (on) => settings.update({ footsteps: on }));
+    const library = new LibraryView({
+      library: deps.library,
+      scenes: deps.scenes,
+      startAudio: deps.startAudio,
+    });
+    const soundOpts = el('div', 'option-list');
+    soundOpts.append(this.synthFallback.root, this.footsteps.root);
+    this.tab('sound').append(library.root, soundOpts, this.synthStatus);
+
     // --- Góc nhìn ---
-    const view = this.section('view');
-    const tiles = el('div', 'view-grid');
+    // One row of the three views; under it the options of the overview and of walking.
+    const tiles = el('div', 'view-row');
     for (const [id, icon, key] of VIEWS) {
       const t = button('', () => deps.goTo(id), 'view-tile');
       const i = el('span', 'view-icon');
       i.innerHTML = icon;
-      t.append(i, el('span', 'view-name', vi.panel.views[id]), el('kbd', 'key', key));
+      t.append(i, el('span', 'view-name', vi.panel.views[id]));
+      t.title = `${vi.panel.views[id]} (${key})`;
       this.viewTiles.set(id, t);
       tiles.append(t);
     }
-    this.thirdPerson = toggle(vi.panel.thirdPerson.replace(' (V)', ''), s.walkView === 'third', (on) => settings.update({ walkView: on ? 'third' : 'first' }));
-    this.footsteps = toggle(vi.panel.footsteps, s.footsteps, (on) => settings.update({ footsteps: on }));
     this.autoRotate = toggle(vi.panel.autoRotate, s.autoRotate, (on) => settings.update({ autoRotate: on }));
-    const viewOpts = el('div', 'option-list');
-    viewOpts.append(
-      withKey(this.thirdPerson.root, 'V'),
-      this.footsteps.root,
-      this.autoRotate.root,
-    );
-    const characters = el('div', 'seg-group three');
-    for (const id of CHARACTER_IDS) {
-      const b = button(vi.panel.characterNames[id], () => settings.update({ character: id }), 'seg');
-      this.characterBtns.set(id, b);
-      characters.append(b);
+    const orbitOpts = el('div', 'option-list');
+    orbitOpts.append(this.autoRotate.root);
+    const walkViews = el('div', 'seg-group two');
+    for (const id of WALK_VIEWS) {
+      const b = button(vi.panel.walkViews[id], () => settings.update({ walkView: id }), 'seg');
+      this.walkViewBtns.set(id, b);
+      walkViews.append(b);
     }
-    view.body.append(tiles, el('div', 'subhead', vi.panel.viewOptions), viewOpts, el('div', 'subhead', vi.panel.character), characters);
+    this.tab('view').append(
+      tiles,
+      el('div', 'subhead', vi.panel.orbitOptions),
+      orbitOpts,
+      el('div', 'subhead', vi.panel.walkOptions),
+      walkViews,
+    );
 
     // --- Cài đặt ---
-    const conf = this.section('settings');
     const quality = el('div', 'seg-group three');
     for (const level of QUALITY_LEVELS) {
       const b = button(vi.panel.qualityNames[level], () => settings.update({ quality: level }), 'seg');
@@ -339,28 +343,50 @@ export class Panel {
       quality.append(b);
     }
     this.qualityNote = el('div', 'note');
-    this.startAtDesk = toggle(vi.desk.startAtDesk, s.startAtDesk, (on) => settings.update({ startAtDesk: on }));
-    this.autoCollapse = toggle(vi.panel.autoCollapse, s.autoCollapse, (on) => settings.update({ autoCollapse: on }));
-    const confOpts = el('div', 'option-list');
-    confOpts.append(this.startAtDesk.root, this.autoCollapse.root);
+    const characters = el('div', 'seg-group three');
+    for (const id of CHARACTER_IDS) {
+      const b = button(vi.panel.characterNames[id], () => settings.update({ character: id }), 'seg');
+      this.characterBtns.set(id, b);
+      characters.append(b);
+    }
     this.mouseSpeed = slider(vi.panel.mouseSpeed, s.mouseSpeed, (v) => settings.update({ mouseSpeed: v }));
     this.mouseSpeed.root.title = vi.panel.mouseSpeedHint;
-    const keys = el('details', 'subsection shortcuts');
-    const keysTitle = el('summary', 'subsection-title', vi.panel.shortcuts);
-    const list = el('dl', 'shortcut-list');
-    for (const sc of deps.keymap.list()) list.append(el('dt', '', sc.keyLabel), el('dd', '', sc.label));
-    const keysBody = el('div', 'section-body');
-    keysBody.append(list, el('div', 'hint', vi.shortcuts.mouse), el('div', 'hint', vi.shortcuts.sliderWheel), el('div', 'hint', vi.shortcuts.sceneKeys), el('div', 'hint', vi.shortcuts.walkKeys), el('div', 'hint', vi.shortcuts.swimKeys), el('div', 'hint', vi.shortcuts.diveKeys), el('div', 'hint', vi.shortcuts.kayakKeys), el('div', 'hint', vi.shortcuts.surfKeys));
-    keys.append(keysTitle, keysBody);
-    conf.body.append(el('div', 'subhead', vi.panel.quality), quality, this.qualityNote, confOpts, this.mouseSpeed.root, keys);
+    // The Pomodoro card shows itself when started (T) and hides when ended; from here it can be
+    // opened while idle, to set it up or start it without a keyboard.
+    const pomoRow = el('div', 'button-row');
+    const pomoLink = button('', () => deps.togglePomodoro(), 'btn small with-icon');
+    pomoLink.innerHTML = `${icons.clock}<span>${vi.panel.pomodoroOpen}</span>`;
+    pomoLink.title = vi.panel.pomodoroBtn;
+    pomoRow.append(pomoLink);
+    const keysRow = el('div', 'button-row kbd-only');
+    const keysLink = button('', () => this.toggleShortcuts(), 'btn small with-icon');
+    keysLink.innerHTML = `${icons.keyboard}<span>${vi.panel.shortcutsBtn}</span>`;
+    keysRow.append(keysLink);
+    this.tab('settings').append(
+      el('div', 'subhead', vi.panel.quality),
+      quality,
+      this.qualityNote,
+      el('div', 'subhead', vi.panel.character),
+      characters,
+      this.mouseSpeed.root,
+      el('div', 'subhead', vi.pomodoro.title),
+      pomoRow,
+      keysRow,
+    );
 
-    content.append(time, ...[...this.sections.values()].map((x) => x.root));
-    this.root.append(header, top, content);
+    this.root.append(header, top, tabBar, content);
     // Out of sight (walking and left alone, or the UI hidden with H): only a small round handle
     // stays where the bar was (styles: .panel.handle); pointing at it opens the panel.
-    const handle = el('span', 'panel-handle');
-    handle.innerHTML = icons.menu;
-    this.root.append(handle);
+    this.handle = el('button', 'panel-handle');
+    this.handle.type = 'button';
+    this.handle.innerHTML = icons.menu;
+    this.handle.setAttribute('aria-label', vi.panel.expand);
+    this.handle.addEventListener('click', (e) => {
+      // Handled here: the panel's own click handler would take it for a click in an open panel.
+      e.stopPropagation();
+      this.toggle();
+    });
+    this.root.append(this.handle);
     parent.append(this.root);
 
     mixer.onChange((state) => this.syncMixer(state));
@@ -371,12 +397,13 @@ export class Panel {
     this.syncSettings(s);
     this.syncView();
     this.watchSceneClicks();
-    // The status line fills on the first frame (tick), once the app has built everything.
+    // The handle's tooltip fills on the first frame (tick), once the app has built everything.
   }
 
   /**
-   * "Nhấp vào cảnh 3D để thu gọn bảng": a click on the 3D view (pressed and released almost
-   * in place, so orbit drags don't count) collapses the panel.
+   * A click on the 3D view (pressed and released almost in place, so orbit drags don't count)
+   * shuts the open panel, as a menu is shut by clicking outside it (the click still makes its
+   * ripple). Not while a scene is being edited.
    */
   private watchSceneClicks(): void {
     let down: { x: number; y: number } | null = null;
@@ -396,8 +423,9 @@ export class Panel {
         this.scheduleSleep();
         return;
       }
-      // (Touch: always, as a sheet over a phone's small screen is shut by tapping outside it.)
-      if ((s.autoCollapse || isTouch()) && !s.panelCollapsed) this.deps.settings.update({ panelCollapsed: true });
+      if (!this.tucked && !s.panelCollapsed && !this.root.classList.contains('editing')) {
+        this.deps.settings.update({ panelCollapsed: true });
+      }
     }, { capture: true });
   }
 
@@ -417,9 +445,9 @@ export class Panel {
   }
 
   /**
-   * Walking, paddling or surfing (`on`): the panel stays out of the scene, collapsed and faded
-   * in its corner (styles: body.walking .panel), and out of sight after SLEEP_MS, until you
-   * point at it or at the corner. Your own collapsed setting is kept for the overview.
+   * Walking, paddling or surfing (`on`): the panel stays out of the scene, shut to its handle
+   * (faint after SLEEP_MS), until you point at it or at the corner. Your own collapsed setting
+   * is kept for the overview.
    */
   setWalking(on: boolean): void {
     if (on === this.walking) return;
@@ -435,25 +463,18 @@ export class Panel {
   }
 
   private get tucked(): boolean {
-    return this.walking || this.uiHidden || this.intro;
+    return this.walking || this.uiHidden;
   }
 
-  /** The first frame is up: the tucked panel goes out of sight SLEEP_MS from now, in view. */
+  /** The first frame is up: the tucked panel's handle grows faint SLEEP_MS from now. */
   sceneShown(): void {
     this.scheduleSleep();
   }
 
-  /**
-   * Ends the opening tuck (a click in the panel, or P): from then on it opens and collapses as
-   * usual in the overview. False if it had already ended.
-   */
-  endIntro(): boolean {
-    if (!this.intro) return false;
-    this.intro = false;
-    document.body.classList.remove('panel-intro');
-    const { settings } = this.deps;
-    if (settings.get().panelCollapsed) settings.update({ panelCollapsed: false });
-    this.retuck();
+  /** Esc in the overview: shuts the open panel. False if there was nothing to shut. */
+  close(): boolean {
+    if (this.tucked || this.root.classList.contains('collapsed') || this.root.classList.contains('editing')) return false;
+    this.deps.settings.update({ panelCollapsed: true });
     return true;
   }
 
@@ -486,12 +507,12 @@ export class Panel {
     }, CLOSE_MS);
   }
 
-  /** Walking (or just opened): the faded panel goes out of sight after SLEEP_MS left alone. */
+  /** Walking: the handle grows faint after SLEEP_MS left alone. */
   private scheduleSleep(): void {
     window.clearTimeout(this.sleepTimer);
-    if (!(this.walking || this.intro) || this.peek) return;
+    if (!this.walking || this.peek) return;
     this.sleepTimer = window.setTimeout(() => {
-      if (!(this.walking || this.intro) || this.peek) return;
+      if (!this.walking || this.peek) return;
       this.asleep = true;
       this.syncCollapsed();
     }, SLEEP_MS);
@@ -500,19 +521,16 @@ export class Panel {
   /** Collapsed: your setting in the overview; tucked away, unless pointed at. */
   private syncCollapsed(): void {
     const tucked = this.tucked;
-    this.root.classList.toggle('collapsed', tucked ? !this.peek : this.deps.settings.get().panelCollapsed);
+    const shut = tucked ? !this.peek : this.deps.settings.get().panelCollapsed;
+    // Shut is always the handle alone (styles: .panel.handle); `faint` once walking left it be.
+    this.root.classList.toggle('collapsed', shut);
+    this.root.classList.toggle('handle', shut);
+    this.root.classList.toggle('faint', shut && tucked && (this.asleep || this.uiHidden));
     this.root.classList.toggle('peek', tucked && this.peek);
-    this.root.classList.toggle('handle', tucked && !this.peek && (this.asleep || this.uiHidden));
-    // The button shows what a press does to the panel as it is now (tucked away while walking,
-    // that isn't the setting).
-    const shut = this.root.classList.contains('collapsed');
-    const label = shut ? vi.panel.expand : vi.panel.collapse;
-    this.collapseBtn.innerHTML = shut ? icons.chevronLeft : icons.chevronRight;
-    this.collapseBtn.title = label;
-    this.collapseBtn.setAttribute('aria-label', label);
+    this.collapseBtn.title = vi.panel.collapse;
+    this.collapseBtn.setAttribute('aria-label', vi.panel.collapse);
     this.collapseBtn.setAttribute('aria-expanded', String(!shut));
-    this.titleBtn.title = label;
-    this.titleBtn.setAttribute('aria-expanded', String(!shut));
+    this.handle.setAttribute('aria-expanded', String(!shut));
     this.onLayout?.();
   }
 
@@ -527,23 +545,16 @@ export class Panel {
     // A sheet along the bottom (upright phone): the top right corner is free.
     if (r.top > window.innerHeight / 2) return { top: 12, right: 12, width: 0 };
     if (!this.tucked) return { top: 12, right: window.innerWidth - r.left + 12, width: 0 };
-    const handle = this.asleep || this.uiHidden;
-    return { top: r.bottom + 8, right: 12, width: handle ? 0 : r.width };
+    return { top: r.bottom + 8, right: 12, width: 0 };
   }
 
   /**
-   * The collapse button, the title, P: shuts the panel if it is open, opens it if shut. In the
+   * ☰ (in the header, or the handle), P: shuts the panel if it is open, opens it if shut. In the
    * overview that is the setting; tucked away (walking, the UI hidden) it closes the peek at once
    * or opens it (it used to flip the setting, which a tucked panel ignores: nothing happened).
    */
   toggle(): void {
     const open = !this.root.classList.contains('collapsed');
-    if (this.intro) {
-      // The first press ends the opening tuck: the panel comes out (or stays shut if it was out).
-      this.endIntro();
-      if (open) this.deps.settings.update({ panelCollapsed: true });
-      return;
-    }
     if (this.tucked) {
       if (open) {
         window.clearTimeout(this.closeTimer);
@@ -559,32 +570,20 @@ export class Panel {
     this.deps.settings.update({ panelCollapsed: open });
   }
 
-  /** One section: icon, title, the current value on the right, a body. */
-  private section(id: PanelSection): Section {
-    const root = el('details', 'section');
-    const summary = el('summary', 'section-title');
-    const icon = el('span', 'section-icon');
-    icon.innerHTML = SECTION_ICONS[id];
-    const meta = el('span', 'section-meta');
-    summary.append(icon, el('span', 'section-name', vi.panel.sections[id]), meta);
-    const body = el('div', 'section-body');
-    root.append(summary, body);
-    // Each section opens and closes on its own; the open ones are remembered.
-    root.addEventListener('toggle', () => {
-      const open = this.deps.settings.get().panelSections;
-      if (root.open === open.includes(id)) return;
-      this.deps.settings.update({
-        panelSections: root.open ? PANEL_SECTIONS.filter((x) => x === id || open.includes(x)) : open.filter((x) => x !== id),
-      });
-    });
-    const s: Section = { root, body, meta };
-    this.sections.set(id, s);
-    return s;
+  private tab(id: PanelTab): HTMLElement {
+    const t = this.tabs.get(id);
+    if (!t) throw new Error(`Panel: no tab ${id}`);
+    return t.body;
+  }
+
+  /** The shortcut card (? or the keyboard buttons). */
+  toggleShortcuts(): void {
+    this.shortcuts.toggle();
   }
 
   /**
-   * Called every frame; refreshes the status line, the Pomodoro clock and the section values
-   * a couple of times a second, touching the DOM only when the text changes.
+   * Called every frame; refreshes the clock, and the handle's tooltip and Pomodoro ring a
+   * couple of times a second, touching the DOM only when the text changes.
    */
   tick(now: number): void {
     const minute = Math.floor(this.deps.getHours() * 60);
@@ -602,27 +601,19 @@ export class Panel {
     const info = this.deps.status();
     const muted = this.deps.mixer.current.master.muted;
     const scene = info.scene || vi.panel.status.noScene;
-    const playing = muted ? vi.panel.status.muted : info.playing;
-    setText(this.statusLine, `${scene}  ·  ♪ ${playing}  ·  ${info.islandTime}`);
-    setText(this.meta('scene'), scene);
-    setText(this.headerScene, scene);
-    setText(this.meta('sound'), muted ? vi.panel.status.muted : info.playing);
+    const tip = `${vi.panel.expand} · ${scene} · ♪ ${muted ? vi.panel.status.muted : info.playing}`;
+    if (this.handle.title !== tip) this.handle.title = tip;
     const p = this.deps.pomodoro();
-    setText(this.pomoText, p ? p.remaining : '');
-    this.pomoBtn.classList.toggle('running', !!p?.running);
-    this.pomoBtn.setAttribute('aria-pressed', String(!!p?.visible));
-  }
-
-  private meta(id: PanelSection): HTMLElement {
-    const s = this.sections.get(id);
-    if (!s) throw new Error(`Panel: no section ${id}`);
-    return s.meta;
+    // A ring round the shut panel's ☰ fills as the phase runs (green focus, blue break).
+    this.root.classList.toggle('pomo-on', !!p?.running);
+    this.root.classList.toggle('pomo-break', !!p?.onBreak);
+    const ring = p ? p.progress.toFixed(3) : '0';
+    if (this.root.style.getPropertyValue('--pomo') !== ring) this.root.style.setProperty('--pomo', ring);
   }
 
   private syncMixer(state: Readonly<MixerState>): void {
     this.masterVolume.set(state.master.volume);
     setMuteIcon(this.masterMute, state.master.muted);
-    setMuteIcon(this.headerMute, state.master.muted);
     this.startBtn.hidden = this.deps.mixer.started;
     this.root.classList.toggle('sound-off', !this.deps.mixer.started);
     this.syncSynthStatus();
@@ -639,15 +630,14 @@ export class Panel {
   private syncView(): void {
     const current = this.deps.view();
     for (const [id, t] of this.viewTiles) t.setAttribute('aria-pressed', String(id === current));
-    setText(this.meta('view'), vi.panel.views[current]);
   }
 
   private syncSettings(s: Readonly<Settings>): void {
     this.syncCollapsed();
-    for (const id of PANEL_SECTIONS) {
-      const sec = this.sections.get(id);
-      const open = s.panelSections.includes(id);
-      if (sec && sec.root.open !== open) sec.root.open = open;
+    for (const [id, t] of this.tabs) {
+      const on = id === s.panelTab;
+      t.button.setAttribute('aria-selected', String(on));
+      t.body.hidden = !on;
     }
     for (const [level, b] of this.qualityBtns) b.setAttribute('aria-pressed', String(level === s.quality));
     for (const [id, b] of this.characterBtns) b.setAttribute('aria-pressed', String(id === s.character));
@@ -656,9 +646,7 @@ export class Panel {
     this.autoRotate.set(s.autoRotate);
     this.footsteps.set(s.footsteps);
     this.synthFallback.set(s.synthFallback);
-    this.thirdPerson.set(s.walkView === 'third');
-    this.startAtDesk.set(s.startAtDesk);
-    this.autoCollapse.set(s.autoCollapse);
+    for (const [id, b] of this.walkViewBtns) b.setAttribute('aria-pressed', String(id === s.walkView));
     this.mouseSpeed.set(s.mouseSpeed);
     const real = s.timeMode === 'real';
     const stopped = !real && s.timePaused;
@@ -680,11 +668,6 @@ export class Panel {
   }
 }
 
-/** A toggle with its keyboard shortcut shown as a key cap on the right. */
-function withKey(control: HTMLElement, key: string): HTMLElement {
-  control.append(el('kbd', 'key', key));
-  return control;
-}
 
 function setText(e: HTMLElement, text: string): void {
   if (e.textContent !== text) e.textContent = text;
