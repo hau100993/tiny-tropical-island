@@ -1,3 +1,4 @@
+import { onUserGesture, preferPlaybackAudioSession } from './gesture';
 import { createNoiseBank, type NoiseBank } from './noiseBuffers';
 import { Scheduler } from './scheduler';
 
@@ -61,19 +62,29 @@ export class AudioEngine {
     this.alerts = ctx.createGain();
     this.alerts.connect(compressor);
 
-    // If Windows switches audio devices or the context gets suspended, resume on next gesture.
+    // Resume on the next gesture whenever the context is not running: a touch pointerdown that
+    // created it without counting as a gesture, Windows switching audio devices, or iOS
+    // 'interrupted' (a call, another app, the tab in the background).
     const resumeOnGesture = (): void => {
-      if (this.ctx.state === 'suspended') void this.ctx.resume();
+      if (this.ctx.state !== 'running' && this.ctx.state !== 'closed') void this.ctx.resume().catch(() => {});
     };
-    window.addEventListener('pointerdown', resumeOnGesture);
-    window.addEventListener('keydown', resumeOnGesture);
+    onUserGesture(resumeOnGesture);
+    // Back from the background on iOS: try straight away (allowed once the page has had a gesture).
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) resumeOnGesture();
+    });
   }
 
-  /** Must be called from a user gesture handler (click/keypress). */
+  /**
+   * Call from a user gesture handler (click/keypress/tap). Never waits for `resume()`: if the
+   * browser doesn't count this event as a gesture (a touch pointerdown) that promise only
+   * settles at a later gesture, and the engine's own listeners must already be in place for it.
+   */
   static async start(): Promise<AudioEngine> {
+    preferPlaybackAudioSession();
     // 'playback' trades latency (irrelevant for ambience) for lower CPU use.
     const ctx = new AudioContext({ latencyHint: 'playback' });
-    if (ctx.state === 'suspended') await ctx.resume();
+    if (ctx.state !== 'running') void ctx.resume().catch(() => {});
     return new AudioEngine(ctx);
   }
 

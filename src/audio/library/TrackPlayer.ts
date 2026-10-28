@@ -1,4 +1,5 @@
 import type { AudioEngine } from '../AudioEngine';
+import { onNextUserGesture } from '../gesture';
 import { getBlob } from './blobStore';
 
 /** After fading out, the element is paused (no decoding work) once the fade is inaudible. */
@@ -65,7 +66,7 @@ export class TrackPlayer {
     el.play().catch((e: unknown) => {
       // Autoplay may refuse until the next click; try again then.
       if (e instanceof DOMException && e.name === 'NotAllowedError') {
-        window.addEventListener('pointerdown', () => this.target > 0 && this.play(), { once: true });
+        onNextUserGesture(() => this.target > 0 && this.play());
       }
     });
   }
