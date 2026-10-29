@@ -18,7 +18,7 @@ const SOURCES = {
   tiger: { l1: '2f54vbV0In' },
   bee: { l1: '42djT5zJnx' },
   cloudDragon: { l1: '54QyRcsogk', l2: 'Mo2ky6vkf8' },
-  kind7: { l1: '7V4gaDMQV8', l2: 'ypEYhCImAB' },
+  seahorse: { l1: '2i8WB9jqzdc' },
   kind8: { l1: 'j4rVPvxyLg' },
   spider: { l1: 'yRYJiAJyiM' },
   kimquy: { l1: '2LCcq8vhqJ3' },

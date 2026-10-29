@@ -16,7 +16,7 @@ export type SpeciesId =
   | 'tiger'
   | 'bee'
   | 'cloudDragon'
-  | 'kind7'
+  | 'seahorse'
   | 'kind8'
   | 'spider'
   | 'kimquy';
@@ -172,17 +172,17 @@ export const SPECIES: Readonly<Record<SpeciesId, SpeciesInfo>> = {
     base: 135,
     color: 0xa9b8ff,
   },
-  kind7: {
-    // Named once its model has been seen (user, 2026-10-29).
-    name: 'Thú Lạ',
-    name2: 'Thú Lạ Lớn',
+  seahorse: {
+    // Named by the user (2026-10-29); it floats a little above the ground, as if under water.
+    name: 'Cá Ngựa',
+    name2: 'Long Mã',
     element: 'water',
     rarity: 'rare',
-    emoji: '❓',
+    emoji: '🐠',
     skills: ['Splash Dash', 'Bubble Ring', 'Tide Spin', 'Wave Crown', 'Deep Pulse', 'Ocean Heart'],
-    names: ['Lạ', 'Bí Ẩn', 'Ơ Kìa', 'Hên', 'Lúm', 'Tí'],
+    names: ['San Hô', 'Xoắn', 'Rong', 'Ngọc Trai', 'Sóng Nhỏ', 'Hải Mã'],
     base: 125,
-    color: 0x4fb3d9,
+    color: 0xe0533a,
   },
   kind8: {
     name: 'Thú Hiếm',
@@ -229,9 +229,9 @@ export const ORIGINALS: ReadonlyArray<{ id: string; species: SpeciesId }> = [
 ];
 
 /** The species that hatch from eggs. */
-export const EGG_SPECIES: readonly SpeciesId[] = ['deer', 'na', 'frog', 'tiger', 'bee', 'cloudDragon', 'kind7', 'kind8', 'spider', 'kimquy'];
+export const EGG_SPECIES: readonly SpeciesId[] = ['deer', 'na', 'frog', 'tiger', 'bee', 'cloudDragon', 'seahorse', 'kind8', 'spider', 'kimquy'];
 export const COMMON: readonly SpeciesId[] = ['deer', 'na', 'frog', 'bee'];
-export const RARE: readonly SpeciesId[] = ['tiger', 'cloudDragon', 'kind7', 'kind8', 'spider'];
+export const RARE: readonly SpeciesId[] = ['tiger', 'cloudDragon', 'seahorse', 'kind8', 'spider'];
 /** The legendary one: from 10-session eggs only, at this chance, and one per player. */
 export const LEGEND: SpeciesId = 'kimquy';
 export const LEGEND_CHANCE = 1 / 15;
@@ -277,7 +277,7 @@ export const MODEL_SOURCES: Readonly<Partial<Record<SpeciesId, { l1: string; l2?
   tiger: { l1: '2f54vbV0In' },
   bee: { l1: '42djT5zJnx' },
   cloudDragon: { l1: '54QyRcsogk', l2: 'Mo2ky6vkf8' },
-  kind7: { l1: '7V4gaDMQV8', l2: 'ypEYhCImAB' },
+  seahorse: { l1: '2i8WB9jqzdc' },
   kind8: { l1: 'j4rVPvxyLg' },
   spider: { l1: 'yRYJiAJyiM' },
   kimquy: { l1: '2LCcq8vhqJ3' },

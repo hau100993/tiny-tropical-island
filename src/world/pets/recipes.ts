@@ -266,7 +266,7 @@ const RECIPES: Readonly<Record<string, readonly Beat[]>> = {
     { at: 0.8, kind: 'meteors', reach: 5, count: 8, every: 0.15 },
     { at: 2.1, kind: 'nova', radius: 9, wall: 2 },
   ],
-  // ---- Thú Lạ (kind 7, water for now) ----
+  // ---- Cá Ngựa (seahorse, water) ----
   'Splash Dash': [
     { at: 0, kind: 'dash', reach: 5, time: 0.5 },
     { at: 0.5, kind: 'burst', radius: 2, size: 0.7 },

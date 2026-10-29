@@ -132,7 +132,7 @@ export const LEVEL2_ACCESSORY: Readonly<Partial<Record<SpeciesId, Accessory>>> =
   tiger: 'flames',
   bee: 'crown',
   cloudDragon: 'sunCrown',
-  kind7: 'crown',
+  seahorse: 'crown',
   kind8: 'sunCrown',
   spider: 'pumpkin',
   kimquy: 'sword',
