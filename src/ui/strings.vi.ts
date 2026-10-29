@@ -203,6 +203,24 @@ export const vi = {
     toFocus: 'Hết giờ nghỉ. Quay lại làm việc thôi.',
     noSound: 'Âm thanh đang tắt nên chuông không kêu.',
   },
+  pets: {
+    walletTitle: 'Kho cà chua: mỗi phiên tập trung trọn vẹn được 1 quả',
+    /** On the right monitor, before the count. */
+    wallet: 'Kho',
+    earned: '+1 🍅',
+    earnedMany: (n: number): string => `+${n} 🍅`,
+    short: (min: number): string => `Phiên dưới ${min} phút nên chưa có 🍅.`,
+    cap: 'Hôm nay đã đủ 🍅 từ tập trung, mai tiếp nhé.',
+  },
+  backup: {
+    title: 'Sao lưu',
+    export: 'Tải bản sao lưu',
+    import: 'Nhập bản sao lưu',
+    note: 'Một file chứa cài đặt, việc cần làm, cảnh và cà chua. Bản thu âm không có trong file.',
+    confirm: 'Nhập bản sao lưu sẽ thay cài đặt, việc cần làm và cảnh hiện tại (cà chua được gộp, không mất). Tiếp tục?',
+    bad: 'File này không phải bản sao lưu của đảo.',
+    done: 'Đã nhập. Đang tải lại…',
+  },
   dash: {
     todo: 'Đang làm',
     hint: '◯ xong · 🍅 ước lượng · nhấp đúp: sửa',

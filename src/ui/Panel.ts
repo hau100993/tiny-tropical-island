@@ -1,5 +1,6 @@
 import { button, el, onWheelNotch, slider, toggle, VOLUME, type SliderControl, type ToggleControl } from './components';
 import { icons } from './icons';
+import { backupControls } from './backupControls';
 import { vi } from './strings.vi';
 import { LibraryView } from './LibraryView';
 import { SceneView } from './SceneView';
@@ -372,6 +373,8 @@ export class Panel {
       el('div', 'subhead', vi.pomodoro.title),
       pomoRow,
       keysRow,
+      el('div', 'subhead', vi.backup.title),
+      backupControls(),
     );
 
     this.root.append(header, top, tabBar, content);

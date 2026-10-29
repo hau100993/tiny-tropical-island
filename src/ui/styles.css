@@ -1117,6 +1117,30 @@ body:is(.walking, .ui-hidden) .panel.handle.pomo-on {
   letter-spacing: 2px;
 }
 
+/* The tomato wallet: pops when a focus session earns one. */
+.pomo-tomatoes {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--panel-fg);
+  white-space: nowrap;
+}
+
+.pomo-tomatoes.pop {
+  animation: tomato-pop 0.6s ease-out;
+}
+
+@keyframes tomato-pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.45); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pomo-tomatoes.pop {
+    animation: none;
+  }
+}
+
 /* The current task (from the desk's to-do list), in full on up to two lines. */
 .pomo-task {
   margin: 2px 0;

@@ -67,6 +67,8 @@ import type { LayerId } from '../audio/types';
 import { DebugOverlay } from '../ui/DebugOverlay';
 import { Panel, type ViewId } from '../ui/Panel';
 import { AudioPrompt } from '../ui/AudioPrompt';
+import { TomatoWallet, type FocusSession } from '../pets/wallet';
+import { MIN_FOCUS_MIN } from '../pets/ledger';
 import { SlowHint } from '../ui/SlowHint';
 import { isTouch, watchTouch } from '../ui/touch';
 import { TouchControls, type TouchLayout } from '../ui/TouchControls';
@@ -247,6 +249,8 @@ export class App {
   private dogTrailIn = 0;
   private readonly earRight = new THREE.Vector3();
   private readonly pomodoro: PomodoroOverlay;
+  /** Thú Cưng tomatoes (one per finished focus session). Before the Pomodoro: its first tick may report one. */
+  private readonly wallet = new TomatoWallet();
   /** Pomodoro storm calm: target and the eased value the visuals use. */
   private calmTarget = 1;
   private calmVisual = 1;
@@ -507,6 +511,7 @@ export class App {
         : this.todoBubbles.burst(w.house.screens[1], DASH_PX.w, DASH_PX.h, done, done.last);
       if (this.pomodoro.chimeOn) this.mixer.scheduleBubblePop(plan.pop, plan.big);
     };
+    this.wallet.giveStartingGift(this.deskDash.pomodoroHistory);
     this.pomodoro = new PomodoroOverlay(ui, {
       scheduleChime: (atMs, kind) => this.mixer.scheduleChime(atMs, kind),
       soundOn: () => this.mixer.started,
@@ -516,9 +521,11 @@ export class App {
         this.library.setCalm(this.calmTarget);
       },
       setAlertVolume: (v) => this.mixer.setAlertVolume(v),
-      onFocusDone: (count) => this.deskDash.addPomodoros(count),
+      onFocusDone: (sessions) => this.onFocusDone(sessions),
       currentTask: () => this.deskDash.currentTask,
     });
+    this.pomodoro.setTomatoes(this.wallet.count);
+    this.wallet.onChange(() => this.pomodoro.setTomatoes(this.wallet.count));
     this.audioPrompt = new AudioPrompt(ui);
     this.slowHint = new SlowHint(ui, () => this.settings.get().quality, (quality) => this.settings.update({ quality }));
     this.ambience = new AmbienceSwitch((muted) => this.mixer.setAmbienceMuted(muted));
@@ -746,6 +753,21 @@ export class App {
     } finally {
       this.audioStarting = false;
     }
+  }
+
+  /** Focus sessions ended on their own: the to-do list counts them, the wallet may earn 🍅. */
+  private onFocusDone(sessions: FocusSession[]): void {
+    this.deskDash.addPomodoros(sessions.length);
+    const before = this.wallet.count;
+    const results = this.wallet.earn(sessions);
+    const gained = this.wallet.count - before;
+    // Later: the Pomodoro's first tick (in its constructor) can get here before it is assigned.
+    queueMicrotask(() => {
+      this.pomodoro.setTomatoes(this.wallet.count, gained);
+      if (gained > 0) this.pomodoro.addToNotice(gained === 1 ? vi.pets.earned : vi.pets.earnedMany(gained));
+      else if (results.includes('short')) this.pomodoro.addToNotice(vi.pets.short(MIN_FOCUS_MIN));
+      else if (results.includes('cap')) this.pomodoro.addToNotice(vi.pets.cap);
+    });
   }
 
   /** Any click or key press counts as the gesture that may start the sound. */
@@ -2105,6 +2127,7 @@ export class App {
       playing: !soundOn ? vi.desk.soundOff : names.length > 0 ? names.join('  ·  ') : vi.desk.synth,
       islandTime: formatClock(this.world.dayNight.hours),
       weather: weather.join('  ·  '),
+      tomatoes: this.wallet.count,
     };
   }
 

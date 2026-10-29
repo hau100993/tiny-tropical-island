@@ -83,6 +83,8 @@ export interface AdvanceResult {
   state: PomodoroState;
   /** Phases that ended since the last call, in order (usually zero or one). */
   ended: PomodoroPhase[];
+  /** When each of them ended (ms since epoch), parallel to `ended`. */
+  endedAt: number[];
 }
 
 /**
@@ -92,9 +94,11 @@ export interface AdvanceResult {
 export function advance(s: Readonly<PomodoroState>, c: Readonly<PomodoroConfig>, now: number): AdvanceResult {
   let state: PomodoroState = { ...s };
   const ended: PomodoroPhase[] = [];
+  const endedAt: number[] = [];
   // Bounded: after a long sleep, don't spin through hundreds of cycles.
   for (let i = 0; i < 64 && state.running && state.endsAt <= now; i++) {
     ended.push(state.phase);
+    endedAt.push(state.endsAt);
     const n = following(state, c);
     const ms = phaseMs(n.phase, c);
     state = c.autoContinue
@@ -102,7 +106,7 @@ export function advance(s: Readonly<PomodoroState>, c: Readonly<PomodoroConfig>,
       : { phase: n.phase, completed: n.completed, running: false, endsAt: 0, remainingMs: ms };
   }
   if (state.running && state.endsAt <= now) state = { ...state, running: false, remainingMs: phaseMs(state.phase, c) };
-  return { state, ended };
+  return { state, ended, endedAt };
 }
 
 export function isBreak(phase: PomodoroPhase): boolean {

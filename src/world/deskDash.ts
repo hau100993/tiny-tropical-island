@@ -28,6 +28,8 @@ export interface ScreenInfo {
   playing: string;
   islandTime: string;
   weather: string;
+  /** Tomatoes in the wallet. */
+  tomatoes: number;
 }
 
 export interface DashDeps {
@@ -258,6 +260,12 @@ export class DeskDash {
   /** The task being worked on (the top one), for the Pomodoro card; null with none. */
   get currentTask(): string | null {
     return this.todo.open[0]?.text ?? null;
+  }
+
+  /** 🍅 the list remembers (tasks still listed, or today's count if more): the starting gift. */
+  get pomodoroHistory(): number {
+    const listed = [...this.todo.open, ...this.todo.done].reduce((n, t) => n + t.pomos, 0);
+    return Math.max(listed, this.todo.pomosToday);
   }
 
   /** Focus sessions ended: a 🍅 for the top task and the day. */
@@ -555,7 +563,7 @@ export class DeskDash {
     this.g.clearRect(0, 0, W, H);
     this.g.fillStyle = 'rgba(5,14,22,0.38)';
     this.g.fillRect(0, 0, W, H);
-    this.drawStrip(p, timerOn);
+    this.drawStrip(info, timerOn);
 
     // Dragging: which slot the card is over, and scroll when held near an edge.
     if (this.dragId) {
@@ -714,8 +722,9 @@ export class DeskDash {
     g.restore();
   }
 
-  private drawStrip(p: PomodoroSnapshot | null, timerOn: boolean): void {
+  private drawStrip(info: ScreenInfo, timerOn: boolean): void {
     const g = this.g;
+    const p = info.pomodoro;
     const s = STRIP;
     this.glass(s.x, s.y, s.w, s.h, 28, 1, { tint: 0.07 });
     if (p && timerOn) {
@@ -725,8 +734,11 @@ export class DeskDash {
       g.fillText(p.phase.toUpperCase(), 64, 68);
       g.font = `28px ${UI_FONT}`;
       g.globalAlpha = 0.9;
-      g.fillText(p.running ? p.dots : vi.dash.paused, 64, 112);
+      const sub = p.running ? p.dots : vi.dash.paused;
+      g.fillText(sub, 64, 112);
       g.globalAlpha = 1;
+      // Left of the big countdown (x 296); with many session dots it stays out.
+      this.drawWallet(64 + g.measureText(sub).width + (sub ? 20 : 0), 112, info.tomatoes, 286);
       g.font = `300 116px ${UI_FONT}`;
       g.fillStyle = p.running ? '#ffffff' : 'rgba(255,255,255,0.7)';
       g.fillText(p.remaining, 296, 124);
@@ -750,7 +762,9 @@ export class DeskDash {
       g.fillText(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`, 58, 106);
       g.font = `24px ${UI_FONT}`;
       g.fillStyle = DIM;
-      g.fillText(`${vi.dash.days[now.getDay()]}, ${now.getDate()}/${now.getMonth() + 1}`, 64, 140);
+      const date = `${vi.dash.days[now.getDay()]}, ${now.getDate()}/${now.getMonth() + 1}`;
+      g.fillText(date, 64, 140);
+      this.drawWallet(64 + g.measureText(date).width + 20, 140, info.tomatoes, START.x + START.w);
       // "Bắt đầu tập trung".
       const b = START;
       const hov = this.hover === 'timer';
@@ -765,6 +779,26 @@ export class DeskDash {
     }
     this.volumeRow('alert', '🔔', this.deps.chimeOn(), this.deps.alertVolume());
     this.volumeRow('master', '🌊', this.deps.ambienceOn(), this.deps.masterVolume());
+  }
+
+  /** "Kho 🍅 12" on the strip from `x` (baseline `y`); left out if it would pass `maxX`. */
+  private drawWallet(x: number, y: number, count: number, maxX: number): void {
+    const g = this.g;
+    const label = `${vi.pets.wallet} `;
+    const num = String(count);
+    g.font = `24px ${UI_FONT}`;
+    const labelW = g.measureText(label).width;
+    g.font = `22px ${EMOJI_FONT}`;
+    const emojiW = g.measureText('🍅').width + 6;
+    g.font = `600 24px ${UI_FONT}`;
+    if (x + labelW + emojiW + g.measureText(num).width > maxX) return;
+    g.fillStyle = '#ffffff';
+    g.fillText(num, x + labelW + emojiW, y);
+    g.font = `22px ${EMOJI_FONT}`;
+    g.fillText('🍅', x + labelW, y);
+    g.font = `24px ${UI_FONT}`;
+    g.fillStyle = DIM;
+    g.fillText(label, x, y);
   }
 
   /** The strip's second line: "Đang làm · <the top task>" across the whole strip. */

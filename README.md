@@ -388,6 +388,31 @@ from **Cài đặt → Thẻ Pomodoro**.
   rings on time even though Chrome runs background timers only once a minute.
 - The timer is saved: reloading the page or restarting the browser continues where it was.
 
+### Tomatoes 🍅 (Thú Cưng, Phase 13a)
+
+Every focus session that runs to its end puts **one tomato** in your store ("Kho"), shown as
+`🍅 12` in the Pomodoro card's head and as **Kho 🍅 12** on the right monitor's strip. Tomatoes
+will feed the island's creatures (Thú Cưng, next steps in `PLAN.md`). The rules:
+
+- **Skipped or reset sessions earn nothing**: only a focus phase that ends by itself counts.
+- **Shorter than 20 minutes** (focus length in ⚙) earns nothing; the card says so.
+- A session must end **while the page is open** (a background tab is fine). Sessions that ran
+  out while the browser was closed or the computer asleep earn nothing.
+- At most **16 a day** from focus sessions.
+- **Starting gift:** the first time, the 🍅 your to-do list remembers become tomatoes, at most 10.
+- Two open tabs never count a session twice.
+
+### Backup (**Cài đặt → Sao lưu**)
+
+Everything the app keeps in the browser (settings, to-do list, scenes, tomatoes …) lives only in
+this browser on this device: clearing the site data, a private window, or another browser starts
+from nothing. **Tải bản sao lưu** downloads it all as one small `.json` file; **Nhập bản sao lưu**
+loads such a file (on this or another device) and reloads the page. Importing replaces settings,
+to-do list and scenes, but **merges** tomatoes, so nothing earned since the backup is lost. Your
+recordings are not in the file (too big); add them again on another device. Once you have earned
+a tomato the app also asks the browser to keep its data when the disk runs low (this does not
+stop you from clearing it yourself).
+
 ## Sound files in the project folder (advanced, optional)
 
 For people building the project: a synthesized layer can also be replaced by files placed in
@@ -1049,7 +1074,9 @@ src/
   controls/  orbit camera, walking (first person), collision, water clicks, keyboard shortcuts
   activities/  sea activities: kayak physics (paddle strokes, blade forces, hull drag) and control,
              surfboard physics and control
-  ui/        Vietnamese strings, control panel, Pomodoro (state machine + card), stats overlay, styles
+  ui/        Vietnamese strings, control panel, Pomodoro (state machine + card), backup buttons,
+             stats overlay, styles
+  pets/      Thú Cưng: the tomato event log (earn rules, merge) and the wallet in localStorage
 tests/       unit tests for pure logic
 vite-plugins/  audio-manifest plugin (lists files in public/audio)
 public/audio/  config.json for optional recordings (+ README)
