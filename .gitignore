@@ -30,3 +30,6 @@ public/audio/**/*.webm
 # Local settings (e.g. VITE_GOOGLE_CLIENT_ID for the Drive sync).
 .env.local
 .env.*.local
+
+# Editor and stray backup copies.
+*.bak
