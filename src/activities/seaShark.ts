@@ -181,6 +181,20 @@ export class SeaShark {
 
   constructor(private readonly host: SharkHost) {}
 
+  /** Where it is now (its back, world), or false while away (Thú Cưng feeding). */
+  spot(out: { x: number; y: number; z: number }): boolean {
+    if (this.state === 'away' || !this.model?.root.visible) return false;
+    out.x = this.x;
+    out.y = Math.max(this.y, this.host.seaHeight(this.x, this.z)) + 0.35;
+    out.z = this.z;
+    return true;
+  }
+
+  /** The model (Level 2 changes its look), once loaded. */
+  get root(): THREE.Object3D | null {
+    return this.model?.root ?? null;
+  }
+
   setEnabled(on: boolean): void {
     this.enabled = on;
     if (!on && this.state !== 'away') this.go('leave', 4);

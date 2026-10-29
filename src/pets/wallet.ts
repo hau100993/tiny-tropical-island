@@ -1,5 +1,6 @@
 import { parseJson, readStored, writeStored } from '../core/storage';
-import { addStartingGift, earnFocus, emptyLedger, mergeLedgers, parseLedger, tomatoes, type EarnResult, type Ledger } from './ledger';
+import { addStartingGift, earnFocus, emptyLedger, mergeLedgers, parseLedger, tomatoes, withEvent, type EarnResult, type Ledger } from './ledger';
+import { buildRoster, type Action, type Roster } from './roster';
 
 export const PETS_KEY = 'tsw.pets';
 
@@ -16,6 +17,7 @@ export interface FocusSession {
  */
 export class TomatoWallet {
   private ledger: Ledger;
+  private cached: Roster | null = null;
   private readonly listeners: Array<() => void> = [];
   private askedPersist = false;
 
@@ -24,12 +26,42 @@ export class TomatoWallet {
     window.addEventListener('storage', (e) => {
       if (e.key !== PETS_KEY) return;
       this.ledger = mergeLedgers(this.ledger, load());
+      this.cached = null;
       this.emit();
     });
   }
 
   get count(): number {
     return tomatoes(this.ledger);
+  }
+
+  /** Who you have, eggs, trust, team: worked out from the log (cached until it changes). */
+  get roster(): Roster {
+    this.cached ??= buildRoster(this.ledger);
+    return this.cached;
+  }
+
+  /** The log itself (for the Drive sync). */
+  get log(): Ledger {
+    return this.ledger;
+  }
+
+  /** Merges a copy of the log from elsewhere (the Drive sync). */
+  mergeFrom(other: Ledger): void {
+    this.commit((l) => mergeLedgers(l, other));
+  }
+
+  /**
+   * Runs a game action against the latest roster (another tab's changes included) and adds its
+   * event if allowed. Returns the action (with the reason when refused).
+   */
+  act(make: (r: Roster) => Action): Action {
+    let result: Action = { ok: false, why: 'unknown' };
+    this.commit((l) => {
+      result = make(buildRoster(l));
+      return result.ok ? withEvent(l, result.event) : l;
+    });
+    return result;
   }
 
   onChange(fn: () => void): void {
@@ -59,13 +91,14 @@ export class TomatoWallet {
   }
 
   private commit(change: (l: Ledger) => Ledger): void {
-    const before = this.count;
+    const before = this.ledger.events.length;
     const base = mergeLedgers(this.ledger, load());
     const next = change(base);
     this.ledger = next;
+    this.cached = null;
     // Only when storage lags behind (a write fires `storage` in the other tabs).
     if (JSON.stringify(next) !== readStored(PETS_KEY)) writeStored(PETS_KEY, next);
-    if (this.count !== before) this.emit();
+    if (next.events.length !== before) this.emit();
   }
 
   /**

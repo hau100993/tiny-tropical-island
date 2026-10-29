@@ -58,6 +58,18 @@ export interface Attacker {
   leave(): void;
 }
 
+/** A wild one out watching you: where its head is, and what feeding it does. */
+export interface WildTarget {
+  kind: WildKind;
+  x: number;
+  y: number;
+  z: number;
+  /** A tomato landed: it lingers, calls and shows its element. */
+  fed(): void;
+  /** Befriended: it leaves the wild in a burst of sparkles (the new pet takes its place). */
+  join(): void;
+}
+
 /** One wild creature's model, whatever its kind. */
 interface Wild {
   kind: Kind;
@@ -84,6 +96,8 @@ interface Encounter {
   /** As an attacker (once it has attacked); since its last shot (s). */
   attacker: Attacker | null;
   castT: number;
+  /** As something to feed (made once, kept up to date while it watches). */
+  target: WildTarget | null;
 }
 
 export interface WildHost {
@@ -147,6 +161,41 @@ export class WildCreatures {
   /** In the forest with them about (the health bars show). */
   get inForest(): boolean {
     return this.wasInForest;
+  }
+
+  /** Those out watching you now (they can be fed: Thú Cưng), appended to `out`. */
+  watchers(out: WildTarget[]): void {
+    for (const e of this.active) {
+      if (e.state !== 'watch') continue;
+      e.target ??= this.targetOf(e);
+      const t = e.target;
+      t.x = e.px;
+      t.z = e.pz;
+      t.y = (e.w.kind === 'dragon' ? e.y : this.host.heightAt(e.px, e.pz)) + e.w.head + 0.3;
+      out.push(t);
+    }
+  }
+
+  private targetOf(e: Encounter): WildTarget {
+    return {
+      kind: e.w.kind,
+      x: e.px,
+      y: e.y,
+      z: e.pz,
+      fed: () => {
+        if (!this.active.includes(e) || e.state !== 'watch') return;
+        // It stays a while longer, happy: a call, a dance, its element.
+        e.watch = Math.max(e.watch, e.t + 4);
+        e.flourished = false;
+        this.host.voice(e.w.kind, e.px, e.y, e.pz);
+        this.puff(e.w, e.px, e.y, e.pz, 10, 0.5);
+      },
+      join: () => {
+        if (!this.active.includes(e) || e.state === 'banish' || e.state === 'vanish') return;
+        this.go(e, 'banish');
+        this.host.banished(e.w.kind, e.px, e.y + e.w.head, e.pz);
+      },
+    };
   }
 
   private between(r: readonly [number, number]): number {
@@ -442,6 +491,7 @@ export class WildCreatures {
       flourished: false,
       greeted: false,
       attacker: null,
+      target: null,
       castT: 0,
     });
   }

@@ -22,13 +22,18 @@ export const DAILY_FOCUS_CAP = 16;
  */
 export const LIVE_SLACK_MS = 3 * 60_000;
 
-/** One entry of the log. `n`: tomatoes gained (spending kinds come later, with negative effect). */
+/**
+ * One entry of the log. `n`: how many tomatoes it moves (in or out by kind, see TOMATO_SIGN);
+ * `pet`: the creature it is about; `s`: a short value (a name, an egg tier, a list of ids).
+ */
 export interface PetEvent {
   id: string;
   /** When it happened (ms since epoch). */
   t: number;
   kind: string;
   n: number;
+  pet?: string;
+  s?: string;
 }
 
 export interface Ledger {
@@ -37,7 +42,7 @@ export interface Ledger {
 }
 
 /** How each kind changes the tomato count per unit of `n`. Unknown kinds (a newer save) count 0. */
-const TOMATO_SIGN: Readonly<Record<string, number>> = { focus: 1, gift: 1 };
+const TOMATO_SIGN: Readonly<Record<string, number>> = { focus: 1, gift: 1, feed: -1, evolve: -1, egg: -1, trust: -1 };
 
 const GIFT_ID = 'gift';
 const MAX_EVENTS = 50_000;
@@ -46,10 +51,18 @@ export function emptyLedger(): Ledger {
   return { v: LEDGER_VERSION, events: [] };
 }
 
+/**
+ * Tomatoes on hand. Two devices spending the same tomatoes offline can leave the merged log
+ * below zero: shown as 0, and the next ones earned pay it back.
+ */
 export function tomatoes(l: Readonly<Ledger>): number {
+  return Math.max(0, tomatoBalance(l));
+}
+
+export function tomatoBalance(l: Readonly<Ledger>): number {
   let sum = 0;
   for (const e of l.events) sum += (TOMATO_SIGN[e.kind] ?? 0) * e.n;
-  return Math.max(0, sum);
+  return sum;
 }
 
 /** Tomatoes from focus sessions on the local day of `now`. */
@@ -115,14 +128,17 @@ export function parseLedger(raw: unknown): Ledger {
     if (typeof id !== 'string' || id.length === 0 || id.length > 40) continue;
     if (typeof kind !== 'string' || kind.length === 0 || kind.length > 16) continue;
     if (typeof t !== 'number' || !Number.isFinite(t) || typeof n !== 'number' || !Number.isFinite(n)) continue;
-    parsed.events.push({ id, t, kind, n: Math.round(n) });
+    const ev: PetEvent = { id, t, kind, n: Math.round(n) };
+    if (typeof e.pet === 'string' && e.pet.length > 0 && e.pet.length <= 40) ev.pet = e.pet;
+    if (typeof e.s === 'string' && e.s.length <= 200) ev.s = e.s;
+    parsed.events.push(ev);
     if (parsed.events.length >= MAX_EVENTS) break;
   }
   // Through the merge: duplicates collapse and the order is canonical.
   return mergeLedgers(parsed, emptyLedger());
 }
 
-function withEvent(l: Readonly<Ledger>, e: PetEvent): Ledger {
+export function withEvent(l: Readonly<Ledger>, e: PetEvent): Ledger {
   return { v: l.v, events: sortEvents([...l.events, e]) };
 }
 

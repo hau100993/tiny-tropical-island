@@ -29,6 +29,7 @@ export const icons = {
   time: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
   /** The computer's clock: a monitor with clock hands. */
   realClock: svg('<rect x="2.5" y="3.5" width="19" height="13" rx="2"/><path d="M12 7v3l2 1.5M8 20.5h8M12 16.5v4"/>'),
+  paw: svg('<circle cx="6" cy="10" r="2"/><circle cx="10" cy="5.5" r="2"/><circle cx="14" cy="5.5" r="2"/><circle cx="18" cy="10" r="2"/><path d="M12 12c-3 0-5.5 3.5-5.5 6a2.5 2.5 0 0 0 3.5 2.2c1.3-.5 2.7-.5 4 0a2.5 2.5 0 0 0 3.5-2.2c0-2.5-2.5-6-5.5-6z"/>'),
   eye: svg('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
   settings: svg('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'),
   keyboard: svg('<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>'),

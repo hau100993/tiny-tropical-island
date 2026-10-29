@@ -1,7 +1,7 @@
 import { el } from './components';
 
 /** Whose skill: sets the card's colours (styles: .skill-card.water …). */
-export type SkillElement = 'water' | 'fire' | 'grass' | 'spark' | 'combo';
+export type SkillElement = 'water' | 'fire' | 'grass' | 'spark' | 'moon' | 'combo';
 
 /** How long a card stays up (ms; its CSS animation lasts as long). */
 const CARD_MS = 2200;

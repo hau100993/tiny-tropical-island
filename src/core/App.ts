@@ -68,6 +68,8 @@ import { DebugOverlay } from '../ui/DebugOverlay';
 import { Panel, type ViewId } from '../ui/Panel';
 import { AudioPrompt } from '../ui/AudioPrompt';
 import { TomatoWallet, type FocusSession } from '../pets/wallet';
+import { PetGame } from '../pets/PetGame';
+import { petNotices, type PetNotices } from '../pets/notices';
 import { MIN_FOCUS_MIN } from '../pets/ledger';
 import { SlowHint } from '../ui/SlowHint';
 import { isTouch, watchTouch } from '../ui/touch';
@@ -251,6 +253,9 @@ export class App {
   private readonly pomodoro: PomodoroOverlay;
   /** Thú Cưng tomatoes (one per finished focus session). Before the Pomodoro: its first tick may report one. */
   private readonly wallet = new TomatoWallet();
+  /** The Thú Cưng game on the island: camp tab, feeding, new pets, their skills (pets/PetGame.ts). */
+  private readonly petGame: PetGame;
+  private readonly petNotices: PetNotices;
   /** Pomodoro storm calm: target and the eased value the visuals use. */
   private calmTarget = 1;
   private calmVisual = 1;
@@ -389,7 +394,7 @@ export class App {
       (x, z) => this.world.water.addRipple(x, z, 3, -1.0),
       // A click on Mochi (or a creature) pets it instead.
       () =>
-        this.petPointer.active || this.petPointer.hover || this.creatures.hover
+        this.petPointer.active || this.petPointer.hover || this.creatures.hover || this.petGame?.hover
           ? 'none'
           : this.cameras.mode === 'orbit'
             ? 'cursor'
@@ -526,6 +531,9 @@ export class App {
     });
     this.pomodoro.setTomatoes(this.wallet.count);
     this.wallet.onChange(() => this.pomodoro.setTomatoes(this.wallet.count));
+    this.petNotices = petNotices();
+    this.petGame = this.createPetGame(ui);
+    this.panel.mount('pets', this.petGame.camp.root);
     this.audioPrompt = new AudioPrompt(ui);
     this.slowHint = new SlowHint(ui, () => this.settings.get().quality, (quality) => this.settings.update({ quality }));
     this.ambience = new AmbienceSwitch((muted) => this.mixer.setAmbienceMuted(muted));
@@ -755,6 +763,124 @@ export class App {
     }
   }
 
+  /** The Thú Cưng game: what it needs from the island, you, the originals and the wild ones. */
+  private createPetGame(ui: HTMLElement): PetGame {
+    const hm = this.world.heightmap;
+    const house = this.world.layout.house;
+    // The camp: open dry sand in front of the house (no trunks or rocks near, clear of the
+    // water), the nearest such spot to the line from the island centre through the house.
+    const hl = Math.hypot(house.x, house.z) || 1;
+    const out0 = Math.atan2(house.z / hl, house.x / hl);
+    let camp = { x: house.x + (house.x / hl) * 12, z: house.z + (house.z / hl) * 12 };
+    let bestScore = Infinity;
+    for (let r = 10; r <= 18; r += 2) {
+      for (let k = -6; k <= 6; k++) {
+        const a = out0 + k * 0.12;
+        const x = house.x + Math.cos(a) * r;
+        const z = house.z + Math.sin(a) * r;
+        const h = hm.heightAt(x, z);
+        if (hm.surfaceAt(x, z) !== 'sand' || h < 0.5 || this.colliders.world.countNear(x, z, 4) > 0) continue;
+        const score = Math.abs(k) + Math.abs(r - 12) * 0.5;
+        if (score < bestScore) {
+          bestScore = score;
+          camp = { x, z };
+        }
+      }
+    }
+    const dogHead = new THREE.Vector3();
+    const sharkAt = { x: 0, y: 0, z: 0 };
+    const spots = new Map<string, { id: string; x: number; y: number; z: number }>();
+    const spot = (id: string, x: number, y: number, z: number): { id: string; x: number; y: number; z: number } => {
+      const sp = spots.get(id) ?? { id, x, y, z };
+      spots.set(id, sp);
+      sp.x = x;
+      sp.y = y;
+      sp.z = z;
+      return sp;
+    };
+    return new PetGame({
+      scene: this.scene,
+      camera: this.camera,
+      renderer: this.renderer,
+      ui,
+      wallet: this.wallet,
+      heightAt: (x, z) => hm.heightAt(x, z),
+      ripple: (x, z, r, k) => this.world.water.addRipple(x, z, r, k),
+      fx: this.fx,
+      pools: () => ({ ...this.creatures.pools, rainbow: this.rainbow }),
+      hearts: (at) => this.hearts.spawn(at),
+      skillCard: (text, element) => this.skillCard.show(text, element),
+      note: (text) => this.activityMenu.flash(text),
+      focusing: () => {
+        const p = this.pomodoro.snapshot();
+        return p !== null && p.running && !p.onBreak;
+      },
+      you: (out) => {
+        if (this.cameras.mode !== 'walk') return false;
+        const w = this.walker;
+        out.x = w.x;
+        out.z = w.z;
+        out.y = w.swimming ? this.seaHeight(w.x, w.z) : w.feetY;
+        // The walker looks along −z turned by yaw; pets use (sin, cos) of theirs.
+        out.yaw = w.yaw + Math.PI;
+        return true;
+      },
+      camp,
+      aim: () => this.creatureAimMode(),
+      pointerTaken: () => this.petPointer.hover || this.creatures.hover,
+      originalSpots: (out) => {
+        const dog = this.dog;
+        if (dog && this.dogModel?.root.visible) {
+          this.dogModel.headTop(dogHead);
+          out.push(spot('mochi', dog.x, dogHead.y + 0.1, dog.z));
+        }
+        this.creatures.petSpots(out);
+        if (this.beMap.spot(sharkAt)) out.push(spot('bemap', sharkAt.x, sharkAt.y, sharkAt.z));
+      },
+      originalRoot: (id) => (id === 'mochi' ? (this.dogModel?.root ?? null) : id === 'bemap' ? this.beMap.root : this.creatures.originalRoot(id)),
+      originalCheer: (id) => {
+        if (id === 'mochi') this.dog?.pet();
+        else this.creatures.cheer(id);
+      },
+      originalCaster: (id, out) => {
+        if (id === 'mochi') {
+          const dog = this.dog;
+          if (!dog || !this.dogModel?.root.visible) return false;
+          out.x = dog.x;
+          out.y = dog.y + 0.4;
+          out.z = dog.z;
+          out.yaw = dog.yaw;
+          return true;
+        }
+        if (id === 'bemap') {
+          if (!this.beMap.spot(sharkAt)) return false;
+          out.x = sharkAt.x;
+          out.y = sharkAt.y;
+          out.z = sharkAt.z;
+          out.yaw = 0;
+          return true;
+        }
+        return this.creatures.originalCaster(id, out);
+      },
+      originalNative: (id) => {
+        if (id === 'mochi') {
+          const dog = this.dog;
+          if (!dog) return false;
+          const r = this.dogSkills.next(() => dog.zoomies(this.dogPlayer));
+          return r !== null && r !== 'noRoom';
+        }
+        return this.creatures.originalNative(id);
+      },
+      wildWatchers: (out) => this.creatures.wildWatchers(out),
+      loadWild: (kind) => this.creatures.loadPetModel(kind),
+      pop: () => {
+        if (this.mixer.started) this.mixer.scheduleBubblePop(0, false);
+      },
+      wind: () => sharedUniforms.uWind.value,
+      campNotices: () => this.petNotices.element(this.wallet.roster),
+    });
+  }
+
   /** Focus sessions ended on their own: the to-do list counts them, the wallet may earn 🍅. */
   private onFocusDone(sessions: FocusSession[]): void {
     this.deskDash.addPomodoros(sessions.length);
@@ -820,6 +946,7 @@ export class App {
       action: () => {
         const dog = this.dog;
         if (!dog) return;
+        if (this.petGame.originalKey('mochi') === 'done') return;
         if (this.dogSkills.next(() => dog.zoomies(this.dogPlayer)) === 'noRoom') this.activityMenu.flash(vi.dog.zoomNoRoom);
       },
     });
@@ -828,6 +955,7 @@ export class App {
       keyLabel: 'R',
       label: vi.shortcuts.waterSkill,
       action: () => {
+        if (this.petGame.originalKey('bot') === 'done') return;
         const r = this.creatures.waterSkill();
         if (r === 'off') this.activityMenu.flash(vi.creatures.coming);
       },
@@ -837,6 +965,7 @@ export class App {
       keyLabel: 'X',
       label: vi.shortcuts.fireSkill,
       action: () => {
+        if (this.petGame.originalKey('hoalong') === 'done') return;
         const r = this.creatures.fireSkill();
         if (r === 'off') this.activityMenu.flash(vi.creatures.coming);
       },
@@ -846,6 +975,7 @@ export class App {
       keyLabel: 'Z',
       label: vi.shortcuts.grassSkill,
       action: () => {
+        if (this.petGame.originalKey('mam') === 'done') return;
         const r = this.creatures.grassSkill();
         if (r === 'off') this.activityMenu.flash(vi.creatures.coming);
       },
@@ -871,6 +1001,8 @@ export class App {
         if (this.cameras.mode === 'kayak') return;
         const near = this.nearSeat();
         if (near) this.cameras.sit(near, true);
+        // No seat here: E feeds the pet the bubble points at.
+        else this.petGame.feedNearest();
       },
     });
     this.keymap.register({
@@ -1142,7 +1274,7 @@ export class App {
       fx: this.fx,
       skillCard: (skill, element, x, z) => {
         this.showSkill(skill, element);
-        if (element !== 'combo') this.combos.note(element, x, z);
+        if (element !== 'combo' && element !== 'moon') this.combos.note(element, x, z);
       },
       trunks: this.world.forest.trunks,
       treesNear: (x, z, r) => this.colliders.treesNear(x, z, r),
@@ -2420,6 +2552,7 @@ export class App {
     this.updateDog(dt);
     this.creatures.update(dt);
     this.beMap.update(dt);
+    this.petGame.update(dt);
     this.seaGlow.update(dt);
     this.rainbow.update(dt);
     this.fx.update(dt);

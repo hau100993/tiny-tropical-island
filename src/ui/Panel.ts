@@ -63,6 +63,7 @@ const TAB_ICONS: Readonly<Record<PanelTab, string>> = {
   scene: icons.scene,
   sound: icons.music,
   view: icons.eye,
+  pets: icons.paw,
   settings: icons.settings,
 };
 /**
@@ -571,6 +572,11 @@ export class Panel {
       return;
     }
     this.deps.settings.update({ panelCollapsed: open });
+  }
+
+  /** Puts content made elsewhere (the Thú Cưng camp) into a tab. */
+  mount(id: PanelTab, content: HTMLElement): void {
+    this.tab(id).append(content);
   }
 
   private tab(id: PanelTab): HTMLElement {

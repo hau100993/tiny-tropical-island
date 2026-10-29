@@ -10,9 +10,10 @@ import type { SkillElement } from '../ui/skillCard';
 import type { StrikeTarget } from './dogSkills';
 import type { Partner } from './combos';
 import type { SpraySink } from '../water/Spray';
-import { WildCreatures, type Attacker } from './wildCreatures';
+import { WildCreatures, type Attacker, type WildTarget } from './wildCreatures';
 import type { BubbleSink } from '../world/creatures/airBubbles';
 import type { TrunkInstance } from '../world/vegetation/forest';
+import type { PetBody } from '../world/pets/bodies';
 // Type-only: the models, behaviours and the GLTFLoader are a separate chunk, fetched on first use.
 import type { CrabModel } from '../world/creatures/crabModel';
 import type { BubbleCrab, CrabPlayer, CrabSkill } from '../world/creatures/bubbleCrab';
@@ -28,6 +29,14 @@ import type { Blooms } from '../world/creatures/blooms';
 import waterCrabUrl from '../assets/creatures/water-crab.glb?url';
 import fireDragonUrl from '../assets/creatures/fire-dragon.glb?url';
 import grassBunnyUrl from '../assets/creatures/grass-bunny.glb?url';
+
+/** Where a pet's head is (world), for the feeding bubble. */
+export interface PetSpot {
+  id: string;
+  x: number;
+  y: number;
+  z: number;
+}
 
 /** What the creatures need from the app. */
 export interface CreatureHost {
@@ -299,6 +308,94 @@ export class Creatures {
     if (this.crabOn && this.crab && near(this.crab.brain.x, this.crab.brain.z)) this.crab.brain.pat();
     if (this.dragonOn && this.dragon && near(this.dragon.brain.x, this.dragon.brain.z)) this.dragon.brain.pat();
     if (this.bunnyOn && this.bunny && near(this.bunny.brain.x, this.bunny.brain.z)) this.bunny.brain.pat();
+  }
+
+  /**
+   * Bọt, Hỏa Long and Mầm as things to feed (Thú Cưng): their id and the top of the head, for
+   * those shown and loaded, appended to `out` (objects reused).
+   */
+  petSpots(out: PetSpot[]): void {
+    const c = this.crab;
+    if (c && this.crabOn && c.model.root.visible) out.push(this.spot('bot', c.brain.x, c.brain.y + 0.55 * c.model.root.scale.y, c.brain.z));
+    const d = this.dragon;
+    if (d && this.dragonOn && d.model.root.visible) out.push(this.spot('hoalong', d.brain.x, d.brain.y + 0.7 * d.model.root.scale.y, d.brain.z));
+    const b = this.bunny;
+    if (b && this.bunnyOn && b.model.root.visible) {
+      b.model.budTop(this.mouth);
+      out.push(this.spot('mam', b.brain.x, this.mouth.y + 0.15, b.brain.z));
+    }
+  }
+
+  private readonly spots = new Map<string, PetSpot>();
+
+  private spot(id: string, x: number, y: number, z: number): PetSpot {
+    let s = this.spots.get(id);
+    if (!s) {
+      s = { id, x, y, z };
+      this.spots.set(id, s);
+    }
+    s.x = x;
+    s.y = y;
+    s.z = z;
+    return s;
+  }
+
+  /** The model of an original (Level 2 changes its look), once loaded. */
+  originalRoot(id: string): THREE.Object3D | null {
+    if (id === 'bot') return this.crab?.model.root ?? null;
+    if (id === 'hoalong') return this.dragon?.model.root ?? null;
+    if (id === 'mam') return this.bunny?.model.root ?? null;
+    return null;
+  }
+
+  /** Where an original stands and faces (its Level 2 skills start there); false if not out. */
+  originalCaster(id: string, out: { x: number; y: number; z: number; yaw: number }): boolean {
+    const b = id === 'bot' && this.crabOn ? this.crab?.brain : id === 'hoalong' && this.dragonOn ? this.dragon?.brain : id === 'mam' && this.bunnyOn ? this.bunny?.brain : undefined;
+    if (!b) return false;
+    out.x = b.x;
+    out.y = b.y + 0.4;
+    out.z = b.z;
+    out.yaw = b.yaw;
+    return true;
+  }
+
+  /** An original's own next skill (its key's), started if it can now. */
+  originalNative(id: string): boolean {
+    const r = id === 'bot' ? this.waterSkill() : id === 'hoalong' ? this.fireSkill() : id === 'mam' ? this.grassSkill() : 'off';
+    return r !== 'off' && r !== 'busy';
+  }
+
+  /**
+   * A model of a crab, dragon or bunny for a befriended wild one (Thú Cưng), with what its
+   * walking about needs. Loaded fresh each time (its own materials, so it can be tinted).
+   */
+  async loadPetModel(kind: 'crab' | 'dragon' | 'bunny'): Promise<PetBody> {
+    const shared = this.host.shared;
+    if (kind === 'crab') {
+      const { CrabModel } = await import('../world/creatures/crabModel');
+      const m = await CrabModel.load(waterCrabUrl, shared);
+      return { root: m.root, head: 0.45, hover: 0, speed: 1.3, animate: (dt, a, moving) => m.update(dt, a, moving) };
+    }
+    if (kind === 'dragon') {
+      const { DragonModel } = await import('../world/creatures/dragonModel');
+      const m = await DragonModel.load(fireDragonUrl, shared);
+      return { root: m.root, head: 0.6, hover: 1.4, speed: 2.2, animate: (dt, a) => m.update(dt, a) };
+    }
+    const { BunnyModel } = await import('../world/creatures/bunnyModel');
+    const m = await BunnyModel.load(grassBunnyUrl, shared);
+    return { root: m.root, head: 0.8, hover: 0, speed: 1.6, animate: (dt, a, moving, wind) => m.update(dt, a, moving, a === 'greet' || a === 'dance' ? 0.8 : 0, wind) };
+  }
+
+  /** A happy reaction (fed): the same as a pat. */
+  cheer(id: string): void {
+    if (id === 'bot') this.crab?.brain.pat();
+    if (id === 'hoalong') this.dragon?.brain.pat();
+    if (id === 'mam') this.bunny?.brain.pat();
+  }
+
+  /** Wild ones watching you from the trees (they can be fed). */
+  wildWatchers(out: WildTarget[]): void {
+    this.wild.watchers(out);
   }
 
   /** Wild creatures peeking out in the rainforest, on or off; and whether they attack. */

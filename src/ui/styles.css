@@ -374,7 +374,7 @@ body.touch .kbd-only {
 /* Tabs under the fixed top: icon over a short name; the open one underlined in the accent. */
 .panel-tabs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 2px;
   padding: 0 8px;
   border-bottom: 1px solid var(--panel-border);
@@ -2357,6 +2357,7 @@ body.cursor-idle canvas {
 .skill-card.grass { --c1: #f4ffd6; --c2: #4cd964; --glow: rgba(90, 220, 110, 0.85); }
 .skill-card.spark { --c1: #ffffff; --c2: #ffd400; --glow: rgba(255, 220, 40, 0.95); }
 .skill-card.combo { --c1: #ffffff; --c2: #c86bff; --glow: rgba(200, 120, 255, 0.9); }
+.skill-card.moon { --c1: #ffffff; --c2: #b9c4ff; --glow: rgba(170, 180, 255, 0.9); }
 .skill-card-who {
   font-size: clamp(13px, 1.6vw, 18px);
   font-weight: 600;
@@ -2777,4 +2778,304 @@ body.touch.walking .pomodoro {
 /* Seated at the desk the monitor shows the Pomodoro: the floating card steps aside. */
 body.at-work-desk .pomodoro {
   display: none;
+}
+
+/* ---- Thú Cưng camp (ui/CampView.ts): the panel's "Thú Cưng" tab ---- */
+.camp-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.camp-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.camp-store {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.camp-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.camp-message,
+.camp-locked {
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--control-bg);
+}
+
+.camp-locked {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.camp-pet {
+  --el: #38b6ff;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--control-bg);
+  border: 1px solid var(--panel-border);
+  border-left: 3px solid var(--el);
+}
+
+.camp-pet.fire { --el: #ff6a2a; }
+.camp-pet.grass { --el: #3cbf55; }
+.camp-pet.spark { --el: #e0b400; }
+.camp-pet.moon { --el: #8f8cff; }
+
+.camp-pet.shiny {
+  background: linear-gradient(135deg, rgba(255, 226, 120, 0.35), var(--control-bg) 60%);
+}
+
+.camp-pet-top {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.camp-pet-icon {
+  font-size: 22px;
+  width: 30px;
+  text-align: center;
+}
+
+.camp-pet-who {
+  flex: 1;
+  min-width: 0;
+}
+
+.camp-pet-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.camp-pet-name .text-input {
+  width: 100%;
+}
+
+.camp-shiny {
+  font-size: 10px;
+  font-weight: 600;
+  color: #a77a00;
+}
+
+.camp-rename {
+  font: inherit;
+  font-size: 12px;
+  color: var(--panel-muted);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.camp-pet-species {
+  font-size: 11px;
+  color: var(--panel-muted);
+}
+
+.camp-exp {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.camp-exp-fill {
+  height: 100%;
+  background: var(--el, var(--accent));
+  border-radius: 3px;
+  transition: width 0.4s ease-out;
+}
+
+.camp-exp-text {
+  font-size: 10.5px;
+  color: var(--panel-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.camp-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.camp-skill {
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--el);
+}
+
+button.camp-skill {
+  font: inherit;
+  font-size: 10.5px;
+  color: var(--panel-fg);
+  cursor: pointer;
+}
+
+button.camp-skill:hover {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.camp-skill.locked {
+  opacity: 0.45;
+  border-style: dashed;
+}
+
+.camp-actions {
+  align-items: center;
+}
+
+.camp-evolve {
+  border-color: #c86bff;
+  font-weight: 600;
+}
+
+.camp-home {
+  font-size: 10.5px;
+  color: var(--panel-muted);
+}
+
+.camp-egg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.camp-egg.ready {
+  font-weight: 600;
+}
+
+.camp-egg-icon {
+  font-size: 16px;
+}
+
+.camp-egg-progress {
+  font-size: 11px;
+  color: var(--panel-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.camp-shop {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.camp-egg-buy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 5px 2px;
+}
+
+.camp-cost {
+  font-weight: 600;
+}
+
+.camp-trust {
+  font-size: 12px;
+}
+
+/* ---- Feeding bubble over a pet (world: pets/FeedBubble.ts) ---- */
+.feed-bubble {
+  position: fixed;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 5px 11px 6px;
+  border-radius: 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--panel-fg);
+  background: var(--panel-bg);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-shadow);
+  border: 1px solid var(--panel-border);
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+  z-index: 12;
+  white-space: nowrap;
+}
+
+.feed-bubble[hidden] {
+  display: none;
+}
+
+.feed-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  transform: translateX(-50%) rotate(45deg);
+  background: inherit;
+  border-right: 1px solid var(--panel-border);
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.feed-bubble-sub {
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--panel-muted);
+}
+
+.feed-bubble.pop {
+  /* `scale`, not `transform`: the bubble is placed with an inline transform. */
+  animation: bubble-pop 0.35s ease-out;
+}
+
+@keyframes bubble-pop {
+  0% { scale: 1; }
+  40% { scale: 1.15; }
+  100% { scale: 1; }
+}
+
+body.ui-hidden .feed-bubble {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-bubble.pop {
+    animation: none;
+  }
+}
+
+.camp-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(255, 214, 102, 0.28);
+  border: 1px solid rgba(255, 196, 60, 0.6);
 }
