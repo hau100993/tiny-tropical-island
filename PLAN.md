@@ -504,6 +504,24 @@ Mechanics modelled on Pokémon GO's power-up / evolve / egg loop; **no Pokémon 
 - Network only when the player turns on saving to Google Drive (opt-in, encouraged, never
   required). No backend, no Firebase, no social features for now.
 
+**Individuals: telling two or three of a kind apart (user, 2026-10-29)**
+- Every Thú Cưng is an individual with its own id: `id, species, name, Level, Rank, look seed`.
+  Events name the id, never the species, so three Thỏ Cỏ keep separate progress.
+- Species names (Vietnamese) apart from individual names: Thỏ Cỏ (Mầm), Cua Nước (Bọt),
+  Rồng Lửa (Hỏa Long), Chó Shiba (Mochi), Cá Mập Con (Bé Mập); the originals keep their names.
+- New ones (befriended or hatched) are **named automatically** from a list per species (Sương,
+  Lá, Bông …, never a name already in use); renaming any time in Trại. The name shows on the
+  feeding bubble ("🍅 Cho Sương ăn?"), the skill card ("Sương: Leaf Storm") and in Trại.
+- Looks from the seed, all in code on the same model: size ±10 %, a hue shift inside the
+  species' palette, an accessory (Thỏ Cỏ: one leaf, two leaves, a flower, a bud), maybe spots.
+  Tamed ones wear a collar/ribbon in the player's colour, so they never look like wild ones.
+- **Shiny** (random, rare): golden tint and a sparkle. Draft odds: befriending a wild one 1/100;
+  eggs higher: 1/30 (2-session egg), 1/20 (5), 1/10 (10). Tuned in 13e.
+- **At most 5 out on the island** at once (chosen in Trại: following you or near their home);
+  the rest rest in Trại and can still be fed there. Near one, a small label `Sương · Rank 8`
+  (hidden far away and with H). Skinned models are cloned from one loaded file; 5 keeps draw
+  calls and animation CPU inside the budget.
+
 **Economy (draft numbers, tuned in 13e after real use)**
 - Feeding = experience (EXP): 1 🍅 fed = 1 EXP; **Rank** R → R+1 costs `1 + floor(R / 4)` 🍅
   (Rank is the fed progress, Level the evolution stage).
@@ -556,10 +574,10 @@ Mechanics modelled on Pokémon GO's power-up / evolve / egg loop; **no Pokémon 
 | Step | Deliverable | What you test |
 | --- | --- | --- |
 | **13a** | Tomato wallet as an event log (`tsw.pets`, versioned), +1 🍅 per finished focus session, starting gift from the to-do history, `persist()`, export/import, 🍅 count on the Pomodoro card and the right monitor; unit tests for the log, merge and costs | Finish a session → +1 (gift capped at 10); export, clear site data, import → same state |
-| **13b** | Ranks and EXP for every current creature, feeding bubble on approach, Trại panel (breaks only), skills scale with Rank | Feed, rank up, nothing offered during focus |
+| **13b** | Individuals (ids, species vs names, auto names, rename, labels), team of 5 out on the island, Ranks and EXP for every current creature, feeding bubble on approach, Trại panel (breaks only), skills scale with Rank | Feed, rank up, nothing offered during focus |
 | **13s** | Opt-in Google Drive sync, invitations at milestones, status icon; README setup guide | Same progress on PC and phone; offline on both, then sync |
 | **13c** | Evolution to Level 2 with 3 new skills, prototype on one creature (Mầm), then the others; Level 2 made in code (size, colours, added parts, aura) on the same model | Evolution scene, new skills, fps |
-| **13d** | Eggs: buy, hatch by focus sessions, hatching scene; 5 new species (CC0 models, loaded on first hatch), each Level 1 + Level 2 × 3 skills; wild befriending | Buy, hatch, befriend a wild one |
+| **13d** | Eggs: buy, hatch by focus sessions, hatching scene; 5 new species (CC0 models, loaded on first hatch), each Level 1 + Level 2 × 3 skills; wild befriending; seeded looks and shiny variants | Buy, hatch, befriend a wild one |
 | **13e** | Balancing after 1–2 weeks of use; extra tomato sources (discussed then) | Is the pace right? |
 | **11d + QR** | Home-screen install, QR transfer | Install on iPhone; move a save by QR |
 
