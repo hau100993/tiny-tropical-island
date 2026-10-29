@@ -35,6 +35,7 @@ import { DASH_PX, DeskDash, type ScreenInfo } from '../world/deskDash';
 import { TodoBubbles } from '../world/todoBubbles';
 import { DeskDashInput } from '../controls/deskDashInput';
 import { AmbienceSwitch } from '../audio/ambienceSwitch';
+import { onUserGesture } from '../audio/gesture';
 import { formatClock, windowSkyTurn } from '../world/celestial';
 import { WalkHint } from '../ui/WalkHint';
 import { ActivityMenu, type ActivityCard } from '../ui/ActivityMenu';
@@ -528,9 +529,7 @@ export class App {
     this.mixer.onChange(() => this.deskVideo.syncVolume());
     // No start screen: sound starts with the first click or key press anywhere (browsers
     // don't allow audio before that).
-    for (const type of ['pointerdown', 'keydown'] as const) {
-      window.addEventListener(type, () => this.onFirstGesture(), { capture: true });
-    }
+    onUserGesture(() => this.onFirstGesture());
     // The panel offers a "Bật âm thanh" button; the prompt only reports a failed start.
     this.walkHint = new WalkHint(ui);
     this.touchControls = new TouchControls(ui);
