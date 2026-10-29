@@ -28,6 +28,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          # Optional Google Drive sync (Phase 13s): the OAuth web client id, kept as a repository
+          # variable (Settings → Secrets and variables → Actions → Variables). Not secret: it is
+          # visible in the page anyway. Empty: the app has no Drive sync.
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

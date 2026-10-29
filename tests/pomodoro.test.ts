@@ -30,6 +30,8 @@ describe('pomodoro state machine', () => {
     // The tab was hidden; the timer only fires 50 s after the focus ended.
     const r = advance(s, c, 25 * MIN + 50_000);
     expect(r.ended).toEqual(['focus']);
+    // When it really ended, for the tomato wallet (it only counts sessions noticed in time).
+    expect(r.endedAt).toEqual([25 * MIN]);
     expect(r.state.phase).toBe('break');
     expect(r.state.endsAt).toBe(30 * MIN);
     expect(r.state.completed).toBe(1);

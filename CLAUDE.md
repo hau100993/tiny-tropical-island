@@ -3,14 +3,14 @@
 ## Project
 A local web app for Windows 11 that I leave open while I work: an immersive 3D tropical island with a sound mixer. It runs fully offline with no backend.
 
-- UI text: Vietnamese. Code, comments, commit messages, docs: English.
+- UI text: Vietnamese (except Thú Cưng Levels, Ranks and skill names: English). Code, comments, commit messages, docs: English.
 - Reply to me in Vietnamese unless I write in English.
 - I am an embedded engineer (C/C++ background), new to web graphics. Explain shader and WebGL decisions briefly and concretely.
 
 ## Tech stack
 - Vite + TypeScript + Three.js. Do not add a UI framework unless the plan justifies it.
 - Run: `npm install && npm run dev`. Build: `npm run build`. Both must always work.
-- No CDN at runtime. No network calls. Settings persist in `localStorage`.
+- No CDN at runtime. No network calls, except the opt-in Google Drive sync (Phase 13s), loaded only after the user turns it on. Settings persist in `localStorage`.
 - Target: Chrome/Edge on Windows 11, mid-range GPU, 60 fps.
 
 ## Folder structure

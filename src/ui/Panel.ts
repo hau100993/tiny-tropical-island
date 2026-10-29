@@ -1,5 +1,6 @@
 import { button, el, onWheelNotch, slider, toggle, VOLUME, type SliderControl, type ToggleControl } from './components';
 import { icons } from './icons';
+import { backupControls } from './backupControls';
 import { vi } from './strings.vi';
 import { LibraryView } from './LibraryView';
 import { SceneView } from './SceneView';
@@ -62,6 +63,7 @@ const TAB_ICONS: Readonly<Record<PanelTab, string>> = {
   scene: icons.scene,
   sound: icons.music,
   view: icons.eye,
+  pets: icons.paw,
   settings: icons.settings,
 };
 /**
@@ -372,6 +374,8 @@ export class Panel {
       el('div', 'subhead', vi.pomodoro.title),
       pomoRow,
       keysRow,
+      el('div', 'subhead', vi.backup.title),
+      backupControls(),
     );
 
     this.root.append(header, top, tabBar, content);
@@ -568,6 +572,11 @@ export class Panel {
       return;
     }
     this.deps.settings.update({ panelCollapsed: open });
+  }
+
+  /** Puts content made elsewhere (the Thú Cưng camp) into a tab. */
+  mount(id: PanelTab, content: HTMLElement): void {
+    this.tab(id).append(content);
   }
 
   private tab(id: PanelTab): HTMLElement {

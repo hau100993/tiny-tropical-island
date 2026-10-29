@@ -3,6 +3,7 @@ import { icons } from './icons';
 import { vi } from './strings.vi';
 import { isRecord, parseJson, readStored, writeStored } from '../core/storage';
 import type { ChimeKind } from '../audio/synth/chime';
+import type { FocusSession } from '../pets/wallet';
 import {
   advance,
   formatRemaining,
@@ -31,8 +32,8 @@ export interface PomodoroDeps {
   onCalm: (active: boolean) => void;
   /** Volume of the notification sounds (0..1). Called at start and on every change. */
   setAlertVolume: (volume: number) => void;
-  /** `count` focus sessions just ended (the to-do list counts them). */
-  onFocusDone: (count: number) => void;
+  /** Focus sessions just ended on their own (not skipped): the to-do list and 🍅 count them. */
+  onFocusDone: (sessions: FocusSession[]) => void;
   /** The task being worked on (the desk's to-do list), shown under the phase; null with none. */
   currentTask: () => string | null;
 }
@@ -66,6 +67,7 @@ export class PomodoroOverlay {
   private readonly taskEl: HTMLElement;
   private readonly bar: HTMLElement;
   private readonly dots: HTMLElement;
+  private readonly tomatoEl: HTMLElement;
   private readonly playBtn: HTMLButtonElement;
   private readonly notice: HTMLElement;
   private readonly settingsBox: HTMLElement;
@@ -95,11 +97,13 @@ export class PomodoroOverlay {
     const head = el('div', 'pomo-head');
     this.phaseEl = el('span', 'pomo-phase');
     this.dots = el('span', 'pomo-dots');
+    this.tomatoEl = el('span', 'pomo-tomatoes');
+    this.tomatoEl.title = vi.pets.walletTitle;
     const close = button('', () => this.setVisible(false), 'icon-btn small');
     close.innerHTML = icons.close;
     close.title = vi.pomodoro.hide;
     close.setAttribute('aria-label', vi.pomodoro.hide);
-    head.append(this.phaseEl, this.dots, close);
+    head.append(this.phaseEl, this.dots, this.tomatoEl, close);
     // The current task in full (up to two lines).
     this.taskEl = el('div', 'pomo-task');
 
@@ -196,6 +200,22 @@ export class PomodoroOverlay {
     const every = this.config.longEvery;
     const s = this.state;
     return every > 0 ? '●'.repeat(Math.min(s.completed, every)) + '○'.repeat(Math.max(0, every - s.completed)) : '';
+  }
+
+  /** The wallet's count in the card's head ("🍅 12"); `gained` > 0 makes it pop. */
+  setTomatoes(count: number, gained = 0): void {
+    this.tomatoEl.textContent = `🍅 ${count}`;
+    if (gained <= 0) return;
+    this.tomatoEl.classList.remove('pop');
+    // Restart the animation: off for a frame (a reflow), then on.
+    void this.tomatoEl.offsetWidth;
+    this.tomatoEl.classList.add('pop');
+  }
+
+  /** One more sentence after the "time's up" message (what the session earned). */
+  addToNotice(text: string): void {
+    if (this.notice.hidden) this.showNotice(text);
+    else this.notice.textContent = `${this.notice.textContent ?? ''} ${text}`;
   }
 
   get isVisible(): boolean {
@@ -311,7 +331,7 @@ export class PomodoroOverlay {
 
   private tick = (): void => {
     const before = this.state;
-    const { state, ended } = advance(before, this.config, Date.now());
+    const { state, ended, endedAt } = advance(before, this.config, Date.now());
     if (ended.length === 0) {
       this.render();
       return;
@@ -324,8 +344,11 @@ export class PomodoroOverlay {
     if (!rang && this.config.chime && this.deps.soundOn()) this.deps.scheduleChime(Date.now(), kind);
     this.showNotice(kind === 'toBreak' ? vi.pomodoro.toBreak : vi.pomodoro.toFocus);
     this.update(state);
-    const focus = ended.filter((p) => p === 'focus').length;
-    if (focus > 0) this.deps.onFocusDone(focus);
+    const focus: FocusSession[] = [];
+    for (let i = 0; i < ended.length; i++) {
+      if (ended[i] === 'focus') focus.push({ endedAt: endedAt[i], minutes: this.config.focusMin });
+    }
+    if (focus.length > 0) this.deps.onFocusDone(focus);
   };
 
   private scheduleChime(): void {

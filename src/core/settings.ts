@@ -75,7 +75,7 @@ export interface Settings {
 }
 
 // The time bar is always shown above them (Panel), so it isn't one of these.
-export const PANEL_TABS = ['scene', 'sound', 'view', 'settings'] as const;
+export const PANEL_TABS = ['scene', 'sound', 'view', 'pets', 'settings'] as const;
 export type PanelTab = (typeof PANEL_TABS)[number];
 
 /**

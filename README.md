@@ -69,7 +69,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `X` | Hỏa Long the fire dragon's skills, each press the next: fire breath (at you if you stand within 12 m: it dries you; else onto the sea), ring of fire, meteor shower |
 | `Z` | Mầm the grass bunny's skills, each press the next: Leaf Blossom (flowers spring up where the leaves land; within 10 m of you: a ring of flowers round you), the pollen dance, dandelion breeze |
 | `U` | Seated at the desk: play a YouTube link on the left monitor, same as clicking the YouTube icon on that monitor (see *The house and the work desk*). Elsewhere: pause / resume that video |
-| `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up |
+| `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up; next to a Thú Cưng (no seat near): feed it a 🍅 |
 | `K` | Walking on the beach or in the shallows: get into the kayak; in the kayak: step out (see *Kayak*) |
 | `L` | Walking on the beach or in the shallows: go surfing (see *Surfing*); on the board: slip off |
 | `Esc` | Seated (desk or bathtub): get up |
@@ -387,6 +387,119 @@ from **Cài đặt → Thẻ Pomodoro**.
 - Works with the tab in the background: the bell is placed on the audio clock in advance, so it
   rings on time even though Chrome runs background timers only once a minute.
 - The timer is saved: reloading the page or restarting the browser continues where it was.
+
+### Tomatoes 🍅 (Thú Cưng, Phase 13a)
+
+Every focus session that runs to its end puts **one tomato** in your store ("Kho"), shown as
+`🍅 12` in the Pomodoro card's head and as **Kho 🍅 12** on the right monitor's strip. Tomatoes
+will feed the island's creatures (Thú Cưng, next steps in `PLAN.md`). The rules:
+
+- **Skipped or reset sessions earn nothing**: only a focus phase that ends by itself counts.
+- **Shorter than 20 minutes** (focus length in ⚙) earns nothing; the card says so.
+- A session must end **while the page is open** (a background tab is fine). Sessions that ran
+  out while the browser was closed or the computer asleep earn nothing.
+- At most **16 a day** from focus sessions.
+- **Starting gift:** the first time, the 🍅 your to-do list remembers become tomatoes, at most 10.
+- Two open tabs never count a session twice.
+
+### Backup (**Cài đặt → Sao lưu**)
+
+Everything the app keeps in the browser (settings, to-do list, scenes, tomatoes …) lives only in
+this browser on this device: clearing the site data, a private window, or another browser starts
+from nothing. **Tải bản sao lưu** downloads it all as one small `.json` file; **Nhập bản sao lưu**
+loads such a file (on this or another device) and reloads the page. Importing replaces settings,
+to-do list and scenes, but **merges** tomatoes, so nothing earned since the backup is lost. Your
+recordings are not in the file (too big); add them again on another device. Once you have earned
+a tomato the app also asks the browser to keep its data when the disk runs low (this does not
+stop you from clearing it yourself).
+
+## Thú Cưng (Phase 13): tomatoes feed the island's creatures
+
+Every finished focus session gives a 🍅 (see *Tomatoes* above). Tomatoes feed the creatures, which
+grow, learn skills, evolve; and they buy eggs that hatch into new species. Everything is in the
+panel's **Thú Cưng** tab (the camp, "Trại"). **During a focus session the camp is closed** (it
+only shows the egg's progress) and no creature asks to be fed: spending is for breaks.
+
+- **Who:** the five who live on the island (Mochi, Bọt, Hỏa Long, Mầm, Bé Mập) and every new
+  one. Each is an individual with its own name (new ones are named automatically from a list;
+  ✎ renames), Level, Rank and look (size, a slight colour shift and an accessory from its seed).
+- **Feeding = EXP:** 1 🍅 = 1 EXP. Rank R → R + 1 costs `1 + floor(R / 4)` 🍅. **Level 1 stops at
+  Rank 15**: there it can **evolve to Level 2** for 20 🍅 (rainbow light gathers, a flash: it is
+  bigger, faintly glowing, with a turning ring of light at its feet), then grow on to Rank 30.
+  To Rank 15: 35 🍅; to Rank 30 after evolving: 92 more.
+- **Skills (English names):** Level 1 has three, Level 2 three more. The originals have their
+  Level 1 skills from the start; their Level 2 ones open at Ranks 15, 20 and 25 and join their key
+  (`J`, `R`, `X`, `Z`: after its own three, each press the next Level 2 one). New species learn
+  theirs at Ranks 1, 5, 10 (Level 1) and 15, 20, 25 (Level 2). Click a skill chip in the camp to
+  use it (the creature must be on the island); click or tap a new pet to use its next skill.
+  Higher Ranks make the new skills bigger.
+- **Feeding on the island:** walk up to a creature (about 3 m) and look at it: a bubble
+  **🍅 Cho Sương ăn?** shows its Rank and EXP. Click / tap it (hold to keep feeding) or press `E`:
+  a tomato flies to it, hearts, its EXP fills; a Rank up shows a card, a new skill its name.
+  Walk off without feeding and that one doesn't ask again for 10 minutes. The camp has a feed
+  button for every creature too.
+- **Eggs:** 5 / 10 / 20 🍅 for an egg that hatches after 2 / 5 / 10 more focus sessions (one egg
+  incubates at a time). **Nở!** hatches a ready egg: it wobbles, bursts in rainbow light, and the
+  new pet is there (in front of you while walking, else at the camp on the beach by the house).
+  The longer eggs give rarer species and more **shiny** ones (golden, sparkling): 1/30, 1/20, 1/10.
+- **Ten egg species** (Level 1 name → Level 2 name; rarity):
+  Nai Vàng → Nai Thần Rừng, Bé Na → Na Chín, Ếch Xanh → Ếch Vương, Ong Vàng → Ong Chúa (common);
+  Hổ Báo → Hổ Lửa, Nhện Halloween → Nhện Bí Ngô, Rồng Mây, Thú Lạ, Thú Hiếm (rare; the last
+  three get their real names once their models are in); **Kim Quy → Thần Kim Quy** (legendary:
+  only from 10-session eggs, 1 in 15, **one per player**). 2-session eggs hatch commons,
+  5-session eggs a rare one in four, 10-session eggs rares (or Kim Quy).
+- **Each one is different:** ♂/♀ (looks only: girls wear a bow), a rare **Bé tí** (×0.7) or
+  **Khổng lồ** (×1.35) one in 20 each, and **Tiềm năng** 1–3 ★ from birth (skills up to +15 %).
+  The camp shows **Sức mạnh**, a single strength number (species, Level, Rank, ★).
+- **Models:** each species uses its Poly Pizza model from `src/assets/creatures/pets/`
+  (`<species>-l1.glb`, `-l2.glb`, `-shiny.glb`). With no Level 2 or shiny file, Level 1's model
+  is used with an accessory (crown, flowers, flames, pumpkin, sword…) or a golden look; with no
+  model at all, a round stand-in in the species' colour with its emoji. To fetch the chosen
+  models: `npm run pets:models` (needs internet; prints each file's licence: keep CC0, or credit
+  CC-BY ones below).
+- **Wild ones:** the forest's crab, dragon and bunny peek out from the trees; and four egg
+  species live wild too: **Ếch Xanh** on the wet sand by the sea while it rains, **Ong Vàng**
+  over the open grass on fine days, **Nhện Halloween** letting itself down on a thread in the
+  forest at night, **Nai Vàng** at the forest's edge at dawn and dusk (very shy). When one watches
+  you, the bubble offers a throw (up to 12 m). Three tomatoes to wild ones of a kind (over any
+  number of meetings) and one stays with you as a Thú Cưng (1/100 shiny).
+- **Out on the island:** up to **5** new pets at once (**Ra đảo** in the camp; new arrivals join
+  while there is room). They wander about the camp and follow you while you walk nearby; the
+  originals live on the island as before.
+- **Nothing is ever lost:** no hunger, no decay, no penalty for a missed day.
+
+### Saving to Google Drive (optional, Phase 13s)
+
+Thú Cưng progress lives in this browser (see *Backup*). Players can also keep it in **their own
+Google Drive**: the camp offers it at a few milestones (a first Rank up, a first Level 2, a first
+hatch; three times at most, never to someone who only watches the scene), and a small
+**☁️ Lưu lên Drive** link stays at the top of the camp.
+
+- **What it does:** a click loads Google's sign-in (the only network the app ever uses, and only
+  after that click), asks for one permission, `drive.appdata` (a hidden folder of the app's own in
+  the player's Drive: the app can't see anything else, and the data is not on any server of ours),
+  then syncs: on that click, ~30 s after a change, and when the tab is hidden. Tomatoes and
+  Thú Cưng **merge** across devices (play on the PC and the phone, even offline, nothing is lost);
+  settings, to-do and scenes don't merge: when another device's copy is on Drive, the camp offers
+  **Dùng bản của máy kia** or **Giữ của máy này**.
+- **Tokens:** Google gives the page access for about an hour and no way to renew it silently, so
+  when it runs out the camp shows **Nhấn để đồng bộ lại** instead of opening Google's window by
+  itself. **Ngắt Drive trên máy này** turns it off (and revokes the permission).
+- **Setup (once, by whoever hosts the app):**
+  1. [Google Cloud Console](https://console.cloud.google.com/): create a project, enable the
+     **Google Drive API**.
+  2. **OAuth consent screen:** External; app name; add the scope
+     `https://www.googleapis.com/auth/drive.appdata` (non-sensitive). While it is in *Testing*, add
+     each friend's Gmail under *Test users* (up to 100; Google shows them an "unverified app"
+     notice). To drop that notice, publish the app (basic verification for non-sensitive scopes).
+  3. **Credentials → Create OAuth client ID → Web application**, *Authorized JavaScript origins*:
+     `https://hau100993.github.io` and `http://localhost:5173` (no redirect URIs needed).
+  4. Give the app the client id (it is not a secret):
+     - local: a file `.env.local` in the project folder with
+       `VITE_GOOGLE_CLIENT_ID=1234-abc.apps.googleusercontent.com`, then `npm run dev`;
+     - GitHub Pages: repository **Settings → Secrets and variables → Actions → Variables →
+       New repository variable** `GOOGLE_CLIENT_ID`; the deploy workflow passes it to the build.
+  Without a client id the app simply has no Drive option (everything else works the same).
 
 ## Sound files in the project folder (advanced, optional)
 
@@ -1049,7 +1162,12 @@ src/
   controls/  orbit camera, walking (first person), collision, water clicks, keyboard shortcuts
   activities/  sea activities: kayak physics (paddle strokes, blade forces, hull drag) and control,
              surfboard physics and control
-  ui/        Vietnamese strings, control panel, Pomodoro (state machine + card), stats overlay, styles
+  ui/        Vietnamese strings, control panel, Pomodoro (state machine + card), backup buttons,
+             stats overlay, styles
+  pets/      Thú Cưng: the event log (earn rules, merge), roster (Ranks, eggs, team), species,
+             the game on the island (PetGame), Drive sync (optional)
+    world/pets/  new species' bodies, looks (shiny, Level 2), PetActor, recipe skills,
+             hatch/evolve ceremonies, the thrown tomato
 tests/       unit tests for pure logic
 vite-plugins/  audio-manifest plugin (lists files in public/audio)
 public/audio/  config.json for optional recordings (+ README)
@@ -1062,6 +1180,7 @@ audio files in the repo.
 
 | Item | License | Notes |
 |---|---|---|
+| Google Identity Services (`accounts.google.com/gsi/client`) and the Google Drive REST API | Google's terms of service | not bundled: loaded at run time only after a player turns on the optional Drive sync (Phase 13s) |
 | [three.js](https://threejs.org) 0.186.1 (incl. `OrbitControls`, `BufferGeometryUtils`, `FullScreenQuad`, and `EffectComposer`, `RenderPass`, `ShaderPass`, `UnrealBloomPass`, `OutputPass` for the skills' glow) | MIT | runtime dependency |
 | [Vite](https://vite.dev), [TypeScript](https://www.typescriptlang.org), [Vitest](https://vitest.dev) | MIT / Apache-2.0 / MIT | dev tools only |
 | Simplex noise | public domain | reimplemented after Stefan Gustavson's reference |
