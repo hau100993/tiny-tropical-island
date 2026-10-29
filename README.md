@@ -442,12 +442,27 @@ only shows the egg's progress) and no creature asks to be fed: spending is for b
   incubates at a time). **Nở!** hatches a ready egg: it wobbles, bursts in rainbow light, and the
   new pet is there (in front of you while walking, else at the camp on the beach by the house).
   The longer eggs give rarer species and more **shiny** ones (golden, sparkling): 1/30, 1/20, 1/10.
-- **New species** (built in code, no model files): **Đom Đóm Sét** (spark firefly, flies),
-  **Sứa Mây** (cloud jellyfish, floats), **Bé Dung Nham** (lava slime, hops), **Rùa Rêu** (mossy
-  turtle with a tree on its shell), **Cú Trăng** (moon owl, flies when it moves).
-- **Wild ones** (in the forest): when one peeks out and watches you, the bubble offers a throw
-  (up to 12 m: they are shy). Three tomatoes to wild ones of a kind (over any number of meetings)
-  and one stays with you as a Thú Cưng (1/100 shiny).
+- **Ten egg species** (Level 1 name → Level 2 name; rarity):
+  Nai Vàng → Nai Thần Rừng, Bé Na → Na Chín, Ếch Xanh → Ếch Vương, Ong Vàng → Ong Chúa (common);
+  Hổ Báo → Hổ Lửa, Nhện Halloween → Nhện Bí Ngô, Rồng Mây, Thú Lạ, Thú Hiếm (rare; the last
+  three get their real names once their models are in); **Kim Quy → Thần Kim Quy** (legendary:
+  only from 10-session eggs, 1 in 15, **one per player**). 2-session eggs hatch commons,
+  5-session eggs a rare one in four, 10-session eggs rares (or Kim Quy).
+- **Each one is different:** ♂/♀ (looks only: girls wear a bow), a rare **Bé tí** (×0.7) or
+  **Khổng lồ** (×1.35) one in 20 each, and **Tiềm năng** 1–3 ★ from birth (skills up to +15 %).
+  The camp shows **Sức mạnh**, a single strength number (species, Level, Rank, ★).
+- **Models:** each species uses its Poly Pizza model from `src/assets/creatures/pets/`
+  (`<species>-l1.glb`, `-l2.glb`, `-shiny.glb`). With no Level 2 or shiny file, Level 1's model
+  is used with an accessory (crown, flowers, flames, pumpkin, sword…) or a golden look; with no
+  model at all, a round stand-in in the species' colour with its emoji. To fetch the chosen
+  models: `npm run pets:models` (needs internet; prints each file's licence: keep CC0, or credit
+  CC-BY ones below).
+- **Wild ones:** the forest's crab, dragon and bunny peek out from the trees; and four egg
+  species live wild too: **Ếch Xanh** on the wet sand by the sea while it rains, **Ong Vàng**
+  over the open grass on fine days, **Nhện Halloween** letting itself down on a thread in the
+  forest at night, **Nai Vàng** at the forest's edge at dawn and dusk (very shy). When one watches
+  you, the bubble offers a throw (up to 12 m). Three tomatoes to wild ones of a kind (over any
+  number of meetings) and one stays with you as a Thú Cưng (1/100 shiny).
 - **Out on the island:** up to **5** new pets at once (**Ra đảo** in the camp; new arrivals join
   while there is room). They wander about the camp and follow you while you walk nearby; the
   originals live on the island as before.

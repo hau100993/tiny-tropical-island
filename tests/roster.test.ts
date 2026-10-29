@@ -184,9 +184,66 @@ describe('species', () => {
     for (const id of EGG_SPECIES) for (const name of SPECIES[id].skills) expect(hasRecipe(name), name).toBe(true);
   });
 
-  it('every egg tier hatches only egg species', () => {
-    for (const tier of [2, 5, 10] as const) {
-      for (let i = 0; i < 50; i++) expect(['sparkfly', 'jelly', 'lava', 'turtle', 'owl']).toContain(eggContents(`g${i}`, tier).species);
+  it('eggs hatch by rarity: commons from 2, mostly commons from 5, rares (and the legend) from 10', async () => {
+    const { COMMON, RARE } = await import('../src/pets/species');
+    const count = (tier: 2 | 5 | 10, taken = false): Record<string, number> => {
+      const c: Record<string, number> = {};
+      for (let i = 0; i < 3000; i++) {
+        const s = eggContents(`g${i}`, tier, taken).species;
+        c[s] = (c[s] ?? 0) + 1;
+      }
+      return c;
+    };
+    expect(Object.keys(count(2)).every((s) => COMMON.includes(s as never))).toBe(true);
+    const five = count(5);
+    const rare5 = RARE.reduce((n, s) => n + (five[s] ?? 0), 0);
+    expect(rare5 / 3000).toBeGreaterThan(0.2);
+    expect(rare5 / 3000).toBeLessThan(0.3);
+    const ten = count(10);
+    expect(ten.kimquy / 3000).toBeGreaterThan(0.04);
+    expect(ten.kimquy / 3000).toBeLessThan(0.1);
+    expect(count(10, true).kimquy).toBeUndefined();
+  });
+
+  it('Kim Quy: one per player, even with two eggs bought before either hatched', () => {
+    // Find two egg ids that would both hold the legend on their own.
+    const ids: string[] = [];
+    for (let i = 0; ids.length < 2; i++) if (eggContents(`gk${i}`, 10).species === 'kimquy') ids.push(`gk${i}`);
+    let l = rich(60);
+    for (const id of ids) l = mergeLedgers(l, { v: 1, events: [{ id, t: tick(), kind: 'egg', n: 20, s: '10' }] });
+    const r = buildRoster(l);
+    expect(r.eggs.map((g) => g.species).filter((s) => s === 'kimquy')).toHaveLength(1);
+  });
+
+  it('traits: about half girls, rare tiny and huge ones, 1–3 stars; Sức mạnh grows', async () => {
+    const { traitsOf, powerOf } = await import('../src/pets/roster');
+    let girls = 0;
+    let tiny = 0;
+    let huge = 0;
+    const stars = new Set<number>();
+    for (let i = 0; i < 2000; i++) {
+      const t = traitsOf(`p${i}`, 'egg');
+      if (t.gender === 'f') girls++;
+      if (t.size === 'tiny') tiny++;
+      if (t.size === 'huge') huge++;
+      stars.add(t.stars);
+    }
+    expect(girls / 2000).toBeGreaterThan(0.45);
+    expect(girls / 2000).toBeLessThan(0.55);
+    expect(tiny / 2000).toBeLessThan(0.08);
+    expect(huge / 2000).toBeLessThan(0.08);
+    expect([...stars].sort()).toEqual([1, 2, 3]);
+    expect(powerOf('deer', 2, 20, 3)).toBeGreaterThan(powerOf('deer', 1, 15, 1));
+    expect(powerOf('kimquy', 1, 1, 1)).toBeGreaterThan(powerOf('deer', 1, 1, 1));
+  });
+});
+
+describe('model sources', () => {
+  it('the download script lists the same Poly Pizza ids as species.ts', async () => {
+    const { MODEL_SOURCES } = await import('../src/pets/species');
+    const script = (await import('../scripts/fetch-pet-models.mjs?raw')).default;
+    for (const [species, v] of Object.entries(MODEL_SOURCES)) {
+      for (const id of Object.values(v ?? {})) expect(script, `${species} ${id}`).toContain(`'${id}'`);
     }
   });
 });

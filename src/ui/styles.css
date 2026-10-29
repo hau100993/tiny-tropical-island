@@ -3114,3 +3114,31 @@ body.ui-hidden .feed-bubble {
   flex-direction: column;
   gap: 6px;
 }
+
+.camp-gender {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.camp-gender.f {
+  color: #e2508a;
+}
+
+.camp-gender.m {
+  color: #3a7fd6;
+}
+
+.camp-pet-facts {
+  font-size: 10.5px;
+  color: var(--panel-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.camp-pet-facts.rare {
+  color: #6a4fc8;
+}
+
+.camp-pet-facts.legendary {
+  color: #b07800;
+  font-weight: 600;
+}

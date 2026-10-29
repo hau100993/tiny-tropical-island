@@ -1,6 +1,6 @@
 import { button, el } from './components';
 import { vi } from './strings.vi';
-import { EGG_TIERS, EGGS, SPECIES, TRUST_NEEDED, type EggTier, type WildKind } from '../pets/species';
+import { EGG_TIERS, EGGS, SPECIES, speciesName, TRUST_NEEDED, WILD_KINDS, type EggTier } from '../pets/species';
 import { EVOLVE_COST, openSkills, skillOpen, skillRank, TEAM_MAX, type Pet, type Roster } from '../pets/roster';
 
 /** What the camp asks the game to do. */
@@ -17,7 +17,6 @@ export interface CampActions {
   notices(): HTMLElement | null;
 }
 
-const WILD_ORDER: readonly WildKind[] = ['bunny', 'crab', 'dragon'];
 
 /**
  * "Thú Cưng" tab of the panel (Trại): the tomato store, every pet with Level, Rank, EXP and its
@@ -95,7 +94,7 @@ export class CampView {
     parts.push(shop, el('div', 'note', vi.pets.eggHint));
 
     parts.push(el('div', 'subhead', vi.pets.wildTitle));
-    for (const kind of WILD_ORDER) {
+    for (const kind of WILD_KINDS) {
       parts.push(el('div', 'camp-trust', vi.pets.trust(SPECIES[kind].name, r.trust[kind], TRUST_NEEDED)));
     }
     parts.push(el('div', 'note', vi.pets.wildHint));
@@ -129,6 +128,11 @@ export class CampView {
       queueMicrotask(() => input.focus());
     } else {
       nameRow.append(el('span', '', p.name));
+      if (p.origin !== 'original') {
+        const g = el('span', `camp-gender ${p.traits.gender}`, p.traits.gender === 'f' ? '♀' : '♂');
+        g.title = p.traits.gender === 'f' ? vi.pets.female : vi.pets.male;
+        nameRow.append(g);
+      }
       if (p.shiny) nameRow.append(el('span', 'camp-shiny', `✨ ${vi.pets.shiny}`));
       const pen = button('✎', () => {
         this.editing = p.id;
@@ -138,7 +142,14 @@ export class CampView {
       pen.setAttribute('aria-label', vi.pets.rename);
       nameRow.append(pen);
     }
-    who.append(nameRow, el('div', 'camp-pet-species', `${sp.name} · ${vi.pets.rankLine(p.level, p.rank)}`));
+    who.append(nameRow, el('div', 'camp-pet-species', `${speciesName(p.species, p.level)} · ${vi.pets.rankLine(p.level, p.rank)}`));
+    const facts = [vi.pets.power(p.power)];
+    if (p.origin !== 'original') facts.push('★'.repeat(p.traits.stars) + '☆'.repeat(3 - p.traits.stars));
+    if (p.traits.size !== 'normal') facts.push(vi.pets.size[p.traits.size]);
+    if (sp.rarity === 'rare' || sp.rarity === 'legendary') facts.push(vi.pets.rarity[sp.rarity]);
+    const factLine = el('div', `camp-pet-facts ${sp.rarity}`, facts.join(' · '));
+    factLine.title = vi.pets.factsHint;
+    who.append(factLine);
     top.append(icon, who);
 
     const bar = el('div', 'camp-exp');

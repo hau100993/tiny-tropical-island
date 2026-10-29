@@ -135,106 +135,223 @@ const RECIPES: Readonly<Record<string, readonly Beat[]>> = {
     { at: 0, kind: 'fountain', height: 6, time: 1.6 },
     { at: 0.8, kind: 'shower', reach: 0, radius: 3, time: 1.4, rate: 90 },
   ],
-  // ---- Đom Đóm Sét ----
-  'Spark Flicker': [{ at: 0, kind: 'burst', radius: 1.5, size: 0.6 }],
-  'Static Orbit': [{ at: 0, kind: 'halo', radius: 1.2, time: 1.8 }],
-  'Chain Zap': [
-    { at: 0, kind: 'shot', reach: 6, speed: 16, size: 0.6 },
-    { at: 0.25, kind: 'ring', radius: 2, count: 3, every: 0.15 },
+  // ---- Nai Vàng (grass) ----
+  'Golden Leap': [
+    { at: 0, kind: 'dash', reach: 4, time: 0.4 },
+    { at: 0.4, kind: 'burst', radius: 2, size: 0.7 },
   ],
-  'Thunder Lantern': [
-    { at: 0, kind: 'gather', time: 0.7, radius: 2 },
-    { at: 0.7, kind: 'burst', radius: 4, size: 1.1 },
-    { at: 0.8, kind: 'fountain', height: 4, time: 0.8 },
-  ],
-  'Plasma Swarm': [
-    { at: 0, kind: 'halo', radius: 2, time: 1.5 },
-    { at: 0.3, kind: 'meteors', reach: 3, count: 6, every: 0.18 },
-  ],
-  'Sky Bolt': [
-    { at: 0, kind: 'gather', time: 0.6, radius: 1.5 },
-    { at: 0.6, kind: 'meteors', reach: 5, count: 1, every: 0 },
-    { at: 0.7, kind: 'nova', radius: 6, wall: 2 },
-  ],
-  // ---- Sứa Mây ----
-  'Mist Pulse': [{ at: 0, kind: 'nova', radius: 3, wall: 0.6 }],
-  'Drizzle Veil': [
-    { at: 0, kind: 'burst', radius: 1.5, size: 0.5 },
-    { at: 0.1, kind: 'shower', reach: 0, radius: 2.2, time: 1.8, rate: 70 },
-  ],
-  'Tide Ring': [{ at: 0, kind: 'ring', radius: 2.5, count: 6, every: 0.12 }],
-  'Rain Bloom': [
-    { at: 0, kind: 'gather', time: 0.4, radius: 1.5 },
-    { at: 0.4, kind: 'shower', reach: 2, radius: 3, time: 1.6, rate: 110 },
-    { at: 1, kind: 'bloom', radius: 2.5, count: 8 },
-  ],
-  'Jelly Nova': [
-    { at: 0, kind: 'gather', time: 0.6, radius: 2 },
-    { at: 0.6, kind: 'nova', radius: 7, wall: 1.6 },
-    { at: 0.6, kind: 'burst', radius: 3, size: 1 },
-  ],
-  'Ocean Halo': [
-    { at: 0, kind: 'halo', radius: 2.4, time: 2.4 },
-    { at: 0.5, kind: 'fountain', height: 3, time: 1.4 },
-  ],
-  // ---- Bé Dung Nham ----
-  'Magma Hop': [{ at: 0.2, kind: 'burst', radius: 2, size: 0.7 }],
-  'Ember Spit': [{ at: 0, kind: 'shot', reach: 6, speed: 9, size: 0.7 }],
-  'Heat Wave': [{ at: 0, kind: 'nova', radius: 4, wall: 0.9 }],
-  'Lava Fountain': [
-    { at: 0, kind: 'fountain', height: 4, time: 1.5 },
-    { at: 0.6, kind: 'shower', reach: 0, radius: 2.5, time: 1, rate: 60 },
-  ],
-  'Molten Quake': [
+  'Fawn Breeze': [{ at: 0, kind: 'whirl', height: 2.5, time: 1.4 }],
+  'Forest Call': [
     { at: 0, kind: 'gather', time: 0.5, radius: 1.5 },
-    { at: 0.5, kind: 'nova', radius: 7, wall: 1.2 },
-    { at: 0.6, kind: 'ring', radius: 3.5, count: 6, every: 0.12 },
+    { at: 0.5, kind: 'ring', radius: 2.5, count: 6, every: 0.12 },
+    { at: 1.2, kind: 'bloom', radius: 2.5, count: 8 },
   ],
-  'Sun Drop': [
+  'Antler Bloom': [
+    { at: 0, kind: 'fountain', height: 3, time: 0.8 },
+    { at: 0.5, kind: 'bloom', radius: 3.5, count: 12 },
+  ],
+  'Sunlit Stampede': [
+    { at: 0, kind: 'dash', reach: 9, time: 0.7 },
+    { at: 0.2, kind: 'dash', reach: 7, time: 0.7 },
+    { at: 0.8, kind: 'nova', radius: 5, wall: 0.8 },
+  ],
+  'Spirit of the Woods': [
+    { at: 0, kind: 'gather', time: 0.9, radius: 3 },
+    { at: 0.9, kind: 'whirl', height: 5, time: 1.6 },
+    { at: 1.1, kind: 'nova', radius: 8, wall: 1.4 },
+    { at: 1.3, kind: 'bloom', radius: 7, count: 22 },
+  ],
+  // ---- Bé Na (grass) ----
+  'Seed Pop': [
+    { at: 0, kind: 'shot', reach: 4, speed: 9, size: 0.5 },
+    { at: 0.15, kind: 'shot', reach: 5, speed: 9, size: 0.5 },
+  ],
+  'Sweet Scent': [{ at: 0, kind: 'halo', radius: 1.4, time: 1.8 }],
+  'Rolling Fruit': [
+    { at: 0, kind: 'dash', reach: 6, time: 0.8 },
+    { at: 0.8, kind: 'burst', radius: 2.5, size: 0.8 },
+  ],
+  'Ripe Burst': [
+    { at: 0, kind: 'gather', time: 0.5, radius: 1.5 },
+    { at: 0.5, kind: 'burst', radius: 3.5, size: 1.1 },
+    { at: 0.6, kind: 'bloom', radius: 2.5, count: 8 },
+  ],
+  'Honey Rain': [
+    { at: 0, kind: 'fountain', height: 4, time: 0.5 },
+    { at: 0.5, kind: 'shower', reach: 2, radius: 3, time: 1.8, rate: 100 },
+  ],
+  'Harvest Feast': [
+    { at: 0, kind: 'halo', radius: 2.2, time: 1.6 },
+    { at: 1.2, kind: 'nova', radius: 7, wall: 1 },
+    { at: 1.3, kind: 'bloom', radius: 6, count: 18 },
+  ],
+  // ---- Ếch Xanh (water) ----
+  'Lily Hop': [{ at: 0.15, kind: 'burst', radius: 2, size: 0.6 }],
+  'Tongue Snap': [{ at: 0, kind: 'shot', reach: 5, speed: 18, size: 0.5 }],
+  'Croak Wave': [
+    { at: 0, kind: 'gather', time: 0.3, radius: 1 },
+    { at: 0.3, kind: 'nova', radius: 4.5, wall: 0.7 },
+  ],
+  'Rain Song': [
+    { at: 0, kind: 'halo', radius: 1.6, time: 0.8 },
+    { at: 0.6, kind: 'shower', reach: 0, radius: 3.5, time: 2, rate: 130 },
+  ],
+  'Lotus Shield': [
+    { at: 0, kind: 'halo', radius: 1.8, time: 2.2 },
+    { at: 0.3, kind: 'bloom', radius: 2, count: 8 },
+  ],
+  'Monsoon Call': [
     { at: 0, kind: 'gather', time: 0.8, radius: 2.5 },
-    { at: 0.8, kind: 'meteors', reach: 4, count: 4, every: 0.25 },
+    { at: 0.8, kind: 'shower', reach: 2, radius: 5, time: 2.4, rate: 220 },
+    { at: 1, kind: 'nova', radius: 8, wall: 1.8 },
   ],
-  // ---- Rùa Rêu ----
-  'Moss Shield': [{ at: 0, kind: 'halo', radius: 1.3, time: 2 }],
-  'Seed Volley': [
-    { at: 0, kind: 'shot', reach: 5, speed: 10, size: 0.6 },
-    { at: 0.2, kind: 'shot', reach: 6, speed: 10, size: 0.6 },
-    { at: 0.4, kind: 'shot', reach: 7, speed: 10, size: 0.6 },
+  // ---- Hổ Báo (fire) ----
+  Pounce: [
+    { at: 0, kind: 'dash', reach: 4, time: 0.35 },
+    { at: 0.35, kind: 'burst', radius: 2, size: 0.8 },
   ],
-  'Root Quake': [
-    { at: 0, kind: 'nova', radius: 4.5, wall: 0.7 },
-    { at: 0.2, kind: 'bloom', radius: 3, count: 6 },
+  'Tiger Roar': [{ at: 0, kind: 'nova', radius: 5, wall: 0.9 }],
+  'Blaze Claw': [
+    { at: 0, kind: 'shot', reach: 4, speed: 14, size: 0.7 },
+    { at: 0.12, kind: 'shot', reach: 5, speed: 14, size: 0.7 },
+    { at: 0.24, kind: 'shot', reach: 4.5, speed: 14, size: 0.7 },
   ],
-  'Forest Crown': [
+  'Inferno Dash': [
+    { at: 0, kind: 'dash', reach: 10, time: 0.7 },
+    { at: 0.7, kind: 'burst', radius: 4, size: 1.2 },
+  ],
+  'Burning Stripes': [
+    { at: 0, kind: 'halo', radius: 1.8, time: 1.6 },
+    { at: 0.4, kind: 'ring', radius: 3.5, count: 8, every: 0.12 },
+  ],
+  "King's Roar": [
+    { at: 0, kind: 'gather', time: 0.8, radius: 2.5 },
+    { at: 0.8, kind: 'nova', radius: 10, wall: 2.2 },
+    { at: 0.9, kind: 'meteors', reach: 4, count: 4, every: 0.2 },
+  ],
+  // ---- Ong Vàng (spark) ----
+  'Buzz Sting': [{ at: 0, kind: 'shot', reach: 5, speed: 16, size: 0.5 }],
+  'Pollen Spark': [{ at: 0, kind: 'burst', radius: 2, size: 0.6 }],
+  'Honey Zap': [
+    { at: 0, kind: 'gather', time: 0.4, radius: 1.2 },
+    { at: 0.4, kind: 'meteors', reach: 4, count: 1, every: 0 },
+  ],
+  'Swarm Dance': [
+    { at: 0, kind: 'halo', radius: 2, time: 1.8 },
+    { at: 0.3, kind: 'ring', radius: 2.5, count: 6, every: 0.18 },
+  ],
+  'Royal Jelly': [
+    { at: 0, kind: 'fountain', height: 3, time: 1 },
+    { at: 0.6, kind: 'shower', reach: 0, radius: 2.5, time: 1.2, rate: 80 },
+  ],
+  'Thunder Hive': [
+    { at: 0, kind: 'gather', time: 0.7, radius: 2 },
+    { at: 0.7, kind: 'meteors', reach: 4, count: 6, every: 0.15 },
+    { at: 1.5, kind: 'nova', radius: 7, wall: 1.5 },
+  ],
+  // ---- Rồng Mây (moon) ----
+  'Cloud Puff': [{ at: 0, kind: 'burst', radius: 2.2, size: 0.7 }],
+  'Moon Breath': [{ at: 0, kind: 'shot', reach: 7, speed: 11, size: 0.9 }],
+  'Star Glide': [{ at: 0, kind: 'dash', reach: 7, time: 0.6 }],
+  'Nebula Wings': [
+    { at: 0, kind: 'whirl', height: 4, time: 1.6 },
+    { at: 0.2, kind: 'halo', radius: 2.2, time: 1.6 },
+  ],
+  'Lunar Roar': [
     { at: 0, kind: 'gather', time: 0.6, radius: 2 },
-    { at: 0.6, kind: 'fountain', height: 4, time: 1 },
-    { at: 1, kind: 'bloom', radius: 4, count: 14 },
+    { at: 0.6, kind: 'nova', radius: 8, wall: 1.8 },
   ],
-  'Thorn Garden': [
-    { at: 0, kind: 'ring', radius: 3, count: 8, every: 0.1 },
-    { at: 0.9, kind: 'bloom', radius: 3, count: 10 },
+  'Galaxy Storm': [
+    { at: 0, kind: 'gather', time: 0.8, radius: 3 },
+    { at: 0.8, kind: 'meteors', reach: 5, count: 8, every: 0.15 },
+    { at: 2.1, kind: 'nova', radius: 9, wall: 2 },
   ],
-  'Ancient Bloom': [
-    { at: 0, kind: 'whirl', height: 5, time: 1.8 },
-    { at: 1.2, kind: 'nova', radius: 8, wall: 1.4 },
-    { at: 1.3, kind: 'bloom', radius: 7, count: 20 },
+  // ---- Thú Lạ (kind 7, water for now) ----
+  'Splash Dash': [
+    { at: 0, kind: 'dash', reach: 5, time: 0.5 },
+    { at: 0.5, kind: 'burst', radius: 2, size: 0.7 },
   ],
-  // ---- Cú Trăng ----
-  Moonbeam: [{ at: 0, kind: 'shot', reach: 8, speed: 14, size: 0.8 }],
-  'Night Glide': [{ at: 0, kind: 'dash', reach: 6, time: 0.6 }],
-  'Star Dust': [
-    { at: 0, kind: 'burst', radius: 1.5, size: 0.5 },
-    { at: 0.1, kind: 'shower', reach: 0, radius: 2.5, time: 1.6, rate: 80 },
+  'Bubble Ring': [{ at: 0, kind: 'ring', radius: 2.2, count: 6, every: 0.1 }],
+  'Tide Spin': [{ at: 0, kind: 'whirl', height: 2.5, time: 1.4 }],
+  'Wave Crown': [
+    { at: 0, kind: 'fountain', height: 3.5, time: 1 },
+    { at: 0.8, kind: 'nova', radius: 6, wall: 1.2 },
   ],
-  'Lunar Halo': [
-    { at: 0, kind: 'halo', radius: 2.2, time: 2.2 },
-    { at: 1.8, kind: 'nova', radius: 5, wall: 1.2 },
+  'Deep Pulse': [
+    { at: 0, kind: 'gather', time: 0.6, radius: 2 },
+    { at: 0.6, kind: 'nova', radius: 7, wall: 1.5 },
   ],
-  'Comet Rain': [{ at: 0, kind: 'meteors', reach: 5, count: 7, every: 0.18 }],
-  Eclipse: [
+  'Ocean Heart': [
+    { at: 0, kind: 'halo', radius: 2.4, time: 2 },
+    { at: 0.6, kind: 'shower', reach: 0, radius: 3.5, time: 1.6, rate: 140 },
+    { at: 2, kind: 'burst', radius: 4, size: 1.2 },
+  ],
+  // ---- Thú Hiếm (kind 8, fire for now) ----
+  'Spark Hop': [{ at: 0.15, kind: 'burst', radius: 1.8, size: 0.6 }],
+  'Ember Twirl': [{ at: 0, kind: 'whirl', height: 2.2, time: 1.2 }],
+  'Flame Burst': [
+    { at: 0, kind: 'gather', time: 0.4, radius: 1.2 },
+    { at: 0.4, kind: 'burst', radius: 3, size: 1 },
+  ],
+  'Sun Crown': [
+    { at: 0, kind: 'halo', radius: 1.8, time: 1.6 },
+    { at: 1.2, kind: 'fountain', height: 4, time: 0.8 },
+  ],
+  'Blaze Spiral': [
+    { at: 0, kind: 'whirl', height: 4.5, time: 1.6 },
+    { at: 0.4, kind: 'ring', radius: 3.5, count: 8, every: 0.12 },
+  ],
+  'Solar Heart': [
+    { at: 0, kind: 'gather', time: 0.9, radius: 2.5 },
+    { at: 0.9, kind: 'nova', radius: 9, wall: 2 },
+    { at: 0.9, kind: 'burst', radius: 5, size: 1.4 },
+  ],
+  // ---- Nhện Halloween (moon) ----
+  'Web Shot': [{ at: 0, kind: 'shot', reach: 6, speed: 12, size: 0.6 }],
+  'Night Weave': [{ at: 0, kind: 'ring', radius: 2.5, count: 8, every: 0.08 }],
+  'Pumpkin Hex': [
+    { at: 0, kind: 'gather', time: 0.5, radius: 1.5 },
+    { at: 0.5, kind: 'burst', radius: 3, size: 1 },
+    { at: 0.6, kind: 'halo', radius: 1.5, time: 1 },
+  ],
+  'Silk Moon': [
+    { at: 0, kind: 'fountain', height: 4, time: 1 },
+    { at: 0.8, kind: 'shower', reach: 0, radius: 3, time: 1.4, rate: 90 },
+  ],
+  'Lantern Web': [
+    { at: 0, kind: 'ring', radius: 3.5, count: 8, every: 0.12 },
+    { at: 1.1, kind: 'nova', radius: 5, wall: 1 },
+  ],
+  'Haunted Night': [
+    { at: 0, kind: 'gather', time: 0.8, radius: 3 },
+    { at: 0.8, kind: 'whirl', height: 5, time: 1.6 },
+    { at: 1, kind: 'meteors', reach: 4, count: 5, every: 0.2 },
+  ],
+  // ---- Kim Quy (water, legendary) ----
+  'Golden Shell': [{ at: 0, kind: 'halo', radius: 1.6, time: 2 }],
+  'Lake Ripple': [
+    { at: 0, kind: 'ring', radius: 2.5, count: 6, every: 0.15 },
+    { at: 0.9, kind: 'nova', radius: 5, wall: 0.8 },
+  ],
+  'Ancient Wisdom': [
     { at: 0, kind: 'gather', time: 1, radius: 3 },
-    { at: 1, kind: 'nova', radius: 10, wall: 2.5 },
-    { at: 1, kind: 'burst', radius: 5, size: 1.4 },
+    { at: 1, kind: 'burst', radius: 4, size: 1.2 },
+    { at: 1.1, kind: 'fountain', height: 4, time: 1 },
+  ],
+  'Jade Wave': [
+    { at: 0, kind: 'gather', time: 0.6, radius: 2 },
+    { at: 0.6, kind: 'nova', radius: 10, wall: 2.6 },
+  ],
+  "Heaven's Blade": [
+    { at: 0, kind: 'gather', time: 0.8, radius: 2 },
+    { at: 0.8, kind: 'meteors', reach: 5, count: 1, every: 0 },
+    { at: 0.9, kind: 'nova', radius: 7, wall: 2.4 },
+  ],
+  'Thuận Thiên Light': [
+    { at: 0, kind: 'gather', time: 1.2, radius: 3.5 },
+    { at: 1.2, kind: 'fountain', height: 8, time: 1.4 },
+    { at: 1.3, kind: 'nova', radius: 12, wall: 3 },
+    { at: 1.4, kind: 'burst', radius: 6, size: 1.6 },
   ],
 };
 

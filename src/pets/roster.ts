@@ -1,12 +1,18 @@
 import { createRng } from '../core/rng';
 import { tomatoBalance, withEvent, type Ledger, type PetEvent } from './ledger';
 import {
+  COMMON,
   EGGS,
   EGG_TIERS,
+  LEGEND,
+  LEGEND_CHANCE,
   ORIGINALS,
+  RARE,
   SPECIES,
   TRUST_NEEDED,
+  WILD_KINDS,
   WILD_SHINY,
+  WILD_SPECIES,
   type EggTier,
   type SpeciesId,
   type WildKind,
@@ -30,6 +36,27 @@ const SKILL_RANKS_ORIGINAL = [1, 1, 1, 15, 20, 25] as const;
 export const MAX_NAME = 24;
 
 export type PetOrigin = 'original' | 'egg' | 'wild';
+export type Gender = 'm' | 'f';
+/** Most are normal; 1 in 20 is tiny ("Bé tí"), 1 in 20 huge ("Khổng lồ"). */
+export type SizeClass = 'normal' | 'tiny' | 'huge';
+
+/** Born with: looks only (gender, size class) and Tiềm năng (1–3 ★: skills up to +15 %). */
+export interface Traits {
+  gender: Gender;
+  size: SizeClass;
+  stars: 1 | 2 | 3;
+}
+
+export function traitsOf(id: string, origin: PetOrigin): Traits {
+  const rng = createRng(hashString(`${id}#traits`));
+  const gender: Gender = rng() < 0.5 ? 'f' : 'm';
+  const s = rng();
+  const st = rng();
+  if (origin === 'original') return { gender, size: 'normal', stars: 2 };
+  return { gender, size: s < 0.05 ? 'tiny' : s > 0.95 ? 'huge' : 'normal', stars: st < 0.5 ? 1 : st < 0.85 ? 2 : 3 };
+}
+
+export const SIZE_SCALE: Readonly<Record<SizeClass, number>> = { normal: 1, tiny: 0.7, huge: 1.35 };
 
 export interface Pet {
   id: string;
@@ -48,6 +75,9 @@ export interface Pet {
   origin: PetOrigin;
   /** When it joined (ms; 0 for the originals). */
   since: number;
+  traits: Traits;
+  /** Sức mạnh: one number for how strong it is (species, Level, Rank, ★). */
+  power: number;
 }
 
 export interface Egg {
@@ -90,9 +120,14 @@ export function rankOf(exp: number, level: 1 | 2): { rank: number; into: number;
   return rank >= cap ? { rank, into: 0, need: 0 } : { rank, into: left, need: rankCost(rank) };
 }
 
-/** How much bigger a Rank makes its skills: 1 at Rank 1, ~1.7 at Rank 30. */
-export function skillPower(rank: number): number {
-  return 1 + 0.025 * (Math.max(1, rank) - 1);
+/** How much bigger a Rank (and Tiềm năng) makes its skills: 1 at Rank 1, ~1.7 at Rank 30, +7.5 % per ★ above one. */
+export function skillPower(rank: number, stars = 1): number {
+  return (1 + 0.025 * (Math.max(1, rank) - 1)) * (1 + 0.075 * (stars - 1));
+}
+
+/** Sức mạnh (strength), like a combat-power number: grows with Rank, Level 2 and ★. */
+export function powerOf(species: SpeciesId, level: 1 | 2, rank: number, stars: number): number {
+  return Math.round(SPECIES[species].base * (1 + 0.06 * (rank - 1)) * (level === 2 ? 1.3 : 1) * (1 + 0.075 * (stars - 1)));
 }
 
 /** The Rank each of the species' six skills opens at (Level 2's need Level 2 too). */
@@ -121,32 +156,41 @@ export function hashString(s: string): number {
   return h >>> 0;
 }
 
-/** What hatches from an egg, decided by its id. */
-export function eggContents(id: string, tier: EggTier): { species: SpeciesId; shiny: boolean } {
+/**
+ * What hatches from an egg, decided by its id (so every device agrees). The 10-session egg may
+ * hold the legend, unless the player has it already (`legendTaken`): one per player.
+ */
+export function eggContents(id: string, tier: EggTier, legendTaken = false): { species: SpeciesId; shiny: boolean } {
   const rng = createRng(hashString(id));
-  const pool = EGGS[tier].pool;
-  const species = pool[Math.floor(rng() * pool.length) % pool.length];
+  const r = rng();
+  const pick = (list: readonly SpeciesId[], u: number): SpeciesId => list[Math.min(list.length - 1, Math.floor(u * list.length))];
+  let species: SpeciesId;
+  if (tier === 10) {
+    if (!legendTaken && r < LEGEND_CHANCE) species = LEGEND;
+    else species = pick(RARE, legendTaken ? r : (r - LEGEND_CHANCE) / (1 - LEGEND_CHANCE));
+  } else {
+    const rare = EGGS[tier].rare;
+    species = r < rare ? pick(RARE, r / rare) : pick(COMMON, (r - rare) / (1 - rare));
+  }
   return { species, shiny: rng() < EGGS[tier].shiny };
 }
-
-const WILD_SPECIES: Readonly<Record<WildKind, SpeciesId>> = { crab: 'crab', dragon: 'dragon', bunny: 'bunny' };
 
 function isTier(v: unknown): v is EggTier {
   return EGG_TIERS.includes(Number(v) as EggTier);
 }
 
 function isWild(v: unknown): v is WildKind {
-  return v === 'crab' || v === 'dragon' || v === 'bunny';
+  return (WILD_KINDS as readonly unknown[]).includes(v);
 }
 
 export function buildRoster(l: Readonly<Ledger>): Roster {
-  type Raw = Omit<Pet, 'rank' | 'into' | 'need'>;
+  type Raw = Omit<Pet, 'rank' | 'into' | 'need' | 'traits' | 'power'>;
   const pets = new Map<string, Raw>();
   for (const o of ORIGINALS) {
     pets.set(o.id, { id: o.id, species: o.species, name: SPECIES[o.species].names[0], level: 1, exp: 0, seed: hashString(o.id), shiny: false, origin: 'original', since: 0 });
   }
   const eggs: Array<Egg & { hatched: boolean }> = [];
-  const trust: Record<WildKind, number> = { crab: 0, dragon: 0, bunny: 0 };
+  const trust = Object.fromEntries(WILD_KINDS.map((k) => [k, 0])) as Record<WildKind, number>;
   let team: string[] | null = null;
   const joined: string[] = [];
   const renamed = new Set<string>();
@@ -189,7 +233,8 @@ export function buildRoster(l: Readonly<Ledger>): Roster {
       case 'egg': {
         const tier = Number(e.s);
         if (!isTier(tier) || eggs.some((g) => g.id === e.id)) break;
-        eggs.push({ id: e.id, tier, boughtAt: e.t, progress: 0, ready: false, hatched: false, ...eggContents(e.id, tier) });
+        const legendTaken = [...pets.values()].some((p) => p.species === LEGEND) || eggs.some((g) => !g.hatched && g.species === LEGEND);
+        eggs.push({ id: e.id, tier, boughtAt: e.t, progress: 0, ready: false, hatched: false, ...eggContents(e.id, tier, legendTaken) });
         break;
       }
       case 'hatch': {
@@ -238,7 +283,11 @@ export function buildRoster(l: Readonly<Ledger>): Roster {
 
   return {
     balance: tomatoBalance(l),
-    pets: [...pets.values()].map((p) => ({ ...p, ...rankOf(p.exp, p.level) })),
+    pets: [...pets.values()].map((p) => {
+      const r = rankOf(p.exp, p.level);
+      const traits = traitsOf(p.id, p.origin);
+      return { ...p, ...r, traits, power: powerOf(p.species, p.level, r.rank, traits.stars) };
+    }),
     eggs: eggs.filter((g) => !g.hatched).map(({ hatched: _h, ...g }) => g),
     trust,
     team: [...new Set(chosen)].slice(0, TEAM_MAX),

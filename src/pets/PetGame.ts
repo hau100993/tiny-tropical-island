@@ -3,13 +3,15 @@ import type { ClickAim } from '../controls/waterClick';
 import { PetPointer } from '../controls/petPointer';
 import type { SkillFxSink } from '../world/creatures/skillFx';
 import type { WildTarget } from '../activities/wildCreatures';
+import { WildVisitors, type VisitorKind, type VisitorTarget } from '../world/pets/wildVisitors';
 import type { PetSpot } from '../activities/creatures';
 import type { SkillElement } from '../ui/skillCard';
 import { CampView } from '../ui/CampView';
 import { FeedBubble } from '../ui/FeedBubble';
 import { vi } from '../ui/strings.vi';
 import { TomatoToss } from '../world/pets/tomatoToss';
-import { buildBody, type PetBody } from '../world/pets/bodies';
+import { addAccessory, LEVEL2_ACCESSORY, standInBody, type PetBody } from '../world/pets/bodies';
+import { hasModel, loadPetModel } from '../world/pets/petModels';
 import { PetActor } from '../world/pets/PetActor';
 import { RecipeRunner, hasRecipe, recipeLength, type Caster, type RecipePools } from '../world/pets/recipes';
 import { Ceremonies } from '../world/pets/ceremony';
@@ -26,6 +28,7 @@ import {
   openSkills,
   renamePet,
   setTeam,
+  SIZE_SCALE,
   skillPower,
   TEAM_MAX,
   type Action,
@@ -74,16 +77,32 @@ export interface PetGameHost {
   originalNative(id: string): boolean;
   wildWatchers(out: WildTarget[]): void;
   /** The .glb model of a befriended crab, dragon or bunny. */
-  loadWild(kind: WildKind): Promise<PetBody>;
+  loadWild(kind: 'crab' | 'dragon' | 'bunny'): Promise<PetBody>;
   /** A soft pop (a tomato landed). */
   pop(): void;
   /** Wind strength now (animations). */
   wind(): number;
+  /** For the wild Ếch, Ong, Nhện and Nai: the ground, forest, daylight, rain, the house. */
+  surfaceAt(x: number, z: number): string;
+  treesNear(x: number, z: number, r: number): number;
+  daylight(): number;
+  rain(): number;
+  house: { x: number; z: number };
   /** Extra rows for the camp (backup reminder, Drive invitation), or null. */
   campNotices(): HTMLElement | null;
 }
 
-type Target = { pet: string; x: number; y: number; z: number; reach: number } | { wild: WildTarget; x: number; y: number; z: number; reach: number };
+/** A wild one that can be fed: in the forest (crab, dragon, bunny) or one of the visitors. */
+export interface FeedableWild {
+  kind: WildKind;
+  x: number;
+  y: number;
+  z: number;
+  fed(): void;
+  join(): void;
+}
+
+type Target = { pet: string; x: number; y: number; z: number; reach: number } | { wild: FeedableWild; x: number; y: number; z: number; reach: number };
 
 /**
  * The Thú Cưng game on the island: the camp tab, the feeding bubble, tossed tomatoes, the new
@@ -105,6 +124,8 @@ export class PetGame {
   private hovered: PetActor | null = null;
   private readonly spots: PetSpot[] = [];
   private readonly watchers: WildTarget[] = [];
+  private readonly visiting: VisitorTarget[] = [];
+  private readonly visitors: WildVisitors;
   private target: Target | null = null;
   private readonly askedUntil = new Map<string, number>();
   private readonly you = { x: 0, y: 0, z: 0, yaw: 0 };
@@ -157,8 +178,44 @@ export class PetGame {
       onMove: () => {},
       onEnd: () => {},
     });
+    this.visitors = new WildVisitors({
+      scene: host.scene,
+      heightAt: host.heightAt,
+      surfaceAt: host.surfaceAt,
+      treesNear: host.treesNear,
+      daylight: host.daylight,
+      rain: host.rain,
+      house: host.house,
+      body: (kind) => this.wildBody(kind),
+      compile: (root) => host.renderer.compileAsync(root, host.camera, host.scene),
+      sparkle: (x, y, z) => this.sparkle(x, y, z, 0xfff2b0),
+    });
     host.wallet.onChange(() => this.refresh());
     this.refresh();
+  }
+
+  /** A wild visitor's model: its species' Level 1 model (or stand-in), a look of its own. */
+  private async wildBody(kind: VisitorKind): Promise<PetBody> {
+    const seed = Math.floor(Math.random() * 1e9);
+    if (hasModel(kind, 'l1')) {
+      const body = await loadPetModel(kind, 'l1');
+      tintModel(body.root, { seed, shiny: false, level: 1 });
+      return body;
+    }
+    return standInBody(kind, { seed, shiny: false, level: 1 });
+  }
+
+  /** A puff of rainbow sparkles and a soft flash at (x, y, z). */
+  private sparkle(x: number, y: number, z: number, color: number): void {
+    this.host.fx.flash(x, y, z, color, 40, 4, 0.3);
+    const rainbow = this.host.pools().rainbow;
+    for (let i = 0; i < 50; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const c = Math.random() * 2 - 1;
+      const r = Math.sqrt(1 - c * c);
+      const v = 1 + Math.random() * 2;
+      rainbow.emit(x, y, z, Math.cos(a) * r * v, Math.abs(c) * v + 0.4, Math.sin(a) * r * v, 0.04);
+    }
   }
 
   /** The pointer is on a new pet (no water click, the paw cursor). */
@@ -209,6 +266,7 @@ export class PetGame {
     this.ceremonies.update(dt);
     const walking = this.host.you(this.you);
     const wind = this.host.wind();
+    this.visitors.update(dt, walking ? this.you : null);
     for (const a of this.actors.values()) a.update(dt, walking ? this.you : null, wind);
     for (const ring of this.auras.values()) spinAura(ring, dt);
     this.applyOriginalLooks();
@@ -320,6 +378,9 @@ export class PetGame {
     this.watchers.length = 0;
     this.host.wildWatchers(this.watchers);
     for (const w of this.watchers) consider({ wild: w, x: w.x, y: w.y, z: w.z, reach: WILD_REACH });
+    this.visiting.length = 0;
+    this.visitors.watchers(this.visiting);
+    for (const w of this.visiting) consider({ wild: w, x: w.x, y: w.y, z: w.z, reach: WILD_REACH });
     return best;
   }
 
@@ -358,7 +419,7 @@ export class PetGame {
     land();
   }
 
-  private feedWildOne(w: WildTarget): void {
+  private feedWildOne(w: FeedableWild): void {
     const a = this.host.wallet.act((r) => feedWild(r, w.kind, Date.now()));
     if (!a.ok) {
       this.refuse(a.why);
@@ -558,16 +619,7 @@ export class PetGame {
   private async build(p: Pet, slot: number): Promise<void> {
     this.loading.add(p.id);
     try {
-      const look = { seed: p.seed, shiny: p.shiny, level: p.level };
-      let body: PetBody;
-      if (p.species === 'crab' || p.species === 'dragon' || p.species === 'bunny') {
-        body = await this.host.loadWild(p.species);
-        tintModel(body.root, look);
-        if (p.level === 2) this.auras.set(p.id, applyLevel2(body.root, SPECIES[p.species].element, 0.7));
-      } else {
-        body = buildBody(p.species, look);
-        if (p.level === 2) this.auras.set(p.id, applyLevel2(body.root, SPECIES[p.species].element, 0.6));
-      }
+      const body = await this.makeBody(p);
       await this.host.renderer.compileAsync(body.root, this.host.camera, this.host.scene);
       // Still wanted (not sent home meanwhile)?
       if (!this.host.wallet.roster.team.includes(p.id)) return;
@@ -587,6 +639,42 @@ export class PetGame {
     } finally {
       this.loading.delete(p.id);
     }
+  }
+
+  /**
+   * A new pet's model: the .glb for its Level (or its shiny one) when there is one, else Level
+   * 1's with a new look in code, else the stand-in; then its own colour shift (shiny: golden),
+   * size class, a bow for the girls, and at Level 2 the aura (and an accessory if Level 2 has no
+   * model of its own).
+   */
+  private async makeBody(p: Pet): Promise<PetBody> {
+    const sp = SPECIES[p.species];
+    let body: PetBody;
+    let ownL2 = false;
+    let goldModel = false;
+    if (p.species === 'crab' || p.species === 'dragon' || p.species === 'bunny') {
+      body = await this.host.loadWild(p.species);
+    } else {
+      const variant = p.shiny && hasModel(p.species, 'shiny') ? 'shiny' : p.level === 2 && hasModel(p.species, 'l2') ? 'l2' : 'l1';
+      if (hasModel(p.species, variant)) {
+        body = await loadPetModel(p.species, variant);
+        ownL2 = variant === 'l2';
+        goldModel = variant === 'shiny';
+      } else {
+        body = standInBody(p.species, { seed: p.seed, shiny: p.shiny, level: p.level });
+      }
+    }
+    if (!(body.root.userData.standIn as boolean | undefined)) tintModel(body.root, { seed: p.seed, shiny: p.shiny && !goldModel, level: p.level });
+    const scale = SIZE_SCALE[p.traits.size];
+    body.root.scale.setScalar(scale);
+    body.root.userData.baseScale = scale;
+    if (p.traits.gender === 'f') addAccessory(body.root, 'bow', body.head);
+    if (p.level === 2) {
+      const acc = LEVEL2_ACCESSORY[p.species];
+      if (!ownL2 && acc && p.origin !== 'wild') addAccessory(body.root, acc, body.head);
+      this.auras.set(p.id, applyLevel2(body.root, sp.element, 0.6));
+    }
+    return body;
   }
 
   /** The originals at Level 2 get their look as soon as their model is there. */

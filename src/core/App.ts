@@ -883,6 +883,11 @@ export class App {
       },
       wind: () => sharedUniforms.uWind.value,
       campNotices: () => this.petNotices.element(this.wallet.roster),
+      surfaceAt: (x, z) => hm.surfaceAt(x, z),
+      treesNear: (x, z, r) => this.colliders.treesNear(x, z, r),
+      daylight: () => sharedUniforms.uDayLight.value,
+      rain: () => this.world.weather.rainAmount,
+      house: { x: house.x, z: house.z },
     });
   }
 

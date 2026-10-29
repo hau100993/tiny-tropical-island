@@ -260,6 +260,12 @@ export const vi = {
     reminderBtn: 'Tải bản sao lưu',
     later: 'Để sau',
     castHint: 'Bấm: tung chiêu này (thú phải đang ở trên đảo)',
+    female: 'Cái',
+    male: 'Đực',
+    power: (n: number): string => `Sức mạnh ${n}`,
+    size: { tiny: 'Bé tí', huge: 'Khổng lồ' } as Record<string, string>,
+    rarity: { rare: 'Hiếm', legendary: 'Huyền thoại' } as Record<string, string>,
+    factsHint: 'Sức mạnh tăng theo Rank, Level 2 và Tiềm năng (★, có từ lúc sinh: chiêu mạnh hơn tới 15 %)',
     notHere: (name: string): string => `${name} đang không ở gần trên đảo, hoặc đang bận.`,
   },
   sync: {
