@@ -10,7 +10,7 @@ A local web app for Windows 11 that I leave open while I work: an immersive 3D t
 ## Tech stack
 - Vite + TypeScript + Three.js. Do not add a UI framework unless the plan justifies it.
 - Run: `npm install && npm run dev`. Build: `npm run build`. Both must always work.
-- No CDN at runtime. No network calls. Settings persist in `localStorage`.
+- No CDN at runtime. No network calls, except the opt-in Google Drive sync (Phase 13s), loaded only after the user turns it on. Settings persist in `localStorage`.
 - Target: Chrome/Edge on Windows 11, mid-range GPU, 60 fps.
 
 ## Folder structure

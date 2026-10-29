@@ -61,6 +61,7 @@
 | 11a Phones: touch basics (user request, 2026-10-25) | ✅ Done (2026-10-25), awaiting feedback | Causes found: the canvas had no `touch-action` (the browser took drags as scrolling and cancelled the pointer); the panel opened and closed on hover (a lifted finger always "leaves"); walk drag-look read `movementX` (0 for touch in some browsers); upright the 55° vertical fov left a narrow slit across. Now: `body.touch` from `pointer: coarse` (`ui/touch.ts`); canvas `touch-action: none`, no overscroll; tap opens the tucked panel, a tap on the scene shuts it; upright the panel is a bottom sheet (62 dvh), sideways top right, ~40 px targets, 14–15 px text, `dvh` and safe-area insets; key caps, shortcut list and key hints hidden; `camera.zoom` = aspect (≥ 0.6) upright, particle sizes use the drawn fov; touch drag-look measured from positions; touch wording for the sound note. `ui/SlowHint.ts` (any device): one 10 s fps measurement after a 3 s warm-up; < 40 fps offers one quality level down. Checked in headless Edge, touch emulated at 384×832 and 832×384: layout, tap open/close, one-finger orbit (no pointercancel), no console errors. Not measured on a real S23+. |
 | 11b/11c Phones: joystick and activity buttons (user request, 2026-10-27) | ✅ Done (2026-10-27), awaiting a test on a real phone | Walking read raw key codes only, so on a phone walk mode opened but nothing moved. Now keys and an on-screen joystick feed the same `readMove` (walk, swim, dive, kayak, surf); buttons per moment (Lặn/Nổi lên, Chèo trái/phải, Bắt sóng/Rời ván, Đứng dậy, Chiêu → 5 skills); pinch zoom while walking; playing goes full screen + landscape on Android. Checked in Chrome phone emulation (landscape and upright): walk, kayak, swim, dive, rise, catch a wave, skills, desk, back to the overview; PC keyboard unchanged. Revised after a phone test (2026-10-27): the joystick swings the view toward where you go (sideways push, not while dragging), finger look 3× the mouse; the "Chiêu" row, the stroke buttons, "Rời ván", "Đứng dậy" and the kayak card are gone on touch: the animals are tapped (now also from the water, kayak and board), a long press on Mochi is its skill, one small "leave" button beside ☰ does get up / leave the board / land or jump out of the kayak, "Bắt sóng" shows only while a wave can be caught, cards with only key hints are hidden. Next: 11d (PWA, real-phone fps). |
 | 11 fix: no sound on phones (user report, 2026-10-28) | ✅ Fixed (2026-10-28), awaiting a test on a real phone | Sound started on `pointerdown`, which browsers do not count as a gesture for a touch (only `pointerup`/`touchend`/`click` do). The tap made a suspended `AudioContext` and `start()` waited on `resume()`, which never settled, so later taps were ignored too. Now `audio/gesture.ts` lists the activation events; the engine never waits for `resume()` and retries it on every gesture while not `running` (also iOS `interrupted`, and on returning to the tab); iOS uses the `playback` audio session so the silent switch does not mute it. Headless Chrome emulation grants gestures to any synthetic tap, so the old bug did not reproduce there: needs a real phone. |
+| 13 Thú Cưng: tomatoes, feeding, evolution, eggs, sync (user request, 2026-10-29) | 📝 Proposed (2026-10-29), awaiting review | Design and steps in *Phase 13* below: 🍅 per finished focus session (none if stopped early), feeding on approach for every creature (wild ones befriended), levels to 30, form 2 at level 15 with 3 new skills, eggs hatched by focus sessions, 5 new species; save as an event log (mergeable), backup file, QR transfer, opt-in Google Drive sync. Next: 13a after review. |
 | Bé Mập cheers long rides (todo list 2026-10-25, item 2.1) | ✅ Done (2026-10-25), awaiting feedback | `SurfBody.rideTime`; at 8 s on one wave (once a ride) Bé Mập drops whatever it was doing and does "Cầu Vồng Mập": comes up ahead of you and leaps across your line (1.9 s, ~4.4 m high, 2 barrel rolls), landing where you'll be; lines tried in order (across ahead, nearer, along on the deeper side) so it stays in view of the camera behind you and over water ≥ 1 m deep. Rainbow: `Embers` gained a `rainbow` kind (hue from a given seed, glow + white glint, sinks slowly; pool 3000) emitted as 7 bands across the path in the leap's plane, 120 rows/s; a 220-mote burst at the top; a ring of colour on splash-down; note "Lướt 8 giây liền!…". Checked in Edge (stepping frames by hand: the locked screen throttled rAF to 1 fps) day and night: the arc crosses the view ahead, the note shows; no console errors. |
 | Mochi: smooth model (todo list 2026-10-25, item 1) | ✅ Done (2026-10-25), awaiting feedback | Cause: the Shiba file is low poly and flat-shaded (~1.9k triangles; each corner carries its face's normal, so every face is lit flat; the other animals are ~6–7k, smooth). `world/smoothMesh.ts`: at load, weld corners by position, one step of Loop subdivision (edge points 3/8–3/8–1/8–1/8, old points pulled to their neighbours; border rules on open edges so the per-material meshes stay sealed; new points' skin weights averaged from the edge's ends, top 4 kept) and smooth normals: ~7.7k triangles, one-time cost of a few ms. Checked in Edge: front and side views, idle and galloping: rounded, no cracks between colours, the skinning bends right. Unit tests (cube → near-sphere; skin weights stay normalised). |
 | Mochi's special move "Shooting Star" (item 1.1) | ✅ Done (2026-10-25), awaiting feedback | Proposed: (a) **Sao Băng** zoomies with a golden comet trail (chosen: a Shiba's signature, uses the gallop clip, readable from any view), (b) Đào Kho Báu (dig up a shiny shell; needs a digging animation the file doesn't have), (c) Rũ Lông Cầu Vồng (shake off water in a rainbow spray, after rain), (d) Sonic Bark (a bark that ripples the grass). `J`: bow (the sniff pose) → out to a circle → 2 laps at 7.5 m/s, banked by atan(v²/gr) → a 0.75 m leap with a full turn → burst + hearts → follows again. The circle: round you if 20 points on it are clear (`DogWorld.clear`: dry land, outside the house, collision `resolve` doesn't push), else centred beside you (up to 4.5 m), radii 3.4/2.8/2.2; none: a note. Trail: the rainbow motes in gold. Checked in Edge (run, lean inward, leap, landing); unit tests. |
@@ -478,6 +479,89 @@ Pomodoro and a to-do list, so a video and the to-do list can be on screen at the
 Decisions (user, 2026-10-25): editor hidden by default; to-do on the right monitor with the
 Pomodoro on top; finished tasks go to a today-only "Đã xong" list; no title bar over the video.
 
+### Phase 13 — Thú Cưng: tomatoes, feeding, evolution, eggs, save & sync (user request, 2026-10-29, proposed, awaiting user review)
+
+Work is the engine of the game: every finished focus session gives one 🍅, and tomatoes feed the
+island's creatures ("Thú Cưng"), which level up, learn skills, evolve, and come out of eggs.
+Mechanics modelled on Pokémon GO's power-up / evolve / egg loop; **no Pokémon names, art or UI**
+(Nintendo/Game Freak trademarks; the repository is public).
+
+**Decisions (user, 2026-10-29)**
+- About 10 focus sessions a day is the pacing target.
+- Every creature can be fed: Mochi, Bọt, Hỏa Long, Mầm, Bé Mập, the wild ones, and later species.
+- One currency for now: 🍅 for every creature (no per-species candy).
+- A focus session stopped early gives nothing.
+- Name: "Thú Cưng".
+- Five new species from eggs, each with two forms: form 1 has 3 skills, form 2 adds 3 more
+  (details discussed when that step starts). The current creatures already have 3 skills each,
+  which become their form-1 set; no skill they have today gets locked.
+- Old 🍅 in the to-do history become a starting gift.
+- Extra tomato sources (random ones on the island, in the forest, mini-game rewards): later.
+- Players who only watch the scene and work never see the game or a sign-in prompt.
+- Network only when the player turns on saving to Google Drive (opt-in, encouraged, never
+  required). No backend, no Firebase, no social features for now.
+
+**Economy (draft numbers, tuned in 13e after real use)**
+- Feeding = experience: 1 🍅 fed = 1 point; level L → L+1 costs `1 + floor(L / 4)` 🍅.
+  Level 1 → 15: 35 🍅. Evolving at level 15: +20 🍅. Level 15 → 30 (cap): 92 🍅.
+  One creature to the cap ≈ 147 🍅 ≈ 15 days at 10 a day; ten creatures ≈ 5 months.
+- First day: two or three level-ups; first evolution after about a week on one creature.
+- New species: 1 skill at hatching, the 2nd at level 5, the 3rd at level 10; form 2's skills at
+  levels 15, 20, 25. Levels make skills bigger and faster to recharge, and drive off wild
+  attackers sooner.
+- Eggs: bought with 🍅 (draft 5 / 10 / 20), hatched by 2 / 5 / 10 more focus sessions.
+- Nothing is ever lost: no hunger, no decay, no streak penalty.
+
+**Feeding when you meet a creature (user idea, expanded)**
+- Walk within ~2.5 m and look at it: a small in-world bubble "🍅 Cho ăn?" over its head (not a
+  modal). Tap it / press `E` → a tomato arcs to the creature, it eats (existing clips: yes, jump,
+  dance), hearts, its experience ring fills; holding feeds one more every ~0.4 s.
+- Level up: sparkle burst + the skill card ("Mầm học chiêu mới: …") when a skill unlocks.
+- Walk away without feeding = "no": that creature does not ask again for 10 minutes.
+- No 🍅: the bubble says one focus session earns one.
+- Not during a focus session (no bubbles, no menu): spending belongs to breaks, which also gets
+  people up from the desk.
+- **Wild creatures: feeding is befriending** (the game's non-violent "catch"). They are shy
+  (vanish within 3.5 m), so the tomato is thrown from further away; each feeding fills a trust
+  meter over several meetings, and when it is full the wild one stays as a Thú Cưng of its own.
+  A tomato tossed during an ambush wind-up calms it instead of a fight.
+- The Trại panel (break time only) lists every creature with level, experience and a feed
+  button too, for orbit view and for creatures far away.
+
+**Save, backup and sync**
+- The save is an **event log** with unique ids (`session done +1 🍅`, `fed Mầm 2 🍅`, `egg bought`
+  …); balances and levels are computed from it. Merging two devices = union by id, so a PC and a
+  phone used offline at the same time never lose tomatoes.
+- `navigator.storage.persist()`, export/import a backup file, a weekly reminder to export.
+- Phone ↔ PC transfer by QR code (offline); home-screen install (11d) so iPhone Safari does not
+  clear the data after 7 days unused.
+- **Opt-in Google Drive sync:** Google's sign-in script loads only when the player presses
+  "Lưu lên Drive"; scope `drive.appdata` only (the app's hidden folder in the player's own Drive;
+  non-sensitive scope, basic verification). Syncs on open (pull + merge), ~30 s after a change,
+  and on hiding the tab. Access tokens last ~1 h with no refresh token in the browser: renew
+  silently; if Google needs a popup, show "☁️ Nhấn để đồng bộ lại" instead of opening one
+  unasked. Synced: game, to-do, settings; not recordings (too big).
+- Invitation: a small card in Trại after the first level-up, again at most twice (first
+  evolution, first hatch), then never; a status icon ☁️ "Đã lưu lên Drive" / 💾 "Chỉ lưu trên
+  máy này".
+- One-time setup by the repository owner (step-by-step in README when 13s is built): Google
+  Cloud project, Drive API, OAuth web client for `https://hau100993.github.io` and
+  `http://localhost:5173`; friends added as test users (≤ 100, Google shows an "unverified app"
+  warning) or the app published with basic verification.
+
+| Step | Deliverable | What you test |
+| --- | --- | --- |
+| **13a** | Tomato wallet as an event log (`tsw.pets`, versioned), +1 🍅 per finished focus session, starting gift from the to-do history, `persist()`, export/import, 🍅 count on the Pomodoro card and the right monitor; unit tests for the log, merge and costs | Finish a session → +1; export, clear site data, import → same state |
+| **13b** | Levels and experience for every current creature, feeding bubble on approach, Trại panel (breaks only), skills scale with level | Feed, level up, nothing offered during focus |
+| **13s** | Opt-in Google Drive sync, invitations at milestones, status icon; README setup guide | Same progress on PC and phone; offline on both, then sync |
+| **13c** | Evolution to form 2 with 3 new skills, prototype on one creature (Mầm), then the others; form 2 made in code (size, colours, added parts, aura) on the same model | Evolution scene, new skills, fps |
+| **13d** | Eggs: buy, hatch by focus sessions, hatching scene; 5 new species (CC0 models, loaded on first hatch), each 2 forms × 3 skills; wild befriending | Buy, hatch, befriend a wild one |
+| **13e** | Balancing after 1–2 weeks of use; extra tomato sources (discussed then) | Is the pace right? |
+| **11d + QR** | Home-screen install, QR transfer | Install on iPhone; move a save by QR |
+
+Open questions: "2 cấp tiến hóa" read as two forms (form 1 → form 2); confirm, or three forms.
+The cap on the starting gift (draft: none).
+
 ---
 
 ## 8. Risks & mitigations
@@ -495,7 +579,7 @@ Pomodoro on top; finished tasks go to a today-only "Đã xong" list; no title ba
 
 ## 9. What I will NOT do
 
-- No backend, accounts, network calls, CDN, analytics, or telemetry.
+- No backend, CDN, analytics, or telemetry. No network calls, except the opt-in Google Drive sync (Phase 13s), which loads only after the player turns it on.
 - No Lively/Wallpaper Engine/Electron packaging (possible later as a separate mode).
 - No WebGPU, no FFT/Tessendorf ocean, no volumetric clouds, no bloom/post-processing stack.
 - No jumping, NPCs, or physics engine. (Swimming, diving and fish were added in Phase 8 on request; seagulls, dolphins, crabs and turtles in Phase 9.)
