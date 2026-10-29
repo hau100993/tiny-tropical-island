@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { prepareSkinned, fitToHeight } from '../creatures/glbUtil';
+import { smoothModel } from '../smoothMesh';
 import type { BodyAction, PetBody } from './bodies';
 import type { SpeciesId } from '../../pets/species';
 
@@ -25,7 +26,7 @@ const FIT: Readonly<Partial<Record<SpeciesId, { height: number; hover: number; s
   tiger: { height: 0.85, hover: 0, speed: 2 },
   bee: { height: 0.5, hover: 1.1, speed: 1.8 },
   cloudDragon: { height: 0.85, hover: 1.3, speed: 2.1 },
-  kind7: { height: 0.7, hover: 0, speed: 1.5 },
+  seahorse: { height: 0.6, hover: 0.35, speed: 1.1 },
   kind8: { height: 0.7, hover: 0, speed: 1.5 },
   spider: { height: 0.55, hover: 0, speed: 1.6 },
   kimquy: { height: 0.75, hover: 0, speed: 0.8 },
@@ -62,6 +63,9 @@ export async function loadPetModel(species: SpeciesId, variant: ModelVariant): P
   const gltf = await new GLTFLoader().loadAsync(url);
   const scene = gltf.scene;
   prepareSkinned(scene);
+  // Most of these files are low-poly and flat shaded: rounded off once (Loop subdivision, smooth
+  // normals; 0.6 of the full smoothing keeps antlers, legs and ears from thinning out).
+  smoothModel(scene, 1, 0.6);
   const fit = fitOf(species);
   scene.traverse((o) => {
     const mesh = o as THREE.Mesh;

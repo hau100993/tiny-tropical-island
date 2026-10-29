@@ -520,7 +520,7 @@ Mechanics modelled on Pokémon GO's power-up / evolve / egg loop; **no Pokémon 
   Tamed ones wear a collar/ribbon in the player's colour, so they never look like wild ones.
 - **Shiny** (random, rare): golden tint and a sparkle. Draft odds: befriending a wild one 1/100;
   eggs higher: 1/30 (2-session egg), 1/20 (5), 1/10 (10). Tuned in 13e.
-- **At most 5 out on the island** at once (chosen in Trại: following you or near their home);
+- **5 to 10 out on the island** at once (changed 2026-10-29: 10 places, a small one takes 1, a middle one 1.5, a big one 2; tiny/huge half a place less/more) (chosen in Trại: following you or near their home);
   the rest rest in Trại and can still be fed there. Near one, a small label `Sương · Rank 8`
   (hidden far away and with H). Skinned models are cloned from one loaded file; 5 keeps draw
   calls and animation CPU inside the budget.
@@ -577,7 +577,7 @@ Mechanics modelled on Pokémon GO's power-up / evolve / egg loop; **no Pokémon 
 | Step | Deliverable | What you test |
 | --- | --- | --- |
 | **13a** ✅ | Tomato wallet as an event log (`tsw.pets`, versioned), +1 🍅 per finished focus session, starting gift from the to-do history, `persist()`, export/import, 🍅 count on the Pomodoro card and the right monitor; unit tests for the log, merge and costs | Finish a session → +1 (gift capped at 10); export, clear site data, import → same state |
-| **13b** ✅ | Individuals (ids, species vs names, auto names, rename, labels), team of 5 out on the island, Ranks and EXP for every current creature, feeding bubble on approach, Trại panel (breaks only), skills scale with Rank | Feed, rank up, nothing offered during focus |
+| **13b** ✅ | Individuals (ids, species vs names, auto names, rename, labels), team out on the island (10 places by size: 5–10 pets), Ranks and EXP for every current creature, feeding bubble on approach, Trại panel (breaks only), skills scale with Rank | Feed, rank up, nothing offered during focus |
 | **13s** ✅ | Opt-in Google Drive sync, invitations at milestones, status icon; README setup guide | Same progress on PC and phone; offline on both, then sync |
 | **13c** ✅ | Evolution to Level 2 with 3 new skills, prototype on one creature (Mầm), then the others; Level 2 made in code (size, colours, added parts, aura) on the same model | Evolution scene, new skills, fps |
 | **13d** ✅ | Eggs: buy, hatch by focus sessions, hatching scene; 5 new species (CC0 models, loaded on first hatch), each Level 1 + Level 2 × 3 skills; wild befriending; seeded looks and shiny variants | Buy, hatch, befriend a wild one |
@@ -586,7 +586,13 @@ Mechanics modelled on Pokémon GO's power-up / evolve / egg loop; **no Pokémon 
 
 Settled (user, 2026-10-29): two stages, Level 1 → Level 2; starting gift capped at 10 🍅.
 
-Models in (2026-10-29, on the PC): `npm run pets:models` fetched all 15 files (about 6.3 MB) into `src/assets/creatures/pets/`. 14 are CC0 (Quaternius); the turtle (Kim Quy) is CC-BY 3.0 (Poly by Google), credited in README. Every model's clips match `CLIP_PATTERNS` except the turtle's (it has none: the bob fallback). Checked in the browser: heights match `FIT`, all stand on the ground, walk forward, Level 2 and shiny models load; 60 fps on the RX 6600 at High with 5 new pets out and skills running, no console errors. Still open: names for kind7 ("Fish" model) and kind8 ("Monkroose" model), the four "to confirm" decisions, Drive setup, phone sound test.
+Models in (2026-10-29, on the PC): `npm run pets:models` fetched all 15 files (about 6.3 MB) into `src/assets/creatures/pets/`. 14 are CC0 (Quaternius); the turtle (Kim Quy) is CC-BY 3.0 (Poly by Google), credited in README. Every model's clips match `CLIP_PATTERNS` except the turtle's (it has none: the bob fallback). Checked in the browser: heights match `FIT`, all stand on the ground, walk forward, Level 2 and shiny models load; 60 fps on the RX 6600 at High with 5 new pets out and skills running, no console errors. Still open: the name for kind8 ("Monkroose" model), the other "to confirm" decisions, Drive setup, phone sound test.
+
+User feedback (2026-10-29), done the same day:
+- kind7 → **Cá Ngựa** (id `seahorse`, Level 2 Long Mã): the "Fish" model replaced by a real seahorse ("sea horse" by Device Lab, CC-BY 3.0, static: it floats 0.35 m up and bobs). Saves are unaffected: species are worked out from egg ids, never stored.
+- **5 to 10 out on the island** instead of 5: 10 places, small 1 / middle 1.5 / big 2, tiny or huge half a place less or more (`roomOf`, `TEAM_ROOM` in roster.ts); the camp shows the places used.
+- **Rounder animals:** the pet models (and Bọt's crab) are rounded off at load with the Loop subdivision Mochi already used (`src/world/smoothMesh.ts`, now keeping UVs and vertex colours and with a smoothing amount: 0.6). Models over 6k triangles are only welded with smooth normals. The deer goes from 2.1k flat triangles to 8.4k smooth; 7 pets out add ~97k triangles and cost about 1–2 fps on the RX 6600.
+- Measured on the RX 6600 at the camp, close view: 48 fps at High, 52 at Medium, with or without the pets (the scene itself, not this change); 60 fps in the walking view. Worth a look later.
 
 ---
 
