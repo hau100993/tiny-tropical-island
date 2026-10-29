@@ -484,6 +484,8 @@ Pomodoro on top; finished tasks go to a today-only "Đã xong" list; no title ba
 
 ### Phase 13 — Thú Cưng: tomatoes, feeding, evolution, eggs, save & sync (user request, 2026-10-29; approved, 13a–13d and 13s built)
 
+What is left (models, tests on the PC, open decisions, merge): see `NEXT_STEPS.md`.
+
 Work is the engine of the game: every finished focus session gives one 🍅, and tomatoes feed the
 island's creatures ("Thú Cưng"), which rank up, learn skills, evolve, and come out of eggs.
 Mechanics modelled on Pokémon GO's power-up / evolve / egg loop; **no Pokémon names, art or UI**
