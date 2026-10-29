@@ -3,7 +3,7 @@
 ## Project
 A local web app for Windows 11 that I leave open while I work: an immersive 3D tropical island with a sound mixer. It runs fully offline with no backend.
 
-- UI text: Vietnamese. Code, comments, commit messages, docs: English.
+- UI text: Vietnamese (except Thú Cưng Levels, Ranks and skill names: English). Code, comments, commit messages, docs: English.
 - Reply to me in Vietnamese unless I write in English.
 - I am an embedded engineer (C/C++ background), new to web graphics. Explain shader and WebGL decisions briefly and concretely.
 
