@@ -28,8 +28,29 @@ import {
 export const EVOLVE_RANK = 15;
 export const MAX_RANK = 30;
 export const EVOLVE_COST = 20;
-/** New pets out on the island at once (the originals live there anyway). */
-export const TEAM_MAX = 5;
+/**
+ * Room on the island for new pets out at once (the originals live there anyway). Each takes room
+ * by its size (ROOM), so 10 small ones fit, or 5 big ones, or something in between.
+ */
+export const TEAM_ROOM = 10;
+/** Room a pet of each species takes: small 1, middle 1.5, big 2. */
+const ROOM: Readonly<Record<SpeciesId, number>> = {
+  dog: 1.5,
+  crab: 1,
+  dragon: 2,
+  bunny: 1,
+  shark: 1.5,
+  deer: 2,
+  na: 1,
+  frog: 1,
+  tiger: 1.5,
+  bee: 1,
+  cloudDragon: 2,
+  seahorse: 1,
+  kind8: 1.5,
+  spider: 1,
+  kimquy: 2,
+};
 /** The Rank each skill opens at: new species learn theirs as they grow; Level 2's three after evolving. */
 const SKILL_RANKS_NEW = [1, 5, 10, 15, 20, 25] as const;
 const SKILL_RANKS_ORIGINAL = [1, 1, 1, 15, 20, 25] as const;
@@ -57,6 +78,22 @@ export function traitsOf(id: string, origin: PetOrigin): Traits {
 }
 
 export const SIZE_SCALE: Readonly<Record<SizeClass, number>> = { normal: 1, tiny: 0.7, huge: 1.35 };
+
+/** Room one pet takes on the island: its species', half a place less when tiny, more when huge (1–2). */
+export function roomOf(species: SpeciesId, size: SizeClass): number {
+  const r = ROOM[species] + (size === 'tiny' ? -0.5 : size === 'huge' ? 0.5 : 0);
+  return Math.min(2, Math.max(1, r));
+}
+
+/** Room the given pets take together (unknown ids and originals take none). */
+export function roomUsed(pets: readonly Pet[], ids: readonly string[]): number {
+  let sum = 0;
+  for (const id of new Set(ids)) {
+    const p = pets.find((q) => q.id === id);
+    if (p && p.origin !== 'original') sum += roomOf(p.species, p.traits.size);
+  }
+  return sum;
+}
 
 export interface Pet {
   id: string;
@@ -100,7 +137,7 @@ export interface Roster {
   eggs: Egg[];
   /** Tomatoes fed to wild ones of each kind since the last befriended. */
   trust: Record<WildKind, number>;
-  /** Ids of the new pets out on the island (≤ TEAM_MAX). */
+  /** Ids of the new pets out on the island (their room ≤ TEAM_ROOM). */
   team: string[];
 }
 
@@ -277,9 +314,24 @@ export function buildRoster(l: Readonly<Ledger>): Roster {
     const p = pets.get(id);
     return p !== undefined && p.origin !== 'original';
   };
-  const chosen = (team ?? []).filter(owned);
+  const room = (id: string): number => {
+    const p = pets.get(id);
+    return p ? roomOf(p.species, traitsOf(id, p.origin).size) : 0;
+  };
+  // The last choice, as far as it fits (a choice from a newer version could hold more).
+  const chosen: string[] = [];
+  let taken = 0;
+  for (const id of new Set(team ?? [])) {
+    if (!owned(id) || taken + room(id) > TEAM_ROOM) continue;
+    chosen.push(id);
+    taken += room(id);
+  }
   // New arrivals since the last choice join while there is room.
-  for (const id of joined) if (chosen.length < TEAM_MAX && owned(id) && !chosen.includes(id)) chosen.push(id);
+  for (const id of joined) {
+    if (!owned(id) || chosen.includes(id) || taken + room(id) > TEAM_ROOM) continue;
+    chosen.push(id);
+    taken += room(id);
+  }
 
   return {
     balance: tomatoBalance(l),
@@ -290,7 +342,7 @@ export function buildRoster(l: Readonly<Ledger>): Roster {
     }),
     eggs: eggs.filter((g) => !g.hatched).map(({ hatched: _h, ...g }) => g),
     trust,
-    team: [...new Set(chosen)].slice(0, TEAM_MAX),
+    team: chosen,
   };
 }
 
@@ -375,7 +427,7 @@ export function renamePet(r: Readonly<Roster>, petId: string, name: string, now:
 
 export function setTeam(r: Readonly<Roster>, ids: readonly string[], now: number): Action {
   const valid = ids.filter((id) => r.pets.some((p) => p.id === id && p.origin !== 'original'));
-  if (valid.length > TEAM_MAX) return { ok: false, why: 'team' };
+  if (roomUsed(r.pets, valid) > TEAM_ROOM) return { ok: false, why: 'team' };
   return { ok: true, event: { id: newEventId(), t: now, kind: 'team', n: 0, s: [...new Set(valid)].join(',') } };
 }
 

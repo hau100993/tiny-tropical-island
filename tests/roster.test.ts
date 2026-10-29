@@ -17,9 +17,11 @@ import {
   rankCost,
   rankOf,
   renamePet,
+  roomOf,
+  roomUsed,
   setTeam,
   skillPower,
-  TEAM_MAX,
+  TEAM_ROOM,
 } from '../src/pets/roster';
 import { EGGS, TRUST_NEEDED } from '../src/pets/species';
 
@@ -147,17 +149,31 @@ describe('roster', () => {
     expect(r.balance).toBe(10 - TRUST_NEEDED);
   });
 
+  it('room on the island: 10 small ones, 5 big ones, tiny and huge half a place apart', () => {
+    expect(roomOf('bee', 'normal') * 10).toBe(TEAM_ROOM);
+    expect(roomOf('deer', 'normal') * 5).toBe(TEAM_ROOM);
+    expect(roomOf('tiger', 'normal')).toBe(1.5);
+    expect(roomOf('tiger', 'tiny')).toBe(1);
+    expect(roomOf('bee', 'tiny')).toBe(1);
+    expect(roomOf('bee', 'huge')).toBe(1.5);
+    expect(roomOf('deer', 'huge')).toBe(2);
+  });
+
   it('renames, team choice and its limit', () => {
-    let l = rich(TRUST_NEEDED * (TEAM_MAX + 1));
-    for (let i = 0; i < TEAM_MAX + 1; i++) {
+    const n = 11;
+    let l = rich(TRUST_NEEDED * n);
+    for (let i = 0; i < n; i++) {
       for (let k = 0; k < TRUST_NEEDED; k++) l = apply(l, feedWild(buildRoster(l), 'crab', tick()));
       l = apply(l, befriend(buildRoster(l), 'crab', tick()));
     }
     let r = buildRoster(l);
     const crabs = r.pets.filter((p) => p.origin === 'wild');
-    expect(crabs).toHaveLength(TEAM_MAX + 1);
+    expect(crabs).toHaveLength(n);
     expect(new Set(crabs.map((p) => p.name)).size).toBe(crabs.length);
-    expect(r.team).toHaveLength(TEAM_MAX);
+    // Crabs take 1 place (1.5 when huge): between 7 and 10 of the 11 are out, never over the room.
+    expect(r.team.length).toBeGreaterThanOrEqual(7);
+    expect(r.team.length).toBeLessThan(n);
+    expect(roomUsed(r.pets, r.team)).toBeLessThanOrEqual(TEAM_ROOM);
     expect(setTeam(r, crabs.map((p) => p.id), tick())).toEqual({ ok: false, why: 'team' });
     l = apply(l, setTeam(r, [crabs[5].id], tick()));
     l = apply(l, renamePet(buildRoster(l), crabs[5].id, '  Cua   Vàng ', tick()));

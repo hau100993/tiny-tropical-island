@@ -30,7 +30,7 @@ import {
   setTeam,
   SIZE_SCALE,
   skillPower,
-  TEAM_MAX,
+  TEAM_ROOM,
   type Action,
   type Pet,
   type Refusal,
@@ -548,7 +548,7 @@ export class PetGame {
     const team = [...this.lastRoster.team];
     const i = team.indexOf(petId);
     if (i >= 0) team.splice(i, 1);
-    else if (team.length < TEAM_MAX) team.push(petId);
+    else team.push(petId);
     this.result(this.host.wallet.act((r) => setTeam(r, team, Date.now())));
   }
 
@@ -711,7 +711,7 @@ export class PetGame {
   }
 
   private refuse(why: Refusal): void {
-    const text = why === 'tomatoes' ? vi.pets.noTomato : why === 'evolve' ? vi.pets.needEvolve : why === 'cap' ? vi.pets.maxed : why === 'team' ? vi.pets.outFull(TEAM_MAX) : '';
+    const text = why === 'tomatoes' ? vi.pets.noTomato : why === 'evolve' ? vi.pets.needEvolve : why === 'cap' ? vi.pets.maxed : why === 'team' ? vi.pets.outFull(TEAM_ROOM) : '';
     if (!text) return;
     this.camp.say(text);
     if (this.target) this.host.note(text);

@@ -1,5 +1,10 @@
 import type { LayerId } from '../audio/types';
 
+/** A number of places on the island, Vietnamese style: 1,5 not 1.5. */
+function places(n: number): string {
+  return String(n).replace('.', ',');
+}
+
 /** All user-visible text, in Vietnamese. Keep labels short. */
 export const vi = {
   appTitle: 'Đảo Nhiệt Đới',
@@ -230,7 +235,9 @@ export const vi = {
     rename: 'Đổi tên',
     renameTitle: 'Tên mới (Enter để lưu)',
     out: 'Ra đảo',
-    outFull: (max: number): string => `Ra đảo tối đa ${max} con`,
+    outFull: (max: number): string => `Hết chỗ trên đảo (${max} chỗ)`,
+    room: (used: number, max: number): string => `Chỗ trên đảo: ${places(used)}/${max} · con nhỏ 1 chỗ, con lớn 2 chỗ`,
+    roomNeeds: (n: number): string => `Con này cần ${places(n)} chỗ`,
     home: 'Sống trên đảo',
     shiny: 'Lấp lánh',
     rankLine: (level: number, rank: number): string => `Level ${level} · Rank ${rank}`,

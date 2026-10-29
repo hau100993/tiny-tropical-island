@@ -1,7 +1,7 @@
 import { button, el } from './components';
 import { vi } from './strings.vi';
 import { EGG_TIERS, EGGS, SPECIES, speciesName, TRUST_NEEDED, WILD_KINDS, type EggTier } from '../pets/species';
-import { EVOLVE_COST, openSkills, skillOpen, skillRank, TEAM_MAX, type Pet, type Roster } from '../pets/roster';
+import { EVOLVE_COST, openSkills, roomOf, roomUsed, skillOpen, skillRank, TEAM_ROOM, type Pet, type Roster } from '../pets/roster';
 
 /** What the camp asks the game to do. */
 export interface CampActions {
@@ -79,8 +79,10 @@ export class CampView {
 
     parts.push(el('div', 'subhead', vi.pets.mine));
     const out = new Set(r.team);
+    const used = roomUsed(r.pets, r.team);
+    if (r.pets.some((p) => p.origin !== 'original')) parts.push(el('div', 'note', vi.pets.room(used, TEAM_ROOM)));
     const sorted = [...r.pets].sort((a, b) => Number(b.origin === 'original') - Number(a.origin === 'original') || a.since - b.since);
-    for (const p of sorted) parts.push(this.petCard(p, out.has(p.id), out.size));
+    for (const p of sorted) parts.push(this.petCard(p, out.has(p.id), used));
 
     parts.push(el('div', 'subhead', vi.pets.eggs));
     r.eggs.forEach((g, i) => parts.push(this.eggRow(g.id, g.tier, g.progress, g.ready, i === 0)));
@@ -101,7 +103,7 @@ export class CampView {
     this.body.replaceChildren(...parts);
   }
 
-  private petCard(p: Pet, isOut: boolean, outCount: number): HTMLElement {
+  private petCard(p: Pet, isOut: boolean, roomTaken: number): HTMLElement {
     const sp = SPECIES[p.species];
     const card = el('div', `camp-pet ${sp.element}${p.shiny ? ' shiny' : ''}`);
     const top = el('div', 'camp-pet-top');
@@ -184,9 +186,11 @@ export class CampView {
     if (p.origin !== 'original') {
       const t = button(vi.pets.out, () => this.actions.toggleTeam(p.id), `btn small toggle${isOut ? ' on' : ''}`);
       t.setAttribute('aria-pressed', String(isOut));
-      if (!isOut && outCount >= TEAM_MAX) {
+      const needs = roomOf(p.species, p.traits.size);
+      t.title = vi.pets.roomNeeds(needs);
+      if (!isOut && roomTaken + needs > TEAM_ROOM) {
         t.disabled = true;
-        t.title = vi.pets.outFull(TEAM_MAX);
+        t.title = `${vi.pets.outFull(TEAM_ROOM)} · ${vi.pets.roomNeeds(needs)}`;
       }
       row.append(t);
     } else {
