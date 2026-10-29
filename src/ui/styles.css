@@ -3079,3 +3079,38 @@ body.ui-hidden .feed-bubble {
   background: rgba(255, 214, 102, 0.28);
   border: 1px solid rgba(255, 196, 60, 0.6);
 }
+
+.camp-sync {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  background: var(--control-bg);
+}
+
+.camp-sync-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.camp-link {
+  align-self: flex-start;
+  font: inherit;
+  font-size: 11px;
+  color: var(--panel-muted);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.camp-notices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

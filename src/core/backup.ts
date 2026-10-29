@@ -18,7 +18,10 @@ export interface BackupFile {
 export const BACKUP_APP = 'tiny-tropical-island';
 const BACKUP_VERSION = 1;
 const PREFIX = 'tsw.';
-const SKIP = new Set<string>([TRACKS_KEY]);
+/** This device's own: never copied to another (its id, its Drive connection). */
+export const DEVICE_ID_KEY = 'tsw.deviceId';
+export const SYNC_STATE_KEY = 'tsw.sync';
+const SKIP = new Set<string>([TRACKS_KEY, DEVICE_ID_KEY, SYNC_STATE_KEY]);
 const POMODORO_KEY = 'tsw.pomodoro';
 
 /** The parts of `Storage` used here (a plain object stands in for it in tests). */

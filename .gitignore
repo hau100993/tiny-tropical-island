@@ -26,3 +26,7 @@ public/audio/**/*.webm
 !public/audio/library/*.ogg
 !public/audio/library/*.opus
 !public/audio/library/*.m4a
+
+# Local settings (e.g. VITE_GOOGLE_CLIENT_ID for the Drive sync).
+.env.local
+.env.*.local

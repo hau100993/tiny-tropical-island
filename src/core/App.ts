@@ -70,6 +70,7 @@ import { AudioPrompt } from '../ui/AudioPrompt';
 import { TomatoWallet, type FocusSession } from '../pets/wallet';
 import { PetGame } from '../pets/PetGame';
 import { petNotices, type PetNotices } from '../pets/notices';
+import { DriveSync } from '../pets/DriveSync';
 import { MIN_FOCUS_MIN } from '../pets/ledger';
 import { SlowHint } from '../ui/SlowHint';
 import { isTouch, watchTouch } from '../ui/touch';
@@ -256,6 +257,8 @@ export class App {
   /** The Thú Cưng game on the island: camp tab, feeding, new pets, their skills (pets/PetGame.ts). */
   private readonly petGame: PetGame;
   private readonly petNotices: PetNotices;
+  /** Optional saving to the player's Google Drive (pets/DriveSync.ts). */
+  private readonly driveSync: DriveSync;
   /** Pomodoro storm calm: target and the eased value the visuals use. */
   private calmTarget = 1;
   private calmVisual = 1;
@@ -531,8 +534,10 @@ export class App {
     });
     this.pomodoro.setTomatoes(this.wallet.count);
     this.wallet.onChange(() => this.pomodoro.setTomatoes(this.wallet.count));
-    this.petNotices = petNotices();
+    this.driveSync = new DriveSync(this.wallet);
+    this.petNotices = petNotices(this.driveSync);
     this.petGame = this.createPetGame(ui);
+    this.driveSync.onChange(() => this.petGame.refreshCamp());
     this.panel.mount('pets', this.petGame.camp.root);
     this.audioPrompt = new AudioPrompt(ui);
     this.slowHint = new SlowHint(ui, () => this.settings.get().quality, (quality) => this.settings.update({ quality }));

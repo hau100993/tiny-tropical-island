@@ -166,6 +166,11 @@ export class PetGame {
     return this.pointer.hover;
   }
 
+  /** Something the camp shows changed outside the log (the Drive status). */
+  refreshCamp(): void {
+    this.camp.update(this.lastRoster, this.focusing);
+  }
+
   /** E (no seat near): feed the one the bubble points at. */
   feedNearest(): boolean {
     if (!this.target || this.focusing) return false;
@@ -208,14 +213,21 @@ export class PetGame {
     for (const ring of this.auras.values()) spinAura(ring, dt);
     this.applyOriginalLooks();
     this.pointer.update();
-    this.updateBubble(walking);
+    this.updateBubble(walking, dt);
   }
 
   // ---- The feeding bubble ----
 
-  private updateBubble(walking: boolean): void {
+  private updateBubble(walking: boolean, dt: number): void {
     const prev = this.target;
-    this.target = walking && !this.focusing ? this.findTarget() : null;
+    // Who is nearest changes slowly: looked for five times a second, followed every frame.
+    this.lookIn -= dt;
+    if (this.lookIn <= 0 || !walking || this.focusing) {
+      this.lookIn = 0.2;
+      this.target = walking && !this.focusing ? this.findTarget() : null;
+    } else if (this.target) {
+      this.follow(this.target);
+    }
     // Walked away from one that asked, without feeding it: it won't ask again for a while.
     if (prev && (!this.target || this.keyOf(prev) !== this.keyOf(this.target))) {
       this.askedUntil.set(this.keyOf(prev), Date.now() + ASK_AGAIN_MS);
@@ -243,6 +255,34 @@ export class PetGame {
       const kind = t.wild.kind;
       const sub = r.balance < 1 ? vi.pets.bubbleEmpty : vi.pets.trust(SPECIES[kind].name, r.trust[kind], TRUST_NEEDED);
       this.bubble.show(vi.pets.bubbleWild(SPECIES[kind].name), sub, sx, sy);
+    }
+  }
+
+  private lookIn = 0;
+
+  /** Between searches: the target's head moves with it. */
+  private follow(t: Target): void {
+    if ('wild' in t) {
+      t.x = t.wild.x;
+      t.y = t.wild.y;
+      t.z = t.wild.z;
+      return;
+    }
+    const a = this.actors.get(t.pet);
+    if (a) {
+      a.headTop(this.tmp);
+      t.x = this.tmp.x;
+      t.y = this.tmp.y;
+      t.z = this.tmp.z;
+      return;
+    }
+    this.spots.length = 0;
+    this.host.originalSpots(this.spots);
+    for (const s of this.spots) {
+      if (s.id !== t.pet) continue;
+      t.x = s.x;
+      t.y = s.y;
+      t.z = s.z;
     }
   }
 
