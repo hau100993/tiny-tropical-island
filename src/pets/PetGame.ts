@@ -78,8 +78,8 @@ export interface PetGameHost {
   originalCheer(id: string): void;
   /** Where an original is and faces, for its Level 2 skills. */
   originalCaster(id: string, out: Caster): boolean;
-  /** An original's own skill (its next one, as its key does): false if it can't now. */
-  originalNative(id: string): boolean;
+  /** An original's own skill (its next one, as its key does, or `which`): false if it can't now. */
+  originalNative(id: string, which?: number): boolean;
   /** You are stroking this original, or just stopped (see ASK_WHEN_PETTED). */
   pettedLately(id: string): boolean;
   wildWatchers(out: WildTarget[]): void;
@@ -575,7 +575,7 @@ export class PetGame {
     const p = this.pet(petId);
     if (!p || !openSkills(p).includes(index)) return;
     if (p.origin === 'original' && index < 3) {
-      if (!this.host.originalNative(petId)) this.camp.say(vi.pets.notHere(p.name));
+      if (!this.host.originalNative(petId, index)) this.camp.say(vi.pets.notHere(p.name));
       return;
     }
     if (!this.castRecipe(p, index)) this.camp.say(vi.pets.notHere(p.name));

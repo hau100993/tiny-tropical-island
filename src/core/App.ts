@@ -875,14 +875,14 @@ export class App {
         }
         return this.creatures.originalCaster(id, out);
       },
-      originalNative: (id) => {
+      originalNative: (id, which) => {
         if (id === 'mochi') {
           const dog = this.dog;
           if (!dog) return false;
-          const r = this.dogSkills.next(() => dog.zoomies(this.dogPlayer));
+          const r = this.dogSkills.next(() => dog.zoomies(this.dogPlayer), which);
           return r !== null && r !== 'noRoom';
         }
-        return this.creatures.originalNative(id);
+        return this.creatures.originalNative(id, which);
       },
       pettedLately: (id) => id === 'mochi' && (this.petting.active || performance.now() - this.petEndedAt < App.FEED_AFTER_PET_MS),
       wildWatchers: (out) => this.creatures.wildWatchers(out),

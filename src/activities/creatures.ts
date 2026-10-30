@@ -258,15 +258,15 @@ export class Creatures {
    * Bọt's water skills (R: each press the next): which one started, 'busy' (one is under way)
    * or 'off' (Bọt is off or not loaded yet).
    */
-  waterSkill(): CrabSkill | 'busy' | 'off' {
+  waterSkill(which?: number): CrabSkill | 'busy' | 'off' {
     if (!this.crabOn || !this.crab) return 'off';
-    return this.crab.brain.command() ?? 'busy';
+    return this.crab.brain.command(which) ?? 'busy';
   }
 
   /** Hỏa Long's fire skills (X: each press the next); see waterSkill. */
-  fireSkill(): DragonSkill | 'busy' | 'off' {
+  fireSkill(which?: number): DragonSkill | 'busy' | 'off' {
     if (!this.dragonOn || !this.dragon) return 'off';
-    return this.dragon.brain.command() ?? 'busy';
+    return this.dragon.brain.command(which) ?? 'busy';
   }
 
   /**
@@ -364,9 +364,9 @@ export class Creatures {
     return true;
   }
 
-  /** An original's own next skill (its key's), started if it can now. */
-  originalNative(id: string): boolean {
-    const r = id === 'bot' ? this.waterSkill() : id === 'hoalong' ? this.fireSkill() : id === 'mam' ? this.grassSkill() : 'off';
+  /** An original's own next skill (its key's), or skill `which`, started if it can now. */
+  originalNative(id: string, which?: number): boolean {
+    const r = id === 'bot' ? this.waterSkill(which) : id === 'hoalong' ? this.fireSkill(which) : id === 'mam' ? this.grassSkill(which) : 'off';
     return r !== 'off' && r !== 'busy';
   }
 
@@ -415,9 +415,9 @@ export class Creatures {
   }
 
   /** Mầm's grass skills (Z: each press the next); see waterSkill. */
-  grassSkill(): BunnySkill | 'busy' | 'off' {
+  grassSkill(which?: number): BunnySkill | 'busy' | 'off' {
     if (!this.bunnyOn || !this.bunny) return 'off';
-    return this.bunny.brain.command() ?? 'busy';
+    return this.bunny.brain.command(which) ?? 'busy';
   }
 
   setViewport(heightPx: number, fovDeg: number): void {

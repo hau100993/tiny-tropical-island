@@ -212,10 +212,12 @@ export class BubbleCrab {
 
   /**
    * A water skill, on command (R): each press the next one (jet, bubble shower, geyser).
-   * Ignored while one is under way; returns the one started (null: busy).
+   * Ignored while one is under way; returns the one started (null: busy). `which`: that one
+   * instead (a skill chip in the camp); the next press goes on from it.
    */
-  command(): CrabSkill | null {
+  command(which?: number): CrabSkill | null {
     if (this.busy || this.queued) return null;
+    if (which !== undefined) this.nextSkill = which % SKILLS.length;
     this.skill = SKILLS[this.nextSkill];
     this.nextSkill = (this.nextSkill + 1) % SKILLS.length;
     this.queued = true;
