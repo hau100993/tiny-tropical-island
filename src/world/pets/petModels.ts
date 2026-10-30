@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { prepareSkinned, fitToHeight } from '../creatures/glbUtil';
 import { smoothModel } from '../smoothMesh';
+import { buildLegRig, LEG_RIGS } from './legRig';
 import type { BodyAction, PetBody } from './bodies';
 import type { SpeciesId } from '../../pets/species';
 
@@ -69,6 +70,9 @@ export async function loadPetModel(species: SpeciesId, variant: ModelVariant): P
   // Most of these files are low-poly and flat shaded: rounded off once (Loop subdivision, smooth
   // normals; 0.6 of the full smoothing keeps antlers, legs and ears from thinning out).
   smoothModel(scene, 1, 0.6);
+  // A model without a skeleton of its own gets legs that walk (legRig.ts: Kim Quy).
+  const spec = LEG_RIGS[species];
+  const rig = spec && gltf.animations.length === 0 ? buildLegRig(scene, spec) : null;
   const fit = fitOf(species);
   scene.traverse((o) => {
     const mesh = o as THREE.Mesh;
@@ -119,8 +123,14 @@ export async function loadPetModel(species: SpeciesId, variant: ModelVariant): P
       const walk = actions.get('move');
       if (walk) walk.timeScale = action === 'move' ? 0.6 + moving * 0.8 : 1;
       mixer.update(dt);
-      // Without clips (or as a little life on top): a bob, hops when happy.
       const happy = action === 'greet' || action === 'dance';
+      if (rig) {
+        // Its own legs and head do the work; a small lift when happy.
+        const sink = rig.update(dt, action, moving) * fitted.scale.y;
+        pivot.position.y = (happy ? Math.abs(Math.sin(t * 7)) * 0.04 : 0) - sink;
+        return;
+      }
+      // Without clips (or as a little life on top): a bob, hops when happy.
       pivot.position.y = actions.size === 0 || happy ? Math.abs(Math.sin(t * (happy ? 7 : 2))) * (happy ? 0.12 : 0.03) : 0;
       pivot.rotation.z = actions.size === 0 && happy ? Math.sin(t * 6) * 0.15 : 0;
     },

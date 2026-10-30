@@ -445,10 +445,20 @@ only shows the egg's progress) and no creature asks to be fed: spending is for b
   The longer eggs give rarer species and more **shiny** ones (golden, sparkling): 1/30, 1/20, 1/10.
 - **Ten egg species** (Level 1 name → Level 2 name; rarity):
   Nai Vàng → Nai Thần Rừng, Bé Na → Na Chín, Ếch Xanh → Ếch Vương, Ong Vàng → Ong Chúa (common);
-  Hổ Báo → Hổ Lửa, Nhện Halloween → Nhện Bí Ngô, Rồng Mây, Cá Ngựa → Long Mã, Thú Hiếm (rare; Thú Hiếm
-  gets its real name later); **Kim Quy → Thần Kim Quy** (legendary:
+  Hổ Báo → Hổ Lửa, Nhện Halloween → Nhện Bí Ngô, Rồng Mây, Cá Ngựa → Long Mã, Chồn Lửa → Hỏa Hồ Vương (rare); **Kim Quy → Thần Kim Quy** (legendary:
   only from 10-session eggs, 1 in 15, **one per player**). 2-session eggs hatch commons,
   5-session eggs a rare one in four, 10-session eggs rares (or Kim Quy).
+- **Skills that look like their names** (the recipe skills: the Level 2 ones of the originals
+  and all six of each egg species). Besides bursts, shock waves, whirlwinds and showers of the
+  element, a skill can make the pet really **leap** or lunge (Pounce, Golden Leap, Lily Hop …),
+  shoot a **beam** (Tongue Snap snaps out and back, Moon Breath, Buzz Sting, Web Shot), call
+  **lightning** (Thunder Hive, Honey Zap, Monsoon Call), drop a giant golden **sword** from the sky
+  (Heaven's Blade, Thuận Thiên Light), draw a glowing **sigil** on the ground (a web, a lotus, a
+  honeycomb, a sun, a crescent moon, the eight trigrams, leaves), raise a **shield dome** (a
+  soap bubble, Kim Quy's golden hex shell), send a **swarm** circling (bees, leaves, stars, bats)
+  or a **rain of shapes** (stars, glowing pumpkins, leaves, fruit). Some have their own colours
+  (Kim Quy gold and jade, the spider pumpkin orange and purple, the bee honey). The sixth skill
+  of each is its **ultimate**: the view widens toward it, a big flash, several layers at once.
 - **Each one is different:** ♂/♀ (looks only: girls wear a bow), a rare **Bé tí** (×0.7) or
   **Khổng lồ** (×1.35) one in 20 each, and **Tiềm năng** 1–3 ★ from birth (skills up to +15 %).
   The camp shows **Sức mạnh**, a single strength number (species, Level, Rank, ★).
@@ -470,7 +480,7 @@ only shows the egg's progress) and no creature asks to be fed: spending is for b
   above your head, so none hangs in front of the camera. The originals live on the island as before.
 - **Colours that stand out on the green island:** each species wears its name and element (a lime
   frog, a yellow bee with black bands, an orange striped tiger, a golden deer and turtle, a pale
-  moon dragon, a fire-red Thú Hiếm, a spider with glowing pumpkin marks), and every pet has a thin
+  moon dragon, a fire-red Chồn Lửa, a spider with glowing pumpkin marks), and every pet has a thin
   bright rim of light along its silhouette. The small ones (frog, spider, snake, bee, seahorse) are
   a little bigger than life so they stand out of the grass.
 - **Nothing is ever lost:** no hunger, no decay, no penalty for a missed day.
@@ -1206,7 +1216,7 @@ audio files in the repo.
 | `src/assets/creatures/sea-shark.glb` ("Shark") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/YYsK3gRCBZ) | CC0 1.0 (public domain) | Bé Mập the baby shark, tinted and scaled small in code, its head enlarged on the Neck bone; its swim, fast swim and bite clips are used. (Named in Vietnamese on purpose: "Baby Shark" is a Pinkfong trademark.) |
 | Thú Cưng models in `src/assets/creatures/pets/`: `deer-l1.glb` ("Deer", [page](https://poly.pizza/m/T6Cs7tmMHJ)), `deer-l2.glb` ("Stag", [page](https://poly.pizza/m/tQdzbZ1Cmw)), `na-l1.glb` ("Snake", [page](https://poly.pizza/m/x9x0viZs8V)), `frog-l1.glb` ("Frog", [page](https://poly.pizza/m/9Z2V8fpazF)), `frog-l2.glb` ("Astronaut", [page](https://poly.pizza/m/0D54W8yfrA)), `frog-shiny.glb` ("Frog", [page](https://poly.pizza/m/37wofOCOzG)), `tiger-l1.glb` ("Cat", [page](https://poly.pizza/m/2f54vbV0In)), `bee-l1.glb` ("Armabee", [page](https://poly.pizza/m/42djT5zJnx)), `cloudDragon-l1.glb` ("Squidle", [page](https://poly.pizza/m/54QyRcsogk)), `cloudDragon-l2.glb` ("Demon", [page](https://poly.pizza/m/Mo2ky6vkf8)), `kind8-l1.glb` ("Monkroose", [page](https://poly.pizza/m/j4rVPvxyLg)), `spider-l1.glb` ("Spider", [page](https://poly.pizza/m/yRYJiAJyiM)), all by [Quaternius](https://quaternius.com/), via Poly Pizza | CC0 1.0 (public domain) | the Phase 13 species; fetched with `npm run pets:models`, rounded off at load (Loop subdivision in `src/world/smoothMesh.ts`) |
 | `src/assets/creatures/pets/seahorse-l1.glb` ("sea horse") by Device Lab, via [Poly Pizza](https://poly.pizza/m/2i8WB9jqzdc) | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Cá Ngựa; attribution required |
-| `src/assets/creatures/pets/kimquy-l1.glb` ("Turtle") by Poly by Google, via [Poly Pizza](https://poly.pizza/m/2LCcq8vhqJ3) | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Kim Quy the turtle; attribution required |
+| `src/assets/creatures/pets/kimquy-l1.glb` ("Turtle") by Poly by Google, via [Poly Pizza](https://poly.pizza/m/2LCcq8vhqJ3) | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Kim Quy the turtle; attribution required. The file has no skeleton: its legs and head are split off and animated in code (`src/world/pets/legRig.ts`) |
 | `src/assets/characters/man.glb` ("Hoodie Character") and `woman.glb` (a woman from the same pack) by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/gKLBoRsyKe) | CC0 1.0 (public domain) | rigged low-poly characters; their own animations are not used (they wear the procedural motion) |
 | `src/assets/decor/mug-logo.png` (TMA logo) | trademark of its owner, not covered by this project's license | added at the repository owner's request, for the desk mug only |
 | `public/audio/library/island-day.mp3`, `island-night.mp3` | redistribution permitted (confirmed by the repository owner) | built-in recordings, 15 min each; source: *TODO, add the original source and exact license* |

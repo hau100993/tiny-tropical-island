@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Ceremonies } from '../src/world/pets/ceremony';
-import { RecipeRunner, recipeLength } from '../src/world/pets/recipes';
+import { RecipeRunner, isUltimate, recipeLength } from '../src/world/pets/recipes';
 import { standInBody } from '../src/world/pets/bodies';
 import { PetActor } from '../src/world/pets/PetActor';
 import type { SkillFxSink } from '../src/world/creatures/skillFx';
@@ -60,6 +60,49 @@ describe('recipe skills', () => {
       expect(Object.keys(fx.calls).length, name).toBeGreaterThan(0);
     }
   });
+
+  it('the sixth skill of every recipe species is its ultimate, and only that one', () => {
+    const species = [...EGG_SPECIES, ...(['dog', 'crab', 'dragon', 'bunny', 'shark'] as const)];
+    for (const s of species) {
+      const skills = SPECIES[s].skills;
+      expect(isUltimate(skills[5]), skills[5]).toBe(true);
+      for (let i = 0; i < 5; i++) expect(isUltimate(skills[i]), skills[i]).toBe(false);
+    }
+  });
+
+  it('a leap moves the caster to where it aims', () => {
+    const runner = new RecipeRunner({
+      fx: fakeFx(),
+      pools: { embers: sink, steam: sink, spores: sink, fluff: sink, rainbow: sink, spray: sink, bubbles: sink, bloom() {} },
+      heightAt: () => 1,
+      ripple() {},
+    });
+    const body = standInBody('tiger', { seed: 3, shiny: false, level: 1 });
+    const a = new PetActor('t', body, { heightAt: () => 1 }, { x: 0, z: 0 }, 0, { x: 0, z: 0 });
+    a.yaw = 0;
+    // No wandering about the camp during the test (its next wander is far off).
+    Object.assign(a, { wanderIn: 1e9 });
+    a.update(0.01, null, 0);
+    // Facing +z (yaw 0): Pounce lands about 4 m ahead.
+    runner.cast('Pounce', a.caster, 'fire', 1, (x, z, time, h) => a.leap(x, z, time, h));
+    let top = 0;
+    for (let i = 0; i < 40; i++) {
+      runner.update(0.02);
+      a.update(0.02, null, 0);
+      top = Math.max(top, a.y - 1);
+    }
+    expect(a.z).toBeGreaterThan(3.5);
+    expect(Math.abs(a.x)).toBeLessThan(0.1);
+    expect(top).toBeGreaterThan(0.5);
+  });
+
+  it('a walker leaping toward the sea stops on the beach', () => {
+    const body = standInBody('tiger', { seed: 3, shiny: false, level: 1 });
+    const a = new PetActor('t', body, { heightAt: (_x, z) => (z < 2 ? 1 : -1) }, { x: 0, z: 0 }, 0, { x: 0, z: 0 });
+    a.leap(0, 6, 0.4, 1);
+    for (let i = 0; i < 40; i++) a.update(0.02, null, 0);
+    expect(a.z).toBeLessThan(2);
+  });
 });
 
 describe('new pets', () => {
@@ -103,6 +146,37 @@ describe('new pets', () => {
       expect(Math.abs(a.x)).toBeGreaterThan(1.5);
       expect(a.y).toBeGreaterThan(1 + 1.75);
     }
+  });
+});
+
+describe('leg rig (a model without a skeleton)', () => {
+  it('splits four legs and a head off the mesh; walking swings diagonal pairs together', async () => {
+    const THREE = await import('three');
+    const { buildLegRig } = await import('../src/world/pets/legRig');
+    // One small triangle at each foot (low), one at the head (front, high), one on the back.
+    const tri = (x: number, y: number, z: number): number[] => [x, y, z, x + 0.2, y, z, x, y + 0.2, z];
+    const spec = { feet: [[-2, 2], [2, 2], [-2, -2], [2, -2]] as const, footRadius: 1, hipY: 1, headZ: 3, neck: [0, 2, 3] as const };
+    const pos = [...tri(-2, 0, 2), ...tri(2, 0, 2), ...tri(-2, 0, -2), ...tri(2, 0, -2), ...tri(0, 2, 4), ...tri(0, 3, 0)];
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial()));
+    const rig = buildLegRig(root, spec);
+    expect(rig).not.toBeNull();
+    // The body keeps one triangle; four leg pivots and the head pivot hold one each.
+    expect(geo.index?.count).toBe(3);
+    const pivots = root.children.filter((o) => o.type === 'Group');
+    expect(pivots).toHaveLength(5);
+    for (const p of pivots) expect(p.children).toHaveLength(1);
+    for (let i = 0; i < 30; i++) rig?.update(0.03, 'move', 1);
+    const [fl, fr, bl, br] = pivots;
+    expect(Math.abs(fl.rotation.x)).toBeGreaterThan(0.05);
+    expect(Math.sign(fl.rotation.x)).toBe(Math.sign(br.rotation.x));
+    expect(Math.sign(fr.rotation.x)).toBe(Math.sign(bl.rotation.x));
+    expect(Math.sign(fl.rotation.x)).toBe(-Math.sign(fr.rotation.x));
+    // Standing, the legs come back to rest.
+    for (let i = 0; i < 100; i++) rig?.update(0.03, 'idle', 0);
+    expect(Math.abs(fl.rotation.x)).toBeLessThan(0.02);
   });
 });
 
