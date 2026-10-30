@@ -164,7 +164,7 @@ export class PetGame {
     this.recipes = new RecipeRunner({ fx: host.fx, get pools() { return host.pools(); }, heightAt: host.heightAt, ripple: host.ripple });
     const pools = host.pools();
     this.ceremonies = new Ceremonies(host.fx, pools.rainbow);
-    host.scene.add(this.toss.group, this.ceremonies.group);
+    host.scene.add(this.toss.group, this.ceremonies.group, this.recipes.shapes.group);
     this.pointer = new PetPointer(host.renderer.domElement, host.camera, {
       aim: () => (this.actors.size > 0 ? host.aim() : 'none'),
       hit: (ray) => {
@@ -604,7 +604,7 @@ export class PetGame {
     } else {
       return false;
     }
-    this.recipes.cast(name, caster, sp.element, skillPower(p.rank));
+    this.recipes.cast(name, caster, sp.element, skillPower(p.rank), actor ? (x, z, time, height) => actor.leap(x, z, time, height) : undefined);
     this.host.skillCard(`${p.name}: ${name}`, sp.element);
     return true;
   }

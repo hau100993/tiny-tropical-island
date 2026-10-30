@@ -47,6 +47,12 @@ export class PetActor {
   private castLeft = 0;
   private time = Math.random() * 10;
   private following = false;
+  /** A skill's leap under way: from, to, how far through (s) and how long, how high. */
+  private leapFrom = { x: 0, z: 0 };
+  private leapTo = { x: 0, z: 0 };
+  private leapT = -1;
+  private leapTime = 0;
+  private leapH = 0;
 
   constructor(
     readonly petId: string,
@@ -90,6 +96,29 @@ export class PetActor {
   }
 
   /**
+   * A skill moves it: a jump to (x, z) in `time` s, `height` m at the top. Walkers stop short of
+   * the sea (the jump shortens to the last dry ground on the way).
+   */
+  leap(x: number, z: number, time: number, height: number): void {
+    let tx = x;
+    let tz = z;
+    if (this.body.hover === 0) {
+      for (let i = 0; i < 10 && this.world.heightAt(tx, tz) <= WATER; i++) {
+        tx = this.x + (tx - this.x) * 0.8;
+        tz = this.z + (tz - this.z) * 0.8;
+      }
+      if (this.world.heightAt(tx, tz) <= WATER) return;
+    }
+    this.leapFrom.x = this.x;
+    this.leapFrom.z = this.z;
+    this.leapTo.x = tx;
+    this.leapTo.z = tz;
+    this.leapT = 0;
+    this.leapTime = Math.max(0.1, time);
+    this.leapH = height;
+  }
+
+  /**
    * Eases two pets apart when they stand nearer than PERSONAL_SPACE (each moves half the
    * overlap a second); walkers never into the sea.
    */
@@ -121,6 +150,10 @@ export class PetActor {
     this.castLeft = Math.max(0, this.castLeft - dt);
     const follow = you !== null && Math.hypot(you.x - this.x, you.z - this.z) < FOLLOW_RANGE;
     this.following = follow;
+    if (this.leapT >= 0) {
+      this.updateLeap(dt, wind);
+      return;
+    }
     if (follow && you) {
       // Its own place behind you (flyers beside you, so they never hang in front of the camera).
       const ring = Math.min(1, Math.floor(this.slot / 5));
@@ -184,6 +217,29 @@ export class PetActor {
     root.position.set(this.x, this.y, this.z);
     root.rotation.y = this.yaw;
     this.body.animate(dt, action, this.moving, wind);
+    this.caster.x = this.x;
+    this.caster.y = this.y + this.body.head * 0.6 * root.scale.y;
+    this.caster.z = this.z;
+    this.caster.yaw = this.yaw;
+  }
+
+  /** Mid-leap: along the line, up and down on a parabola, then it settles where it landed. */
+  private updateLeap(dt: number, wind: number): void {
+    this.leapT += dt;
+    const q = Math.min(1, this.leapT / this.leapTime);
+    this.x = this.leapFrom.x + (this.leapTo.x - this.leapFrom.x) * q;
+    this.z = this.leapFrom.z + (this.leapTo.z - this.leapFrom.z) * q;
+    this.y = this.groundY(this.x, this.z) + 4 * q * (1 - q) * this.leapH;
+    if (q >= 1) {
+      this.leapT = -1;
+      this.tx = this.x;
+      this.tz = this.z;
+      this.moving = 0;
+    }
+    const root = this.body.root;
+    root.position.set(this.x, this.y, this.z);
+    root.rotation.y = this.yaw;
+    this.body.animate(dt, 'skill', 1, wind);
     this.caster.x = this.x;
     this.caster.y = this.y + this.body.head * 0.6 * root.scale.y;
     this.caster.z = this.z;
