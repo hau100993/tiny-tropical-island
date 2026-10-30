@@ -265,8 +265,9 @@ something else, put your own image at `src/assets/local/mug-logo.png` (or `.jpg`
 that folder is git-ignored and takes precedence) and restart `npm run dev`. Wood has a procedural grain (shader, no textures); cushions, futon, chair and
 ceramics are rounded and smooth-shaded. Trees are kept out of the view from the glass to the sea.
 
-**The left monitor: VS Code and YouTube.** At rest the left monitor shows two small app icons
-over the same drifting colour background as the right monitor. Seated
+**The left monitor: VS Code and YouTube.** At rest the left monitor is a quiet desktop over the
+same drifting colour background as the right monitor: the island time, the scene and what is
+playing in the middle, and two small app icons in a dock at the bottom. Seated
 at the desk, click **VS Code** for the code editor that slowly types code, or **YouTube** (or
 press `U`) to play a video. With either open, a small button cluster sits in the screen's
 top-right corner; its power button (⏻) closes the editor or the video and brings the icons
@@ -352,9 +353,8 @@ list of "liquid glass" cards across the screen:
   count stays). It empties at midnight.
 - **Hoàn tác:** after deleting a task (or clearing the finished ones) a note at the bottom of the
   screen says what went, with **Hoàn tác** to bring it back, for 6 s.
-- The **wheel** over the list scrolls it (elsewhere it leans in, as before). While the Pomodoro
-  runs, the footer line (what is playing, the scene, the island time) is hidden to give the list
-  more room.
+- The **wheel** over the list scrolls it (elsewhere it leans in, as before). What is playing, the
+  scene and the island time are on the left monitor.
 - The list is saved in the browser (`localStorage`, key `tsw.todo`).
 - Performance: both monitors' drifting colour background is drawn by the screen's shader, and
   the canvas on top is redrawn only when something changes (once a second for the clock, fast

@@ -27,6 +27,11 @@ export interface DeskVideoDeps {
   master(): { volume: number; muted: boolean };
 }
 
+/** Corner buttons: this share of the screen's on-page width, within these sizes (CSS px). */
+const BAR_SHARE = 0.03;
+const BAR_MIN = 18;
+const BAR_MAX = 30;
+
 /**
  * YouTube on the left desk monitor. A real iframe (YouTube's pixels can't be read into a WebGL
  * texture) is placed with three's CSS3DRenderer, so it sits exactly on the 3D screen and follows
@@ -49,6 +54,8 @@ export class DeskVideo {
   private readonly bar: HTMLElement;
   private barX = NaN;
   private barY = NaN;
+  /** The corner buttons' size (CSS px), following the screen's size in the view. */
+  private barSize = NaN;
   /** The code editor is open (when no video is loaded). */
   private editorOn: boolean;
   private iframe: HTMLIFrameElement | null = null;
@@ -332,6 +339,13 @@ export class DeskVideo {
     // Whole pixels, written only when they change (a style write every frame costs a relayout).
     const x = Math.round(r.left + (v.x * 0.5 + 0.5) * r.width);
     const y = Math.round(r.top + (-v.y * 0.5 + 0.5) * r.height);
+    // Sized like a window's title-bar button: a small share of the screen's width on the page.
+    const l = this.tmp.set(-p.width / 2, p.height / 2, 0).applyMatrix4(this.screen.matrixWorld).project(this.camera);
+    const size = Math.round(Math.min(BAR_MAX, Math.max(BAR_MIN, ((v.x - l.x) / 2) * r.width * BAR_SHARE)));
+    if (size !== this.barSize) {
+      this.barSize = size;
+      this.bar.style.setProperty('--bar-btn', `${size}px`);
+    }
     if (x === this.barX && y === this.barY) return;
     this.barX = x;
     this.barY = y;

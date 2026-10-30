@@ -498,6 +498,17 @@ of two columns: the current task's card wraps its name on up to two lines, and "
 folds into one line under the list that opens the finished tasks. Dragging a card onto "Đã xong"
 is gone (the ring ◯ finishes a task).
 
+**Left monitor desktop (user request, 2026-10-30), built, awaiting user test:** the two app
+icons are 92 → 48 px, without names, in a frosted dock at the bottom centre (like a Mac's). The
+right monitor's footer line moved here, quiet and centred: "ĐẢO", the island time large and light,
+and "scene · ♪ what is playing" under it (redrawn only when one of them changes, checked once a
+second). The right monitor's list now always runs to the bottom.
+The editor/video corner buttons (⏻, 🔗) follow the screen's size on the page (3 % of its width,
+18–30 px, was a fixed 34 px), like a window's title-bar button.
+Ideas for the left screen, parked by the user ("chưa nghĩ tới"): focus stats (🍅 per day for 7
+days, weekly hours, streak); a quick sticky note as a third dock app; a Thú Cưng widget (hungry
+pets, eggs about to hatch); a background tinted by the island's time and weather.
+
 ### Phase 13 — Thú Cưng: tomatoes, feeding, evolution, eggs, save & sync (user request, 2026-10-29; approved, 13a–13d and 13s built)
 
 Work is the engine of the game: every finished focus session gives one 🍅, and tomatoes feed the

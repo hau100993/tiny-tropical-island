@@ -2472,7 +2472,7 @@ body.cursor-idle canvas {
   padding: 0;
   background: transparent;
   border: 0;
-  border-radius: 24px;
+  border-radius: 11px;
   cursor: pointer;
   pointer-events: auto;
   transition: background 0.15s, box-shadow 0.15s;
@@ -2481,7 +2481,7 @@ body.cursor-idle canvas {
 .screen-app:hover,
 .screen-app:focus-visible {
   background: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.35), 0 0 28px rgba(120, 190, 255, 0.45);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.4), 0 0 14px rgba(120, 190, 255, 0.45);
   outline: none;
 }
 
@@ -2490,12 +2490,13 @@ body.cursor-idle canvas {
 .screen-bar {
   position: fixed;
   display: flex;
+  --bar-btn: 26px;
   gap: 2px;
-  padding: 4px;
-  transform: translate(calc(-100% - 10px), 10px);
+  padding: calc(var(--bar-btn) * 0.1);
+  transform: translate(calc(-100% - var(--bar-btn) * 0.3), calc(var(--bar-btn) * 0.3));
   background: rgba(15, 18, 22, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 12px;
+  border-radius: calc(var(--bar-btn) * 0.32);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
   opacity: 0.75;
   transition: opacity 0.15s;
@@ -2517,13 +2518,13 @@ body.cursor-idle canvas {
 .screen-bar-btn {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: var(--bar-btn);
+  height: var(--bar-btn);
   padding: 0;
   color: #e8edf0;
   background: transparent;
   border: 0;
-  border-radius: 9px;
+  border-radius: calc(var(--bar-btn) * 0.26);
   cursor: pointer;
 }
 
@@ -2534,8 +2535,8 @@ body.cursor-idle canvas {
 }
 
 .screen-bar-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 55%;
+  height: 55%;
 }
 
 /* ---- Skill name card (ui/skillCard.ts): big, glowing, in the element's colours ---- */

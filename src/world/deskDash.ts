@@ -89,8 +89,6 @@ const LIST_TOP = 166;
 /** "Đã xóa … · Hoàn tác" stays this long (s). */
 const UNDO_S = 6;
 const LIST_BOTTOM = H - 12;
-/** With the footer line (what is playing, scene, island time) shown. */
-const LIST_BOTTOM_FOOTER = H - 54;
 /** One list across the screen: what to do, then "Đã xong hôm nay" folded into one line. */
 const LIST = { x: 36, w: 1208 };
 const HEAD_H = 56;
@@ -201,7 +199,7 @@ export class DeskDash {
   private hover = '';
   private scroll = 0;
   private scrollTarget = 0;
-  private listBottom = LIST_BOTTOM;
+  private readonly listBottom = LIST_BOTTOM;
   /** "Đã xong hôm nay" opened under the list. */
   private showDone = false;
   // Typing a new task, or editing one (`editId`); the text comes from DeskDashInput's hidden input.
@@ -561,7 +559,6 @@ export class DeskDash {
     const p = info.pomodoro;
     const timerOn = p !== null && p.started;
     this.focusing = p !== null && p.running && !p.onBreak;
-    this.listBottom = timerOn ? LIST_BOTTOM : LIST_BOTTOM_FOOTER;
     this.hits = [];
 
     // The backdrop is the screen's shader (screenBackdrop.ts); here only a veil darkening it
@@ -608,7 +605,6 @@ export class DeskDash {
       const task = this.todo.open.find((t) => t.id === this.dragId);
       if (task) this.drawTask(task, LIST.x, LIST.w, this.dragY - this.dragGrab, 1, true, false);
     }
-    if (!timerOn) this.drawFooter(info);
     if (this.undo && this.time > this.undo.until) this.undo = null;
     if (this.undo) this.drawUndo(this.undo.text);
     this.tex.needsUpdate = true;
@@ -1217,14 +1213,6 @@ export class DeskDash {
     g.fill();
   }
 
-  private drawFooter(info: ScreenInfo): void {
-    const g = this.g;
-    g.font = `22px ${UI_FONT}`;
-    g.fillStyle = DIM;
-    const line = `♪  ${info.playing}   ·   ${info.scene || '—'}   ·   ${vi.dash.island} ${info.islandTime}`;
-    g.fillText(ellipsize(g, line, STRIP.w - 16), STRIP.x + 8, H - 20);
-  }
-
   /** A clickable area inside a list (cut to the list's visible part). */
   private pushListHit(x: number, y: number, w: number, h: number, hit: DashHit): void {
     const y0 = Math.max(y, LIST_TOP);
@@ -1312,7 +1300,7 @@ function wrapLines(g: CanvasRenderingContext2D, text: string, max: number, maxLi
   return lines.map((l) => ellipsize(g, l, max));
 }
 
-function ellipsize(g: CanvasRenderingContext2D, text: string, max: number): string {
+export function ellipsize(g: CanvasRenderingContext2D, text: string, max: number): string {
   if (max <= 0) return '';
   if (g.measureText(text).width <= max) return text;
   let t = text;

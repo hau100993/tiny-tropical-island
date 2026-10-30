@@ -386,7 +386,9 @@ export class App {
     };
     auroraMotion();
     this.reducedMotion.addEventListener('change', auroraMotion);
-    this.deskScreens = new DeskScreens(w.house.screens[0], this.renderer.capabilities.getMaxAnisotropy());
+    this.deskScreens = new DeskScreens(w.house.screens[0], this.renderer.capabilities.getMaxAnisotropy(), () =>
+      this.screenInfo(),
+    );
     // The avatar's feet find the ground (terrain, house floor, steps) like the walker does.
     const support = { y: 0, surface: 'sand' as WalkSurface, onPlatform: false };
     this.avatar = new Avatar(sharedUniforms, (x, z, nearY) =>
