@@ -2010,13 +2010,70 @@ body.touch .preset-edit {
   gap: 6px;
 }
 
-.editor-title {
+/* Head of a page inside the panel (a pet, the scene editor): the whole row is the back button. */
+.back-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 4px 6px 4px 2px;
+  font: inherit;
   font-size: 13px;
   font-weight: 600;
+  text-align: left;
+  color: var(--panel-fg);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.back-bar:hover,
+.back-bar:focus-visible {
+  background: var(--control-bg-hover);
+  border-color: var(--panel-border);
+}
+
+.back-bar-arrow {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: var(--panel-muted);
+  transition: transform 0.12s, color 0.12s;
+}
+
+.back-bar-arrow svg {
+  width: 18px;
+  height: 18px;
+}
+
+.back-bar:hover .back-bar-arrow {
+  color: var(--accent);
+  transform: translateX(-2px);
+}
+
+.back-bar-title {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Unsaved changes: the first press asks, the second leaves. */
+.back-bar.armed {
+  color: #c2410c;
+  background: color-mix(in srgb, #c2410c 12%, var(--control-bg));
+  border-color: #c2410c;
+}
+
+.back-bar.armed .back-bar-arrow {
+  color: inherit;
 }
 
 .editor-group {
@@ -2780,12 +2837,34 @@ body.at-work-desk .pomodoro {
   display: none;
 }
 
-/* ---- Thú Cưng camp (ui/CampView.ts): the panel's "Thú Cưng" tab ---- */
+/* ---- Thú Cưng camp (ui/CampView.ts): the panel's "Thú Cưng" tab, laid out like Cảnh ---- */
+.camp {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Element colour of a pet (avatar ring, EXP bar, skill chips). */
+.camp-cell,
+.camp-page,
+.camp-wild-row {
+  --el: #38b6ff;
+}
+
+.camp .fire { --el: #ff6a2a; }
+.camp .grass { --el: #3cbf55; }
+.camp .spark { --el: #e0b400; }
+.camp .moon { --el: #8f8cff; }
+
 .camp-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
   gap: 8px;
+}
+
+.camp-head > :first-child {
+  flex: 1;
+  min-width: 0;
 }
 
 .camp-title {
@@ -2794,64 +2873,270 @@ body.at-work-desk .pomodoro {
 }
 
 .camp-store {
-  font-size: 13px;
-  font-weight: 600;
+  flex: none;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, #ff5a4a 14%, var(--control-bg));
+  border: 1px solid color-mix(in srgb, #ff5a4a 35%, transparent);
+}
+
+.camp-groups .camp-group {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.camp-count {
+  font-size: 10px;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+.camp-dot {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff5a4a;
+  box-shadow: 0 0 0 1.5px var(--control-bg);
 }
 
 .camp-body {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
-.camp-message,
-.camp-locked {
+.camp-message {
   font-size: 12px;
   padding: 6px 8px;
   border-radius: 10px;
   background: var(--control-bg);
 }
 
-.camp-locked {
-  color: var(--accent);
-  font-weight: 600;
+/* Bars: EXP, room, egg progress. */
+.camp-bar {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--panel-fg) 13%, transparent);
+  overflow: hidden;
 }
 
-.camp-pet {
-  --el: #38b6ff;
+.camp-bar.thin {
+  height: 4px;
+}
+
+.camp-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--el, var(--accent));
+  transition: width 0.4s ease-out;
+}
+
+/* Room on the island. */
+.camp-room {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 8px;
-  border-radius: 12px;
+  font-size: 11px;
+  color: var(--panel-muted);
+}
+
+.camp-room-top {
+  display: flex;
+  justify-content: space-between;
+}
+
+.camp-room-num {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Avatars: the emoji in a ring of the element's colour. */
+.camp-avatar {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: 19px;
+  line-height: 1;
+  background: color-mix(in srgb, var(--el) 20%, var(--control-bg));
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--el) 70%, transparent);
+}
+
+.camp-avatar.big {
+  width: 56px;
+  height: 56px;
+  font-size: 32px;
+}
+
+.camp-avatar.small {
+  width: 26px;
+  height: 26px;
+  font-size: 14px;
+}
+
+.camp-avatar.shiny {
+  box-shadow: inset 0 0 0 2px #e8b923, 0 0 10px rgba(255, 210, 80, 0.7);
+}
+
+/* Green dot: out on the island. */
+.camp-here {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2fbf6a;
+  box-shadow: 0 0 0 2px var(--control-bg);
+}
+
+/* The grid of pets. */
+.camp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.camp-cell {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+
+.camp-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 8px;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  color: var(--panel-fg);
   background: var(--control-bg);
   border: 1px solid var(--panel-border);
-  border-left: 3px solid var(--el);
+  border-radius: 10px;
+  cursor: pointer;
 }
 
-.camp-pet.fire { --el: #ff6a2a; }
-.camp-pet.grass { --el: #3cbf55; }
-.camp-pet.spark { --el: #e0b400; }
-.camp-pet.moon { --el: #8f8cff; }
-
-.camp-pet.shiny {
-  background: linear-gradient(135deg, rgba(255, 226, 120, 0.35), var(--control-bg) 60%);
+.camp-card:hover {
+  background: var(--control-bg-hover);
+  border-color: color-mix(in srgb, var(--el) 60%, var(--panel-border));
 }
 
-.camp-pet-top {
+.camp-card.shiny {
+  background: linear-gradient(135deg, rgba(255, 226, 120, 0.32), var(--control-bg) 65%);
+}
+
+.camp-card-text {
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.camp-card-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.camp-sparkle {
+  margin-left: 2px;
+  font-size: 10px;
+}
+
+.camp-card-meta {
+  font-size: 10.5px;
+  color: var(--panel-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* "Can evolve" badge in the top right corner. */
+.camp-badge {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: #b45cf0;
+  pointer-events: none;
+}
+
+/* Quick 🍅 in the bottom right corner, shown on hover (like the scene cards' pencil). */
+.camp-quick {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 13px;
+  border-radius: 7px;
+  background: var(--panel-bg);
+  opacity: 0;
+  transition: opacity 0.12s, transform 0.12s;
+}
+
+.camp-quick:hover {
+  transform: scale(1.12);
+}
+
+.camp-cell:hover .camp-quick,
+.camp-quick:focus-visible,
+body.touch .camp-quick {
+  opacity: 1;
+}
+
+/* A pet's page. */
+.camp-page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--el) 16%, var(--control-bg)), var(--control-bg) 70%);
+  border: 1px solid var(--panel-border);
+}
+
+.camp-page.shiny {
+  background: linear-gradient(160deg, rgba(255, 226, 120, 0.38), var(--control-bg) 70%);
+}
+
+.camp-hero {
+  display: flex;
   align-items: center;
+  gap: 10px;
 }
 
-.camp-pet-icon {
-  font-size: 22px;
-  width: 30px;
-  text-align: center;
-}
-
-.camp-pet-who {
+.camp-hero-who {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   flex: 1;
   min-width: 0;
 }
@@ -2860,48 +3145,68 @@ body.at-work-desk .pomodoro {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-weight: 600;
-  font-size: 13px;
+  font-weight: 700;
+  font-size: 15px;
 }
 
 .camp-pet-name .text-input {
   width: 100%;
 }
 
-.camp-shiny {
-  font-size: 10px;
-  font-weight: 600;
-  color: #a77a00;
-}
-
 .camp-rename {
-  font: inherit;
-  font-size: 12px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
   color: var(--panel-muted);
   background: none;
   border: 0;
-  cursor: pointer;
-  padding: 0 2px;
 }
 
-.camp-pet-species {
+.camp-rename:hover {
+  color: var(--accent);
+}
+
+.camp-rename svg {
+  width: 13px;
+  height: 13px;
+}
+
+.camp-hero-species {
   font-size: 11px;
   color: var(--panel-muted);
 }
 
-.camp-exp {
-  flex: 1;
-  height: 5px;
-  border-radius: 3px;
-  background: rgba(0, 0, 0, 0.12);
-  overflow: hidden;
+.camp-hero-species.rare {
+  color: #2f7fd0;
 }
 
-.camp-exp-fill {
-  height: 100%;
-  background: var(--el, var(--accent));
-  border-radius: 3px;
-  transition: width 0.4s ease-out;
+.camp-hero-species.legendary {
+  color: #b07a00;
+  font-weight: 600;
+}
+
+.camp-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.camp-stat {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: var(--control-bg);
+  border: 1px solid var(--panel-border);
+}
+
+.camp-exp {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .camp-exp-text {
@@ -2910,34 +3215,35 @@ body.at-work-desk .pomodoro {
   font-variant-numeric: tabular-nums;
 }
 
+.camp-section {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.camp-section .subhead {
+  margin-top: 0;
+}
+
 .camp-skills {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
+  gap: 4px;
 }
 
 .camp-skill {
-  font-size: 10.5px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.5);
-  border: 1px solid var(--el);
-}
-
-button.camp-skill {
+  padding: 3px 9px;
   font: inherit;
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--panel-fg);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--el) 14%, var(--control-bg));
+  border: 1px solid var(--el);
   cursor: pointer;
 }
 
-button.camp-skill:hover {
-  background: rgba(255, 255, 255, 0.85);
-}
-
-.camp-skill.locked {
-  opacity: 0.45;
-  border-style: dashed;
+.camp-skill:hover {
+  background: color-mix(in srgb, var(--el) 30%, var(--control-bg));
 }
 
 .camp-actions {
@@ -2954,48 +3260,187 @@ button.camp-skill:hover {
   color: var(--panel-muted);
 }
 
+/* Eggs. */
+.camp-eggs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .camp-egg {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  gap: 10px;
+  padding: 6px 10px 6px 6px;
+  border-radius: 10px;
+  background: var(--control-bg);
+  border: 1px solid var(--panel-border);
+}
+
+.camp-egg.incubating {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--panel-border));
 }
 
 .camp-egg.ready {
+  border-color: #e8b923;
+  background: linear-gradient(135deg, rgba(255, 226, 120, 0.32), var(--control-bg) 70%);
+}
+
+.camp-egg-pic {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 40px;
+}
+
+.camp-egg-pic .egg-art {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.18));
+}
+
+.camp-egg.ready .egg-art {
+  animation: camp-wobble 1.6s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+
+@keyframes camp-wobble {
+  0%, 60%, 100% { transform: rotate(0); }
+  70% { transform: rotate(-8deg); }
+  80% { transform: rotate(7deg); }
+  90% { transform: rotate(-4deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .camp-egg.ready .egg-art {
+    animation: none;
+  }
+}
+
+.camp-egg-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.camp-egg-name {
+  font-size: 12px;
   font-weight: 600;
 }
 
-.camp-egg-icon {
-  font-size: 16px;
-}
-
 .camp-egg-progress {
-  font-size: 11px;
+  font-size: 10.5px;
   color: var(--panel-muted);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+}
+
+.camp-empty {
+  padding: 12px;
+  font-size: 12px;
+  text-align: center;
+  color: var(--panel-muted);
+  border: 1px dashed var(--panel-border);
+  border-radius: 10px;
 }
 
 .camp-shop {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
+  gap: 6px;
 }
 
 .camp-egg-buy {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
-  padding: 5px 2px;
+  gap: 2px;
+  padding: 8px 2px 6px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--panel-fg);
+  background: var(--control-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.camp-egg-buy .egg-art {
+  transition: transform 0.15s;
+}
+
+.camp-egg-buy:hover:not(:disabled) {
+  background: var(--control-bg-hover);
+  border-color: var(--accent);
+}
+
+.camp-egg-buy:hover:not(:disabled) .egg-art {
+  transform: translateY(-2px);
+}
+
+.camp-egg-buy:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .camp-cost {
-  font-weight: 600;
+  font-weight: 700;
 }
 
-.camp-trust {
+/* Wild ones and their trust. */
+.camp-wild {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.camp-wild-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 10px;
+  background: var(--control-bg);
   font-size: 12px;
+}
+
+.camp-wild-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.camp-pips {
+  display: flex;
+  gap: 3px;
+}
+
+.camp-pips span {
+  width: 14px;
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--panel-fg) 13%, transparent);
+}
+
+.camp-pips span.on {
+  background: #ff5a4a;
+}
+
+/* While a focus session runs. */
+.camp-locked {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--control-bg));
+}
+
+.camp-locked-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
 }
 
 /* ---- Feeding bubble over a pet (world: pets/FeedBubble.ts) ---- */
@@ -3126,19 +3571,4 @@ body.ui-hidden .feed-bubble {
 
 .camp-gender.m {
   color: #3a7fd6;
-}
-
-.camp-pet-facts {
-  font-size: 10.5px;
-  color: var(--panel-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.camp-pet-facts.rare {
-  color: #6a4fc8;
-}
-
-.camp-pet-facts.legendary {
-  color: #b07800;
-  font-weight: 600;
 }

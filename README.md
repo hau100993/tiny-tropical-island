@@ -72,7 +72,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up; next to a Thú Cưng (no seat near): feed it a 🍅 |
 | `K` | Walking on the beach or in the shallows: get into the kayak; in the kayak: step out (see *Kayak*) |
 | `L` | Walking on the beach or in the shallows: go surfing (see *Surfing*); on the board: slip off |
-| `Esc` | Seated (desk or bathtub): get up |
+| `Esc` | Seated (desk or bathtub): get up; in the overview: back from a page inside the panel (a pet, the scene editor; with unsaved scene changes press twice), else fold the panel |
 | `` ` `` (backquote) | Show/hide the stats overlay (FPS, CPU/GPU ms, draw calls) |
 
 ### Phones and tablets (touch)
@@ -419,6 +419,12 @@ Every finished focus session gives a 🍅 (see *Tomatoes* above). Tomatoes feed 
 grow, learn skills, evolve; and they buy eggs that hatch into new species. Everything is in the
 panel's **Thú Cưng** tab (the camp, "Trại"). **During a focus session the camp is closed** (it
 only shows the egg's progress) and no creature asks to be fed: spending is for breaks.
+
+The camp has three groups beside the 🍅 count: **Thú** (a grid of small cards: avatar, Lv · R,
+an EXP bar, a green dot when out on the island, ↑ when it can evolve; hover a card for a quick
+🍅; click it for the pet's own page with its open skills, Cho ăn, Tiến hóa, Ra đảo, and ← to go
+back), **Trứng** (your eggs, painted with a pattern of the species inside; a ready one wobbles;
+then the shop) and **Hoang dã** (trust of each wild kind as three pips).
 
 - **Who:** the five who live on the island (Mochi, Bọt, Hỏa Long, Mầm, Bé Mập) and every new
   one. Each is an individual with its own name (new ones are named automatically from a list;

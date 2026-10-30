@@ -1,4 +1,4 @@
-import { button, CLOCK_MARKS, el, PERCENT, slider, toggle, VOLUME, type SliderControl } from './components';
+import { backBar, button, CLOCK_MARKS, el, PERCENT, slider, toggle, VOLUME, type SliderControl } from './components';
 import { icons } from './icons';
 import { vi } from './strings.vi';
 import { fromSkyBalance, skyBalance, type SettingsStore } from '../core/settings';
@@ -69,6 +69,13 @@ export class SceneEditor {
   private armed = false;
   private armTimer = 0;
   private aimToggle!: ReturnType<typeof toggle>;
+  private readonly title: string;
+  private readonly backBar: ReturnType<typeof backBar>;
+  /** The draft as it was when the editor opened (back asks to confirm once it differs). */
+  private readonly startDraft: string;
+  /** Back with unsaved changes waits for a second click, like delete. */
+  private backArmed = false;
+  private backTimer = 0;
 
   constructor(
     private readonly deps: SceneEditorDeps,
@@ -93,11 +100,9 @@ export class SceneEditor {
 
     this.root = el('div', 'scene-editor');
     const head = el('div', 'editor-head');
-    const back = button('', () => this.cancel(), 'icon-btn');
-    back.innerHTML = icons.chevronLeft;
-    back.title = vi.scene.back;
-    back.setAttribute('aria-label', vi.scene.back);
-    head.append(back, el('div', 'editor-title', p ? vi.scene.editTitle(p.name) : vi.scene.newTitle));
+    this.title = p ? vi.scene.editTitle(p.name) : vi.scene.newTitle;
+    this.backBar = backBar(this.title, vi.scene.back, () => this.back());
+    head.append(this.backBar.root);
 
     // Name (a built-in keeps its own).
     const nameGroup = this.group(icons.bookmark, vi.scene.nameLabel);
@@ -246,6 +251,31 @@ export class SceneEditor {
     // Preview the starting state (a new scene starts from what is on screen).
     settings.update({ ...this.values });
     this.previewTime();
+    this.startDraft = this.draftKey();
+  }
+
+  /** Everything Lưu would store, as one comparable string. */
+  private draftKey(): string {
+    return JSON.stringify([this.nameInput.value, this.values, this.hours, this.aim, this.skyTurn, [...this.sounds]]);
+  }
+
+  /**
+   * The back bar or Esc: leaves at once when nothing changed; with changes, the first press
+   * turns the bar into "Bấm lần nữa để bỏ thay đổi" for 4 s and the second one leaves.
+   */
+  back(): void {
+    if (this.backArmed || this.draftKey() === this.startDraft) {
+      this.cancel();
+      return;
+    }
+    this.backArmed = true;
+    this.backBar.label.textContent = vi.scene.confirmBack;
+    this.backBar.root.classList.add('armed');
+    this.backTimer = window.setTimeout(() => {
+      this.backArmed = false;
+      this.backBar.label.textContent = this.title;
+      this.backBar.root.classList.remove('armed');
+    }, 4000);
   }
 
   /** Puts the name field in focus (new scenes). */
@@ -388,6 +418,7 @@ export class SceneEditor {
   /** The island as it was when the editor opened, with this scene selected. */
   private restore(activeScene: string): void {
     window.clearTimeout(this.armTimer);
+    window.clearTimeout(this.backTimer);
     const s = this.snap;
     this.deps.settings.update({ ...s.values, activeScene, timeMode: s.timeMode, timePaused: s.timePaused });
     this.deps.setSky(s.hours, s.skyTurn);

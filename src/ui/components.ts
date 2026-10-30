@@ -1,4 +1,5 @@
 /** Tiny DOM helpers and controls for the vanilla-TS UI. */
+import { icons } from './icons';
 import { vi } from './strings.vi';
 
 export function el<K extends keyof HTMLElementTagNameMap>(
@@ -17,6 +18,22 @@ export function button(text: string, onClick: () => void, className = 'btn'): HT
   b.type = 'button';
   b.addEventListener('click', onClick);
   return b;
+}
+
+/**
+ * The head of a page inside the panel (a pet, the scene editor): one button the whole row wide,
+ * "‹" and the page's title, so a click anywhere on it goes back. `label` is the title's span
+ * (the scene editor swaps its text while it asks to confirm); extra content goes at the end.
+ */
+export function backBar(title: string, hint: string, onClick: () => void): { root: HTMLButtonElement; label: HTMLElement } {
+  const root = button('', onClick, 'back-bar');
+  root.title = hint;
+  root.setAttribute('aria-label', `${hint}: ${title}`);
+  const arrow = el('span', 'back-bar-arrow');
+  arrow.innerHTML = icons.chevronLeft;
+  const label = el('span', 'back-bar-title', title);
+  root.append(arrow, label);
+  return { root, label };
 }
 
 export interface SliderControl {

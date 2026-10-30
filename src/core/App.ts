@@ -544,7 +544,7 @@ export class App {
     this.petNotices = petNotices(this.driveSync);
     this.petGame = this.createPetGame(ui);
     this.driveSync.onChange(() => this.petGame.refreshCamp());
-    this.panel.mount('pets', this.petGame.camp.root);
+    this.panel.mount('pets', this.petGame.camp.root, () => this.petGame.camp.back());
     this.audioPrompt = new AudioPrompt(ui);
     this.slowHint = new SlowHint(ui, () => this.settings.get().quality, (quality) => this.settings.update({ quality }));
     this.ambience = new AmbienceSwitch((muted) => this.mixer.setAmbienceMuted(muted));
@@ -1028,8 +1028,8 @@ export class App {
       label: vi.shortcuts.leaveDesk,
       action: () => {
         if (this.cameras.mode === 'seat') this.toggleSeat(this.cameras.seat);
-        // In the overview, Esc shuts the open panel.
-        else if (this.cameras.mode === 'orbit') this.panel.close();
+        // In the overview, Esc leaves a page inside the panel (a pet, the scene editor), else shuts it.
+        else if (this.cameras.mode === 'orbit' && !this.panel.back()) this.panel.close();
       },
     });
     this.keymap.register({ code: 'KeyC', keyLabel: 'C', label: vi.shortcuts.walk, action: () => this.cameras.toggle() });
