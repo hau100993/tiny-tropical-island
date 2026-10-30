@@ -315,28 +315,28 @@ and press **E** next to the chair. At the desk:
 **Soaking in the tub:** walk to the bath corner and press **E** next to the tub. You sit in the water looking out of the big window at the
 forest; drag to look around, **E** or **Esc** to get out.
 
-**The right monitor: Pomodoro and to-do list.** On top, a compact strip; its second line shows the
-task you are on in full (**Đang làm** while focusing, **Tiếp theo** on a break or before you
-start). While the Pomodoro runs
-(or is paused), the phase, the session dots, the time left in large digits, a progress line,
-**play/pause**, **skip** and **■ stop** (ends the Pomodoro: the strip goes back to the clock);
-otherwise the clock and date with a **Bắt đầu tập trung** button. On its right, two volume rows:
-**🔔** notifications (bell and bubble pops) and **🌊** the island's sound (the master volume).
-Click the icon to switch it off or on (🌊 is the same switch as the soundscape on a playing
-video), click or drag the bar to set the volume, or turn the wheel over it. Below the strip, two
-columns of "liquid glass" cards:
+**The right monitor: Pomodoro and to-do list.** On top, a compact one-row strip. While the
+Pomodoro runs (or is paused): the phase, the session dots, the time left in large digits, a
+progress line, **play/pause**, **skip** and **■ stop** (ends the Pomodoro: the strip goes back to
+the clock); otherwise the clock and date with a **Bắt đầu tập trung** button. On its right, two
+volume **knobs**: **🔔** notifications (bell and bubble pops) and **🌊** the island's sound (the
+master volume). The arc round a knob shows its level (pointing at it shows the %). **Click** a
+knob to switch it off or on (🌊 is the same switch as the soundscape on a playing video);
+**drag up or down** on it, or turn the **wheel** over it, to set the level. Below the strip, one
+list of "liquid glass" cards across the screen:
 
-- **Đang làm** (left): the tasks to do, in order, in large type (about 16 px on a 1080p
-  screen). The top one is the task you are on: it glows, and each focus session that ends adds a
+- **Đang làm**: the tasks to do, in order, in large type (about 16 px on a 1080p screen); on the
+  right of its title, today's 🍅 count. The top one is the task you are on: it glows, shows its
+  name in full (on a second line when it is long), and each focus session that ends adds a
   🍅 to it. Its **▶** starts a focus session (it turns into a green **⏸** while you focus; click
   to pause). Hover another task for its **▶**: that task moves to the top and focus starts (on a
   break, the rest of the break is skipped). **Drag** a card up or down to change the order; hover
   a card for its **✕** (delete; its place is kept, so ▶ never moves under the pointer).
   **Double-click** a task to edit its text in place: **Enter** or clicking elsewhere saves,
   **Esc** drops the change.
-- **Thêm việc…** at the bottom of that column: click it and type (Vietnamese input methods
+- **Thêm việc…** under the tasks: click it and type (Vietnamese input methods
   work), **Enter** adds the task, **Esc** stops typing.
-- Click a task's **ring ◯** when it is done, or drag its card onto the right column: Bọt's
+- Click a task's **ring ◯** when it is done: Bọt's
   **Bubble Burst** at desk size. One soap bubble (Bọt's own thin-film shader, rainbow at the
   rim) swells out of the ring (0.7 s), lets go and floats up toward you, wobbling (1.3 s), then
   bursts: its film races out and fades, and small bubbles, droplets and sparkles fly off all
@@ -346,13 +346,13 @@ columns of "liquid glass" cards:
 - **🍅 estimate:** click a task's 🍅 (a faint **🍅+** on hover when it has none) to count up how
   many focus sessions you expect it to take: it then shows **🍅 2/4** (done / expected), amber
   once past the estimate. Past 8 it goes back to none. Finished tasks keep it.
-- **Đã xong hôm nay** (right): today's finished tasks and 🍅 count; click one to put it back,
-  or its **✕** (on hover) to delete it; **Xóa hết** under the list clears them all (the day's
-  🍅 count stays). Scroll it with the wheel when it is longer than the screen. It empties at
-  midnight.
+- **✓ Đã xong hôm nay · 3 ▸**: one line under the list (hidden while nothing is done). Click it
+  to open today's finished tasks below it (click again to fold them); click one to put it back,
+  or its **✕** (on hover) to delete it; **Xóa hết** under them clears them all (the day's 🍅
+  count stays). It empties at midnight.
 - **Hoàn tác:** after deleting a task (or clearing the finished ones) a note at the bottom of the
   screen says what went, with **Hoàn tác** to bring it back, for 6 s.
-- The **wheel** over a column scrolls it (elsewhere it leans in, as before). While the Pomodoro
+- The **wheel** over the list scrolls it (elsewhere it leans in, as before). While the Pomodoro
   runs, the footer line (what is playing, the scene, the island time) is hidden to give the list
   more room.
 - The list is saved in the browser (`localStorage`, key `tsw.todo`).
@@ -363,13 +363,21 @@ columns of "liquid glass" cards:
 
 ## Pomodoro (`T`, or **Cài đặt → Thẻ Pomodoro** in the panel)
 
-A small card in the bottom-left corner, the one place for the timer in the overview:
+A small glass pill (one or two lines) in the bottom-left corner, the one place for the timer in the overview:
 **25 min focus → 5 min break**, and a 15 min long break after every 4 focus sessions (the dots
-show how many are done). Buttons: start/pause, skip to the next part, reset, settings (⚙), hide
-(✕). Under the phase it shows the task you are on (the top task of the desk's to-do list) in
-full, on up to two lines. The card **shows itself** when the timer starts (`T`, or a task's ▶ on the desk monitor)
+show how many are done). Line 1: time, phase, dots and 🍅; line 2: the task you are on (the top
+task of the desk's to-do list), on up to two lines; when a part ends, the "time's up" message
+takes its place for 12 s and the pill glows. The pill is tinted by the phase (green focus, blue
+short break, lavender long break; paler and greyer while paused) and its **outline is the
+progress ring**, filling clockwise from the top. **Drag** the card anywhere (by the time or the
+task line); it keeps its place, relative to the window, across reloads. **Double-click** it to
+send it back to the corner. The buttons
+(start/pause, skip to the next part, reset, settings ⚙, hide ✕) appear only when the mouse is
+over the card (or with `Tab`); on a touch screen they stay on a line of their own. ⚙ opens the
+settings in a box above the card (below it when the card is in the top half). The card **shows itself** when the timer starts (`T`, or a task's ▶ on the desk monitor)
 and **hides itself** when the Pomodoro is ended (↺ here, ■ on the monitor). ✕ hides it while the
-timer runs on; the ring round the panel's ☰ still shows the progress. Without a keyboard, open it
+timer runs on; the ring round the panel's ☰ still shows the progress. **Walking** (first-person),
+the card is hidden and only that ring shows the timer. Without a keyboard, open it
 from **Cài đặt → Thẻ Pomodoro**.
 
 - **Settings (⚙):** lengths of focus, short and long break (minutes), long break after N

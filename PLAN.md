@@ -482,6 +482,22 @@ Pomodoro and a to-do list, so a video and the to-do list can be on screen at the
 Decisions (user, 2026-10-25): editor hidden by default; to-do on the right monitor with the
 Pomodoro on top; finished tasks go to a today-only "Đã xong" list; no title bar over the video.
 
+**Compact Pomodoro card (user request, 2026-10-30), built, awaiting user test:** a glass pill of
+two lines instead of six (time · phase · ●●○○ · 🍅, then the task); buttons only on hover or
+keyboard focus (own line on touch); the "time's up" notice replaces the task line for 12 s; the
+pill is tinted by phase (focus green, short break blue, long break lavender, paused greyer) and
+its outline is the progress ring (SVG path with `pathLength=1`, so it fills evenly along straight
+sides and round ends); draggable anywhere (position saved as a fraction of the free space,
+double-click resets; not carried by backups); ⚙ settings float above or below; hidden while
+walking (the ☰ ring shows the timer).
+
+**Right monitor redesign (user request, 2026-10-30), built, awaiting user test:** the strip is one
+row (176 → 132 px; the task line under it is gone); the two volume sliders became knobs (270° level
+arc, click on/off, drag up/down or wheel to set, % on hover); one list across the screen instead
+of two columns: the current task's card wraps its name on up to two lines, and "Đã xong hôm nay"
+folds into one line under the list that opens the finished tasks. Dragging a card onto "Đã xong"
+is gone (the ring ◯ finishes a task).
+
 ### Phase 13 — Thú Cưng: tomatoes, feeding, evolution, eggs, save & sync (user request, 2026-10-29; approved, 13a–13d and 13s built)
 
 Work is the engine of the game: every finished focus session gives one 🍅, and tomatoes feed the

@@ -52,13 +52,14 @@ export interface DashDeps {
   setMasterVolume(v: number): void;
 }
 
-export type DashSlider = 'alert' | 'master';
+/** The two volume knobs: notifications (🔔) and the island's sound (🌊). */
+export type DashKnob = 'alert' | 'master';
 
 /** Something on the screen that reacts to a click. */
 export type DashHit =
   | { kind: 'ring' | 'card' | 'delete' | 'restore' | 'play' | 'remove' | 'estimate'; id: string }
-  | { kind: 'slider'; id: DashSlider }
-  | { kind: 'input' | 'timer' | 'skip' | 'stop' | 'chime' | 'ambience' | 'undo' | 'clearDone' };
+  | { kind: 'knob'; id: DashKnob }
+  | { kind: 'input' | 'timer' | 'skip' | 'stop' | 'undo' | 'clearDone' | 'doneToggle' };
 
 /** A finished task: where its ring was on the canvas (the bubbles start there). */
 export interface TaskDone {
@@ -82,24 +83,26 @@ const DIM = 'rgba(214,232,238,0.66)';
 
 // Layout (canvas pixels). The monitor shows this canvas about 0.4× on a 1080p window, so text
 // is large: 40 px here is ~16 px on screen (2026-10-27: bigger, user request).
-// The strip: the timer row, then a line with the current (or next) task, then the progress.
-const STRIP = { x: 36, y: 16, w: 1208, h: 176 };
-const LIST_TOP = 208;
+// The strip: one timer row (phase, countdown, buttons, two volume knobs), the progress under it.
+const STRIP = { x: 36, y: 16, w: 1208, h: 132 };
+const LIST_TOP = 166;
 /** "Đã xóa … · Hoàn tác" stays this long (s). */
 const UNDO_S = 6;
 const LIST_BOTTOM = H - 12;
 /** With the footer line (what is playing, scene, island time) shown. */
 const LIST_BOTTOM_FOOTER = H - 54;
-type Col = 'L' | 'R';
-const COLS: Record<Col, { x: number; w: number }> = {
-  L: { x: 36, w: 716 },
-  R: { x: 772, w: 472 },
-};
+/** One list across the screen: what to do, then "Đã xong hôm nay" folded into one line. */
+const LIST = { x: 36, w: 1208 };
 const HEAD_H = 56;
 const CARD_H = 88;
 const CARD_STEP = CARD_H + 12;
+/** The current task's second line (its name in full, on up to two lines). */
+const TASK_LINE = 46;
+/** Right part of the current task's card kept for ✕, ▶ and 🍅, so its name wraps the same always. */
+const FIRST_RESERVE = 290;
 const DONE_H = 72;
 const DONE_STEP = DONE_H + 10;
+const DONE_HEAD_H = 60;
 const RING_X = 46;
 /** Where a card's text starts (after the ring). */
 const TEXT_X = 90;
@@ -108,16 +111,20 @@ const DONE_FONT = 33;
 /** A task's ▶ / ⏸ (radius, canvas px). */
 const PLAY_R = 24;
 const BTN = {
-  play: { x: 680, y: 84, r: 40 },
-  skip: { x: 772, y: 84, r: 33 },
-  stop: { x: 852, y: 84, r: 33 },
+  play: { x: 650, y: 82, r: 38 },
+  skip: { x: 738, y: 82, r: 31 },
+  stop: { x: 812, y: 82, r: 31 },
 } as const;
-const START = { x: 330, y: 52, w: 370, h: 66 };
-/** The two volume rows: icon (a round toggle) and a slider track. */
-const VOL: Record<DashSlider, { y: number; icon: number; x0: number; x1: number }> = {
-  alert: { y: 58, icon: 940, x0: 978, x1: 1214 },
-  master: { y: 112, icon: 940, x0: 978, x1: 1214 },
+const START = { x: 330, y: 50, w: 370, h: 64 };
+/** The volume knobs: round buttons with an arc for the level (click: on/off; drag up/down or wheel: level). */
+const KNOB: Record<DashKnob, { x: number; y: number }> = {
+  alert: { x: 1088, y: 82 },
+  master: { x: 1184, y: 82 },
 };
+const KNOB_R = 36;
+/** The level arc: from lower left (135°) clockwise round to lower right, 270° in all. */
+const KNOB_START = Math.PI * 0.75;
+const KNOB_SWEEP = Math.PI * 1.5;
 
 /** Beyond this distance (m) from the desk the screen is too small to read: don't redraw. */
 const NEAR_ENOUGH = 14;
@@ -132,12 +139,12 @@ const FPS_TYPING = 6;
 const FPS_IDLE = 1;
 const FPS_FAR = 0.5;
 
-type RowKind = 'head' | 'task' | 'input' | 'done' | 'empty' | 'clear';
+type RowKind = 'head' | 'task' | 'input' | 'doneHead' | 'done' | 'clear';
 
 interface Row {
   key: string;
   kind: RowKind;
-  /** Target top, in the column's content coordinates (0 = top of the list). */
+  /** Target top, in the list's content coordinates (0 = top of the list). */
   y: number;
   h: number;
   task?: Task;
@@ -153,6 +160,7 @@ interface RowAnim {
 interface Ghost {
   task: Task;
   y: number;
+  h: number;
   t: number;
   pop: boolean;
 }
@@ -167,9 +175,10 @@ interface HitRect {
 
 /**
  * The right desk monitor: a compact Pomodoro strip on top (timer, play/pause, skip, stop, and
- * the notification and soundscape volumes), then two columns of "liquid glass" cards over
- * drifting colour blobs: what to do ("Đang làm", the top task is the one being worked on) and
- * what is done today. Everything is drawn on one canvas (the same picture close up, from afar
+ * knobs for the notification and soundscape volumes), then one list of "liquid glass" cards over
+ * drifting colour blobs: what to do ("Đang làm"; the top task, the one being worked on, is bigger
+ * and shows its name in full), then today's finished tasks folded into one line that opens them.
+ * Everything is drawn on one canvas (the same picture close up, from afar
  * and in reflections); DeskDashInput turns clicks on the 3D screen into canvas pixels and calls
  * `hitAt` / `activate`. The list is kept in localStorage.
  */
@@ -190,9 +199,11 @@ export class DeskDash {
   private ghosts: Ghost[] = [];
   private hits: HitRect[] = [];
   private hover = '';
-  private readonly scroll: Record<Col, number> = { L: 0, R: 0 };
-  private readonly scrollTarget: Record<Col, number> = { L: 0, R: 0 };
+  private scroll = 0;
+  private scrollTarget = 0;
   private listBottom = LIST_BOTTOM;
+  /** "Đã xong hôm nay" opened under the list. */
+  private showDone = false;
   // Typing a new task, or editing one (`editId`); the text comes from DeskDashInput's hidden input.
   private editing = false;
   private editId: string | null = null;
@@ -205,12 +216,11 @@ export class DeskDash {
   private caretTime = 0;
   // Dragging a card.
   private dragId: string | null = null;
-  /** Pointer on the canvas, and where in the card it grabbed. */
-  private dragX = 0;
+  /** Pointer height on the canvas (cards only move up and down), and where in the card it grabbed. */
   private dragY = 0;
   private dragGrab = 0;
   private dragIndex = 0;
-  /** A task was finished (clicked ring or dropped on "Đã xong"). */
+  /** A task was finished (its ring clicked). */
   onTaskDone: ((done: TaskDone) => void) | null = null;
 
   constructor(
@@ -282,16 +292,9 @@ export class DeskDash {
     return null;
   }
 
-  /** The column under (x, y) the wheel scrolls, or null. */
-  private colAt(x: number, y: number): Col | null {
-    if (y < LIST_TOP || y > this.listBottom) return null;
-    for (const c of ['L', 'R'] as const) if (x >= COLS[c].x && x <= COLS[c].x + COLS[c].w) return c;
-    return null;
-  }
-
-  /** The pointer is over a list (the wheel scrolls it there). */
+  /** The pointer is over the list (the wheel scrolls it there). */
   inList(x: number, y: number): boolean {
-    return this.colAt(x, y) !== null;
+    return y >= LIST_TOP && y <= this.listBottom && x >= LIST.x && x <= LIST.x + LIST.w;
   }
 
   setHover(hit: DashHit | null): void {
@@ -302,38 +305,37 @@ export class DeskDash {
   }
 
   scrollBy(x: number, y: number, dy: number): void {
-    const c = this.colAt(x, y);
-    if (c) this.scrollTarget[c] = this.clampScroll(c, this.scrollTarget[c] + dy * 0.6);
+    if (this.inList(x, y)) this.scrollTarget = this.clampScroll(this.scrollTarget + dy * 0.6);
   }
 
-  /** Sets a volume slider from canvas x (a click or a drag on it). */
-  slide(id: DashSlider, x: number): void {
-    const v = VOL[id];
-    const value = Math.min(1, Math.max(0, (x - v.x0) / (v.x1 - v.x0)));
-    if (id === 'alert') this.deps.setAlertVolume(value);
-    else this.deps.setMasterVolume(value);
+  /** A knob's level (0..1). */
+  volume(id: DashKnob): number {
+    return id === 'alert' ? this.deps.alertVolume() : this.deps.masterVolume();
+  }
+
+  /** Sets a knob's level (a drag on it). */
+  setVolume(id: DashKnob, value: number): void {
+    const v = Math.min(1, Math.max(0, value));
+    if (id === 'alert') this.deps.setAlertVolume(v);
+    else this.deps.setMasterVolume(v);
     this.drawTimer = 0;
   }
 
-  /** The wheel over a slider: ±5 % a notch. */
-  nudge(id: DashSlider, dir: number): void {
-    const now = id === 'alert' ? this.deps.alertVolume() : this.deps.masterVolume();
-    const value = Math.min(1, Math.max(0, Math.round((now + dir * 0.05) * 20) / 20));
-    if (id === 'alert') this.deps.setAlertVolume(value);
-    else this.deps.setMasterVolume(value);
-    this.drawTimer = 0;
+  /** The wheel over a knob: ±5 % a notch. */
+  nudge(id: DashKnob, dir: number): void {
+    this.setVolume(id, Math.round((this.volume(id) + dir * 0.05) * 20) / 20);
   }
 
   /** A click (press and release without dragging) on `hit`. */
   activate(hit: DashHit): void {
     switch (hit.kind) {
       case 'ring':
-        this.complete(hit.id, null);
+        this.complete(hit.id);
         break;
       case 'delete': {
         const a = this.anims.get(`o:${hit.id}`);
         const task = this.todo.open.find((t) => t.id === hit.id);
-        if (a && task) this.ghosts.push({ task, y: a.y, t: 0, pop: false });
+        if (a && task) this.ghosts.push({ task, y: a.y, h: this.taskHeight(task), t: 0, pop: false });
         if (task) this.keepUndo(vi.dash.deleted(task.text));
         this.set(removeTask(this.todo, hit.id));
         break;
@@ -380,15 +382,17 @@ export class DeskDash {
       case 'stop':
         this.deps.resetTimer();
         break;
-      case 'chime':
-        this.deps.toggleChime();
+      case 'knob':
+        if (hit.id === 'alert') this.deps.toggleChime();
+        else this.deps.toggleAmbience();
         break;
-      case 'ambience':
-        this.deps.toggleAmbience();
+      case 'doneToggle':
+        this.showDone = !this.showDone;
+        // Opened: scroll down to show it.
+        if (this.showDone) this.reveal('clear');
         break;
       case 'card':
       case 'input':
-      case 'slider':
         break;
     }
     this.drawTimer = 0;
@@ -430,34 +434,27 @@ export class DeskDash {
     this.reveal('input');
   }
 
-  beginDrag(id: string, x: number, y: number): void {
+  beginDrag(id: string, y: number): void {
     const a = this.anims.get(`o:${id}`);
     if (!a) return;
     this.dragId = id;
-    this.dragX = x;
     this.dragY = y;
-    this.dragGrab = y - (LIST_TOP + a.y - this.scroll.L);
+    this.dragGrab = y - (LIST_TOP + a.y - this.scroll);
     this.dragIndex = this.todo.open.findIndex((t) => t.id === id);
   }
 
-  dragTo(x: number, y: number): void {
+  dragTo(y: number): void {
     if (!this.dragId) return;
-    this.dragX = x;
     this.dragY = y;
   }
 
-  /** Dropped over "Đã xong": finished; elsewhere: moved to its new place. */
+  /** Dropped: the card moves to its new place in the list. */
   endDrag(): void {
     if (!this.dragId) return;
     const id = this.dragId;
     this.dragId = null;
-    const top = this.dragY - this.dragGrab;
     const a = this.anims.get(`o:${id}`);
-    if (a) a.y = top - LIST_TOP + this.scroll.L;
-    if (this.overDone()) {
-      this.complete(id, { x: this.dragX - 120, y: top + CARD_H / 2 });
-      return;
-    }
+    if (a) a.y = this.dragY - this.dragGrab - LIST_TOP + this.scroll;
     this.set(moveTask(this.todo, id, this.dragIndex));
   }
 
@@ -486,65 +483,74 @@ export class DeskDash {
     this.undo = { prev: this.todo, text, until: this.time + UNDO_S };
   }
 
-  private overDone(): boolean {
-    return this.dragId !== null && this.dragX > COLS.R.x - 10;
-  }
-
-  /** `at`: where the bubbles start (canvas px); null = the task's ring in the list. */
-  private complete(id: string, at: { x: number; y: number } | null): void {
+  /** Clicked ring: the card pops and its bubbles start from the ring. */
+  private complete(id: string): void {
     const a = this.anims.get(`o:${id}`);
     const task = this.todo.open.find((t) => t.id === id);
     if (!a || !task) return;
-    const top = LIST_TOP + a.y - this.scroll.L;
-    if (!at) this.ghosts.push({ task, y: a.y, t: 0, pop: true });
+    const h = this.taskHeight(task);
+    const top = LIST_TOP + a.y - this.scroll;
+    this.ghosts.push({ task, y: a.y, h, t: 0, pop: true });
     this.set(completeTask(rollDay(this.todo, Date.now()), id));
-    const p = at ?? { x: COLS.L.x + RING_X, y: top + CARD_H / 2 };
-    this.onTaskDone?.({ x: p.x, y: p.y, last: this.todo.open.length === 0 });
+    this.onTaskDone?.({ x: LIST.x + RING_X, y: top + h / 2, last: this.todo.open.length === 0 });
   }
 
-  /** Scrolls so that the row `key` (left column) is in view. */
+  /** Scrolls so that the row `key` is in view. */
   private reveal(key: string): void {
-    const row = this.layout('L').find((r) => r.key === key);
+    const row = this.layout().find((r) => r.key === key);
     if (!row) return;
     const view = this.listBottom - LIST_TOP;
-    let t = this.scrollTarget.L;
+    let t = this.scrollTarget;
     if (row.y < t) t = row.y;
     else if (row.y + row.h > t + view) t = row.y + row.h - view + 8;
-    this.scrollTarget.L = this.clampScroll('L', t);
+    this.scrollTarget = this.clampScroll(t);
   }
 
-  private clampScroll(c: Col, v: number): number {
-    const rows = this.layout(c);
+  private clampScroll(v: number): number {
+    const rows = this.layout();
     const last = rows[rows.length - 1];
     const content = last ? last.y + last.h + 8 : 0;
     return Math.max(0, Math.min(v, content - (this.listBottom - LIST_TOP)));
   }
 
-  /** A column's rows and where they belong (content coordinates). */
-  private layout(c: Col): Row[] {
-    const rows: Row[] = [{ key: `head${c}`, kind: 'head', y: 0, h: HEAD_H }];
+  /** The current (top) task's name, wrapped on up to two lines in its card. */
+  private firstLines(task: Task): string[] {
+    this.g.font = `600 ${TASK_FONT}px ${UI_FONT}`;
+    return wrapLines(this.g, task.text, LIST.w - TEXT_X - FIRST_RESERVE, 2);
+  }
+
+  /** A card's height: the current task grows a line for a long name. */
+  private taskHeight(task: Task): number {
+    return task.id === this.todo.open[0]?.id && this.firstLines(task).length > 1 ? CARD_H + TASK_LINE : CARD_H;
+  }
+
+  /** The rows and where they belong (content coordinates). */
+  private layout(): Row[] {
+    const rows: Row[] = [{ key: 'head', kind: 'head', y: 0, h: HEAD_H }];
     let y = HEAD_H;
-    if (c === 'L') {
-      const open = this.dragId ? this.todo.open.filter((t) => t.id !== this.dragId) : this.todo.open;
-      const gap = this.dragId && !this.overDone() ? this.dragIndex : -1;
-      open.forEach((task, i) => {
-        // Leave a gap where the dragged card would land.
-        if (i === gap) y += CARD_STEP;
-        rows.push({ key: `o:${task.id}`, kind: 'task', y, h: CARD_H, task });
-        y += CARD_STEP;
-      });
-      if (gap >= open.length) y += CARD_STEP;
-      rows.push({ key: 'input', kind: 'input', y, h: CARD_H });
-    } else if (this.todo.done.length === 0) {
-      rows.push({ key: 'empty', kind: 'empty', y, h: DONE_H });
-    } else {
-      for (const task of this.todo.done) {
-        rows.push({ key: `d:${task.id}`, kind: 'done', y, h: DONE_H, task });
-        y += DONE_STEP;
-      }
-      // "Xóa hết" under the last one (it can be undone).
-      rows.push({ key: 'clear', kind: 'clear', y, h: 44 });
+    const open = this.dragId ? this.todo.open.filter((t) => t.id !== this.dragId) : this.todo.open;
+    const gap = this.dragId ? this.dragIndex : -1;
+    open.forEach((task, i) => {
+      // Leave a gap where the dragged card would land.
+      if (i === gap) y += CARD_STEP;
+      const h = this.taskHeight(task);
+      rows.push({ key: `o:${task.id}`, kind: 'task', y, h, task });
+      y += h + CARD_STEP - CARD_H;
+    });
+    if (gap >= open.length) y += CARD_STEP;
+    rows.push({ key: 'input', kind: 'input', y, h: CARD_H });
+    y += CARD_STEP;
+    if (this.todo.done.length === 0) return rows;
+    // "Đã xong hôm nay · 3 ▸": one line; open, today's finished tasks follow it.
+    rows.push({ key: 'doneHead', kind: 'doneHead', y, h: DONE_HEAD_H });
+    y += DONE_HEAD_H + 6;
+    if (!this.showDone) return rows;
+    for (const task of this.todo.done) {
+      rows.push({ key: `d:${task.id}`, kind: 'done', y, h: DONE_H, task });
+      y += DONE_STEP;
     }
+    // "Xóa hết" under the last one (it can be undone).
+    rows.push({ key: 'clear', kind: 'clear', y, h: 44 });
     return rows;
   }
 
@@ -567,47 +573,40 @@ export class DeskDash {
 
     // Dragging: which slot the card is over, and scroll when held near an edge.
     if (this.dragId) {
-      const contentY = this.dragY - this.dragGrab - LIST_TOP + this.scroll.L + CARD_H / 2;
+      const contentY = this.dragY - this.dragGrab - LIST_TOP + this.scroll + CARD_H / 2;
       const n = this.todo.open.length;
       this.dragIndex = Math.max(0, Math.min(n - 1, Math.floor((contentY - HEAD_H) / CARD_STEP)));
-      if (this.dragY < LIST_TOP + 40) this.scrollTarget.L -= 600 * dt;
-      else if (this.dragY > this.listBottom - 40) this.scrollTarget.L += 600 * dt;
+      if (this.dragY < LIST_TOP + 40) this.scrollTarget -= 600 * dt;
+      else if (this.dragY > this.listBottom - 40) this.scrollTarget += 600 * dt;
     }
     const k = Math.min(1, dt * 14);
     const live = new Set<string>();
     let moving = false;
-    for (const c of ['L', 'R'] as const) {
-      this.scrollTarget[c] = this.clampScroll(c, this.scrollTarget[c]);
-      this.scroll[c] += (this.scrollTarget[c] - this.scroll[c]) * k;
-      // Settled (within half a pixel): snap, so the screen can stop redrawing.
-      if (Math.abs(this.scrollTarget[c] - this.scroll[c]) > 0.5) moving = true;
-      else this.scroll[c] = this.scrollTarget[c];
-      const rows = this.layout(c);
-      for (const r of rows) {
-        live.add(r.key);
-        let a = this.anims.get(r.key);
-        if (!a) {
-          a = { y: r.y, a: 0 };
-          this.anims.set(r.key, a);
-        }
-        a.y += (r.y - a.y) * k;
-        a.a = Math.min(1, a.a + dt * 5);
-        if (Math.abs(r.y - a.y) > 0.5 || a.a < 1) moving = true;
-        else a.y = r.y;
+    this.scrollTarget = this.clampScroll(this.scrollTarget);
+    this.scroll += (this.scrollTarget - this.scroll) * k;
+    // Settled (within half a pixel): snap, so the screen can stop redrawing.
+    if (Math.abs(this.scrollTarget - this.scroll) > 0.5) moving = true;
+    else this.scroll = this.scrollTarget;
+    const rows = this.layout();
+    for (const r of rows) {
+      live.add(r.key);
+      let a = this.anims.get(r.key);
+      if (!a) {
+        a = { y: r.y, a: 0 };
+        this.anims.set(r.key, a);
       }
-      this.drawColumn(c, rows, dt);
+      a.y += (r.y - a.y) * k;
+      a.a = Math.min(1, a.a + dt * 5);
+      if (Math.abs(r.y - a.y) > 0.5 || a.a < 1) moving = true;
+      else a.y = r.y;
     }
+    this.drawList(rows, dt);
     this.animating = moving || this.ghosts.length > 0;
     for (const key of this.anims.keys()) if (!live.has(key) && key !== `o:${this.dragId}`) this.anims.delete(key);
 
     if (this.dragId) {
       const task = this.todo.open.find((t) => t.id === this.dragId);
-      if (task) {
-        // Over "Đã xong" the card follows the pointer across; otherwise it stays in its column.
-        const over = this.overDone();
-        const x = over ? Math.min(this.dragX - 120, W - 36 - COLS.R.w) : COLS.L.x;
-        this.drawTask(task, x, over ? COLS.R.w : COLS.L.w, this.dragY - this.dragGrab, 1, true, false);
-      }
+      if (task) this.drawTask(task, LIST.x, LIST.w, this.dragY - this.dragGrab, 1, true, false);
     }
     if (!timerOn) this.drawFooter(info);
     if (this.undo && this.time > this.undo.until) this.undo = null;
@@ -615,38 +614,23 @@ export class DeskDash {
     this.tex.needsUpdate = true;
   }
 
-  private drawColumn(c: Col, rows: Row[], dt: number): void {
+  private drawList(rows: Row[], dt: number): void {
     const g = this.g;
-    const col = COLS[c];
     g.save();
     g.beginPath();
-    g.rect(col.x - 8, LIST_TOP - 6, col.w + 16, this.listBottom - LIST_TOP + 6);
+    g.rect(LIST.x - 8, LIST_TOP - 6, LIST.w + 16, this.listBottom - LIST_TOP + 6);
     g.clip();
-    if (c === 'R' && this.dragId && this.overDone()) {
-      // A drop zone lights up under the dragged card.
-      g.fillStyle = 'rgba(79,209,193,0.12)';
-      g.strokeStyle = 'rgba(79,209,193,0.7)';
-      g.lineWidth = 2;
-      g.setLineDash([10, 8]);
-      g.beginPath();
-      g.roundRect(col.x, LIST_TOP + HEAD_H - 4, col.w, this.listBottom - LIST_TOP - HEAD_H, 22);
-      g.fill();
-      g.stroke();
-      g.setLineDash([]);
-    }
     for (const r of rows) {
       const a = this.anims.get(r.key);
       if (!a) continue;
-      const top = LIST_TOP + a.y - this.scroll[c];
+      const top = LIST_TOP + a.y - this.scroll;
       if (top > this.listBottom || top + r.h < LIST_TOP - 6) continue;
-      this.drawRow(c, r, top, a.a);
+      this.drawRow(r, top, a.a);
     }
-    if (c === 'L') {
-      this.ghosts = this.ghosts.filter((gh) => (gh.t += dt / 0.4) < 1);
-      for (const gh of this.ghosts) this.drawGhost(gh);
-    }
+    this.ghosts = this.ghosts.filter((gh) => (gh.t += dt / 0.4) < 1);
+    for (const gh of this.ghosts) this.drawGhost(gh);
     g.restore();
-    this.drawScrollbar(c, rows);
+    this.drawScrollbar(rows);
   }
 
   /**
@@ -729,42 +713,41 @@ export class DeskDash {
     this.glass(s.x, s.y, s.w, s.h, 28, 1, { tint: 0.07 });
     if (p && timerOn) {
       const color = p.onBreak ? AMBER : TEAL;
-      g.font = `700 32px ${UI_FONT}`;
+      g.font = `700 30px ${UI_FONT}`;
       g.fillStyle = color;
-      g.fillText(p.phase.toUpperCase(), 64, 68);
-      g.font = `28px ${UI_FONT}`;
+      g.fillText(p.phase.toUpperCase(), 64, 70);
+      g.font = `26px ${UI_FONT}`;
       g.globalAlpha = 0.9;
       const sub = p.running ? p.dots : vi.dash.paused;
-      g.fillText(sub, 64, 112);
+      g.fillText(sub, 64, 110);
       g.globalAlpha = 1;
       // Left of the big countdown (x 296); with many session dots it stays out.
-      this.drawWallet(64 + g.measureText(sub).width + (sub ? 20 : 0), 112, info.tomatoes, 286);
-      g.font = `300 116px ${UI_FONT}`;
+      this.drawWallet(64 + g.measureText(sub).width + (sub ? 20 : 0), 110, info.tomatoes, 286);
+      g.font = `300 104px ${UI_FONT}`;
       g.fillStyle = p.running ? '#ffffff' : 'rgba(255,255,255,0.7)';
-      g.fillText(p.remaining, 296, 124);
+      g.fillText(p.remaining, 296, 118);
       // Progress along the strip's bottom edge.
       g.fillStyle = 'rgba(255,255,255,0.12)';
       g.beginPath();
-      g.roundRect(64, 178, 1152, 5, 2.5);
+      g.roundRect(64, 134, 1152, 5, 2.5);
       g.fill();
       g.fillStyle = color;
       g.beginPath();
-      g.roundRect(64, 178, Math.max(5, 1152 * Math.min(1, p.progress)), 5, 2.5);
+      g.roundRect(64, 134, Math.max(5, 1152 * Math.min(1, p.progress)), 5, 2.5);
       g.fill();
-      this.drawTaskLine(p.onBreak ? vi.dash.next : vi.dash.now, color);
       this.roundButton(BTN.play, 'timer', p.running ? 'pause' : 'play', true);
       this.roundButton(BTN.skip, 'skip', 'skip', false);
       this.roundButton(BTN.stop, 'stop', 'stop', false);
     } else {
       const now = new Date();
-      g.font = `200 96px ${UI_FONT}`;
+      g.font = `200 88px ${UI_FONT}`;
       g.fillStyle = '#ffffff';
-      g.fillText(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`, 58, 106);
+      g.fillText(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`, 58, 98);
       g.font = `24px ${UI_FONT}`;
       g.fillStyle = DIM;
       const date = `${vi.dash.days[now.getDay()]}, ${now.getDate()}/${now.getMonth() + 1}`;
-      g.fillText(date, 64, 140);
-      this.drawWallet(64 + g.measureText(date).width + 20, 140, info.tomatoes, START.x + START.w);
+      g.fillText(date, 64, 132);
+      this.drawWallet(64 + g.measureText(date).width + 20, 132, info.tomatoes, START.x + START.w);
       // "Bắt đầu tập trung".
       const b = START;
       const hov = this.hover === 'timer';
@@ -775,10 +758,9 @@ export class DeskDash {
       g.fillStyle = '#ffffff';
       g.fillText(vi.dash.start, b.x + 78, b.y + b.h / 2 + 10);
       this.hits.push({ x: b.x, y: b.y, w: b.w, h: b.h, hit: { kind: 'timer' } });
-      this.drawTaskLine(vi.dash.next, TEAL);
     }
-    this.volumeRow('alert', '🔔', this.deps.chimeOn(), this.deps.alertVolume());
-    this.volumeRow('master', '🌊', this.deps.ambienceOn(), this.deps.masterVolume());
+    this.knob('alert', '🔔', this.deps.chimeOn());
+    this.knob('master', '🌊', this.deps.ambienceOn());
   }
 
   /** "Kho 🍅 12" on the strip from `x` (baseline `y`); left out if it would pass `maxX`. */
@@ -799,21 +781,6 @@ export class DeskDash {
     g.font = `24px ${UI_FONT}`;
     g.fillStyle = DIM;
     g.fillText(label, x, y);
-  }
-
-  /** The strip's second line: "Đang làm · <the top task>" across the whole strip. */
-  private drawTaskLine(label: string, color: string): void {
-    const task = this.todo.open[0];
-    if (!task) return;
-    const g = this.g;
-    g.font = `600 26px ${UI_FONT}`;
-    g.fillStyle = color;
-    const head = `${label.toUpperCase()}  `;
-    g.fillText(head, 64, 164);
-    const x = 64 + g.measureText(head).width;
-    g.font = `30px ${UI_FONT}`;
-    g.fillStyle = 'rgba(255,255,255,0.92)';
-    g.fillText(ellipsize(g, task.text, STRIP.x + STRIP.w - 28 - x), x, 165);
   }
 
   /** "Đã xóa … · Hoàn tác" at the bottom, over the lists, for UNDO_S seconds. */
@@ -841,47 +808,59 @@ export class DeskDash {
     this.hits.push({ x, y, w, h, hit: { kind: 'undo' } });
   }
 
-  /** A round icon (click: on/off) and a slider (click or drag: volume). */
-  private volumeRow(id: DashSlider, emoji: string, on: boolean, value: number): void {
+  /**
+   * A volume knob: a round glass button with the level as a 270° arc round it (dial-style, open
+   * at the bottom), and a dot at the arc's end. Off: the emoji fades and is struck through.
+   * Pointed at (or being turned), the emoji gives way to the level in %.
+   */
+  private knob(id: DashKnob, emoji: string, on: boolean): void {
     const g = this.g;
-    const v = VOL[id];
-    const kind = id === 'alert' ? 'chime' : 'ambience';
-    const r = 22;
-    const hovIcon = this.hover === kind;
-    this.glass(v.icon - r, v.y - r, r * 2, r * 2, r, 1, { tint: hovIcon ? 0.22 : 0.06 });
+    const { x, y } = KNOB[id];
+    const value = this.volume(id);
+    const hov = this.hover === `knob:${id}`;
+    this.glass(x - KNOB_R, y - KNOB_R, KNOB_R * 2, KNOB_R * 2, KNOB_R, 1, { tint: hov ? 0.2 : 0.07 });
+    const r = KNOB_R - 8;
+    const end = KNOB_START + KNOB_SWEEP * value;
     g.save();
-    g.globalAlpha = on ? 1 : 0.35;
-    g.font = `24px ${EMOJI_FONT}`;
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.fillText(emoji, v.icon, v.y + 1);
-    g.restore();
-    if (!on) {
-      g.strokeStyle = 'rgba(255,255,255,0.85)';
-      g.lineWidth = 3;
-      g.lineCap = 'round';
+    g.lineWidth = 5;
+    g.lineCap = 'round';
+    g.strokeStyle = 'rgba(255,255,255,0.16)';
+    g.beginPath();
+    g.arc(x, y, r, KNOB_START, KNOB_START + KNOB_SWEEP);
+    g.stroke();
+    const color = on ? TEAL : 'rgba(255,255,255,0.45)';
+    if (value > 0.005) {
+      g.strokeStyle = color;
       g.beginPath();
-      g.moveTo(v.icon - 12, v.y + 12);
-      g.lineTo(v.icon + 12, v.y - 12);
+      g.arc(x, y, r, KNOB_START, end);
       g.stroke();
     }
-    this.hits.push({ x: v.icon - r, y: v.y - r, w: r * 2, h: r * 2, hit: { kind } });
-    // The track, its filled part and the knob.
-    const hov = this.hover === `slider:${id}`;
-    const x = v.x0 + (v.x1 - v.x0) * value;
-    g.fillStyle = 'rgba(255,255,255,0.16)';
-    g.beginPath();
-    g.roundRect(v.x0, v.y - 4, v.x1 - v.x0, 8, 4);
-    g.fill();
-    g.fillStyle = on ? TEAL : 'rgba(255,255,255,0.4)';
-    g.beginPath();
-    g.roundRect(v.x0, v.y - 4, Math.max(8, x - v.x0), 8, 4);
-    g.fill();
-    g.beginPath();
-    g.arc(x, v.y, hov ? 13 : 11, 0, Math.PI * 2);
     g.fillStyle = '#ffffff';
+    g.beginPath();
+    g.arc(x + Math.cos(end) * r, y + Math.sin(end) * r, 5, 0, Math.PI * 2);
     g.fill();
-    this.hits.push({ x: v.x0 - 14, y: v.y - 20, w: v.x1 - v.x0 + 28, h: 40, hit: { kind: 'slider', id } });
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    if (hov) {
+      g.font = `600 22px ${UI_FONT}`;
+      g.fillStyle = on ? '#ffffff' : DIM;
+      g.fillText(`${Math.round(value * 100)}%`, x, y + 1);
+    } else {
+      g.globalAlpha = on ? 1 : 0.35;
+      g.font = `26px ${EMOJI_FONT}`;
+      g.fillText(emoji, x, y + 1);
+      g.globalAlpha = 1;
+      if (!on) {
+        g.strokeStyle = 'rgba(255,255,255,0.85)';
+        g.lineWidth = 3;
+        g.beginPath();
+        g.moveTo(x - 11, y + 11);
+        g.lineTo(x + 11, y - 11);
+        g.stroke();
+      }
+    }
+    g.restore();
+    this.hits.push({ x: x - KNOB_R, y: y - KNOB_R, w: KNOB_R * 2, h: KNOB_R * 2, hit: { kind: 'knob', id } });
   }
 
   private roundButton(b: { x: number; y: number; r: number }, kind: 'timer' | 'skip' | 'stop', icon: 'play' | 'pause' | 'skip' | 'stop', primary: boolean): void {
@@ -893,30 +872,31 @@ export class DeskDash {
     this.hits.push({ x: b.x - b.r, y: b.y - b.r, w: b.r * 2, h: b.r * 2, hit: { kind } });
   }
 
-  private drawRow(c: Col, r: Row, top: number, alpha: number): void {
+  private drawRow(r: Row, top: number, alpha: number): void {
     const g = this.g;
-    const col = COLS[c];
+    const { x: lx, w: lw } = LIST;
     switch (r.kind) {
       case 'head': {
         g.globalAlpha = alpha;
         g.font = `700 28px ${UI_FONT}`;
-        g.fillStyle = c === 'L' ? '#ffffff' : DIM;
-        const title = c === 'L' ? vi.dash.todo.toUpperCase() : vi.dash.doneToday.toUpperCase();
-        const count = c === 'L' ? this.todo.open.length : this.todo.done.length;
-        g.fillText(`${title} · ${count}`, col.x + 8, top + 36);
+        g.fillStyle = '#ffffff';
+        g.fillText(`${vi.dash.todo.toUpperCase()} · ${this.todo.open.length}`, lx + 8, top + 36);
         g.font = `24px ${EMOJI_FONT}`;
         g.textAlign = 'right';
         g.fillStyle = DIM;
-        g.fillText(c === 'L' ? vi.dash.hint : `🍅 ${this.todo.pomosToday}`, col.x + col.w - 8, top + 35);
+        g.fillText(vi.dash.pomosToday(this.todo.pomosToday), lx + lw - 8, top + 35);
         g.textAlign = 'left';
         g.globalAlpha = 1;
         break;
       }
       case 'task':
-        if (r.task) this.drawTask(r.task, col.x, col.w, top, alpha, false, this.todo.open[0]?.id === r.task.id);
+        if (r.task) this.drawTask(r.task, lx, lw, top, alpha, false, this.todo.open[0]?.id === r.task.id);
         break;
       case 'input':
         this.drawInput(top, alpha);
+        break;
+      case 'doneHead':
+        this.drawDoneHead(top, alpha);
         break;
       case 'done':
         if (r.task) this.drawDone(r.task, top, alpha);
@@ -927,7 +907,7 @@ export class DeskDash {
         g.textAlign = 'right';
         const hov = this.hover === 'clearDone';
         g.fillStyle = hov ? '#ff9a9a' : DIM;
-        const x = col.x + col.w - 12;
+        const x = lx + lw - 12;
         g.fillText(vi.dash.clearDone, x, top + 30);
         const w = g.measureText(vi.dash.clearDone).width;
         if (hov) g.fillRect(x - w, top + 35, w, 2);
@@ -936,14 +916,46 @@ export class DeskDash {
         this.pushListHit(x - w - 12, top, w + 24, 44, { kind: 'clearDone' });
         break;
       }
-      case 'empty':
-        g.globalAlpha = alpha;
-        g.font = `28px ${UI_FONT}`;
-        g.fillStyle = 'rgba(214,232,238,0.45)';
-        g.fillText(vi.dash.noneDone, col.x + 12, top + 42);
-        g.globalAlpha = 1;
-        break;
     }
+  }
+
+  /** "✓ ĐÃ XONG HÔM NAY · 3  ▸": a thin rule above, a click opens or folds the finished tasks. */
+  private drawDoneHead(top: number, alpha: number): void {
+    const g = this.g;
+    const { x, w } = LIST;
+    const hov = this.hover === 'doneToggle';
+    const cy = top + DONE_HEAD_H / 2 + 4;
+    g.save();
+    g.globalAlpha = alpha;
+    g.fillStyle = 'rgba(255,255,255,0.14)';
+    g.fillRect(x + 8, top + 2, w - 16, 1.5);
+    // ✓ in a teal disc.
+    g.beginPath();
+    g.arc(x + RING_X, cy, 16, 0, Math.PI * 2);
+    g.fillStyle = 'rgba(79,209,193,0.8)';
+    g.fill();
+    g.strokeStyle = '#ffffff';
+    drawCheck(g, x + RING_X, cy, 7);
+    g.font = `700 26px ${UI_FONT}`;
+    g.fillStyle = hov ? '#ffffff' : DIM;
+    const label = `${vi.dash.doneToday.toUpperCase()} · ${this.todo.done.length}`;
+    g.fillText(label, x + TEXT_X - 14, cy + 9);
+    // ▸ folded, ▾ open.
+    const ax = x + TEXT_X - 14 + g.measureText(label).width + 24;
+    g.beginPath();
+    if (this.showDone) {
+      g.moveTo(ax - 8, cy - 4);
+      g.lineTo(ax + 8, cy - 4);
+      g.lineTo(ax, cy + 6);
+    } else {
+      g.moveTo(ax - 4, cy - 8);
+      g.lineTo(ax + 6, cy);
+      g.lineTo(ax - 4, cy + 8);
+    }
+    g.closePath();
+    g.fill();
+    g.restore();
+    this.pushListHit(x, top, w, DONE_HEAD_H, { kind: 'doneToggle' });
   }
 
   /**
@@ -959,12 +971,15 @@ export class DeskDash {
     const hovAny = hovCard || hovRing || hovDel || hovPlay || lifted;
     const editing = this.editId === task.id && this.editing;
     const running = first && this.focusing;
-    this.glass(x, top, w, CARD_H, 24, alpha, {
+    // The current task shows its name in full, on a second line when it is long.
+    const lines = first && !editing ? this.firstLines(task) : null;
+    const h = first ? this.taskHeight(task) : CARD_H;
+    this.glass(x, top, w, h, 24, alpha, {
       tint: editing ? 0.16 : hovAny ? 0.14 : first ? 0.11 : 0.08,
       glow: editing ? 'rgba(255,255,255,0.6)' : first && !lifted ? 'rgba(79,209,193,0.9)' : undefined,
       lift: lifted ? 1 : 0,
     });
-    const cy = top + CARD_H / 2;
+    const cy = top + h / 2;
     g.save();
     g.globalAlpha = alpha;
     // The ring: click it when the task is done.
@@ -1034,21 +1049,24 @@ export class DeskDash {
     }
     g.font = `${first ? 600 : 400} ${TASK_FONT}px ${UI_FONT}`;
     g.fillStyle = '#ffffff';
-    g.fillText(ellipsize(g, task.text, right - (x + TEXT_X)), x + TEXT_X, cy + 14);
+    if (lines) {
+      const y0 = cy + 14 - ((lines.length - 1) * TASK_LINE) / 2;
+      lines.forEach((line, i) => g.fillText(line, x + TEXT_X, y0 + i * TASK_LINE));
+    } else g.fillText(ellipsize(g, task.text, right - (x + TEXT_X)), x + TEXT_X, cy + 14);
     g.restore();
     if (!lifted) {
-      this.pushListHit(x, top, w, CARD_H, { kind: 'card', id: task.id });
-      this.pushListHit(x + 8, top, TEXT_X - 8, CARD_H, { kind: 'ring', id: task.id });
+      this.pushListHit(x, top, w, h, { kind: 'card', id: task.id });
+      this.pushListHit(x + 8, top, TEXT_X - 8, h, { kind: 'ring', id: task.id });
       // ▶ is there to press only where it shows (always on the top task).
-      if (showPlay) this.pushListHit(playX - PLAY_R - 6, top, PLAY_R * 2 + 12, CARD_H, { kind: 'play', id: task.id });
-      if (estHit) this.pushListHit(estHit.x, top, estHit.w, CARD_H, { kind: 'estimate', id: task.id });
-      if (hovAny) this.pushListHit(x + w - 70, top, 70, CARD_H, { kind: 'delete', id: task.id });
+      if (showPlay) this.pushListHit(playX - PLAY_R - 6, top, PLAY_R * 2 + 12, h, { kind: 'play', id: task.id });
+      if (estHit) this.pushListHit(estHit.x, top, estHit.w, h, { kind: 'estimate', id: task.id });
+      if (hovAny) this.pushListHit(x + w - 70, top, 70, h, { kind: 'delete', id: task.id });
     }
   }
 
   private drawInput(top: number, alpha: number): void {
     const g = this.g;
-    const { x, w } = COLS.L;
+    const { x, w } = LIST;
     const hov = this.hover === 'input';
     // Typing a new task (not editing one).
     const typing = this.editing && !this.editId;
@@ -1106,7 +1124,7 @@ export class DeskDash {
 
   private drawDone(task: Task, top: number, alpha: number): void {
     const g = this.g;
-    const { x, w } = COLS.R;
+    const { x, w } = LIST;
     const hovRemove = this.hover === `remove:${task.id}`;
     const hov = this.hover === `restore:${task.id}` || hovRemove;
     this.glass(x, top, w, DONE_H, 20, alpha * 0.8, { tint: hov ? 0.12 : 0.05 });
@@ -1159,9 +1177,9 @@ export class DeskDash {
   /** A finished card swells a little and fades as its bubbles fly out; a deleted one just fades. */
   private drawGhost(gh: Ghost): void {
     const g = this.g;
-    const { x, w } = COLS.L;
-    const top = LIST_TOP + gh.y - this.scroll.L;
-    const cy = top + CARD_H / 2;
+    const { x, w } = LIST;
+    const top = LIST_TOP + gh.y - this.scroll;
+    const cy = top + gh.h / 2;
     const e = gh.t;
     const s = gh.pop ? 1 + 0.06 * Math.sin(Math.min(1, e * 1.6) * Math.PI) : 1 - 0.04 * e;
     g.save();
@@ -1169,7 +1187,7 @@ export class DeskDash {
     g.scale(s, s);
     g.translate(-(x + w / 2), -cy);
     const alpha = (1 - e) * (1 - e);
-    this.glass(x, top, w, CARD_H, 24, alpha, { tint: gh.pop ? 0.2 * (1 - e) + 0.08 : 0.08 });
+    this.glass(x, top, w, gh.h, 24, alpha, { tint: gh.pop ? 0.2 * (1 - e) + 0.08 : 0.08 });
     g.globalAlpha = alpha;
     g.font = `${TASK_FONT}px ${UI_FONT}`;
     g.fillStyle = '#ffffff';
@@ -1185,17 +1203,17 @@ export class DeskDash {
     g.restore();
   }
 
-  private drawScrollbar(c: Col, rows: Row[]): void {
+  private drawScrollbar(rows: Row[]): void {
     const last = rows[rows.length - 1];
     const content = last.y + last.h + 8;
     const view = this.listBottom - LIST_TOP;
     if (content <= view + 1) return;
     const g = this.g;
     const h = Math.max(40, (view * view) / content);
-    const y = LIST_TOP + ((view - h) * this.scroll[c]) / (content - view);
+    const y = LIST_TOP + ((view - h) * this.scroll) / (content - view);
     g.fillStyle = 'rgba(255,255,255,0.28)';
     g.beginPath();
-    g.roundRect(COLS[c].x + COLS[c].w + 3, y, 5, h, 2.5);
+    g.roundRect(LIST.x + LIST.w + 3, y, 5, h, 2.5);
     g.fill();
   }
 
@@ -1267,6 +1285,31 @@ function drawRestore(g: CanvasRenderingContext2D, x: number, y: number, s: numbe
   g.lineTo(x + s, y + 1);
   g.lineTo(x + s - 4, y - 4);
   g.stroke();
+}
+
+/**
+ * `text` broken at spaces into at most `maxLines` lines of `max` px (the font set on `g`); the
+ * last line ends in "…" if the rest doesn't fit, and a word longer than a line is cut the same.
+ */
+function wrapLines(g: CanvasRenderingContext2D, text: string, max: number, maxLines: number): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let cur = '';
+  for (let i = 0; i < words.length; i++) {
+    const test = cur ? `${cur} ${words[i]}` : words[i];
+    if (!cur || g.measureText(test).width <= max) {
+      cur = test;
+      continue;
+    }
+    lines.push(cur);
+    if (lines.length === maxLines - 1) {
+      cur = words.slice(i).join(' ');
+      break;
+    }
+    cur = words[i];
+  }
+  lines.push(cur);
+  return lines.map((l) => ellipsize(g, l, max));
 }
 
 function ellipsize(g: CanvasRenderingContext2D, text: string, max: number): string {
