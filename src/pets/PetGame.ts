@@ -15,7 +15,7 @@ import { hasModel, loadPetModel } from '../world/pets/petModels';
 import { PetActor } from '../world/pets/PetActor';
 import { RecipeRunner, hasRecipe, recipeLength, type Caster, type RecipePools } from '../world/pets/recipes';
 import { Ceremonies } from '../world/pets/ceremony';
-import { applyLevel2, ELEMENT_COLOR, spinAura, tintModel } from '../world/pets/looks';
+import { applyLevel2, ELEMENT_COLOR, PAINT, spinAura, tintModel, type Paint } from '../world/pets/looks';
 import type { TomatoWallet } from './wallet';
 import {
   befriend,
@@ -43,6 +43,11 @@ const PET_REACH = 3.2;
 const WILD_REACH = 12;
 /** Walked off without feeding: that one doesn't ask again for this long (ms). */
 const ASK_AGAIN_MS = 10 * 60_000;
+/**
+ * Pets you can stroke ask only after you pet them (walking past was too often): while stroking
+ * and a little after letting go (the bubble needs the mouse free).
+ */
+const ASK_WHEN_PETTED: ReadonlySet<string> = new Set(['mochi']);
 
 export interface PetGameHost {
   scene: THREE.Scene;
@@ -75,6 +80,8 @@ export interface PetGameHost {
   originalCaster(id: string, out: Caster): boolean;
   /** An original's own skill (its next one, as its key does): false if it can't now. */
   originalNative(id: string): boolean;
+  /** You are stroking this original, or just stopped (see ASK_WHEN_PETTED). */
+  pettedLately(id: string): boolean;
   wildWatchers(out: WildTarget[]): void;
   /** The .glb model of a befriended crab, dragon or bunny. */
   loadWild(kind: 'crab' | 'dragon' | 'bunny'): Promise<PetBody>;
@@ -129,6 +136,8 @@ export class PetGame {
   private target: Target | null = null;
   private readonly askedUntil = new Map<string, number>();
   private readonly you = { x: 0, y: 0, z: 0, yaw: 0 };
+  /** The actors as a list, refilled each frame (for the pairwise spacing). */
+  private readonly actorList: PetActor[] = [];
   private readonly tmp = new THREE.Vector3();
   private readonly tmp2 = new THREE.Vector3();
   private readonly from = new THREE.Vector3();
@@ -199,7 +208,7 @@ export class PetGame {
     const seed = Math.floor(Math.random() * 1e9);
     if (hasModel(kind, 'l1')) {
       const body = await loadPetModel(kind, 'l1');
-      tintModel(body.root, { seed, shiny: false, level: 1 });
+      tintModel(body.root, { seed, shiny: false, level: 1, paint: PAINT[`${kind}-l1`] });
       return body;
     }
     return standInBody(kind, { seed, shiny: false, level: 1 });
@@ -267,7 +276,14 @@ export class PetGame {
     const walking = this.host.you(this.you);
     const wind = this.host.wind();
     this.visitors.update(dt, walking ? this.you : null);
-    for (const a of this.actors.values()) a.update(dt, walking ? this.you : null, wind);
+    const list = this.actorList;
+    list.length = 0;
+    for (const a of this.actors.values()) {
+      a.update(dt, walking ? this.you : null, wind);
+      list.push(a);
+    }
+    // No two on the same spot (at most 10: 45 pairs).
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) PetActor.separate(list[i], list[j], dt);
     for (const ring of this.auras.values()) spinAura(ring, dt);
     this.applyOriginalLooks();
     this.pointer.update();
@@ -362,9 +378,11 @@ export class PetGame {
       // In front of the camera.
       this.tmp.set(t.x - cam.position.x, t.y - cam.position.y, t.z - cam.position.z).normalize();
       if (this.tmp.dot(this.tmp2) < 0.35) return;
+      const petted = 'pet' in t && ASK_WHEN_PETTED.has(t.pet);
+      if (petted && !this.host.pettedLately(t.pet)) return;
       const until = this.askedUntil.get(this.keyOf(t)) ?? 0;
-      // The one already asking keeps asking.
-      if (until > now && !(this.target && this.keyOf(this.target) === this.keyOf(t))) return;
+      // The one already asking keeps asking; one you just petted asks anyway.
+      if (!petted && until > now && !(this.target && this.keyOf(this.target) === this.keyOf(t))) return;
       best = t;
       bestD = d;
     };
@@ -652,10 +670,12 @@ export class PetGame {
     let body: PetBody;
     let ownL2 = false;
     let goldModel = false;
+    let paint: Readonly<Record<string, Paint>> | undefined;
     if (p.species === 'crab' || p.species === 'dragon' || p.species === 'bunny') {
       body = await this.host.loadWild(p.species);
     } else {
       const variant = p.shiny && hasModel(p.species, 'shiny') ? 'shiny' : p.level === 2 && hasModel(p.species, 'l2') ? 'l2' : 'l1';
+      paint = PAINT[`${p.species}-${variant}`];
       if (hasModel(p.species, variant)) {
         body = await loadPetModel(p.species, variant);
         ownL2 = variant === 'l2';
@@ -664,7 +684,7 @@ export class PetGame {
         body = standInBody(p.species, { seed: p.seed, shiny: p.shiny, level: p.level });
       }
     }
-    if (!(body.root.userData.standIn as boolean | undefined)) tintModel(body.root, { seed: p.seed, shiny: p.shiny && !goldModel, level: p.level });
+    if (!(body.root.userData.standIn as boolean | undefined)) tintModel(body.root, { seed: p.seed, shiny: p.shiny && !goldModel, level: p.level, paint });
     const scale = SIZE_SCALE[p.traits.size];
     body.root.scale.setScalar(scale);
     body.root.userData.baseScale = scale;

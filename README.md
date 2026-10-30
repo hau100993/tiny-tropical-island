@@ -436,8 +436,9 @@ only shows the egg's progress) and no creature asks to be fed: spending is for b
 - **Feeding on the island:** walk up to a creature (about 3 m) and look at it: a bubble
   **🍅 Cho Sương ăn?** shows its Rank and EXP. Click / tap it (hold to keep feeding) or press `E`:
   a tomato flies to it, hearts, its EXP fills; a Rank up shows a card, a new skill its name.
-  Walk off without feeding and that one doesn't ask again for 10 minutes. The camp has a feed
-  button for every creature too.
+  Walk off without feeding and that one doesn't ask again for 10 minutes. Mochi asks only when
+  you pet it: while stroking and for 8 s after letting go. The camp has a feed button for every
+  creature too.
 - **Eggs:** 5 / 10 / 20 🍅 for an egg that hatches after 2 / 5 / 10 more focus sessions (one egg
   incubates at a time). **Nở!** hatches a ready egg: it wobbles, bursts in rainbow light, and the
   new pet is there (in front of you while walking, else at the camp on the beach by the house).
@@ -464,8 +465,14 @@ only shows the egg's progress) and no creature asks to be fed: spending is for b
   you, the bubble offers a throw (up to 12 m). Three tomatoes to wild ones of a kind (over any
   number of meetings) and one stays with you as a Thú Cưng (1/100 shiny).
 - **Out on the island:** **5 to 10** new pets at once: the island has **10 places**, a small pet (bee, frog, snake, spider, seahorse, crab, bunny) takes 1, a middle one (tiger) 1.5, a big one (deer, cloud dragon, dragon, Kim Quy) 2; a tiny one half a place less, a huge one half more. The camp shows the places used (**Ra đảo** in the camp; new arrivals join
-  while there is room). They wander about the camp and follow you while you walk nearby; the
-  originals live on the island as before.
+  while there is room). They wander about the camp (7 m round) and follow you while you walk nearby,
+  each at its own place behind you (two rings, never on top of each other); flyers keep beside you,
+  above your head, so none hangs in front of the camera. The originals live on the island as before.
+- **Colours that stand out on the green island:** each species wears its name and element (a lime
+  frog, a yellow bee with black bands, an orange striped tiger, a golden deer and turtle, a pale
+  moon dragon, a fire-red Thú Hiếm, a spider with glowing pumpkin marks), and every pet has a thin
+  bright rim of light along its silhouette. The small ones (frog, spider, snake, bee, seahorse) are
+  a little bigger than life so they stand out of the grass.
 - **Nothing is ever lost:** no hunger, no decay, no penalty for a missed day.
 
 ### Saving to Google Drive (optional, Phase 13s)
@@ -610,7 +617,10 @@ sand and snow, and with **Tiếng bước chân & hoạt động** on you hear i
 speed so the paws don't slide; lying down and sitting are poses built in code (the file has none).
 
 **Bọt, the water creature (always there; trial of an elemental
-trio).** A small blue crab (~0.4 m) lives on the hammock's beach. It potters about the damp
+trio).** A small blue crab (~0.4 m) lives on the beach in front of the house, on the patch of sand you
+see from the desk left of the screens. **While you sit at the desk** it stays there and puts on a
+quiet show every 40–80 s: a giant soap bubble, a rainbow geyser or a dance in a cloud of bubbles
+(no water jets and no name cards, so it never pulls you out of your work). It potters about the damp
 sand, comes over to greet you when you walk near (a "yes" nod and a bubbly blub-blub), and now
 and then turns to the sea and fires a **water jet**: one glassy stream bent along its ballistic
 arc, fraying into drops at the end, shedding soap bubbles on the way and splashing and rippling
@@ -624,7 +634,7 @@ The jet flies hard and flat (up to ~10 m out to sea), a wide stream with a big s
 **Tiếng bước chân & hoạt động**. Loaded on first use (0.2 MB), its shaders compiled in the background.
 
 **Hỏa Long, the fire creature (always there).** A small red
-dragon (~1.5 m wingspan) always on the wing, looping lazily over the beach in front of the house,
+dragon (~1.5 m wingspan) always on the wing, looping lazily over the hammock's beach (out of sight of the desk, so its fire never distracts you there),
 a flame burning at the tip of its tail (smaller in the rain). Its fire lights the sand below it,
 faintly by day and warmly at night (a faked glow, no real light). It flies over to greet you when
 you walk near, and now and then flies out over the water's edge and **breathes fire**: from its

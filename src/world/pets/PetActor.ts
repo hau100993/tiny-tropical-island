@@ -1,12 +1,24 @@
 import * as THREE from 'three';
 import type { BodyAction, PetBody } from './bodies';
 
-/** Following you: they keep about this far, each at its own place round you (m). */
-const FOLLOW_GAP = 2.4;
+/**
+ * Following you, each has its own place behind you: two rings (2.4 m and 3.7 m), five places
+ * each, the outer ones between the inner ones. Angles (rad) off straight behind you.
+ */
+const FOLLOW_RINGS = [2.4, 3.7] as const;
+const FOLLOW_ANGLES = [
+  [0, -0.75, 0.75, -1.5, 1.5],
+  [-0.38, 0.38, -1.12, 1.12, 0],
+] as const;
+/** Flyers keep beside you (at least this far round from behind) and above your head (extra m). */
+const FLYER_SIDE = 1.2;
+const FLYER_LIFT = 0.9;
 /** You further away than this from a pet (m): it stays at the camp. */
 const FOLLOW_RANGE = 22;
 /** Wandering about the camp, within this radius (m). */
-const CAMP_R = 5;
+const CAMP_R = 7;
+/** Two pets nearer than this (m) are eased apart (see `separate`). */
+const PERSONAL_SPACE = 0.8;
 /** Ground lower than this (m) is sea: walkers never go there. */
 const WATER = 0.15;
 
@@ -34,13 +46,14 @@ export class PetActor {
   private cheerLeft = 0;
   private castLeft = 0;
   private time = Math.random() * 10;
+  private following = false;
 
   constructor(
     readonly petId: string,
     public body: PetBody,
     private readonly world: ActorWorld,
     private readonly camp: { x: number; z: number },
-    /** Its place in the line round you (0..4). */
+    /** Its place round you (0..9, see FOLLOW_ANGLES). */
     public slot: number,
     start: { x: number; z: number },
   ) {
@@ -76,17 +89,46 @@ export class PetActor {
     return this.castLeft > 0;
   }
 
-  /** `you`: where you walk (feet), or null. */
-  update(dt: number, you: { x: number; z: number } | null, wind: number): void {
+  /**
+   * Eases two pets apart when they stand nearer than PERSONAL_SPACE (each moves half the
+   * overlap a second); walkers never into the sea.
+   */
+  static separate(a: PetActor, b: PetActor, dt: number): void {
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const d = Math.hypot(dx, dz);
+    if (d >= PERSONAL_SPACE) return;
+    // Exactly on top of each other: apart along a fixed direction.
+    const nx = d > 1e-4 ? dx / d : 1;
+    const nz = d > 1e-4 ? dz / d : 0;
+    const push = (PERSONAL_SPACE - d) * Math.min(1, dt * 2) * 0.5;
+    a.nudge(-nx * push, -nz * push);
+    b.nudge(nx * push, nz * push);
+  }
+
+  private nudge(dx: number, dz: number): void {
+    const x = this.x + dx;
+    const z = this.z + dz;
+    if (this.body.hover === 0 && this.world.heightAt(x, z) <= WATER) return;
+    this.x = x;
+    this.z = z;
+  }
+
+  /** `you`: where you walk (feet) and face ((sin yaw, cos yaw)), or null. */
+  update(dt: number, you: { x: number; z: number; yaw: number } | null, wind: number): void {
     this.time += dt;
     this.cheerLeft = Math.max(0, this.cheerLeft - dt);
     this.castLeft = Math.max(0, this.castLeft - dt);
     const follow = you !== null && Math.hypot(you.x - this.x, you.z - this.z) < FOLLOW_RANGE;
+    this.following = follow;
     if (follow && you) {
-      // Its own place round you: a fan behind and beside.
-      const a = Math.atan2(this.x - you.x, this.z - you.z) * 0.3 + (this.slot - 2) * 0.9;
-      this.tx = you.x + Math.sin(a) * FOLLOW_GAP;
-      this.tz = you.z + Math.cos(a) * FOLLOW_GAP;
+      // Its own place behind you (flyers beside you, so they never hang in front of the camera).
+      const ring = Math.min(1, Math.floor(this.slot / 5));
+      let off: number = FOLLOW_ANGLES[ring][this.slot % 5];
+      if (this.body.hover > 0 && Math.abs(off) < FLYER_SIDE) off = off < 0 ? -FLYER_SIDE : FLYER_SIDE;
+      const a = you.yaw + Math.PI + off;
+      this.tx = you.x + Math.sin(a) * FOLLOW_RINGS[ring];
+      this.tz = you.z + Math.cos(a) * FOLLOW_RINGS[ring];
     } else {
       this.wanderIn -= dt;
       if (this.wanderIn <= 0) {
@@ -159,7 +201,8 @@ export class PetActor {
 
   private groundY(x: number, z: number): number {
     const g = this.world.heightAt(x, z);
-    return (this.body.hover > 0 ? Math.max(g, 0) : g) + this.body.hover;
+    if (this.body.hover === 0) return g;
+    return Math.max(g, 0) + this.body.hover + (this.following ? FLYER_LIFT : 0);
   }
 
   /** Flyers bob (their body animates it, roughly this). */

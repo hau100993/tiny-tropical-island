@@ -16,7 +16,7 @@ import type { TrunkInstance } from '../world/vegetation/forest';
 import type { PetBody } from '../world/pets/bodies';
 // Type-only: the models, behaviours and the GLTFLoader are a separate chunk, fetched on first use.
 import type { CrabModel } from '../world/creatures/crabModel';
-import type { BubbleCrab, CrabPlayer, CrabSkill } from '../world/creatures/bubbleCrab';
+import type { BubbleCrab, CrabPlayer, CrabSkill, CrabStage } from '../world/creatures/bubbleCrab';
 import type { DragonModel } from '../world/creatures/dragonModel';
 import type { DragonSkill, FireDragon } from '../world/creatures/fireDragon';
 import type { JetStream } from '../world/creatures/jetStream';
@@ -234,6 +234,11 @@ export class Creatures {
   /** The pointer is on a creature (no water click, the paw cursor). */
   get hover(): boolean {
     return this.crabPointer.hover || this.dragonPointer.hover || this.bunnyPointer.hover;
+  }
+
+  /** Bọt's show for you at the desk (a stage seen from the chair), or null when you are not there. */
+  setCrabStage(stage: CrabStage | null): void {
+    this.crab?.brain.setStage(stage);
   }
 
   /** Shows or hides each (loading it the first time it is shown). */

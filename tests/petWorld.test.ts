@@ -78,11 +78,31 @@ describe('new pets', () => {
     const land = (x: number): number => (x < 10 ? 1 : -1);
     const body = standInBody('kimquy', { seed: 1, shiny: false, level: 1 });
     const a = new PetActor('p', body, { heightAt: (x) => land(x) }, { x: 0, z: 0 }, 0, { x: 0, z: 0 });
-    for (let i = 0; i < 400; i++) a.update(0.05, { x: 6, z: 0 }, 0);
+    for (let i = 0; i < 400; i++) a.update(0.05, { x: 6, z: 0, yaw: Math.PI / 2 }, 0);
     expect(Math.hypot(a.x - 6, a.z)).toBeLessThan(3.5);
     // You wade out: the turtle waits on the beach.
-    for (let i = 0; i < 400; i++) a.update(0.05, { x: 16, z: 0 }, 0);
+    for (let i = 0; i < 400; i++) a.update(0.05, { x: 16, z: 0, yaw: Math.PI / 2 }, 0);
     expect(a.x).toBeLessThan(10);
+  });
+
+  it('ten following you keep their own places behind you, apart; flyers beside and above', () => {
+    const species = ['deer', 'na', 'frog', 'bee', 'tiger', 'seahorse', 'spider', 'cloudDragon', 'kind8', 'kimquy'] as const;
+    const actors = species.map((s, i) => new PetActor(s, standInBody(s, { seed: i, shiny: false, level: 1 }), { heightAt: () => 1 }, { x: 0, z: 0 }, i, { x: 0, z: 0 }));
+    // You at the origin facing +z: behind you is −z.
+    const you = { x: 0, z: 0, yaw: 0 };
+    for (let k = 0; k < 600; k++) {
+      for (const a of actors) a.update(0.05, you, 0);
+      for (let i = 0; i < actors.length; i++) for (let j = i + 1; j < actors.length; j++) PetActor.separate(actors[i], actors[j], 0.05);
+    }
+    for (let i = 0; i < actors.length; i++) {
+      for (let j = i + 1; j < actors.length; j++) expect(Math.hypot(actors[i].x - actors[j].x, actors[i].z - actors[j].z)).toBeGreaterThan(0.7);
+      // None in front of you.
+      expect(actors[i].z, species[i]).toBeLessThan(0.5);
+    }
+    for (const a of actors.filter((x) => x.body.hover > 0)) {
+      expect(Math.abs(a.x)).toBeGreaterThan(1.5);
+      expect(a.y).toBeGreaterThan(1 + 1.75);
+    }
   });
 });
 

@@ -41,6 +41,24 @@ const BIG = { blow: 1.4, radius: 1.15, float: 1.5, rise: 3.2, burst: 300, drops:
  */
 const GEYSER = { windup: 1.0, time: 2.8, drops: 900, speed: [11.5, 14.5], rainbow: 4.2, soak: 2.2 } as const;
 
+/**
+ * A show for you at the desk (`setStage`): it keeps to a patch of sand seen from the chair and
+ * every SHOW_EVERY s (random in the range) blows a giant bubble, raises a rainbow geyser or
+ * dances in a cloud of bubbles. No water jets and no name cards: something nice to glance at
+ * while working. The first show comes FIRST_SHOW s after you sit down.
+ */
+const SHOW_EVERY = [40, 80] as const;
+const FIRST_SHOW = 8;
+const STAGE_RADIUS = 1.5;
+
+/** Where it performs, and where you watch from (it faces you there). */
+export interface CrabStage {
+  x: number;
+  z: number;
+  viewX: number;
+  viewZ: number;
+}
+
 /** Its skills, in the order R cycles through them. */
 export type CrabSkill = 'jet' | 'bubbles' | 'geyser';
 const SKILLS: readonly CrabSkill[] = ['jet', 'bubbles', 'geyser'];
@@ -140,6 +158,10 @@ export class BubbleCrab {
   /** The geyser's column of water (a JetStream shot straight up), and how long it has run (s). */
   readonly column: StreamState = { ox: 0, oy: 0, oz: 0, vx: 0, vy: 0, vz: 0, tail: 0, head: 0, flight: 1, opacity: 0 };
   private columnAge = -1;
+  /** The desk show (null: its usual life), the next show in (s), a skill started without its card. */
+  private stage: CrabStage | null = null;
+  private showIn = 0;
+  private silent = false;
 
   constructor(
     private readonly world: CrabWorld,
@@ -166,6 +188,16 @@ export class BubbleCrab {
     this.hovered = on;
     this.viewX = viewX;
     this.viewZ = viewZ;
+  }
+
+  /** You sat down at the desk (a stage to perform on) or got up (null). */
+  setStage(stage: CrabStage | null): void {
+    if (stage && !this.stage) this.showIn = FIRST_SHOW;
+    this.stage = stage;
+    if (stage) {
+      this.viewX = stage.viewX;
+      this.viewZ = stage.viewZ;
+    }
   }
 
   /** Clicked: a dance with a burst of bubbles, or a water jet your way, at random (not mid-jet). */
@@ -232,12 +264,14 @@ export class BubbleCrab {
     }
     // Start a skill: queued by you, or now and then on its own (not mid-greeting or hovered).
     const quiet = this.state !== 'approach' && this.state !== 'greet' && this.state !== 'hover' && this.state !== 'dance';
+    if (this.stage) this.stageShow(dt, quiet, mouth);
     if (!this.busy && this.queued && this.skill !== 'jet') {
       // The bubble shower and the geyser.
       this.queued = false;
       this.autoSkill = this.between(AUTO_SKILL);
       this.hit = false;
-      this.events.onSkill(this.skill);
+      if (!this.silent) this.events.onSkill(this.skill);
+      this.silent = false;
       if (this.skill === 'bubbles') {
         this.events.onVoice('greet');
         this.br = 0;
@@ -247,7 +281,7 @@ export class BubbleCrab {
         this.startGeyser(player, toPlayer);
       }
     }
-    if (!this.busy && (this.queued || (this.autoSkill <= 0 && quiet))) {
+    if (!this.busy && (this.queued || (this.autoSkill <= 0 && quiet && !this.stage))) {
       if (this.queued) this.events.onSkill('jet');
       this.atPlayer = this.queued && player !== null && toPlayer < AIM_PLAYER;
       this.queued = false;
@@ -270,7 +304,8 @@ export class BubbleCrab {
         }
         break;
       case 'wander':
-        speed = this.walkToward(this.tx, this.tz, WALK, dt);
+        // Hurrying back to its stage when you sit down; else pottering.
+        speed = this.walkToward(this.tx, this.tz, this.stage && this.offStage() ? HURRY : WALK, dt);
         if (speed === 0 || this.timer <= 0) this.go('idle', 2 + Math.random() * 4);
         break;
       case 'approach': {
@@ -607,6 +642,35 @@ export class BubbleCrab {
     }
   }
 
+  private offStage(): boolean {
+    const st = this.stage;
+    return st !== null && Math.hypot(this.x - st.x, this.z - st.z) > STAGE_RADIUS * 2;
+  }
+
+  /**
+   * The desk show: on its stage, now and then a giant bubble, a rainbow geyser (in front of it,
+   * toward you) or a dance in a cloud of bubbles; none of them with a name card.
+   */
+  private stageShow(dt: number, quiet: boolean, mouth: { x: number; y: number; z: number }): void {
+    this.showIn -= dt;
+    if (this.showIn > 0 || this.busy || this.queued || !quiet || this.offStage()) return;
+    this.showIn = this.between(SHOW_EVERY);
+    const r = Math.random();
+    if (r < 0.4) {
+      this.skill = 'bubbles';
+      this.queued = true;
+      this.silent = true;
+    } else if (r < 0.75) {
+      this.skill = 'geyser';
+      this.queued = true;
+      this.silent = true;
+    } else {
+      this.events.onVoice('dance');
+      this.go('dance', 2.4);
+      this.blowBubbles(mouth, PAT_BURST * 2, 1.3);
+    }
+  }
+
   private go(state: State, time: number): void {
     this.state = state;
     this.timer = time;
@@ -650,6 +714,15 @@ export class BubbleCrab {
   }
 
   private pickWander(): void {
+    const st = this.stage;
+    if (st) {
+      // At the desk show: back to the stage if it strayed, else a step about on it.
+      const a = Math.random() * Math.PI * 2;
+      const r = this.offStage() ? 0 : Math.random() * STAGE_RADIUS;
+      this.tx = st.x + Math.cos(a) * r;
+      this.tz = st.z + Math.sin(a) * r;
+      return;
+    }
     for (let tries = 0; tries < 10; tries++) {
       const a = Math.random() * Math.PI * 2;
       const r = 1 + Math.random() * 3;

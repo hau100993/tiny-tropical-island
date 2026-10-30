@@ -58,6 +58,7 @@ import shibaUrl from '../assets/animals/shiba.glb?url';
 import type { DogModel } from '../world/dog';
 import { DogCompanion, type DogPlayer, type DogSpot } from '../activities/dogCompanion';
 import { Creatures } from '../activities/creatures';
+import type { CrabStage } from '../world/creatures/bubbleCrab';
 import { CHEER_AFTER, SeaShark } from '../activities/seaShark';
 import { Embers } from '../world/creatures/embers';
 import seaSharkUrl from '../assets/creatures/sea-shark.glb?url';
@@ -239,6 +240,11 @@ export class App {
   private static readonly PET_HOLD = 0.5;
   private petHold = 0;
   private petTravel = 0;
+  /** When the last stroke of Mochi ended (performance.now ms): its feeding bubble shows a while after. */
+  private petEndedAt = -Infinity;
+  /** Where Bọt performs while you sit at the desk (findCrabStage), if anywhere. */
+  private crabStage: CrabStage | null = null;
+  private static readonly FEED_AFTER_PET_MS = 8000;
   private readonly petCursor: PetCursor;
   private readonly hearts: Hearts;
   /** Where the hand strokes the fur (world), and the far end of a stroke. */
@@ -876,6 +882,7 @@ export class App {
         }
         return this.creatures.originalNative(id);
       },
+      pettedLately: (id) => id === 'mochi' && (this.petting.active || performance.now() - this.petEndedAt < App.FEED_AFTER_PET_MS),
       wildWatchers: (out) => this.creatures.wildWatchers(out),
       loadWild: (kind) => this.creatures.loadPetModel(kind),
       pop: () => {
@@ -1246,18 +1253,48 @@ export class App {
   }
 
   /**
-   * The elemental creatures: Bọt lives on the hammock's beach, Hỏa Long loops over the beach in
-   * front of the house, Mầm wanders the grass between the house and the beach. They see you only walking about (not swimming); their sounds follow
+   * Where Bọt performs for you at the desk: open sand seen from the chair through the gap left
+   * of the screens (beyond the paper lamp), about 22 m out, clear of rocks and trunks. Found once
+   * from the seat's pose; null if the island has no such spot (Bọt then stays on its beach).
+   */
+  private findCrabStage(): CrabStage | null {
+    const hm = this.world.heightmap;
+    const d = this.world.house.desk;
+    const seat = this.colliders.houseToWorld(d.seatX, d.seatZ, { x: 0, z: 0 });
+    const yaw = this.colliders.seaYaw;
+    const fx = -Math.sin(yaw);
+    const fz = -Math.cos(yaw);
+    // Angle off straight ahead (− is left) and distance, tried from the best spot outward.
+    for (const dist of [22, 21, 23, 20, 24, 19, 25]) {
+      for (const off of [-0.8, -0.775, -0.825, -0.75, -0.85]) {
+        const c = Math.cos(off);
+        const s = Math.sin(off);
+        const x = seat.x + (fx * c - fz * s) * dist;
+        const z = seat.z + (fx * s + fz * c) * dist;
+        const h = hm.heightAt(x, z);
+        if (hm.surfaceAt(x, z) !== 'sand' || h < 0.3 || h > 1.4 || this.colliders.world.countNear(x, z, 2) > 0) continue;
+        return { x, z, viewX: seat.x, viewZ: seat.z };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * The elemental creatures: Bọt lives on the beach in front of the house, where you see it
+   * from the desk (and puts on a show there while you work); Hỏa Long loops over the hammock's
+   * beach, out of sight of the desk; Mầm wanders the grass between the house and the beach. They see you only walking about (not swimming); their sounds follow
    * Âm thanh hoạt động; water soaks you like a swim, fire dries you.
    */
   private createCreatures(): Creatures {
     const hm = this.world.heightmap;
     const hammock = this.world.hammock.center;
-    const crabAngle = Math.atan2(hammock.z, hammock.x) + 0.12;
-    const crabR = hm.shoreDistance(crabAngle, 0.5);
-    const house = this.world.layout.house;
-    const dragonAngle = Math.atan2(house.z, house.x) - 0.25;
+    const dragonAngle = Math.atan2(hammock.z, hammock.x) + 0.12;
     const dragonR = hm.shoreDistance(dragonAngle, 0.3);
+    const house = this.world.layout.house;
+    const crabAngle = Math.atan2(house.z, house.x) - 0.25;
+    const crabR = hm.shoreDistance(crabAngle, 0.5);
+    this.crabStage = this.findCrabStage();
+    const crabHome = this.crabStage ?? { x: Math.cos(crabAngle) * crabR, z: Math.sin(crabAngle) * crabR };
     // Mầm: the open lawn by the stepping stones, between the house and the beach.
     const hl = Math.hypot(house.x, house.z) || 1;
     const bunnyX = house.x + (house.x / hl) * 10;
@@ -1273,7 +1310,7 @@ export class App {
       seaRadius: (angle) => hm.shoreDistance(angle, -0.3),
       ripple: (x, z, radius, strength) => this.world.water.addRipple(x, z, radius, strength),
       homes: {
-        crab: { x: Math.cos(crabAngle) * crabR, z: Math.sin(crabAngle) * crabR },
+        crab: { x: crabHome.x, z: crabHome.z },
         dragon: { x: Math.cos(dragonAngle) * dragonR, z: Math.sin(dragonAngle) * dragonR },
         bunny: { x: bunnyX, z: bunnyZ },
       },
@@ -1626,6 +1663,7 @@ export class App {
   private endPetting(cancelled: boolean): void {
     if (cancelled) this.petting.cancel();
     else this.petting.end();
+    this.petEndedAt = performance.now();
     this.dog?.stopPetting();
     if (this.petting.takePat()) {
       // Now and then a pat sets off one of its skills instead of a hop.
@@ -2560,6 +2598,7 @@ export class App {
     this.updateSurfing();
     this.updateAvatar(dt);
     this.updateDog(dt);
+    this.creatures.setCrabStage(this.cameras.mode === 'seat' && this.cameras.seat === 'desk' ? this.crabStage : null);
     this.creatures.update(dt);
     this.beMap.update(dt);
     this.petGame.update(dt);
