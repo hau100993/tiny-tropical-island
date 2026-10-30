@@ -1,5 +1,5 @@
 import { QUALITY_LEVELS, type QualityLevel } from './quality';
-import { TIME_SPEEDS, type TimeMode, type TimeSpeed } from '../world/celestial';
+import type { TimeMode, TimeSpeed } from '../world/celestial';
 import type { WalkView } from '../controls/walker';
 
 
@@ -112,7 +112,7 @@ export function defaultSettings(): Settings {
     visualSnow: 0,
     visualWind: 0.3,
     timeMode: 'free',
-    timeSpeed: 60,
+    timeSpeed: 1,
     timePaused: false,
     clouds: 0.35,
     gloom: 0,
@@ -160,21 +160,21 @@ function migrate(raw: Raw): Raw {
 /** Parses stored JSON; any missing or invalid field falls back to its default. Never throws. */
 /**
  * Clock settings. Before 2026-10-19 one `timeMode` held everything ('real', 'cycle24' = a day
- * in 24 min, 'cycle6' = 6 min, 'paused'); those map to the island clock at ×60, ×240, stopped.
+ * in 24 min, 'cycle6' = 6 min, 'paused'); those map to the free island clock, running or stopped.
+ * The speed is never read back: the clock always opens at ×1 (2026-10-30), a faster speed is
+ * only for the session it was picked in.
  */
 function parseClock(raw: Raw, d: Settings): Pick<Settings, 'timeMode' | 'timeSpeed' | 'timePaused'> {
-  const speed = TIME_SPEEDS.includes(raw.timeSpeed as TimeSpeed) ? (raw.timeSpeed as TimeSpeed) : d.timeSpeed;
   const paused = typeof raw.timePaused === 'boolean' ? raw.timePaused : d.timePaused;
   switch (raw.timeMode) {
     case 'real':
     case 'free':
-      return { timeMode: raw.timeMode, timeSpeed: speed, timePaused: paused };
+      return { timeMode: raw.timeMode, timeSpeed: d.timeSpeed, timePaused: paused };
     case 'cycle24':
-      return { timeMode: 'free', timeSpeed: 60, timePaused: false };
     case 'cycle6':
-      return { timeMode: 'free', timeSpeed: 240, timePaused: false };
+      return { timeMode: 'free', timeSpeed: d.timeSpeed, timePaused: false };
     case 'paused':
-      return { timeMode: 'free', timeSpeed: speed, timePaused: true };
+      return { timeMode: 'free', timeSpeed: d.timeSpeed, timePaused: true };
     default:
       return { timeMode: d.timeMode, timeSpeed: d.timeSpeed, timePaused: d.timePaused };
   }

@@ -2504,7 +2504,7 @@ export class App {
   private readonly drawingBuffer = new THREE.Vector2();
   // Reused every frame (no per-frame allocations).
   private readonly skyOptions: SkyOptions = {
-    clock: { mode: 'free', speed: 60, paused: false }, clouds: 0, gloom: 0, clarity: 0, rainbow: true, stars: true, meteors: 0, aurora: 0, moonlight: 0.3,
+    clock: { mode: 'free', speed: 1, paused: false }, clouds: 0, gloom: 0, clarity: 0, rainbow: true, stars: true, meteors: 0, aurora: 0, moonlight: 0.3,
   };
   private readonly skyWeather: SkyWeather = { overcast: 0, rain: 0, wetness: 0 };
 
