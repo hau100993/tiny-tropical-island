@@ -549,10 +549,10 @@ files you may not redistribute. More details in [`public/audio/README.md`](publi
 
 Two views, switched with `V` (or **Sau lưng / Qua mắt** in *Góc nhìn*): behind your character, like
 a game (default), or through the character's eyes. The character is a young man dressed for
-the beach, built entirely in code (Korean-style curtain hair: a middle part, volume on top and two swept
-bangs framing the forehead, slim-fit
-pale linen shirt with an open collar, board shorts, bare feet, a bead bracelet, fair skin and a
-friendly face). The head is a sculpted sphere (jaw, cheekbones, nose, eye sockets, ears); the hair
+the beach, built entirely in code (restyled 2026-11-02 from a reference illustration the owner
+supplied: short, textured dark hair with a jagged fringe and short sides, a slim face with a wide
+open smile, a white shirt with a stand-up collar, a pleated bib and sleeves rolled to the elbow,
+dark shorts, bare feet, a watch on the left wrist). The head is a sculpted sphere (jaw, cheekbones, nose, eye sockets, ears); the hair
 grows from a hairline and is made of tapered locks; chest, arms and calves have muscle shape; hands
 have fingers, feet have toes. The face (reworked 2026-11-02): a slim V-line face (the jaw tapers
 smoothly from the cheekbones to a small chin), a short soft nose, soft cheeks
@@ -560,11 +560,10 @@ with a painted blush, brows and a small smile painted on the skin (thin strips t
 large eyes with a ringed iris and two catch lights that **look at the camera** when it is in
 front of him (and glance about otherwise), and **a smiling squint** when a tomato lands on a pet
 or while petting Mochi; standing still he **breathes**. Skin with a soft warm sheen at the edges.
-The hair (reworked again 2026-11-02): soft dark brown, ~170 rounded locks in layers that stand off
-the scalp toward their tips (volume, loose ends), each a shade lighter or darker than the next,
-reaching down over the ears and to the nape (no helmet rim); a crown whorl; the locks hang from a
-bone at the crown on a damped spring, so the fringe and the ends lag when you start, swing on when
-you stop, bounce with running steps and stir slowly. The body is a skinned mesh on a 15-bone skeleton (plus two eye bones), so knees and
+The hair: short and textured, ~140 tapered locks lying along the scalp with lifted tips, a jagged
+fringe (the shell stops up the forehead so the locks make the edge), short sides and back, each lock
+a shade lighter or darker; the locks hang from a bone at the crown on a damped spring, so the fringe
+and the ends lag when you start, swing on when you stop, bounce with running steps and stir slowly. The body is a skinned mesh on a 15-bone skeleton (plus two eye bones), so knees and
 elbows bend smoothly; each leg, foot included, is one surface (the shin bends forward into
 the instep and swells into the heel, so there is no seam at the ankle), the forearm runs on into
 the palm, and the fingers are tapered tubes. The walk follows measured human gait curves (heel strike with the toes up,

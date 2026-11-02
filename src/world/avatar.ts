@@ -36,24 +36,25 @@ import type { SharedUniforms } from '../core/uniforms';
  */
 
 const C = {
-  skin: '#f2cdb0',
+  skin: '#eec3a3',
   lip: '#c97a6c',
-  smile: '#a45a50',
+  smile: '#7a2f2c',
+  teeth: '#fbf8f2',
   blush: '#f2a99a',
-  brow: '#2e2019',
-  hair: '#2a1c15',
+  brow: '#1d1b26',
+  hair: '#1c1d2b',
   sclera: '#f6f3ee',
   iris: '#5a3a24',
   limbal: '#24160e',
   pupil: '#0f0b09',
-  shirt: '#d6eaee',
-  shirtDark: '#b9d2d9',
+  shirt: '#f2f3f6',
+  shirtDark: '#d9dde6',
   button: '#f7f6f2',
-  shorts: '#2f5d8a',
-  shortsDark: '#244a70',
-  stripe: '#eeece4',
-  bead: '#6b4a32',
-  beadLight: '#a8835e',
+  shorts: '#2b2d36',
+  shortsDark: '#212229',
+  stripe: '#3a3c47',
+  strap: '#2a2a2e',
+  steel: '#c9ccd2',
 } as const;
 
 /** Legs are scaled along their length; with it the soles (0.03 + (0.41 + 0.455) × scale below
@@ -161,7 +162,7 @@ function sculpt(widthSeg: number, heightSeg: number, fn: (v: THREE.Vector3) => v
 // Head
 
 /** Head half-size (m): width, height (crown to chin / 2), depth. */
-const HEAD = { w: 0.077, h: 0.113, d: 0.097 } as const;
+const HEAD = { w: 0.078, h: 0.109, d: 0.097 } as const;
 
 const gauss = (x: number, y: number, cx: number, cy: number, sx: number, sy: number): number =>
   Math.exp(-(((x - cx) / sx) ** 2 + ((y - cy) / sy) ** 2));
@@ -178,13 +179,13 @@ function headPoint(dx: number, dy: number, dz: number, out: THREE.Vector3): THRE
   const f = Math.max(0, -z) ** 2;
   let r = 1;
   // A short, soft nose (a long bridge read as a beak), soft cheeks, a small pointed chin.
-  r += f * 0.065 * gauss(x, y, 0, -0.1, 0.06, 0.12); // nose bridge
+  r += f * 0.075 * gauss(x, y, 0, -0.1, 0.055, 0.13); // nose bridge
   r += f * 0.07 * gauss(x, y, 0, -0.22, 0.085, 0.065); // nose tip
   r += f * 0.02 * (gauss(x, y, 0.32, 0.22, 0.2, 0.07) + gauss(x, y, -0.32, 0.22, 0.2, 0.07)); // brow ridge
   r -= f * 0.035 * (gauss(x, y, 0.38, 0.05, 0.13, 0.09) + gauss(x, y, -0.38, 0.05, 0.13, 0.09)); // eye sockets
-  r += f * 0.025 * (gauss(x, y, 0.48, -0.16, 0.16, 0.12) + gauss(x, y, -0.48, -0.16, 0.16, 0.12)); // cheeks
+  r += f * 0.035 * (gauss(x, y, 0.46, -0.12, 0.15, 0.11) + gauss(x, y, -0.46, -0.12, 0.15, 0.11)); // cheeks, lifted by the smile
   r += f * 0.03 * gauss(x, y, 0, -0.48, 0.24, 0.13); // mouth
-  r += f * 0.04 * gauss(x, y, 0, -0.84, 0.15, 0.1); // chin: small and a little forward
+  r += f * 0.035 * gauss(x, y, 0, -0.84, 0.18, 0.1); // chin: neat, a little forward
   x *= r;
   y *= r;
   z *= r;
@@ -194,7 +195,7 @@ function headPoint(dx: number, dy: number, dz: number, out: THREE.Vector3): THRE
   // (Started at the cheekbones the taper made a corner there: it starts higher and eases in.)
   const vline = smoothstep(0.05, -1, y) ** 1.4;
   const jaw = smoothstep(-0.25, -0.55, y) * smoothstep(-0.8, -0.6, y) * smoothstep(-0.7, -0.1, z) * smoothstep(0.5, 0.1, z);
-  x *= 1 - 0.05 * low - 0.3 * vline + 0.02 * jaw;
+  x *= 1 - 0.05 * low - 0.22 * vline + 0.03 * jaw;
   z *= z > 0 ? 1.1 - 0.2 * low : 0.96 - 0.06 * low;
   return out.set(x * HEAD.w, y * HEAD.h, z * HEAD.d);
 }
@@ -204,7 +205,8 @@ function headPoint(dx: number, dy: number, dz: number, out: THREE.Vector3): THRE
 const HAIRLINE: ReadonlyArray<readonly [number, number]> = [
   // (Lower over the ears and at the nape than it was: a high, level edge there read as the rim
   // of a helmet.)
-  [0, 0.6], [0.3, 0.52], [0.6, 0.4], [0.85, 0.33], [1.2, 0.22], [1.5, 0.13], [1.8, 0.08], [2.3, -0.2], [2.8, -0.42], [Math.PI, -0.47],
+  // The shell stops well up the forehead: the fringe's locks make the edge (jagged, not a band).
+  [0, 0.74], [0.3, 0.7], [0.6, 0.54], [0.85, 0.4], [1.2, 0.27], [1.5, 0.16], [1.8, 0.1], [2.3, -0.15], [2.8, -0.36], [Math.PI, -0.4],
 ];
 
 function hairline(x: number, z: number): number {
@@ -227,8 +229,10 @@ function hairScale(x: number, y: number, z: number): number {
   const top = smoothstep(0.15, 0.85, y);
   const front = Math.max(0, -z);
   // The part runs from the crown to the front hairline; the hair rises on both sides of it.
-  const part = Math.exp(-((x / 0.07) ** 2)) * smoothstep(0.15, -0.25, z) * top;
-  return 0.955 + t * (0.085 + 0.1 * top + 0.09 * front * top - 0.05 * part);
+  // (No parting: short hair standing up on top.)
+  const part = 0 * x;
+  // Short sides and back (close to the scalp), volume on top and at the front.
+  return 0.955 + t * (0.065 + 0.05 * top + 0.02 * front * top - 0.05 * part);
 }
 
 /**
@@ -323,67 +327,64 @@ const v3 = (x: number, y: number, z: number): THREE.Vector3 => new THREE.Vector3
  */
 function hairLocks(hair: GeoBuilder, rng: Rng): void {
   const jit = (a: number): number => (rng() - 0.5) * 2 * a;
-  const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
-  // Many rounder locks in layers, each lifted off the scalp toward its end: the hair has
-  // volume and loose, separate tips (few flat ones read as a carved helmet).
+  // Short, textured hair: tufts on top standing up and out, a short messy fringe flicked up
+  // over the forehead, sides and back cut close. Each tuft a tapered lock lifted toward its
+  // tip, so the ends stand off as spikes.
   const add = (d0: THREE.Vector3, c: THREE.Vector3, d1: THREE.Vector3, w: number, th: number, lift: number): void =>
     hair.add(lock(d0, c, d1, w, th, lift), C.hair);
+  // Top: tufts from a crown just behind the middle, fanning out every way, tips up.
+  for (let i = 0; i < 56; i++) {
+    const a = rng() * Math.PI * 2;
+    // Spread over the whole top (roots crowded at the crown piled up into a tall mound).
+    const r0 = 0.08 + Math.sqrt(rng()) * 0.42;
+    const crownZ = 0.12;
+    const x0 = Math.cos(a) * r0;
+    const z0 = crownZ + Math.sin(a) * r0 * 0.9;
+    const reach = 0.22 + rng() * 0.18;
+    // Tips toward the front go more forward, so the fringe reads.
+    const fx = Math.cos(a) * (r0 + reach);
+    const fz = crownZ + Math.sin(a) * (r0 + reach) - 0.12;
+    const d0 = v3(x0, 0.98, z0);
+    const d1 = v3(fx, Math.max(0.5, 0.78 - 0.25 * Math.hypot(fx, fz - 0.12)) - rng() * 0.08, fz);
+    // Lying along the scalp (a control point above the roots piled them into two mounds).
+    const c = v3((x0 + fx) / 2, 0.93 + rng() * 0.03, (z0 + fz) / 2);
+    add(d0, c, d1, 0.012 + rng() * 0.006, 0.008 + rng() * 0.003, 0.035 + rng() * 0.045);
+  }
+  // Fringe: short locks from the front of the top, falling a little over the forehead, the
+  // tips flicked up and to the side (messy).
+  for (let i = 0; i < 24; i++) {
+    const x = -0.5 + (1.0 * (i + rng() * 0.6)) / 24;
+    // Mostly swept to his right (−X on screen: the model faces −Z), a few the other way.
+    const side = rng() < 0.75 ? -1 : 1;
+    const d0 = v3(x * 0.6, 0.9, -0.38);
+    const d1 = v3(x + side * (0.06 + rng() * 0.1), 0.5 + rng() * 0.12 - 0.08 * Math.abs(x), -0.86);
+    const c = v3(x * 0.8, 0.84, -0.8);
+    add(d0, c, d1, 0.011 + rng() * 0.005, 0.008 + rng() * 0.003, 0.05 + rng() * 0.06);
+  }
+  // Sides: short, combed back over the scalp (the ears show).
   for (const s of [-1, 1]) {
-    // Curtain: roots along the front half of the part, arching over the forehead and out to
-    // the temples, two layers (the outer one fuller and more lifted).
-    for (let layer = 0; layer < 2; layer++) {
-      const n = layer === 0 ? 14 : 10;
-      for (let i = 0; i < n; i++) {
-        const t = (i + rng() * 0.6) / n;
-        const d0 = v3(s * (0.03 + jit(0.012)), lerp(0.97, 0.66, t), lerp(-0.15, -0.74, t));
-        const d1 = v3(s * lerp(0.92, 0.64 + jit(0.04), t), lerp(0.48, 0.2, t) + jit(0.04), lerp(-0.2, -0.8, t));
-        const c = v3(s * lerp(0.6, 0.34, t), lerp(1.06, 0.78, t) + layer * 0.03, lerp(-0.42, -1.1, t));
-        add(d0, c, d1, 0.012 + rng() * 0.006, 0.008 + rng() * 0.003, (layer === 0 ? 0.03 : 0.07) + rng() * 0.04);
-      }
-    }
-    // Top: from the back half of the part, combed over the side, with body.
-    for (let i = 0; i < 12; i++) {
-      const z = 0.0 + i * 0.05 + jit(0.025);
-      const d0 = v3(s * (0.03 + jit(0.01)), 0.99, z);
-      const d1 = v3(s * (0.95 + jit(0.03)), 0.42 + jit(0.06), z * 0.9 + jit(0.04));
-      const c = v3(s * 0.66, 1.06 + jit(0.03), z);
-      add(d0, c, d1, 0.014 + rng() * 0.006, 0.008 + rng() * 0.003, 0.04 + rng() * 0.05);
-    }
-    // Sides: shorter, combed back and down over the ears.
-    for (let i = 0; i < 9; i++) {
-      const z = -0.4 + i * 0.12 + jit(0.03);
-      const d0 = v3(s * 0.62, 0.8 + jit(0.03), z);
-      const d1 = v3(s, 0.12 + jit(0.06) - 0.12 * Math.max(0, z), z + 0.22);
-      const c = v3(s * 0.96, 0.6, z + 0.08);
-      add(d0, c, d1, 0.012 + rng() * 0.004, 0.007 + rng() * 0.002, 0.03 + rng() * 0.04);
+    for (let i = 0; i < 8; i++) {
+      const z = -0.45 + i * 0.13 + jit(0.03);
+      const d0 = v3(s * 0.66, 0.74 + jit(0.03), z);
+      const d1 = v3(s * 0.98, 0.38 + jit(0.05), z + 0.2);
+      const c = v3(s * 0.92, 0.62, z + 0.08);
+      add(d0, c, d1, 0.011 + rng() * 0.003, 0.006, 0.01 + rng() * 0.015);
     }
   }
-  // Back: crown to nape, two layers, the tips curling out a little.
-  for (let layer = 0; layer < 2; layer++) {
-    const n = layer === 0 ? 16 : 12;
-    for (let i = 0; i < n; i++) {
-      const a = -1.3 + (2.6 * (i + rng() * 0.5)) / n;
-      const d0 = v3(Math.sin(a) * 0.45, 0.88, Math.cos(a) * 0.45);
-      // Down to the nape (lower in the middle), the ends flicking out a little.
-      const d1 = v3(Math.sin(a) * 0.96, -0.32 + 0.25 * Math.abs(Math.sin(a)) + jit(0.07) + layer * 0.08, Math.cos(a) * 0.96);
-      const c = v3((d0.x + d1.x) / 2, 0.5, (d0.z + d1.z) / 2 + 0.2);
-      add(d0, c, d1, 0.014 + rng() * 0.006, 0.007 + rng() * 0.003, (layer === 0 ? 0.03 : 0.07) + rng() * 0.04);
-    }
-  }
-  // Crown whorl: a few short locks spiralling out, so the top isn't a plain dome.
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    const d0 = v3(0.04 * Math.cos(a), 1, 0.25 + 0.04 * Math.sin(a));
-    const d1 = v3(0.45 * Math.cos(a + 0.6), 0.86, 0.25 + 0.45 * Math.sin(a + 0.6));
-    const c = v3(0.3 * Math.cos(a + 0.3), 1.04, 0.25 + 0.3 * Math.sin(a + 0.3));
-    add(d0, c, d1, 0.013 + rng() * 0.004, 0.007, 0.05 + rng() * 0.03);
+  // Back: short, down toward the nape.
+  for (let i = 0; i < 16; i++) {
+    const a = -1.3 + (2.6 * (i + rng() * 0.5)) / 16;
+    const d0 = v3(Math.sin(a) * 0.5, 0.86, Math.cos(a) * 0.5);
+    const d1 = v3(Math.sin(a) * 0.97, -0.1 + 0.2 * Math.abs(Math.sin(a)) + jit(0.06), Math.cos(a) * 0.97);
+    const c = v3((d0.x + d1.x) / 2, 0.5, (d0.z + d1.z) / 2 + 0.16);
+    add(d0, c, d1, 0.013 + rng() * 0.005, 0.006 + rng() * 0.002, 0.015 + rng() * 0.02);
   }
 }
 
 /** Where the eyes sit (head space): unit-sphere direction x, y. */
 const EYE_X = 0.38;
 const EYE_Y = 0.05;
-const EYE = { rx: 0.0152, ry: 0.0112, rz: 0.0066 } as const;
+const EYE = { rx: 0.0152, ry: 0.0102, rz: 0.0066 } as const;
 
 /** Centre of the eye on side `s` (−1 left, +1 right), in head space. */
 function eyeCenter(s: number): THREE.Vector3 {
@@ -486,7 +487,7 @@ function paintedHead(): THREE.BufferGeometry {
     c.lerp(blush, Math.min(0.55, cheeks * 0.6));
     c.lerp(blush, Math.min(0.3, front * gauss(ux, uy, 0, -0.24, 0.07, 0.06) * 0.35));
     // Lower lip, under the smile line.
-    c.lerp(lip, Math.min(0.8, front * gauss(ux, uy, 0, -0.545, 0.1, 0.028) * 0.9));
+    c.lerp(lip, Math.min(0.6, front * gauss(ux, uy, 0, -0.64, 0.16, 0.03) * 0.7));
     // Ears a touch warmer (light through them).
     c.lerp(blush, Math.min(0.25, gauss(Math.abs(ux), uy, 1, -0.04, 0.12, 0.2) * 0.3));
     colors.set([c.r, c.g, c.b], i * 3);
@@ -517,22 +518,27 @@ function buildHead(p: HeadParts, rng: Rng): THREE.BufferGeometry {
     const brow: [number, number][] = [];
     for (let k = 0; k <= 8; k++) {
       const t = k / 8;
-      brow.push([s * (0.17 + 0.42 * t), 0.235 + 0.05 * Math.sin(Math.PI * Math.min(1, t * 1.25)) - 0.035 * t]);
+      brow.push([s * (0.16 + 0.43 * t), 0.235 + 0.025 * Math.sin(Math.PI * Math.min(1, t * 1.25)) - 0.03 * t]);
     }
-    p.gloss.add(faceStrip(brow, (t) => 0.0048 * (1 - 0.6 * t) + 0.0008, 0.0009), C.brow);
+    p.gloss.add(faceStrip(brow, (t) => 0.0058 * (1 - 0.5 * t) + 0.001, 0.0009), C.brow);
     // Ear: a flat shell with a rolled rim, angled back.
     headPoint(s, -0.04, 0.12, q);
     const ax = q.x + s * 0.002;
     p.skin.add(place(ball(1, 12, 10), ax, q.y, q.z, 0, s * 0.3, 0, 0.007, 0.029, 0.018), C.skin);
     p.skin.add(place(new THREE.TorusGeometry(0.016, 0.0038, 6, 18, Math.PI * 1.45), ax + s * 0.002, q.y + 0.001, q.z, 0, Math.PI / 2 + s * 0.3, 0.2, 1, 1.55, 1), C.skin);
   }
-  // A small, warm smile: a fine line, its corners lifted, dimpled in at each end.
-  const smile: [number, number][] = [];
-  for (let k = 0; k <= 10; k++) {
-    const x = -0.17 + (0.34 * k) / 10;
-    smile.push([x, -0.5 + 0.9 * x * x]);
+  // A wide open smile: the mouth a dark crescent, the upper teeth a white band in it, the
+  // corners lifted.
+  const curve = (x: number): number => -0.48 + 0.95 * x * x;
+  const mouth: [number, number][] = [];
+  const teeth: [number, number][] = [];
+  for (let k = 0; k <= 16; k++) {
+    const x = -0.28 + (0.56 * k) / 16;
+    mouth.push([x, curve(x) - 0.06 * (1 - (x / 0.28) ** 2)]);
+    teeth.push([x * 0.84, curve(x * 0.84) - 0.03 * (1 - (x / 0.28) ** 2)]);
   }
-  p.gloss.add(faceStrip(smile, (t) => 0.0016 * Math.sin(Math.PI * t) + 0.0006, 0.0008), C.smile);
+  p.gloss.add(faceStrip(mouth, (t) => 0.0125 * Math.sin(Math.PI * t) ** 0.6 + 0.0008, 0.0007), C.smile);
+  p.gloss.add(faceStrip(teeth, (t) => 0.0058 * Math.sin(Math.PI * t) ** 0.5 + 0.0004, 0.0012), C.teeth);
   // Nostrils: two faint shadows under the tip.
   for (const s of [-1, 1]) {
     headPoint(s * 0.07, -0.28, -1, q);
@@ -584,40 +590,6 @@ function torsoFront(y: number, x: number): number {
   const f = f0 + (f1 - f0) * t;
   const u = Math.min(1, Math.abs(x) / rx);
   return -f * (1 - u ** TORSO_N) ** (1 / TORSO_N);
-}
-
-/** A V-shaped patch lying on the chest (apex at y0, `halfW` wide at y1), `lift` in front. */
-function chestPatch(y0: number, y1: number, halfW: number, lift: number): THREE.BufferGeometry {
-  const rows = 6;
-  const cols = 6;
-  const pos: number[] = [];
-  const index: number[] = [];
-  for (let j = 0; j <= rows; j++) {
-    const v = j / rows;
-    const y = y0 + (y1 - y0) * v;
-    for (let i = 0; i <= cols; i++) {
-      const x = (i / cols - 0.5) * 2 * halfW * v;
-      pos.push(x, y, torsoFront(y, x) - lift);
-    }
-  }
-  for (let j = 0; j < rows; j++) {
-    for (let i = 0; i < cols; i++) {
-      const a = j * (cols + 1) + i;
-      const b = a + cols + 1;
-      index.push(a, a + 1, b, a + 1, b + 1, b);
-    }
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setIndex(index);
-  g.computeVertexNormals();
-  // It must face forward (−Z) or it is culled; flip the winding if it came out backwards.
-  if (g.getAttribute('normal').getZ(Math.floor(pos.length / 6)) > 0) {
-    for (let i = 0; i < index.length; i += 3) [index[i + 1], index[i + 2]] = [index[i + 2], index[i + 1]];
-    g.setIndex(index);
-    g.computeVertexNormals();
-  }
-  return g;
 }
 
 /** Relaxed hand hanging from the wrist, palm toward the body (side `s`: −1 left, +1 right). */
@@ -1581,29 +1553,29 @@ export class Avatar {
     // (Not densified: the V neckline and placket sit on this exact outline, see torsoFront.)
     cloth.add(tube(TORSO, 32, TORSO_N), C.shirt, T, hem);
     cloth.add(tube([[-0.072, 0.154, 0.115, 0.118], [-0.055, 0.151, 0.111, 0.114]], 32, TORSO_N), C.shirtDark, T, hem);
-    // Open collar: skin in the V, a collar band round the back of the neck, points laid open.
-    skin.add(chestPatch(0.35, 0.462, 0.046, 0.0015), C.skin, T);
+    // Stand-up collar, closed: a band round the base of the neck, a little taller at the back.
     cloth.add(
-      place(new THREE.TorusGeometry(0.054, 0.009, 6, 24, Math.PI * 1.1), 0, 0.452, 0.006, -Math.PI / 2 + 0.25, 0, Math.PI * 0.95),
+      tube(rings([[0.438, 0.056, 0.05, 0.059], [0.455, 0.053, 0.048, 0.057], [0.47, 0.051, 0.047, 0.056]], 0.006), 26),
       C.shirt,
       T,
     );
-    for (const s of [-1, 1]) {
-      cloth.add(
-        place(new THREE.ConeGeometry(0.022, 0.07, 3), s * 0.04, 0.41, torsoFront(0.41, s * 0.04) - 0.002, 0.15, Math.PI, -s * 0.55, 1, 1, 0.12),
-        C.shirtDark,
-        T,
-      );
+    cloth.add(tube([[0.47, 0.0515, 0.0475, 0.0565], [0.474, 0.051, 0.047, 0.056]], 26), C.shirtDark, T);
+    // Pleated bib: fine vertical tucks down each side of the placket, on the chest.
+    for (const side of [-1, 1]) {
+      for (let k = 1; k <= 4; k++) {
+        const x = side * (0.012 + k * 0.0095);
+        for (let y = 0.1; y < 0.4; y += 0.045) {
+          cloth.add(place(new THREE.BoxGeometry(0.0022, 0.047, 0.0022), x, y + 0.022, torsoFront(y + 0.022, x) - 0.0006), C.shirtDark, T);
+        }
+      }
     }
-    // Button placket following the chest curve, buttons, chest pocket.
-    for (let y = 0.0; y < 0.34; y += 0.04) {
-      cloth.add(place(new THREE.BoxGeometry(0.017, 0.042, 0.003), 0, y + 0.02, torsoFront(y + 0.02, 0) - 0.0008), C.shirtDark, T, hem);
+    // Button placket following the chest curve, small buttons.
+    for (let y = 0.0; y < 0.42; y += 0.04) {
+      cloth.add(place(new THREE.BoxGeometry(0.015, 0.042, 0.003), 0, y + 0.02, torsoFront(y + 0.02, 0) - 0.0008), C.shirtDark, T, hem);
     }
-    for (const y of [0.06, 0.15, 0.24, 0.32]) {
-      gloss.add(place(ball(0.0055, 8, 6), 0, y, torsoFront(y, 0) - 0.0025, 0, 0, 0, 1, 1, 0.5), C.button, T, hem);
+    for (const y of [0.06, 0.15, 0.24, 0.32, 0.4]) {
+      gloss.add(place(ball(0.0045, 8, 6), 0, y, torsoFront(y, 0) - 0.0022, 0, 0, 0, 1, 1, 0.5), C.button, T, hem);
     }
-    cloth.add(place(new THREE.BoxGeometry(0.058, 0.064, 0.003), -0.068, 0.29, torsoFront(0.29, -0.068) - 0.0012, 0, 0.32, 0), C.shirtDark, T);
-    cloth.add(place(new THREE.BoxGeometry(0.06, 0.012, 0.004), -0.068, 0.318, torsoFront(0.318, -0.068) - 0.002, 0, 0.32, 0), C.shirt, T);
     // Neck: bends between the shoulders and the head.
     skin.add(
       tube(rings([[0.4, 0.05, 0.046, 0.053], [0.45, 0.044, 0.042, 0.048], [0.5, 0.041, 0.04, 0.044], [0.57, 0.043, 0.042, 0.045]]), 20),
@@ -1655,7 +1627,7 @@ export class Avatar {
       lid.scale.set(EYE.rx * 1.06, EYE.ry * 1.08, EYE.rz * 1.25);
       lid.position.y = -EYE.ry;
       hinge.add(lid);
-      hinge.scale.y = 0.12;
+      hinge.scale.y = 0.2;
       this.head.add(hinge);
       this.lids.push(hinge);
       this.ownMeshes.push(hinge);
@@ -1677,7 +1649,8 @@ export class Avatar {
       cloth.add(
         tube(
           rings([
-            [-0.15, 0.052, 0.056, 0.054], [-0.08, 0.05, 0.054, 0.052], [-0.03, 0.048, 0.052, 0.05], [-0.005, 0.045, 0.049, 0.047],
+            // Sleeves rolled up to just above the elbow (a roll at the hem, below).
+            [-0.23, 0.045, 0.048, 0.046], [-0.15, 0.047, 0.05, 0.048], [-0.08, 0.048, 0.052, 0.05], [-0.03, 0.048, 0.052, 0.05], [-0.005, 0.045, 0.049, 0.047],
             [0.015, 0.039, 0.043, 0.041], [0.03, 0.03, 0.033, 0.032], [0.04, 0.018, 0.021, 0.02], [0.045, 0.006, 0.008, 0.008],
           ], 0.008),
           22,
@@ -1686,7 +1659,10 @@ export class Avatar {
         sh,
         sleeve,
       );
-      cloth.add(tube([[-0.155, 0.054, 0.058, 0.056], [-0.14, 0.054, 0.058, 0.056]], 20), C.shirtDark, sh);
+      cloth.add(tube(rings([[-0.24, 0.05, 0.053, 0.051], [-0.225, 0.054, 0.057, 0.055], [-0.205, 0.052, 0.055, 0.053]], 0.006), 20), C.shirtDark, sh, (_x, y) => {
+        const e = smoothstep(-0.2, -0.26, y);
+        return [[sh, 1 - e], [el, e]];
+      });
       const arm: Weigher = (_x, y) => {
         const e = smoothstep(-0.23, -0.31, y);
         const w = smoothstep(-0.47, -0.5, y);
@@ -1705,11 +1681,11 @@ export class Avatar {
         sh,
         arm,
       );
-      if (s > 0) {
-        for (let k = 0; k < 14; k++) {
-          const a = (k / 14) * Math.PI * 2;
-          gloss.add(place(ball(0.0058, 8, 6), Math.cos(a) * 0.025, -0.205, Math.sin(a) * 0.029), k % 4 ? C.bead : C.beadLight, el);
-        }
+      if (s < 0) {
+        // A watch on the left wrist: a dark strap round it, a steel face on the back of it.
+        gloss.add(place(new THREE.TorusGeometry(0.026, 0.004, 6, 24), 0, -0.2, 0, Math.PI / 2, 0, 0, 1, 1.12, 1), C.strap, el);
+        gloss.add(place(new THREE.CylinderGeometry(0.011, 0.011, 0.005, 20), s * 0.026, -0.2, 0, 0, 0, Math.PI / 2), C.steel, el);
+        gloss.add(place(new THREE.CylinderGeometry(0.009, 0.009, 0.0012, 20), s * 0.0288, -0.2, 0, 0, 0, Math.PI / 2), C.strap, el);
       }
       // Same wrist blend as the forearm's (here in the wrist's frame), where the two overlap.
       // A size smaller than before: the hands looked large for the body.
@@ -2107,7 +2083,8 @@ export class Avatar {
     this.joy = Math.max(0, this.joy - dt);
     const joyTarget = this.joy > 0 ? 1 : 0;
     this.joyW += (joyTarget - this.joyW) * Math.min(1, dt * 8);
-    const lid = Math.max(0.12 + 0.88 * Math.max(0, closed), 0.12 + 0.36 * this.joyW);
+    // A smiling look at rest (the lids a little lower), fuller squint when happy.
+    const lid = Math.max(0.12 + 0.88 * Math.max(0, closed), 0.2 + 0.3 * this.joyW);
     for (const h of this.lids) h.scale.y = lid;
     this.moveEyes(dt);
     this.moveHair(dt);
