@@ -550,13 +550,16 @@ files you may not redistribute. More details in [`public/audio/README.md`](publi
 Two views, switched with `V` (or **Sau lưng / Qua mắt** in *Góc nhìn*): behind your character, like
 a game (default), or through the character's eyes. The character is a young man dressed for
 the beach, built entirely in code (restyled 2026-11-02 from a reference illustration the owner
-supplied: short, textured dark hair with a jagged fringe and short sides, a slim face with a wide
-open smile, a white shirt with a stand-up collar, a pleated bib and sleeves rolled to the elbow,
+supplied: short, textured dark hair with a jagged fringe and short sides, a slim face with a
+closed-lip smile, a white shirt with a low stand-up collar, a pleated bib and sleeves rolled to the elbow,
 dark shorts, bare feet, a watch on the left wrist). The head is a sculpted sphere (jaw, cheekbones, nose, eye sockets, ears); the hair
 grows from a hairline and is made of tapered locks; chest, arms and calves have muscle shape; hands
-have fingers, feet have toes. The face (reworked 2026-11-02): a slim V-line face (the jaw tapers
-smoothly from the cheekbones to a small chin), a short soft nose, soft cheeks
-with a painted blush, brows and a small smile painted on the skin (thin strips that follow it),
+have fingers, feet have toes. The face (reworked 2026-11-02): the face is its own block below a
+flatter forehead (not a ball), a longer lower face, a jaw angle under the ears and a jaw line that
+runs to a defined chin with a soft fold under the lower lip, a short soft nose, soft cheeks
+with a painted blush, brows and a closed-lip smile painted on the skin (thin strips that follow it;
+the open smile with a small row of upper teeth tucked under the lip shows only when he is happy),
+a slimmer neck that leans forward and joins the head behind the jaw,
 large eyes with a ringed iris and two catch lights that **look at the camera** when it is in
 front of him (and glance about otherwise), and **a smiling squint** when a tomato lands on a pet
 or while petting Mochi; standing still he **breathes**. Skin with a soft warm sheen at the edges.

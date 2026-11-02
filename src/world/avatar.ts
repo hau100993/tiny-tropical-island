@@ -178,25 +178,37 @@ function headPoint(dx: number, dy: number, dz: number, out: THREE.Vector3): THRE
   let z = dz / l;
   const f = Math.max(0, -z) ** 2;
   let r = 1;
-  // A short, soft nose (a long bridge read as a beak), soft cheeks, a small pointed chin.
+  // Features as bumps on the sphere: a short soft nose, cheeks lifted by the smile, a chin that
+  // projects forward and down with a soft fold above it. No bump at the mouth: the lips sit
+  // behind the line from the nose tip to the chin (a forward mouth read as buck teeth).
   r += f * 0.075 * gauss(x, y, 0, -0.1, 0.055, 0.13); // nose bridge
   r += f * 0.07 * gauss(x, y, 0, -0.22, 0.085, 0.065); // nose tip
   r += f * 0.02 * (gauss(x, y, 0.32, 0.22, 0.2, 0.07) + gauss(x, y, -0.32, 0.22, 0.2, 0.07)); // brow ridge
   r -= f * 0.035 * (gauss(x, y, 0.38, 0.05, 0.13, 0.09) + gauss(x, y, -0.38, 0.05, 0.13, 0.09)); // eye sockets
-  r += f * 0.035 * (gauss(x, y, 0.46, -0.12, 0.15, 0.11) + gauss(x, y, -0.46, -0.12, 0.15, 0.11)); // cheeks, lifted by the smile
-  r += f * 0.03 * gauss(x, y, 0, -0.48, 0.24, 0.13); // mouth
-  r += f * 0.035 * gauss(x, y, 0, -0.84, 0.18, 0.1); // chin: neat, a little forward
+  r += f * 0.03 * (gauss(x, y, 0.46, -0.12, 0.15, 0.11) + gauss(x, y, -0.46, -0.12, 0.15, 0.11)); // cheeks
+  r += f * 0.008 * gauss(x, y, 0, -0.47, 0.2, 0.08); // lips: just a little volume
+  r -= f * 0.018 * gauss(x, y, 0, -0.66, 0.16, 0.045); // the fold under the lower lip
+  r += f * 0.035 * gauss(x, y, 0, -0.84, 0.2, 0.085); // chin, a slightly square tip
   x *= r;
   y *= r;
   z *= r;
-  // V-line: the jaw tapers from the cheekbones straight down to a narrow chin (no full angle
-  // under the ears); fuller back of the head, flatter face.
-  const low = smoothstep(0.15, -0.95, y);
-  // (Started at the cheekbones the taper made a corner there: it starts higher and eases in.)
-  const vline = smoothstep(0.05, -1, y) ** 1.4;
-  const jaw = smoothstep(-0.25, -0.55, y) * smoothstep(-0.8, -0.6, y) * smoothstep(-0.7, -0.1, z) * smoothstep(0.5, 0.1, z);
-  x *= 1 - 0.05 * low - 0.22 * vline + 0.03 * jaw;
-  z *= z > 0 ? 1.1 - 0.2 * low : 0.96 - 0.06 * low;
+  const front = smoothstep(0.15, -0.6, z);
+  // Face block: the forehead stands up more (less of the ball's curve back over the top), the
+  // lower face is longer (jaw and chin lower), the back of the skull a little smaller.
+  z -= 0.07 * front * gauss(0, y, 0, 0.42, 1, 0.24);
+  y *= 1 + 0.08 * smoothstep(0, -1, y) * smoothstep(0.45, -0.2, z);
+  if (z > 0) z *= 0.95;
+  // Jaw: the underside of the head is cut flat along a plane rising from the chin to under
+  // the ear, which gives a jaw line and an angle below the earlobe (soft max, no crease).
+  const plane = -0.95 + 0.58 * smoothstep(-0.65, 0.25, z);
+  const k = 0.06;
+  const h = Math.max(k - Math.abs(y - plane), 0) / k;
+  y = Math.max(y, plane) + h * h * k * 0.25;
+  // V-line, on the front only and eased in from the cheekbones: the jaw tapers toward the
+  // chin, the angle under the ears keeps its width.
+  const vline = smoothstep(0.05, -1, y) ** 1.4 * front;
+  x *= 1 - 0.04 * smoothstep(0.15, -0.95, y) - 0.2 * vline;
+  z *= z > 0 ? 1.08 - 0.15 * smoothstep(0.15, -0.95, y) : 0.97;
   return out.set(x * HEAD.w, y * HEAD.h, z * HEAD.d);
 }
 
@@ -398,6 +410,8 @@ interface HeadParts {
   hair: GeoBuilder;
   /** The locks (they sway a little: weighted to the hair's bone). */
   locks: GeoBuilder;
+  /** The open smile (lips parted, teeth), a mesh of its own shown only while happy. */
+  open: GeoBuilder;
   /** Eye centers (head space), for the blinking lids and the eyes' bones. */
   eyes: THREE.Vector3[];
 }
@@ -522,23 +536,33 @@ function buildHead(p: HeadParts, rng: Rng): THREE.BufferGeometry {
     }
     p.gloss.add(faceStrip(brow, (t) => 0.0058 * (1 - 0.5 * t) + 0.001, 0.0009), C.brow);
     // Ear: a flat shell with a rolled rim, angled back.
-    headPoint(s, -0.04, 0.12, q);
+    headPoint(s, -0.1, 0.2, q);
     const ax = q.x + s * 0.002;
     p.skin.add(place(ball(1, 12, 10), ax, q.y, q.z, 0, s * 0.3, 0, 0.007, 0.029, 0.018), C.skin);
     p.skin.add(place(new THREE.TorusGeometry(0.016, 0.0038, 6, 18, Math.PI * 1.45), ax + s * 0.002, q.y + 0.001, q.z, 0, Math.PI / 2 + s * 0.3, 0.2, 1, 1.55, 1), C.skin);
   }
-  // A wide open smile: the mouth a dark crescent, the upper teeth a white band in it, the
-  // corners lifted.
-  const curve = (x: number): number => -0.48 + 0.95 * x * x;
+  // The mouth, about as wide as the eyes are apart. At rest a closed-lip smile: a fine line
+  // with its corners lifted. Happy (p.open, shown only then): the lips part, a dark mouth with
+  // 4–6 small upper teeth just showing under the upper lip (teeth in front of the lips read as
+  // buck teeth).
+  const smileY = (x: number): number => -0.475 + 0.85 * x * x;
+  const half = 0.25;
+  const line: [number, number][] = [];
   const mouth: [number, number][] = [];
   const teeth: [number, number][] = [];
+  const upper: [number, number][] = [];
   for (let k = 0; k <= 16; k++) {
-    const x = -0.28 + (0.56 * k) / 16;
-    mouth.push([x, curve(x) - 0.06 * (1 - (x / 0.28) ** 2)]);
-    teeth.push([x * 0.84, curve(x * 0.84) - 0.03 * (1 - (x / 0.28) ** 2)]);
+    const x = -half + (2 * half * k) / 16;
+    const open = 1 - (x / half) ** 2;
+    line.push([x, smileY(x)]);
+    mouth.push([x * 0.94, smileY(x * 0.94) - 0.032 * open]);
+    upper.push([x * 0.94, smileY(x * 0.94) + 0.004]);
+    teeth.push([x * 0.5, smileY(x * 0.5) - 0.014 * (1 - (x / half) ** 2 * 0.6)]);
   }
-  p.gloss.add(faceStrip(mouth, (t) => 0.0125 * Math.sin(Math.PI * t) ** 0.6 + 0.0008, 0.0007), C.smile);
-  p.gloss.add(faceStrip(teeth, (t) => 0.0058 * Math.sin(Math.PI * t) ** 0.5 + 0.0004, 0.0012), C.teeth);
+  p.gloss.add(faceStrip(line, (t) => 0.0015 * Math.sin(Math.PI * t) ** 0.5 + 0.0005, 0.0009), C.smile);
+  p.open.add(faceStrip(mouth, (t) => 0.0062 * Math.sin(Math.PI * t) ** 0.7 + 0.0006, 0.0012), C.smile);
+  p.open.add(faceStrip(teeth, (t) => 0.0026 * Math.sin(Math.PI * t) ** 0.4 + 0.0003, 0.0016), C.teeth);
+  p.open.add(faceStrip(upper, (t) => 0.0022 * Math.sin(Math.PI * t) ** 0.5 + 0.0004, 0.002), C.lip);
   // Nostrils: two faint shadows under the tip.
   for (const s of [-1, 1]) {
     headPoint(s * 0.07, -0.28, -1, q);
@@ -1396,6 +1420,9 @@ export class Avatar {
   private readonly hairSwing = { x: 0, z: 0, vx: 0, vz: 0 };
   private readonly headPrev = new THREE.Vector3(Number.NaN, 0, 0);
   private readonly headVel = new THREE.Vector3();
+  /** The open smile (shown while happy), and whether the built-in body is shown at all. */
+  private readonly openMouth: THREE.SkinnedMesh;
+  private ownVisible = true;
   /** The eyes' bones (left, right): turned to look at something. */
   private readonly eyeBones: THREE.Bone[] = [];
   private readonly shoulders: THREE.Bone[] = [];
@@ -1538,6 +1565,7 @@ export class Avatar {
     const cloth = new SkinBuilder(bones);
     const gloss = new SkinBuilder(bones);
     const hairB = new SkinBuilder(bones);
+    const openB = new SkinBuilder(bones);
     const T = this.torso;
     const H = this.hips;
 
@@ -1553,13 +1581,14 @@ export class Avatar {
     // (Not densified: the V neckline and placket sit on this exact outline, see torsoFront.)
     cloth.add(tube(TORSO, 32, TORSO_N), C.shirt, T, hem);
     cloth.add(tube([[-0.072, 0.154, 0.115, 0.118], [-0.055, 0.151, 0.111, 0.114]], 32, TORSO_N), C.shirtDark, T, hem);
-    // Stand-up collar, closed: a band round the base of the neck, a little taller at the back.
+    // Low stand-up collar, standing a little off the neck so the neck shows above it (a tall,
+    // tight one read as a turtleneck; an open V looked like a pasted-on triangle).
     cloth.add(
-      tube(rings([[0.438, 0.056, 0.05, 0.059], [0.455, 0.053, 0.048, 0.057], [0.47, 0.051, 0.047, 0.056]], 0.006), 26),
+      tube(rings([[0.425, 0.06, 0.052, 0.06], [0.44, 0.058, 0.05, 0.059], [0.452, 0.057, 0.049, 0.058]], 0.006), 26),
       C.shirt,
       T,
     );
-    cloth.add(tube([[0.47, 0.0515, 0.0475, 0.0565], [0.474, 0.051, 0.047, 0.056]], 26), C.shirtDark, T);
+    cloth.add(tube([[0.452, 0.0575, 0.0495, 0.0585], [0.456, 0.057, 0.049, 0.058]], 26), C.shirtDark, T);
     // Pleated bib: fine vertical tucks down each side of the placket, on the chest.
     for (const side of [-1, 1]) {
       for (let k = 1; k <= 4; k++) {
@@ -1576,13 +1605,21 @@ export class Avatar {
     for (const y of [0.06, 0.15, 0.24, 0.32, 0.4]) {
       gloss.add(place(ball(0.0045, 8, 6), 0, y, torsoFront(y, 0) - 0.0022, 0, 0, 0, 1, 1, 0.5), C.button, T, hem);
     }
-    // Neck: bends between the shoulders and the head.
-    skin.add(
-      tube(rings([[0.4, 0.05, 0.046, 0.053], [0.45, 0.044, 0.042, 0.048], [0.5, 0.041, 0.04, 0.044], [0.57, 0.043, 0.042, 0.045]]), 20),
-      C.skin,
-      T,
-      blendY(T, this.head, 0.47, 0.56),
-    );
+    // Neck: flatter front to back than across, slimmest in the middle, and leaning forward
+    // (its base further back than its top), so it joins the head behind the jaw instead of
+    // standing straight up under it like a post.
+    const neck = tube(rings([[0.4, 0.053, 0.042, 0.05], [0.45, 0.045, 0.036, 0.043], [0.5, 0.042, 0.034, 0.04], [0.57, 0.045, 0.037, 0.046]]), 22);
+    const np = neck.getAttribute('position');
+    for (let i = 0; i < np.count; i++) np.setZ(i, np.getZ(i) + (0.57 - np.getY(i)) * 0.16);
+    neck.computeVertexNormals();
+    skin.add(neck, C.skin, T, blendY(T, this.head, 0.47, 0.56));
+    // Faint muscles from behind each ear down to the notch above the chest: just enough for a
+    // little shading. (An Adam's apple stuck out as a ball under the chin.)
+    for (const side of [-1, 1]) {
+      // (Mostly inside the neck: only a soft ridge shows.)
+      const m = place(ball(1, 10, 8), side * 0.022, 0.49, -0.002, -0.45, 0, side * 0.38, 0.008, 0.06, 0.006);
+      skin.add(m, C.skin, T, blendY(T, this.head, 0.47, 0.56));
+    }
 
     // ---- Head ----
     const headSkin = new GeoBuilder(rng, 0);
@@ -1591,7 +1628,9 @@ export class Avatar {
     // Each lock a touch lighter or darker than the next: depth, like real hair.
     const headLocks = new GeoBuilder(rng, 0.16);
     const eyes: THREE.Vector3[] = [];
-    const face = buildHead({ skin: headSkin, gloss: headGloss, hair: headHair, locks: headLocks, eyes }, rng);
+    const headOpen = new GeoBuilder(rng, 0);
+    const face = buildHead({ skin: headSkin, gloss: headGloss, hair: headHair, locks: headLocks, open: headOpen, eyes }, rng);
+    openB.add(headOpen.build(), null, this.head);
     skin.add(face, null, this.head);
     skin.add(headSkin.build(), null, this.head);
     gloss.add(headGloss.build(), null, this.head);
@@ -1739,6 +1778,11 @@ export class Avatar {
       this.group.add(mesh);
       this.ownMeshes.push(mesh);
     }
+    this.openMouth = new THREE.SkinnedMesh(openB.build(), glossMat);
+    this.openMouth.bind(skeleton);
+    this.openMouth.frustumCulled = false;
+    this.openMouth.visible = false;
+    this.group.add(this.openMouth);
     this.group.name = 'avatar';
     this.group.visible = false;
   }
@@ -2086,6 +2130,8 @@ export class Avatar {
     // A smiling look at rest (the lids a little lower), fuller squint when happy.
     const lid = Math.max(0.12 + 0.88 * Math.max(0, closed), 0.2 + 0.3 * this.joyW);
     for (const h of this.lids) h.scale.y = lid;
+    // Happy: the lips part (a smile with the teeth showing).
+    this.openMouth.visible = this.ownVisible && this.joyW > 0.35;
     this.moveEyes(dt);
     this.moveHair(dt);
 
@@ -2395,6 +2441,8 @@ export class Avatar {
 
   /** Shows or hides the built-in body (its skeleton keeps moving either way). */
   setOwnBodyVisible(on: boolean): void {
+    this.ownVisible = on;
     for (const m of this.ownMeshes) m.visible = on;
+    if (!on) this.openMouth.visible = false;
   }
 }
