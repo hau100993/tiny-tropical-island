@@ -558,8 +558,12 @@ have fingers, feet have toes. The face (reworked 2026-11-02): a short soft nose,
 with a painted blush, brows and a small smile painted on the skin (thin strips that follow it),
 large eyes with a ringed iris and two catch lights that **look at the camera** when it is in
 front of him (and glance about otherwise), and **a smiling squint** when a tomato lands on a pet
-or while petting Mochi; standing still he **breathes**. Skin with a soft warm sheen at the edges,
-dark-brown soft hair. The body is a skinned mesh on a 15-bone skeleton (plus two eye bones), so knees and
+or while petting Mochi; standing still he **breathes**. Skin with a soft warm sheen at the edges.
+The hair (reworked again 2026-11-02): soft dark brown, ~170 rounded locks in layers that stand off
+the scalp toward their tips (volume, loose ends), each a shade lighter or darker than the next,
+reaching down over the ears and to the nape (no helmet rim); a crown whorl; the locks hang from a
+bone at the crown on a damped spring, so the fringe and the ends lag when you start, swing on when
+you stop, bounce with running steps and stir slowly. The body is a skinned mesh on a 15-bone skeleton (plus two eye bones), so knees and
 elbows bend smoothly; each leg, foot included, is one surface (the shin bends forward into
 the instep and swells into the heel, so there is no seam at the ankle), the forearm runs on into
 the palm, and the fingers are tapered tubes. The walk follows measured human gait curves (heel strike with the toes up,

@@ -68,6 +68,8 @@ const tmpP = new THREE.Vector3();
 const tmpS = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 const tmpLook = new THREE.Vector3();
+const tmpLook2 = new THREE.Vector3();
+const tmpHairQ = new THREE.Quaternion();
 
 /** Moves/rotates/scales a fresh geometry (normals follow, so smooth shading stays correct). */
 function place(
@@ -198,7 +200,9 @@ function headPoint(dx: number, dy: number, dz: number, out: THREE.Vector3): THRE
 /** Hairline height (unit-sphere y) by angle around the head: forehead (high in the middle,
  * where the curtain bangs part), temples, over the ears, down to the nape. */
 const HAIRLINE: ReadonlyArray<readonly [number, number]> = [
-  [0, 0.6], [0.3, 0.52], [0.6, 0.4], [0.85, 0.36], [1.2, 0.3], [1.5, 0.24], [1.8, 0.24], [2.3, -0.1], [2.8, -0.32], [Math.PI, -0.36],
+  // (Lower over the ears and at the nape than it was: a high, level edge there read as the rim
+  // of a helmet.)
+  [0, 0.6], [0.3, 0.52], [0.6, 0.4], [0.85, 0.33], [1.2, 0.22], [1.5, 0.13], [1.8, 0.08], [2.3, -0.2], [2.8, -0.42], [Math.PI, -0.47],
 ];
 
 function hairline(x: number, z: number): number {
@@ -222,7 +226,7 @@ function hairScale(x: number, y: number, z: number): number {
   const front = Math.max(0, -z);
   // The part runs from the crown to the front hairline; the hair rises on both sides of it.
   const part = Math.exp(-((x / 0.07) ** 2)) * smoothstep(0.15, -0.25, z) * top;
-  return 0.955 + t * (0.075 + 0.08 * top + 0.08 * front * top - 0.05 * part);
+  return 0.955 + t * (0.085 + 0.1 * top + 0.09 * front * top - 0.05 * part);
 }
 
 /**
@@ -236,6 +240,8 @@ function lock(
   d1: THREE.Vector3,
   width: number,
   thick: number,
+  /** How far the strand stands off the shell toward its tip (unit radius): volume, loose ends. */
+  lift = 0,
 ): THREE.BufferGeometry {
   const rows = 10;
   const seg = 6;
@@ -248,7 +254,7 @@ function lock(
     const d = t * t;
     dir.set(a * d0.x + b * c.x + d * d1.x, a * d0.y + b * c.y + d * d1.y, a * d0.z + b * c.z + d * d1.z).normalize();
     // Just above the shell, so the strands are never buried in it.
-    const s = Math.max(hairScale(dir.x, dir.y, dir.z) + 0.012, 1.04);
+    const s = Math.max(hairScale(dir.x, dir.y, dir.z) + 0.012, 1.04) + lift * Math.sin(Math.PI * Math.min(1, t * 0.75)) ** 1.2;
     centers.push(headPoint(dir.x, dir.y, dir.z, new THREE.Vector3()).multiplyScalar(s));
   }
   const pos: number[] = [];
@@ -316,42 +322,59 @@ const v3 = (x: number, y: number, z: number): THREE.Vector3 => new THREE.Vector3
 function hairLocks(hair: GeoBuilder, rng: Rng): void {
   const jit = (a: number): number => (rng() - 0.5) * 2 * a;
   const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
+  // Many rounder locks in layers, each lifted off the scalp toward its end: the hair has
+  // volume and loose, separate tips (few flat ones read as a carved helmet).
+  const add = (d0: THREE.Vector3, c: THREE.Vector3, d1: THREE.Vector3, w: number, th: number, lift: number): void =>
+    hair.add(lock(d0, c, d1, w, th, lift), C.hair);
   for (const s of [-1, 1]) {
-    // Curtain: roots along the front half of the part; the front ones arch over the forehead.
-    for (let i = 0; i <= 9; i++) {
-      const t = i / 9;
-      const d0 = v3(s * (0.03 + jit(0.01)), lerp(0.97, 0.66, t), lerp(-0.15, -0.74, t));
-      const d1 = v3(s * lerp(0.92, 0.66 + jit(0.03), t), lerp(0.48, 0.2, t) + jit(0.03), lerp(-0.2, -0.78, t));
-      // Lifted at the root, bulging forward and out, so the bangs have body.
-      const c = v3(s * lerp(0.55, 0.3, t), lerp(1.0, 0.72, t), lerp(-0.4, -1.05, t));
-      hair.add(lock(d0, c, d1, 0.013 + rng() * 0.004, 0.007), C.hair);
+    // Curtain: roots along the front half of the part, arching over the forehead and out to
+    // the temples, two layers (the outer one fuller and more lifted).
+    for (let layer = 0; layer < 2; layer++) {
+      const n = layer === 0 ? 14 : 10;
+      for (let i = 0; i < n; i++) {
+        const t = (i + rng() * 0.6) / n;
+        const d0 = v3(s * (0.03 + jit(0.012)), lerp(0.97, 0.66, t), lerp(-0.15, -0.74, t));
+        const d1 = v3(s * lerp(0.92, 0.64 + jit(0.04), t), lerp(0.48, 0.2, t) + jit(0.04), lerp(-0.2, -0.8, t));
+        const c = v3(s * lerp(0.6, 0.34, t), lerp(1.06, 0.78, t) + layer * 0.03, lerp(-0.42, -1.1, t));
+        add(d0, c, d1, 0.012 + rng() * 0.006, 0.008 + rng() * 0.003, (layer === 0 ? 0.03 : 0.07) + rng() * 0.04);
+      }
     }
-    // Top: from the back half of the part, combed down over the side of the head.
-    for (let i = 0; i < 7; i++) {
-      const z = 0.05 + i * 0.08 + jit(0.03);
-      const d0 = v3(s * 0.03, 0.99, z);
-      const d1 = v3(s * 0.95, 0.45 + jit(0.05), z * 0.9);
-      const c = v3(s * 0.65, 1.0, z);
-      hair.add(lock(d0, c, d1, 0.014 + rng() * 0.004, 0.006), C.hair);
+    // Top: from the back half of the part, combed over the side, with body.
+    for (let i = 0; i < 12; i++) {
+      const z = 0.0 + i * 0.05 + jit(0.025);
+      const d0 = v3(s * (0.03 + jit(0.01)), 0.99, z);
+      const d1 = v3(s * (0.95 + jit(0.03)), 0.42 + jit(0.06), z * 0.9 + jit(0.04));
+      const c = v3(s * 0.66, 1.06 + jit(0.03), z);
+      add(d0, c, d1, 0.014 + rng() * 0.006, 0.008 + rng() * 0.003, 0.04 + rng() * 0.05);
+    }
+    // Sides: shorter, combed back and down over the ears.
+    for (let i = 0; i < 9; i++) {
+      const z = -0.4 + i * 0.12 + jit(0.03);
+      const d0 = v3(s * 0.62, 0.8 + jit(0.03), z);
+      const d1 = v3(s, 0.12 + jit(0.06) - 0.12 * Math.max(0, z), z + 0.22);
+      const c = v3(s * 0.96, 0.6, z + 0.08);
+      add(d0, c, d1, 0.012 + rng() * 0.004, 0.007 + rng() * 0.002, 0.03 + rng() * 0.04);
     }
   }
-  // Back: from the crown down toward the nape.
-  for (let i = 0; i < 10; i++) {
-    const a = -1.2 + (2.4 * i) / 9 + jit(0.06);
-    const d0 = v3(Math.sin(a) * 0.5, 0.85, Math.cos(a) * 0.5);
-    const d1 = v3(Math.sin(a) * 0.95, 0.12 + jit(0.08), Math.cos(a) * 0.95);
-    const c = v3((d0.x + d1.x) / 2, 0.6, (d0.z + d1.z) / 2 + 0.15);
-    hair.add(lock(d0, c, d1, 0.014 + rng() * 0.004, 0.005), C.hair);
-  }
-  // Sides: short, combed back and down over the undercut.
-  for (const s of [-1, 1]) {
-    for (let i = 0; i < 5; i++) {
-      const z = -0.35 + i * 0.2;
-      const d0 = v3(s * 0.6, 0.78, z);
-      const d1 = v3(s, 0.4 + jit(0.04), z + 0.2);
-      const c = v3(s * 0.9, 0.68, z + 0.08);
-      hair.add(lock(d0, c, d1, 0.012 + rng() * 0.003, 0.005), C.hair);
+  // Back: crown to nape, two layers, the tips curling out a little.
+  for (let layer = 0; layer < 2; layer++) {
+    const n = layer === 0 ? 16 : 12;
+    for (let i = 0; i < n; i++) {
+      const a = -1.3 + (2.6 * (i + rng() * 0.5)) / n;
+      const d0 = v3(Math.sin(a) * 0.45, 0.88, Math.cos(a) * 0.45);
+      // Down to the nape (lower in the middle), the ends flicking out a little.
+      const d1 = v3(Math.sin(a) * 0.96, -0.32 + 0.25 * Math.abs(Math.sin(a)) + jit(0.07) + layer * 0.08, Math.cos(a) * 0.96);
+      const c = v3((d0.x + d1.x) / 2, 0.5, (d0.z + d1.z) / 2 + 0.2);
+      add(d0, c, d1, 0.014 + rng() * 0.006, 0.007 + rng() * 0.003, (layer === 0 ? 0.03 : 0.07) + rng() * 0.04);
     }
+  }
+  // Crown whorl: a few short locks spiralling out, so the top isn't a plain dome.
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const d0 = v3(0.04 * Math.cos(a), 1, 0.25 + 0.04 * Math.sin(a));
+    const d1 = v3(0.45 * Math.cos(a + 0.6), 0.86, 0.25 + 0.45 * Math.sin(a + 0.6));
+    const c = v3(0.3 * Math.cos(a + 0.3), 1.04, 0.25 + 0.3 * Math.sin(a + 0.3));
+    add(d0, c, d1, 0.013 + rng() * 0.004, 0.007, 0.05 + rng() * 0.03);
   }
 }
 
@@ -370,6 +393,8 @@ interface HeadParts {
   skin: GeoBuilder;
   gloss: GeoBuilder;
   hair: GeoBuilder;
+  /** The locks (they sway a little: weighted to the hair's bone). */
+  locks: GeoBuilder;
   /** Eye centers (head space), for the blinking lids and the eyes' bones. */
   eyes: THREE.Vector3[];
 }
@@ -519,7 +544,7 @@ function buildHead(p: HeadParts, rng: Rng): THREE.BufferGeometry {
     }),
     C.hair,
   );
-  hairLocks(p.hair, rng);
+  hairLocks(p.locks, rng);
   return paintedHead();
 }
 
@@ -1392,6 +1417,11 @@ export class Avatar {
   private readonly torso = new THREE.Bone();
   private readonly head = new THREE.Bone();
   private readonly lids: THREE.Object3D[] = [];
+  /** The crown's bone the locks hang from, and its spring (rotation x, z and their speeds). */
+  private readonly hairBone = new THREE.Bone();
+  private readonly hairSwing = { x: 0, z: 0, vx: 0, vz: 0 };
+  private readonly headPrev = new THREE.Vector3(Number.NaN, 0, 0);
+  private readonly headVel = new THREE.Vector3();
   /** The eyes' bones (left, right): turned to look at something. */
   private readonly eyeBones: THREE.Bone[] = [];
   private readonly shoulders: THREE.Bone[] = [];
@@ -1514,6 +1544,9 @@ export class Avatar {
       this.knees.push(knee);
       this.ankles.push(ankle);
     }
+    // Hair: a bone at the crown that the locks partly follow (it swings on a spring).
+    this.hairBone.position.set(0, 0.1, 0);
+    this.head.add(this.hairBone);
     // Eyes: a bone each at the eye's centre (head space), so the irises can look about.
     for (const s of [-1, 1]) {
       const e = eyeCenter(s);
@@ -1581,12 +1614,21 @@ export class Avatar {
     const headSkin = new GeoBuilder(rng, 0);
     const headGloss = new GeoBuilder(rng, 0);
     const headHair = new GeoBuilder(rng, 0);
+    // Each lock a touch lighter or darker than the next: depth, like real hair.
+    const headLocks = new GeoBuilder(rng, 0.16);
     const eyes: THREE.Vector3[] = [];
-    const face = buildHead({ skin: headSkin, gloss: headGloss, hair: headHair, eyes }, rng);
+    const face = buildHead({ skin: headSkin, gloss: headGloss, hair: headHair, locks: headLocks, eyes }, rng);
     skin.add(face, null, this.head);
     skin.add(headSkin.build(), null, this.head);
     gloss.add(headGloss.build(), null, this.head);
     hairB.add(headHair.build(), null, this.head);
+    // The locks hang from the crown: the lower they reach, the more they follow the hair's
+    // bone (a spring, see moveHair), so the fringe and the ends bounce while the roots stay.
+    const hb = this.hairBone;
+    hairB.add(headLocks.build(), null, this.head, (_x, y) => {
+      const w = 0.75 * smoothstep(0.1, -0.02, y - hb.position.y + 0.1);
+      return [[this.head, 1 - w], [hb, w]];
+    });
     // Iris (with a darker rim), pupil and two catch lights on each eye's bone: they turn with it.
     for (const eye of this.eyeBones) {
       const front = -EYE.rz;
@@ -2001,6 +2043,42 @@ export class Avatar {
     }
   }
 
+  /**
+   * The locks swing on a damped spring driven by the head's acceleration (in the head's own
+   * frame): they lag when you start, fly forward a little when you stop, bounce with each
+   * running step, and stir slowly in a breeze. A small mass-spring like a suspension, two axes.
+   */
+  private moveHair(dt: number): void {
+    if (dt <= 0) return;
+    const p = this.head.getWorldPosition(tmpLook);
+    const sw = this.hairSwing;
+    if (Number.isNaN(this.headPrev.x) || p.distanceTo(this.headPrev) > 1) {
+      // First frame, or a jump (fade-through to the kayak, the board): no kick.
+      this.headPrev.copy(p);
+      this.headVel.set(0, 0, 0);
+      return;
+    }
+    const vx = (p.x - this.headPrev.x) / dt;
+    const vy = (p.y - this.headPrev.y) / dt;
+    const vz = (p.z - this.headPrev.z) / dt;
+    // Acceleration into the head's frame (world → head: inverse of its world rotation).
+    const acc = tmpLook2.set((vx - this.headVel.x) / dt, (vy - this.headVel.y) / dt, (vz - this.headVel.z) / dt);
+    this.headVel.set(vx, vy, vz);
+    this.headPrev.copy(p);
+    acc.applyQuaternion(this.head.getWorldQuaternion(tmpHairQ).invert());
+    // Spring toward the deflection the acceleration asks for (clamped), plus a slow stir.
+    const stir = 0.02 * Math.sin(this.time * 1.3) + 0.012 * Math.sin(this.time * 2.9 + 1);
+    const tx = clamp(acc.z * 0.006 - acc.y * 0.004, -0.3, 0.3);
+    const tz = clamp(-acc.x * 0.006, -0.25, 0.25) + stir;
+    const k = 90;
+    const c = 9;
+    sw.vx += (k * (tx - sw.x) - c * sw.vx) * dt;
+    sw.vz += (k * (tz - sw.z) - c * sw.vz) * dt;
+    sw.x = clamp(sw.x + sw.vx * dt, -0.3, 0.3);
+    sw.z = clamp(sw.z + sw.vz * dt, -0.25, 0.25);
+    this.hairBone.rotation.set(sw.x, 0, sw.z);
+  }
+
   /** Where the eyes look (world), or null for glancing about. */
   lookAt(target: THREE.Vector3 | null): void {
     this.looking = target !== null;
@@ -2030,6 +2108,7 @@ export class Avatar {
     const lid = Math.max(0.12 + 0.88 * Math.max(0, closed), 0.12 + 0.36 * this.joyW);
     for (const h of this.lids) h.scale.y = lid;
     this.moveEyes(dt);
+    this.moveHair(dt);
 
   }
 
