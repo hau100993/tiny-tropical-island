@@ -27,20 +27,24 @@ import type { SharedUniforms } from '../core/uniforms';
  * wrists, hips → knees → ankles). Arms and legs are each ONE continuous skin whose vertices
  * near a joint are weighted between the two bones, so the GPU bends the knee and elbow smoothly
  * (no rigid, toy-like segments). JS only sets ~25 joint angles per frame from a gait cycle
- * (heel strike, knee give, push-off, knee fold in the swing). Three draw calls (skin, cloth,
- * hair/eyes, sharing one skeleton) plus the two eyelids.
+ * (heel strike, knee give, push-off, knee fold in the swing). Two more bones carry the eyes
+ * (they look at the camera or glance about). Four draw calls (skin, cloth, eyes and details,
+ * hair; one skeleton) plus the two eyelids.
  *
  * The model faces −Z, the same convention as the camera, so `rotation.y = yaw` turns it to
  * face along the camera's forward direction for that yaw.
  */
 
 const C = {
-  skin: '#f1cdb2',
-  lip: '#c27a6e',
-  blush: '#efbfae',
-  hair: '#1b1512',
-  sclera: '#f4f1ec',
-  iris: '#4a3222',
+  skin: '#f2cdb0',
+  lip: '#c97a6c',
+  smile: '#a45a50',
+  blush: '#f2a99a',
+  brow: '#2e2019',
+  hair: '#2a1c15',
+  sclera: '#f6f3ee',
+  iris: '#5a3a24',
+  limbal: '#24160e',
   pupil: '#0f0b09',
   shirt: '#d6eaee',
   shirtDark: '#b9d2d9',
@@ -63,6 +67,7 @@ const tmpE = new THREE.Euler();
 const tmpP = new THREE.Vector3();
 const tmpS = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
+const tmpLook = new THREE.Vector3();
 
 /** Moves/rotates/scales a fresh geometry (normals follow, so smooth shading stays correct). */
 function place(
@@ -170,13 +175,14 @@ function headPoint(dx: number, dy: number, dz: number, out: THREE.Vector3): THRE
   let z = dz / l;
   const f = Math.max(0, -z) ** 2;
   let r = 1;
-  r += f * 0.13 * gauss(x, y, 0, -0.12, 0.07, 0.17); // nose bridge
-  r += f * 0.07 * gauss(x, y, 0, -0.27, 0.1, 0.07); // nose tip
-  r += f * 0.03 * (gauss(x, y, 0.32, 0.2, 0.2, 0.07) + gauss(x, y, -0.32, 0.2, 0.2, 0.07)); // brow ridge
-  r -= f * 0.05 * (gauss(x, y, 0.38, 0.05, 0.13, 0.09) + gauss(x, y, -0.38, 0.05, 0.13, 0.09)); // eye sockets
-  r += f * 0.03 * (gauss(x, y, 0.5, -0.17, 0.14, 0.12) + gauss(x, y, -0.5, -0.17, 0.14, 0.12)); // cheekbones
-  r += f * 0.035 * gauss(x, y, 0, -0.5, 0.26, 0.15); // mouth
-  r += f * 0.05 * gauss(x, y, 0, -0.8, 0.2, 0.12); // chin
+  // A short, soft nose (a long bridge read as a beak), rounder cheeks, a gentle chin.
+  r += f * 0.065 * gauss(x, y, 0, -0.1, 0.06, 0.12); // nose bridge
+  r += f * 0.07 * gauss(x, y, 0, -0.22, 0.085, 0.065); // nose tip
+  r += f * 0.02 * (gauss(x, y, 0.32, 0.22, 0.2, 0.07) + gauss(x, y, -0.32, 0.22, 0.2, 0.07)); // brow ridge
+  r -= f * 0.035 * (gauss(x, y, 0.38, 0.05, 0.13, 0.09) + gauss(x, y, -0.38, 0.05, 0.13, 0.09)); // eye sockets
+  r += f * 0.045 * (gauss(x, y, 0.48, -0.2, 0.17, 0.14) + gauss(x, y, -0.48, -0.2, 0.17, 0.14)); // cheeks
+  r += f * 0.03 * gauss(x, y, 0, -0.48, 0.24, 0.13); // mouth
+  r += f * 0.03 * gauss(x, y, 0, -0.8, 0.2, 0.12); // chin
   x *= r;
   y *= r;
   z *= r;
@@ -184,7 +190,7 @@ function headPoint(dx: number, dy: number, dz: number, out: THREE.Vector3): THRE
   const low = smoothstep(0.15, -0.95, y);
   // Jaw angle: the lower sides stay a little fuller toward the back, under the ears.
   const jaw = smoothstep(-0.25, -0.6, y) * smoothstep(-0.95, -0.7, y) * smoothstep(-0.7, -0.1, z) * smoothstep(0.5, 0.1, z);
-  x *= 1 - 0.18 * low + 0.07 * jaw;
+  x *= 1 - 0.12 * low + 0.07 * jaw;
   z *= z > 0 ? 1.1 - 0.2 * low : 0.96 - 0.06 * low;
   return out.set(x * HEAD.w, y * HEAD.h, z * HEAD.d);
 }
@@ -352,64 +358,169 @@ function hairLocks(hair: GeoBuilder, rng: Rng): void {
 /** Where the eyes sit (head space): unit-sphere direction x, y. */
 const EYE_X = 0.38;
 const EYE_Y = 0.05;
-const EYE = { rx: 0.0135, ry: 0.0095, rz: 0.006 } as const;
+const EYE = { rx: 0.0152, ry: 0.0112, rz: 0.0066 } as const;
+
+/** Centre of the eye on side `s` (−1 left, +1 right), in head space. */
+function eyeCenter(s: number): THREE.Vector3 {
+  const q = headPoint(s * EYE_X, EYE_Y, -1, new THREE.Vector3());
+  return q.setZ(q.z + 0.0035);
+}
 
 interface HeadParts {
   skin: GeoBuilder;
   gloss: GeoBuilder;
-  /** Eye centers (head space), for the blinking lids. */
+  hair: GeoBuilder;
+  /** Eye centers (head space), for the blinking lids and the eyes' bones. */
   eyes: THREE.Vector3[];
 }
 
-function buildHead(p: HeadParts, rng: Rng): void {
+/** Front-of-face direction for (x, y) on the unit sphere (z toward −Z). */
+function faceDir(x: number, y: number, out: THREE.Vector3): THREE.Vector3 {
+  return out.set(x, y, -Math.sqrt(Math.max(0, 1 - x * x - y * y)));
+}
+
+/**
+ * A thin strip lying on the face (brows, the smile): a centreline of unit-sphere (x, y) points
+ * on the front of the head, `width(t)` metres wide along it, `lift` metres off the skin. Painted
+ * on like this it stays crisp and never floats (separate little shapes showed gaps and edges).
+ */
+function faceStrip(path: readonly (readonly [number, number])[], width: (t: number) => number, lift: number): THREE.BufferGeometry {
+  const n = 24;
+  const pos: number[] = [];
+  const index: number[] = [];
+  const d = new THREE.Vector3();
+  const p = new THREE.Vector3();
   const q = new THREE.Vector3();
-  p.skin.add(sculpt(48, 36, (v) => headPoint(v.x, v.y, v.z, v)), C.skin);
+  const tangent = new THREE.Vector3();
+  const normal = new THREE.Vector3();
+  const side = new THREE.Vector3();
+  const at = (t: number): [number, number] => {
+    const f = t * (path.length - 1);
+    const i = Math.min(path.length - 2, Math.floor(f));
+    const k = f - i;
+    return [path[i][0] + (path[i + 1][0] - path[i][0]) * k, path[i][1] + (path[i + 1][1] - path[i][1]) * k];
+  };
+  for (let j = 0; j <= n; j++) {
+    const t = j / n;
+    const [x, y] = at(t);
+    headPoint(...faceDir(x, y, d).toArray(), p);
+    const [x2, y2] = at(Math.min(1, t + 0.01));
+    const [x0, y0] = at(Math.max(0, t - 0.01));
+    headPoint(...faceDir(x2, y2, d).toArray(), q);
+    tangent.copy(q);
+    headPoint(...faceDir(x0, y0, d).toArray(), q);
+    tangent.sub(q).normalize();
+    normal.copy(p).normalize();
+    side.crossVectors(tangent, normal).normalize();
+    const w = width(t) / 2;
+    for (const s of [-1, 1]) pos.push(p.x + side.x * w * s + normal.x * lift, p.y + side.y * w * s + normal.y * lift, p.z + side.z * w * s + normal.z * lift);
+  }
+  for (let j = 0; j < n; j++) {
+    const a = j * 2;
+    index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(index);
+  g.computeVertexNormals();
+  // Facing out of the face (−Z), or it is culled.
+  if (g.getAttribute('normal').getZ(n) > 0) {
+    for (let i = 0; i < index.length; i += 3) [index[i + 1], index[i + 2]] = [index[i + 2], index[i + 1]];
+    g.setIndex(index);
+    g.computeVertexNormals();
+  }
+  return g;
+}
+
+/**
+ * The head's skin with its colouring painted per vertex: soft blush on the cheeks, a warmer
+ * nose tip and ears, a rosy lower lip. (Painted, not modelled: the old blush discs stuck out of
+ * the cheeks as two pink points.)
+ */
+function paintedHead(): THREE.BufferGeometry {
+  const g = sculpt(80, 60, (v) => headPoint(v.x, v.y, v.z, v));
+  const pos = g.getAttribute('position');
+  const colors = new Float32Array(pos.count * 3);
+  const base = new THREE.Color(C.skin);
+  const blush = new THREE.Color(C.blush);
+  const lip = new THREE.Color(C.lip);
+  const c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    // Back to (roughly) the unit-sphere direction it came from.
+    const x = pos.getX(i) / HEAD.w;
+    const y = pos.getY(i) / HEAD.h;
+    const z = pos.getZ(i) / HEAD.d;
+    const l = Math.hypot(x, y, z) || 1;
+    const ux = x / l;
+    const uy = y / l;
+    const front = Math.max(0, -z / l);
+    c.copy(base);
+    const cheeks = front * (gauss(ux, uy, 0.47, -0.25, 0.14, 0.1) + gauss(ux, uy, -0.47, -0.25, 0.14, 0.1));
+    c.lerp(blush, Math.min(0.55, cheeks * 0.6));
+    c.lerp(blush, Math.min(0.3, front * gauss(ux, uy, 0, -0.24, 0.07, 0.06) * 0.35));
+    // Lower lip, under the smile line.
+    c.lerp(lip, Math.min(0.8, front * gauss(ux, uy, 0, -0.545, 0.1, 0.028) * 0.9));
+    // Ears a touch warmer (light through them).
+    c.lerp(blush, Math.min(0.25, gauss(Math.abs(ux), uy, 1, -0.04, 0.12, 0.2) * 0.3));
+    colors.set([c.r, c.g, c.b], i * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  return g;
+}
+
+/** The head's own pieces. Returns the painted skin (added by the caller with its colours). */
+function buildHead(p: HeadParts, rng: Rng): THREE.BufferGeometry {
+  const q = new THREE.Vector3();
   for (const s of [-1, 1]) {
-    // Eye in its socket: white, iris, pupil, a catch light, a lash line along the top.
+    // Eye in its socket: the white here; iris, pupil and catch lights go on the eye's bone (they
+    // look about), see Avatar. A fine lash line along the upper lid.
     headPoint(s * EYE_X, EYE_Y, -1, q);
     const ex = q.x;
     const ey = q.y;
     const ez = q.z + 0.0035;
     p.eyes.push(new THREE.Vector3(ex, ey, ez));
-    p.gloss.add(place(ball(1, 16, 12), ex, ey, ez, 0, 0, 0, EYE.rx, EYE.ry, EYE.rz), C.sclera);
+    p.gloss.add(place(ball(1, 18, 14), ex, ey, ez, 0, 0, 0, EYE.rx, EYE.ry, EYE.rz), C.sclera);
     const front = ez - EYE.rz;
-    p.gloss.add(place(ball(1, 14, 8), ex - s * 0.0008, ey - 0.0004, front + 0.0006, 0, 0, 0, 0.0074, 0.0078, 0.0016), C.iris);
-    p.gloss.add(place(ball(1, 10, 6), ex - s * 0.0008, ey - 0.0004, front + 0.0001, 0, 0, 0, 0.0036, 0.0038, 0.0012), C.pupil);
-    p.gloss.add(place(ball(0.0017, 6, 4), ex - s * 0.0008 + 0.0025, ey + 0.0026, front - 0.0006), C.sclera);
     p.gloss.add(
-      place(new THREE.TorusGeometry(EYE.rx * 0.98, 0.0011, 4, 16, Math.PI), ex, ey + 0.0008, front + 0.0022, 0, 0, 0, 1, 0.95, 1),
-      C.hair,
+      place(new THREE.TorusGeometry(EYE.rx * 0.96, 0.0008, 4, 20, Math.PI * 0.9), ex, ey + 0.0004, front + 0.0026, 0, 0, Math.PI * 0.05, 1, 0.93, 1),
+      C.brow,
     );
-    // Brows: slightly arched, following the brow ridge back toward the temples.
-    headPoint(s * 0.38, 0.27, -1, q);
-    p.gloss.add(place(new THREE.CapsuleGeometry(0.0027, 0.022, 3, 8), q.x, q.y, q.z - 0.0015, 0, s * 0.35, Math.PI / 2 - s * 0.12), C.hair);
-    // Soft blush on the cheeks.
-    headPoint(s * 0.5, -0.25, -1, q);
-    p.skin.add(place(ball(1, 10, 8), q.x, q.y, q.z + 0.003, 0, s * 0.5, 0, 0.012, 0.007, 0.002), C.blush);
+    // Brows painted on the skin: thicker at the inner end, tapering out over the temple, a
+    // gentle arch.
+    const brow: [number, number][] = [];
+    for (let k = 0; k <= 8; k++) {
+      const t = k / 8;
+      brow.push([s * (0.17 + 0.42 * t), 0.235 + 0.05 * Math.sin(Math.PI * Math.min(1, t * 1.25)) - 0.035 * t]);
+    }
+    p.gloss.add(faceStrip(brow, (t) => 0.0048 * (1 - 0.6 * t) + 0.0008, 0.0009), C.brow);
     // Ear: a flat shell with a rolled rim, angled back.
     headPoint(s, -0.04, 0.12, q);
     const ax = q.x + s * 0.002;
     p.skin.add(place(ball(1, 12, 10), ax, q.y, q.z, 0, s * 0.3, 0, 0.007, 0.029, 0.018), C.skin);
     p.skin.add(place(new THREE.TorusGeometry(0.016, 0.0038, 6, 18, Math.PI * 1.45), ax + s * 0.002, q.y + 0.001, q.z, 0, Math.PI / 2 + s * 0.3, 0.2, 1, 1.55, 1), C.skin);
   }
-  // A small, warm smile and a hint of the lower lip.
-  headPoint(0, -0.5, -1, q);
-  p.skin.add(place(new THREE.TorusGeometry(0.014, 0.0019, 5, 16, Math.PI), q.x, q.y + 0.003, q.z - 0.0008, 0, 0, Math.PI, 1, 0.45, 1), C.lip);
-  p.skin.add(place(ball(1, 12, 8), q.x, q.y - 0.006, q.z + 0.0012, 0, 0, 0, 0.009, 0.0032, 0.0035), C.lip);
-  // Nostrils.
-  for (const s of [-1, 1]) {
-    headPoint(s * 0.08, -0.31, -1, q);
-    p.skin.add(place(ball(1, 8, 6), q.x, q.y, q.z + 0.004, 0.4, 0, 0, 0.0035, 0.002, 0.003), '#b48a76');
+  // A small, warm smile: a fine line, its corners lifted, dimpled in at each end.
+  const smile: [number, number][] = [];
+  for (let k = 0; k <= 10; k++) {
+    const x = -0.17 + (0.34 * k) / 10;
+    smile.push([x, -0.5 + 0.9 * x * x]);
   }
-  // Hair: shell grown from the scalp, then the locks on top.
-  p.gloss.add(
+  p.gloss.add(faceStrip(smile, (t) => 0.0016 * Math.sin(Math.PI * t) + 0.0006, 0.0008), C.smile);
+  // Nostrils: two faint shadows under the tip.
+  for (const s of [-1, 1]) {
+    headPoint(s * 0.07, -0.28, -1, q);
+    p.skin.add(place(ball(1, 8, 6), q.x, q.y, q.z + 0.0035, 0.4, 0, 0, 0.0028, 0.0016, 0.0024), '#c9978a');
+  }
+  // Hair: shell grown from the scalp, then the locks on top (their own, softer material).
+  p.hair.add(
     sculpt(72, 56, (v) => {
       const k = hairScale(v.x, v.y, v.z);
       headPoint(v.x, v.y, v.z, v).multiplyScalar(k);
     }),
     C.hair,
   );
-  hairLocks(p.gloss, rng);
+  hairLocks(p.hair, rng);
+  return paintedHead();
 }
 
 // ---------------------------------------------------------------------------------------
@@ -417,8 +528,9 @@ function buildHead(p: HeadParts, rng: Rng): void {
 
 /** Shirt cross-sections (torso space: 0 = 6 cm above the hips; 0.455 = base of the neck). */
 const TORSO: readonly Ring[] = [
-  [-0.07, 0.146, 0.106, 0.11],
-  [-0.04, 0.142, 0.102, 0.105],
+  // The hem stands a little off the shorts, so bending forward never pushes them through it.
+  [-0.07, 0.152, 0.113, 0.116],
+  [-0.04, 0.147, 0.107, 0.109],
   [0.0, 0.135, 0.096, 0.096],
   [0.05, 0.13, 0.092, 0.09],
   [0.15, 0.136, 0.098, 0.09],
@@ -501,12 +613,12 @@ function buildHand(skin: GeoBuilder, s: number): void {
   // Fingers (index at the front, −Z), each in two segments, curling toward the palm (−s·X).
   const lengths = [0.044, 0.05, 0.047, 0.037];
   for (let k = 0; k < 4; k++) {
-    const z = -0.027 + k * 0.018;
+    const z = -0.024 + k * 0.016;
     const r = 0.0082 - k * 0.0006;
     const L = lengths[k];
     // A relaxed hand: fingers only a little curled (more looked like claws, swimming).
-    const a1 = 0.16;
-    const a2 = 0.45;
+    const a1 = 0.24;
+    const a2 = 0.6;
     const x1 = -s * Math.sin(a1) * L * 0.5;
     const y1 = -0.082 - Math.cos(a1) * L * 0.5;
     const x2 = x1 - s * Math.sin(a2) * L * 0.55;
@@ -633,13 +745,13 @@ const BEND: readonly Ring[] = [
 ];
 /** The foot ahead of the bend: z (−Z forward), half-width, top's height above the sole. */
 const FOOT: readonly Ring[] = [
-  [-BEND_R, 0.04, 0.064, 0],
-  [-0.098, 0.046, 0.049, 0],
-  [-0.124, 0.047, 0.034, 0],
-  [-0.15, 0.045, 0.025, 0],
-  [-0.166, 0.041, 0.02, 0],
-  [-0.177, 0.031, 0.015, 0],
-  [-0.184, 0.012, 0.009, 0],
+  [-BEND_R, 0.038, 0.062, 0],
+  [-0.098, 0.042, 0.048, 0],
+  [-0.124, 0.043, 0.033, 0],
+  [-0.15, 0.041, 0.024, 0],
+  [-0.166, 0.037, 0.019, 0],
+  [-0.177, 0.028, 0.014, 0],
+  [-0.184, 0.011, 0.008, 0],
 ];
 
 /**
@@ -700,7 +812,7 @@ function legGeometry(s: number): THREE.BufferGeometry {
     section(cy, cz, Math.sin(phi), -Math.cos(phi), a, f, b, smoothstep(30, 80, deg));
   }
   // ---- Along the foot ----
-  const toeX = [-0.0215, -0.0045, 0.0065, 0.017, 0.0275].map((t) => s * t);
+  const toeX = [-0.0195, -0.004, 0.006, 0.0155, 0.025].map((t) => s * t);
   const toeLen = [1, 0.8, 0.65, 0.5, 0.35];
   const gaps = toeX.slice(1).map((t, k) => (t + toeX[k]) / 2);
   for (const [z0, w, h] of rings(FOOT, 0.008).slice(1)) {
@@ -1280,6 +1392,8 @@ export class Avatar {
   private readonly torso = new THREE.Bone();
   private readonly head = new THREE.Bone();
   private readonly lids: THREE.Object3D[] = [];
+  /** The eyes' bones (left, right): turned to look at something. */
+  private readonly eyeBones: THREE.Bone[] = [];
   private readonly shoulders: THREE.Bone[] = [];
   private readonly elbows: THREE.Bone[] = [];
   private readonly wrists: THREE.Bone[] = [];
@@ -1322,6 +1436,14 @@ export class Avatar {
   private readonly ownMeshes: THREE.Object3D[] = [];
   /** Seconds until the next blink; negative while the eyes are closing/opening. */
   private blink = 2;
+  /** Happy squint: seconds left, and its eased weight. */
+  private joy = 0;
+  private joyW = 0;
+  /** What the eyes look at (see lookAt), and the idle glance (yaw, pitch) and when it next moves. */
+  private looking = false;
+  private readonly lookTarget = new THREE.Vector3();
+  private readonly glance = new THREE.Vector2();
+  private glanceIn = 1;
 
   constructor(
     shared: SharedUniforms,
@@ -1330,15 +1452,32 @@ export class Avatar {
   ) {
     // Three materials: matte cloth, soft skin, glossier hair and eyes. All get wet (own wetness,
     // see `wetness`) and cloud shadows like the rest of the world.
-    const skinMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.58 });
+    // Skin: a soft warm sheen at grazing angles stands in for light scattering under the skin
+    // (the edge of a cheek or an ear glows a little reddish instead of going grey).
+    const skinMat = new THREE.MeshPhysicalMaterial({
+      vertexColors: true,
+      roughness: 0.55,
+      sheen: 0.5,
+      sheenRoughness: 0.75,
+      sheenColor: new THREE.Color('#ff9f86'),
+    });
     const clothMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 });
     const glossMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.38 });
+    // Hair: soft, not plastic (glossy, its locks showed as bright stripes).
+    const hairMat = new THREE.MeshPhysicalMaterial({
+      vertexColors: true,
+      roughness: 0.62,
+      sheen: 0.6,
+      sheenRoughness: 0.45,
+      sheenColor: new THREE.Color('#8a6a55'),
+    });
     const own: SharedUniforms = { ...shared, uWetness: this.wetness };
     // Wet cotton and hair darken a lot (porosity > 1: about half as bright soaked); skin mostly
     // just turns glossy.
     patchWorldMaterial(skinMat, { wet: true, porosity: 0.3 }, own);
     patchWorldMaterial(clothMat, { wet: true, porosity: 1.5 }, own);
     patchWorldMaterial(glossMat, { wet: true, porosity: 1.2 }, own);
+    patchWorldMaterial(hairMat, { wet: true, porosity: 1.2 }, own);
     const rng = createRng(77);
 
     // ---- Skeleton (rest pose: standing straight, arms down) ----
@@ -1375,6 +1514,14 @@ export class Avatar {
       this.knees.push(knee);
       this.ankles.push(ankle);
     }
+    // Eyes: a bone each at the eye's centre (head space), so the irises can look about.
+    for (const s of [-1, 1]) {
+      const e = eyeCenter(s);
+      const eye = new THREE.Bone();
+      eye.position.copy(e);
+      this.head.add(eye);
+      this.eyeBones.push(eye);
+    }
     const bones: THREE.Bone[] = [];
     this.hips.traverse((o) => {
       if (o instanceof THREE.Bone) bones.push(o);
@@ -1383,12 +1530,13 @@ export class Avatar {
     const skin = new SkinBuilder(bones);
     const cloth = new SkinBuilder(bones);
     const gloss = new SkinBuilder(bones);
+    const hairB = new SkinBuilder(bones);
     const T = this.torso;
     const H = this.hips;
 
     // ---- Pelvis: board shorts seat (follows the hips) ----
     cloth.add(
-      tube([[-0.16, 0.05, 0.04, 0.05], [-0.12, 0.125, 0.09, 0.105], [-0.06, 0.142, 0.095, 0.11], [0.0, 0.142, 0.094, 0.1], [0.06, 0.134, 0.09, 0.092]], 24, 2.2),
+      tube([[-0.16, 0.05, 0.04, 0.05], [-0.12, 0.125, 0.09, 0.105], [-0.06, 0.14, 0.094, 0.108], [0.0, 0.135, 0.088, 0.096], [0.06, 0.122, 0.08, 0.084]], 24, 2.2),
       C.shorts,
       H,
     );
@@ -1397,7 +1545,7 @@ export class Avatar {
     const hem = blendY(H, T, -0.07, 0.1);
     // (Not densified: the V neckline and placket sit on this exact outline, see torsoFront.)
     cloth.add(tube(TORSO, 32, TORSO_N), C.shirt, T, hem);
-    cloth.add(tube([[-0.072, 0.148, 0.108, 0.112], [-0.055, 0.146, 0.106, 0.11]], 32, TORSO_N), C.shirtDark, T, hem);
+    cloth.add(tube([[-0.072, 0.154, 0.115, 0.118], [-0.055, 0.151, 0.111, 0.114]], 32, TORSO_N), C.shirtDark, T, hem);
     // Open collar: skin in the V, a collar band round the back of the neck, points laid open.
     skin.add(chestPatch(0.35, 0.462, 0.046, 0.0015), C.skin, T);
     cloth.add(
@@ -1432,12 +1580,30 @@ export class Avatar {
     // ---- Head ----
     const headSkin = new GeoBuilder(rng, 0);
     const headGloss = new GeoBuilder(rng, 0);
+    const headHair = new GeoBuilder(rng, 0);
     const eyes: THREE.Vector3[] = [];
-    buildHead({ skin: headSkin, gloss: headGloss, eyes }, rng);
+    const face = buildHead({ skin: headSkin, gloss: headGloss, hair: headHair, eyes }, rng);
+    skin.add(face, null, this.head);
     skin.add(headSkin.build(), null, this.head);
     gloss.add(headGloss.build(), null, this.head);
+    hairB.add(headHair.build(), null, this.head);
+    // Iris (with a darker rim), pupil and two catch lights on each eye's bone: they turn with it.
+    for (const eye of this.eyeBones) {
+      const front = -EYE.rz;
+      gloss.add(place(ball(1, 16, 10), 0, -0.0003, front + 0.0007, 0, 0, 0, 0.0086, 0.009, 0.0016), C.iris, eye);
+      gloss.add(place(new THREE.TorusGeometry(0.0084, 0.0007, 4, 24), 0, -0.0003, front + 0.0005), C.limbal, eye);
+      gloss.add(place(ball(1, 12, 8), 0, -0.0003, front + 0.0002, 0, 0, 0, 0.0041, 0.0043, 0.0012), C.pupil, eye);
+      gloss.add(place(ball(0.0023, 8, 6), 0.0029, 0.0031, front - 0.0004), C.sclera, eye);
+      gloss.add(place(ball(0.0011, 6, 4), -0.0028, -0.0032, front - 0.0002), C.sclera, eye);
+    }
     // Eyelids: skin caps hinged at the top of each eye, squashed up while open; they blink.
     const lidGeo = new THREE.SphereGeometry(1, 14, 10);
+    // The skin material reads vertex colours: the lids need theirs (without, they came out dark,
+    // a brown line over each eye).
+    const lidColor = new THREE.Color(C.skin);
+    const lidColors = new Float32Array(lidGeo.getAttribute('position').count * 3);
+    for (let i = 0; i < lidColors.length; i += 3) lidColors.set([lidColor.r, lidColor.g, lidColor.b], i);
+    lidGeo.setAttribute('color', new THREE.BufferAttribute(lidColors, 3));
     for (const e of eyes) {
       const hinge = new THREE.Group();
       hinge.position.set(e.x, e.y + EYE.ry, e.z - 0.0006);
@@ -1461,12 +1627,14 @@ export class Avatar {
       // sloping shoulder line, then the sleeve, a little wider toward the hem (it hangs, it
       // isn't padded). The dome is weighted between the chest and the arm, so
       // it bends like a shoulder when the arm swings instead of pivoting as a separate can.
-      const sleeve = blendY(T, sh, 0.035, -0.07);
+      // (A wide sleeve weighted mostly to the chest ballooned into a lump over the shoulder
+      // when the arm rose: now slimmer, and the arm takes it from just below the seam.)
+      const sleeve = blendY(T, sh, 0.045, -0.01);
       cloth.add(
         tube(
           rings([
-            [-0.15, 0.057, 0.061, 0.059], [-0.08, 0.053, 0.057, 0.055], [-0.03, 0.05, 0.054, 0.052], [-0.005, 0.047, 0.051, 0.049],
-            [0.015, 0.041, 0.045, 0.043], [0.03, 0.031, 0.035, 0.034], [0.04, 0.018, 0.022, 0.021], [0.045, 0.006, 0.008, 0.008],
+            [-0.15, 0.052, 0.056, 0.054], [-0.08, 0.05, 0.054, 0.052], [-0.03, 0.048, 0.052, 0.05], [-0.005, 0.045, 0.049, 0.047],
+            [0.015, 0.039, 0.043, 0.041], [0.03, 0.03, 0.033, 0.032], [0.04, 0.018, 0.021, 0.02], [0.045, 0.006, 0.008, 0.008],
           ], 0.008),
           22,
         ),
@@ -1474,7 +1642,7 @@ export class Avatar {
         sh,
         sleeve,
       );
-      cloth.add(tube([[-0.155, 0.059, 0.063, 0.061], [-0.14, 0.059, 0.063, 0.061]], 20), C.shirtDark, sh);
+      cloth.add(tube([[-0.155, 0.054, 0.058, 0.056], [-0.14, 0.054, 0.058, 0.056]], 20), C.shirtDark, sh);
       const arm: Weigher = (_x, y) => {
         const e = smoothstep(-0.23, -0.31, y);
         const w = smoothstep(-0.47, -0.5, y);
@@ -1500,7 +1668,8 @@ export class Avatar {
         }
       }
       // Same wrist blend as the forearm's (here in the wrist's frame), where the two overlap.
-      skin.add(built((b) => buildHand(b, s), rng), C.skin, wr, (_x, y) => {
+      // A size smaller than before: the hands looked large for the body.
+      skin.add(built((b) => buildHand(b, s), rng).scale(0.9, 0.92, 0.88), C.skin, wr, (_x, y) => {
         const w = smoothstep(0.025, -0.005, y);
         return [[el, 1 - w], [wr, w]];
       });
@@ -1540,7 +1709,7 @@ export class Avatar {
     // its (up to four) weighted bones, so elbows and knees fold smoothly instead of the parts
     // pivoting like toy blocks.
     const skeleton = new THREE.Skeleton(bones);
-    for (const [b, m] of [[skin, skinMat], [cloth, clothMat], [gloss, glossMat]] as const) {
+    for (const [b, m] of [[skin, skinMat], [cloth, clothMat], [gloss, glossMat], [hairB, hairMat]] as const) {
       const mesh = new THREE.SkinnedMesh(b.build(), m);
       mesh.bind(skeleton);
       mesh.castShadow = true;
@@ -1699,6 +1868,10 @@ export class Avatar {
     const still = (1 - g) * (1 - pw);
     this.head.rotation.x = 0.16 * r + 0.04 * g + 0.05 * still * Math.sin(this.time * 0.23) + 0.12 * pw;
     this.head.rotation.y = 0.12 * g * Math.cos(sL) + still * 0.3 * Math.sin(this.time * 0.31) * Math.sin(this.time * 0.13 + 1);
+    // Breathing, standing still: the chest lifts a little and the shoulders with it (~15 a minute).
+    const breath = Math.sin(this.time * 1.6) * still;
+    this.torso.rotation.x -= 0.012 * breath;
+    for (const sh of this.shoulders) sh.position.y = 0.37 + 0.0025 * breath;
 
     if (falling) this.fallPose(p.fall as number);
     this.blinkEyes(dt);
@@ -1794,6 +1967,51 @@ export class Avatar {
     this.settle[i] = t < 1 ? t : -1;
   }
 
+  /**
+   * The eyes look at what `lookAt` set (the camera in the character view: it looks back at you
+   * now and then), within what eyes can turn; otherwise little glances about (saccades).
+   */
+  private moveEyes(dt: number): void {
+    this.glanceIn -= dt;
+    if (this.glanceIn <= 0) {
+      this.glanceIn = 0.8 + Math.abs(Math.sin(this.time * 7.31)) * 2.2;
+      this.glance.set(Math.sin(this.time * 3.7) * 0.2, Math.sin(this.time * 5.3) * 0.08);
+    }
+    let yaw = this.glance.x;
+    let pitch = this.glance.y;
+    if (this.looking) {
+      // Into the head's space, from between the eyes.
+      this.head.updateWorldMatrix(true, false);
+      const d = this.head.worldToLocal(tmpLook.copy(this.lookTarget));
+      d.x -= (this.eyeBones[0].position.x + this.eyeBones[1].position.x) / 2;
+      d.y -= (this.eyeBones[0].position.y + this.eyeBones[1].position.y) / 2;
+      d.z -= (this.eyeBones[0].position.z + this.eyeBones[1].position.z) / 2;
+      const ty = -Math.atan2(d.x, -d.z);
+      const tp = Math.atan2(d.y, Math.hypot(d.x, d.z));
+      // Only when it is in front: past ~60° the eyes give up and glance about.
+      if (Math.abs(ty) < 1.05) {
+        yaw = clamp(ty, -0.42, 0.42);
+        pitch = clamp(tp, -0.3, 0.25);
+      }
+    }
+    const k = Math.min(1, dt * 14);
+    for (const e of this.eyeBones) {
+      e.rotation.y += (yaw - e.rotation.y) * k;
+      e.rotation.x += (pitch - e.rotation.x) * k;
+    }
+  }
+
+  /** Where the eyes look (world), or null for glancing about. */
+  lookAt(target: THREE.Vector3 | null): void {
+    this.looking = target !== null;
+    if (target) this.lookTarget.copy(target);
+  }
+
+  /** A happy moment (a smiling squint) for `seconds`. */
+  cheer(seconds = 1.6): void {
+    this.joy = Math.max(this.joy, seconds);
+  }
+
   /** Blink every few seconds (a quick close and open). */
   private blinkEyes(dt: number): void {
     this.blink -= dt;
@@ -1805,8 +2023,13 @@ export class Avatar {
         closed = 0;
       }
     }
-    const lid = 0.12 + 0.88 * Math.max(0, closed);
+    // Happy (fed a pet, petting Mochi): the lids come down halfway, a smiling squint.
+    this.joy = Math.max(0, this.joy - dt);
+    const joyTarget = this.joy > 0 ? 1 : 0;
+    this.joyW += (joyTarget - this.joyW) * Math.min(1, dt * 8);
+    const lid = Math.max(0.12 + 0.88 * Math.max(0, closed), 0.12 + 0.36 * this.joyW);
     for (const h of this.lids) h.scale.y = lid;
+    this.moveEyes(dt);
 
   }
 
