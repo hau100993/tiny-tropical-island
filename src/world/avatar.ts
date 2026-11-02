@@ -161,7 +161,7 @@ function sculpt(widthSeg: number, heightSeg: number, fn: (v: THREE.Vector3) => v
 // Head
 
 /** Head half-size (m): width, height (crown to chin / 2), depth. */
-const HEAD = { w: 0.079, h: 0.113, d: 0.097 } as const;
+const HEAD = { w: 0.077, h: 0.113, d: 0.097 } as const;
 
 const gauss = (x: number, y: number, cx: number, cy: number, sx: number, sy: number): number =>
   Math.exp(-(((x - cx) / sx) ** 2 + ((y - cy) / sy) ** 2));
@@ -177,22 +177,24 @@ function headPoint(dx: number, dy: number, dz: number, out: THREE.Vector3): THRE
   let z = dz / l;
   const f = Math.max(0, -z) ** 2;
   let r = 1;
-  // A short, soft nose (a long bridge read as a beak), rounder cheeks, a gentle chin.
+  // A short, soft nose (a long bridge read as a beak), soft cheeks, a small pointed chin.
   r += f * 0.065 * gauss(x, y, 0, -0.1, 0.06, 0.12); // nose bridge
   r += f * 0.07 * gauss(x, y, 0, -0.22, 0.085, 0.065); // nose tip
   r += f * 0.02 * (gauss(x, y, 0.32, 0.22, 0.2, 0.07) + gauss(x, y, -0.32, 0.22, 0.2, 0.07)); // brow ridge
   r -= f * 0.035 * (gauss(x, y, 0.38, 0.05, 0.13, 0.09) + gauss(x, y, -0.38, 0.05, 0.13, 0.09)); // eye sockets
-  r += f * 0.045 * (gauss(x, y, 0.48, -0.2, 0.17, 0.14) + gauss(x, y, -0.48, -0.2, 0.17, 0.14)); // cheeks
+  r += f * 0.025 * (gauss(x, y, 0.48, -0.16, 0.16, 0.12) + gauss(x, y, -0.48, -0.16, 0.16, 0.12)); // cheeks
   r += f * 0.03 * gauss(x, y, 0, -0.48, 0.24, 0.13); // mouth
-  r += f * 0.03 * gauss(x, y, 0, -0.8, 0.2, 0.12); // chin
+  r += f * 0.04 * gauss(x, y, 0, -0.84, 0.15, 0.1); // chin: small and a little forward
   x *= r;
   y *= r;
   z *= r;
-  // Jaw narrower than the skull; fuller back of the head, flatter face.
+  // V-line: the jaw tapers from the cheekbones straight down to a narrow chin (no full angle
+  // under the ears); fuller back of the head, flatter face.
   const low = smoothstep(0.15, -0.95, y);
-  // Jaw angle: the lower sides stay a little fuller toward the back, under the ears.
-  const jaw = smoothstep(-0.25, -0.6, y) * smoothstep(-0.95, -0.7, y) * smoothstep(-0.7, -0.1, z) * smoothstep(0.5, 0.1, z);
-  x *= 1 - 0.12 * low + 0.07 * jaw;
+  // (Started at the cheekbones the taper made a corner there: it starts higher and eases in.)
+  const vline = smoothstep(0.05, -1, y) ** 1.4;
+  const jaw = smoothstep(-0.25, -0.55, y) * smoothstep(-0.8, -0.6, y) * smoothstep(-0.7, -0.1, z) * smoothstep(0.5, 0.1, z);
+  x *= 1 - 0.05 * low - 0.3 * vline + 0.02 * jaw;
   z *= z > 0 ? 1.1 - 0.2 * low : 0.96 - 0.06 * low;
   return out.set(x * HEAD.w, y * HEAD.h, z * HEAD.d);
 }

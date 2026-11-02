@@ -554,7 +554,8 @@ bangs framing the forehead, slim-fit
 pale linen shirt with an open collar, board shorts, bare feet, a bead bracelet, fair skin and a
 friendly face). The head is a sculpted sphere (jaw, cheekbones, nose, eye sockets, ears); the hair
 grows from a hairline and is made of tapered locks; chest, arms and calves have muscle shape; hands
-have fingers, feet have toes. The face (reworked 2026-11-02): a short soft nose, round cheeks
+have fingers, feet have toes. The face (reworked 2026-11-02): a slim V-line face (the jaw tapers
+smoothly from the cheekbones to a small chin), a short soft nose, soft cheeks
 with a painted blush, brows and a small smile painted on the skin (thin strips that follow it),
 large eyes with a ringed iris and two catch lights that **look at the camera** when it is in
 front of him (and glance about otherwise), and **a smiling squint** when a tomato lands on a pet
