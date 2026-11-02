@@ -16,7 +16,7 @@ export type SpeciesId =
   | 'tiger'
   | 'bee'
   | 'cloudDragon'
-  | 'kind7'
+  | 'seahorse'
   | 'kind8'
   | 'spider'
   | 'kimquy';
@@ -79,7 +79,7 @@ export const SPECIES: Readonly<Record<SpeciesId, SpeciesInfo>> = {
     element: 'fire',
     rarity: 'original',
     emoji: '🐉',
-    skills: ['Flame Breath', 'Inferno Ring', 'Meteor Storm', 'Solar Flare', 'Phoenix Dive', 'Ember Halo'],
+    skills: ['Flame Breath', 'Inferno Ring', 'Meteor Storm', 'Solar Flare', 'Phoenix Dive', 'Ring of Fire'],
     names: ['Hỏa Long', 'Than', 'Hồng', 'Đuốc', 'Ớt', 'Nắng', 'Lửa Nhỏ'],
     base: 130,
     color: 0xe0522a,
@@ -112,7 +112,7 @@ export const SPECIES: Readonly<Record<SpeciesId, SpeciesInfo>> = {
     element: 'grass',
     rarity: 'common',
     emoji: '🦌',
-    skills: ['Golden Leap', 'Fawn Breeze', 'Forest Call', 'Antler Bloom', 'Sunlit Stampede', 'Spirit of the Woods'],
+    skills: ['Golden Leap', 'Meadow Breeze', 'Forest Call', 'Antler Bloom', 'Sunlit Stampede', 'Spirit of the Woods'],
     names: ['Nắng Mai', 'Hươu Con', 'Lộc Vàng', 'Gạc Nhỏ', 'Thu', 'Rừng'],
     base: 100,
     color: 0xd9a441,
@@ -156,7 +156,7 @@ export const SPECIES: Readonly<Record<SpeciesId, SpeciesInfo>> = {
     element: 'spark',
     rarity: 'common',
     emoji: '🐝',
-    skills: ['Buzz Sting', 'Pollen Spark', 'Honey Zap', 'Swarm Dance', 'Royal Jelly', 'Thunder Hive'],
+    skills: ['Buzz Sting', 'Pollen Spark', 'Honey Zap', 'Swarm Dance', 'Honey Fountain', 'Thunder Hive'],
     names: ['Vo Ve', 'Mật', 'Vàng Ươm', 'Ong Nhí', 'Phấn Hoa', 'Chăm'],
     base: 95,
     color: 0xf5c518,
@@ -172,26 +172,27 @@ export const SPECIES: Readonly<Record<SpeciesId, SpeciesInfo>> = {
     base: 135,
     color: 0xa9b8ff,
   },
-  kind7: {
-    // Named once its model has been seen (user, 2026-10-29).
-    name: 'Thú Lạ',
-    name2: 'Thú Lạ Lớn',
+  seahorse: {
+    // Named by the user (2026-10-29); it floats a little above the ground, as if under water.
+    name: 'Cá Ngựa',
+    name2: 'Long Mã',
     element: 'water',
     rarity: 'rare',
-    emoji: '❓',
+    emoji: '🐠',
     skills: ['Splash Dash', 'Bubble Ring', 'Tide Spin', 'Wave Crown', 'Deep Pulse', 'Ocean Heart'],
-    names: ['Lạ', 'Bí Ẩn', 'Ơ Kìa', 'Hên', 'Lúm', 'Tí'],
+    names: ['San Hô', 'Xoắn', 'Rong', 'Ngọc Trai', 'Sóng Nhỏ', 'Hải Mã'],
     base: 125,
-    color: 0x4fb3d9,
+    color: 0xe0533a,
   },
   kind8: {
-    name: 'Thú Hiếm',
-    name2: 'Thú Hiếm Lớn',
+    // Named by the user (2026-10-30): a fire mongoose ("Monkroose" model).
+    name: 'Chồn Lửa',
+    name2: 'Hỏa Hồ Vương',
     element: 'fire',
     rarity: 'rare',
-    emoji: '❔',
-    skills: ['Spark Hop', 'Ember Twirl', 'Flame Burst', 'Sun Crown', 'Blaze Spiral', 'Solar Heart'],
-    names: ['Hiếm', 'Quý', 'Lửa Nhỏ', 'Tía', 'Bom', 'Xíu'],
+    emoji: '🦊',
+    skills: ['Flame Hop', 'Ember Twirl', 'Flame Burst', 'Sun Crown', 'Blaze Spiral', 'Sunfire Nova'],
+    names: ['Lửa Nhỏ', 'Tía', 'Bom', 'Xíu', 'Than Hồng', 'Đuôi Đỏ'],
     base: 125,
     color: 0xe86a4a,
   },
@@ -212,7 +213,7 @@ export const SPECIES: Readonly<Record<SpeciesId, SpeciesInfo>> = {
     element: 'water',
     rarity: 'legendary',
     emoji: '🐢',
-    skills: ['Golden Shell', 'Lake Ripple', 'Ancient Wisdom', 'Jade Wave', "Heaven's Blade", 'Thuận Thiên Light'],
+    skills: ['Golden Shell', 'Lake Ripple', 'Ancient Script', 'Jade Wave', "Heaven's Blade", 'Thuận Thiên Light'],
     names: ['Kim Quy'],
     base: 180,
     color: 0xe0b83a,
@@ -229,9 +230,9 @@ export const ORIGINALS: ReadonlyArray<{ id: string; species: SpeciesId }> = [
 ];
 
 /** The species that hatch from eggs. */
-export const EGG_SPECIES: readonly SpeciesId[] = ['deer', 'na', 'frog', 'tiger', 'bee', 'cloudDragon', 'kind7', 'kind8', 'spider', 'kimquy'];
+export const EGG_SPECIES: readonly SpeciesId[] = ['deer', 'na', 'frog', 'tiger', 'bee', 'cloudDragon', 'seahorse', 'kind8', 'spider', 'kimquy'];
 export const COMMON: readonly SpeciesId[] = ['deer', 'na', 'frog', 'bee'];
-export const RARE: readonly SpeciesId[] = ['tiger', 'cloudDragon', 'kind7', 'kind8', 'spider'];
+export const RARE: readonly SpeciesId[] = ['tiger', 'cloudDragon', 'seahorse', 'kind8', 'spider'];
 /** The legendary one: from 10-session eggs only, at this chance, and one per player. */
 export const LEGEND: SpeciesId = 'kimquy';
 export const LEGEND_CHANCE = 1 / 15;
@@ -277,7 +278,7 @@ export const MODEL_SOURCES: Readonly<Partial<Record<SpeciesId, { l1: string; l2?
   tiger: { l1: '2f54vbV0In' },
   bee: { l1: '42djT5zJnx' },
   cloudDragon: { l1: '54QyRcsogk', l2: 'Mo2ky6vkf8' },
-  kind7: { l1: '7V4gaDMQV8', l2: 'ypEYhCImAB' },
+  seahorse: { l1: '2i8WB9jqzdc' },
   kind8: { l1: 'j4rVPvxyLg' },
   spider: { l1: 'yRYJiAJyiM' },
   kimquy: { l1: '2LCcq8vhqJ3' },

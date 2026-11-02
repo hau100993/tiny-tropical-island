@@ -7,6 +7,8 @@ import { vi } from '../ui/strings.vi';
 const CLICK_PX = 5;
 /** Two clicks on the same card within this time (ms): edit its text. */
 const DOUBLE_MS = 400;
+/** Dragging a knob this far up (screen px) turns it from 0 to full. */
+const KNOB_DRAG_PX = 160;
 
 interface Press {
   hit: DashHit;
@@ -14,6 +16,8 @@ interface Press {
   y: number;
   pointerId: number;
   moved: boolean;
+  /** A knob's level when it was pressed. */
+  startValue: number;
 }
 
 /**
@@ -136,10 +140,9 @@ export class DeskDashInput {
     e.preventDefault();
     const onEdited = hit.kind === 'card' && hit.id === this.editId;
     if (hit.kind !== 'input' && !onEdited) this.input.blur();
-    this.press = { hit, x: e.clientX, y: e.clientY, pointerId: e.pointerId, moved: false };
+    const startValue = hit.kind === 'knob' ? this.dash.volume(hit.id) : 0;
+    this.press = { hit, x: e.clientX, y: e.clientY, pointerId: e.pointerId, moved: false, startValue };
     this.dom.setPointerCapture(e.pointerId);
-    // A slider follows the press at once, and then the drag.
-    if (hit.kind === 'slider' && p) this.dash.slide(hit.id, p.x);
   };
 
   private readonly onMove = (e: PointerEvent): void => {
@@ -152,22 +155,24 @@ export class DeskDashInput {
     }
     e.stopImmediatePropagation();
     const h = press.hit;
-    if (h.kind === 'slider') {
-      const p = this.pick(e);
-      if (p) this.dash.slide(h.id, p.x);
+    if (h.kind === 'knob') {
+      // Up turns it up, down turns it down (a click without moving switches it on or off).
+      if (!press.moved && Math.abs(e.clientY - press.y) <= CLICK_PX) return;
+      press.moved = true;
+      this.dash.setVolume(h.id, press.startValue + (press.y - e.clientY) / KNOB_DRAG_PX);
       return;
     }
     if (!press.moved && Math.hypot(e.clientX - press.x, e.clientY - press.y) > CLICK_PX) {
       press.moved = true;
       if ((h.kind === 'card' || h.kind === 'ring') && !this.dash.dragging) {
         const p = this.pick(e);
-        if (p) this.dash.beginDrag(h.id, p.x, p.y);
+        if (p) this.dash.beginDrag(h.id, p.y);
         this.dom.style.cursor = 'grabbing';
       }
     }
     if (this.dash.dragging) {
       const p = this.pick(e);
-      if (p) this.dash.dragTo(p.x, p.y);
+      if (p) this.dash.dragTo(p.y);
     }
   };
 
@@ -219,8 +224,8 @@ export class DeskDashInput {
     const p = this.pick(e);
     if (!p) return;
     const hit = this.dash.hitAt(p.x, p.y);
-    if (hit?.kind === 'slider') {
-      // Over a volume slider the wheel turns it.
+    if (hit?.kind === 'knob') {
+      // Over a volume knob the wheel turns it.
       e.preventDefault();
       e.stopImmediatePropagation();
       this.dash.nudge(hit.id, e.deltaY < 0 ? 1 : -1);
@@ -238,6 +243,6 @@ export class DeskDashInput {
     const key = hit ? hit.kind : '';
     if (key === this.hoverKey) return;
     this.hoverKey = key;
-    this.dom.style.cursor = hit ? (hit.kind === 'card' ? 'grab' : hit.kind === 'slider' ? 'ew-resize' : 'pointer') : '';
+    this.dom.style.cursor = hit ? (hit.kind === 'card' ? 'grab' : hit.kind === 'knob' ? 'ns-resize' : 'pointer') : '';
   }
 }

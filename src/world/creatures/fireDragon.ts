@@ -178,10 +178,12 @@ export class FireDragon {
 
   /**
    * A fire skill, on command (X): each press the next one (breath, ring of fire, meteor shower).
-   * Ignored while one is under way; returns the one started (null: busy).
+   * Ignored while one is under way; returns the one started (null: busy). `which`: that one
+   * instead (a skill chip in the camp); the next press goes on from it.
    */
-  command(): DragonSkill | null {
+  command(which?: number): DragonSkill | null {
     if (this.busy || this.queued) return null;
+    if (which !== undefined) this.nextSkill = which % SKILLS.length;
     this.skill = SKILLS[this.nextSkill];
     this.nextSkill = (this.nextSkill + 1) % SKILLS.length;
     this.queued = true;

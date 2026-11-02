@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { prepareSkinned, fitToHeight } from '../creatures/glbUtil';
+import { smoothModel } from '../smoothMesh';
+import { buildLegRig, LEG_RIGS } from './legRig';
 import type { BodyAction, PetBody } from './bodies';
 import type { SpeciesId } from '../../pets/species';
 
@@ -17,17 +19,20 @@ export function hasModel(species: SpeciesId, variant: ModelVariant): boolean {
   return `../../assets/creatures/pets/${species}-${variant}.glb` in FILES;
 }
 
-/** How each species stands in the world: height (m), flying height, walking speed. */
+/**
+ * How each species stands in the world: height (m), flying height, walking speed. The small ones
+ * are a little bigger than life (+20 %, 2026-10-30) so they stand out of the grass.
+ */
 const FIT: Readonly<Partial<Record<SpeciesId, { height: number; hover: number; speed: number }>>> = {
   deer: { height: 0.95, hover: 0, speed: 1.8 },
-  na: { height: 0.6, hover: 0, speed: 1.1 },
-  frog: { height: 0.5, hover: 0, speed: 1.4 },
+  na: { height: 0.72, hover: 0, speed: 1.1 },
+  frog: { height: 0.6, hover: 0, speed: 1.4 },
   tiger: { height: 0.85, hover: 0, speed: 2 },
-  bee: { height: 0.5, hover: 1.1, speed: 1.8 },
+  bee: { height: 0.6, hover: 1.1, speed: 1.8 },
   cloudDragon: { height: 0.85, hover: 1.3, speed: 2.1 },
-  kind7: { height: 0.7, hover: 0, speed: 1.5 },
+  seahorse: { height: 0.72, hover: 0.35, speed: 1.1 },
   kind8: { height: 0.7, hover: 0, speed: 1.5 },
-  spider: { height: 0.55, hover: 0, speed: 1.6 },
+  spider: { height: 0.66, hover: 0, speed: 1.6 },
   kimquy: { height: 0.75, hover: 0, speed: 0.8 },
 };
 
@@ -62,6 +67,12 @@ export async function loadPetModel(species: SpeciesId, variant: ModelVariant): P
   const gltf = await new GLTFLoader().loadAsync(url);
   const scene = gltf.scene;
   prepareSkinned(scene);
+  // Most of these files are low-poly and flat shaded: rounded off once (Loop subdivision, smooth
+  // normals; 0.6 of the full smoothing keeps antlers, legs and ears from thinning out).
+  smoothModel(scene, 1, 0.6);
+  // A model without a skeleton of its own gets legs that walk (legRig.ts: Kim Quy).
+  const spec = LEG_RIGS[species];
+  const rig = spec && gltf.animations.length === 0 ? buildLegRig(scene, spec) : null;
   const fit = fitOf(species);
   scene.traverse((o) => {
     const mesh = o as THREE.Mesh;
@@ -112,8 +123,14 @@ export async function loadPetModel(species: SpeciesId, variant: ModelVariant): P
       const walk = actions.get('move');
       if (walk) walk.timeScale = action === 'move' ? 0.6 + moving * 0.8 : 1;
       mixer.update(dt);
-      // Without clips (or as a little life on top): a bob, hops when happy.
       const happy = action === 'greet' || action === 'dance';
+      if (rig) {
+        // Its own legs and head do the work; a small lift when happy.
+        const sink = rig.update(dt, action, moving) * fitted.scale.y;
+        pivot.position.y = (happy ? Math.abs(Math.sin(t * 7)) * 0.04 : 0) - sink;
+        return;
+      }
+      // Without clips (or as a little life on top): a bob, hops when happy.
       pivot.position.y = actions.size === 0 || happy ? Math.abs(Math.sin(t * (happy ? 7 : 2))) * (happy ? 0.12 : 0.03) : 0;
       pivot.rotation.z = actions.size === 0 && happy ? Math.sin(t * 6) * 0.15 : 0;
     },

@@ -18,7 +18,7 @@ const SOURCES = {
   tiger: { l1: '2f54vbV0In' },
   bee: { l1: '42djT5zJnx' },
   cloudDragon: { l1: '54QyRcsogk', l2: 'Mo2ky6vkf8' },
-  kind7: { l1: '7V4gaDMQV8', l2: 'ypEYhCImAB' },
+  seahorse: { l1: '2i8WB9jqzdc' },
   kind8: { l1: 'j4rVPvxyLg' },
   spider: { l1: 'yRYJiAJyiM' },
   kimquy: { l1: '2LCcq8vhqJ3' },
@@ -49,8 +49,9 @@ for (const [species, variants] of Object.entries(SOURCES)) {
     }
     try {
       const html = await (await fetch(page)).text();
-      const title = /<title>([^<]*)<\/title>/i.exec(html)?.[1]?.trim() ?? '?';
-      const licence = /(CC0|CC-BY[^"<\s]*|Public Domain|Creative Commons Attribution)/i.exec(html)?.[1] ?? 'not found: check the page';
+      const title = /<title[^>]*>([^<]*)<\/title>/i.exec(html)?.[1]?.replace(/ - Poly Pizza$/, '').trim() ?? '?';
+      // The page's JSON field is exact; its visible text also holds generic licence words.
+      const licence = /"Licence":"([^"]*)"/.exec(html)?.[1] ?? 'not found: check the page';
       const glb = /https:\/\/static\.poly\.pizza\/[\w-]+\.glb/.exec(html)?.[0];
       if (!glb) {
         report.push(`!  ${species}-${variant}.glb: no .glb link on ${page} (${title}). Download it by hand.`);

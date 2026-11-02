@@ -108,6 +108,8 @@ export class Panel {
   private readonly masterVolume: SliderControl;
   private readonly masterMute: HTMLButtonElement;
   private readonly tabs = new Map<PanelTab, Tab>();
+  /** Per tab: goes back from a page inside it (Esc); false when it shows no such page. */
+  private readonly backs = new Map<PanelTab, () => boolean>();
   private readonly shortcuts: ShortcutsView;
   private readonly synthFallback: ToggleControl;
   private readonly synthStatus: HTMLElement;
@@ -276,24 +278,23 @@ export class Panel {
 
     // --- Cảnh ---
     // The scene editor is a page of its own: the time bar and the tabs step aside meanwhile.
-    this.tab('scene').append(
-      new SceneView({
-        settings,
-        scenes: deps.scenes,
-        library: deps.library,
-        applyScene: deps.applyScene,
-        onDeleted: deps.onSceneDeleted,
-        startAudio: deps.startAudio,
-        getHours: deps.getHours,
-        getSkyTurn: deps.getSkyTurn,
-        setSky: deps.setSky,
-        windowTurn: deps.windowTurn,
-        onEditing: (on) => {
-          this.root.classList.toggle('editing', on);
-          content.scrollTop = 0;
-        },
-      }).root,
-    );
+    const sceneView = new SceneView({
+      settings,
+      scenes: deps.scenes,
+      library: deps.library,
+      applyScene: deps.applyScene,
+      onDeleted: deps.onSceneDeleted,
+      startAudio: deps.startAudio,
+      getHours: deps.getHours,
+      getSkyTurn: deps.getSkyTurn,
+      setSky: deps.setSky,
+      windowTurn: deps.windowTurn,
+      onEditing: (on) => {
+        this.root.classList.toggle('editing', on);
+        content.scrollTop = 0;
+      },
+    });
+    this.mount('scene', sceneView.root, () => sceneView.back());
 
     // --- Âm thanh ---
     this.synthFallback = toggle(vi.panel.synthFallbackLong, s.synthFallback, (on) => settings.update({ synthFallback: on }));
@@ -575,8 +576,15 @@ export class Panel {
   }
 
   /** Puts content made elsewhere (the Thú Cưng camp) into a tab. */
-  mount(id: PanelTab, content: HTMLElement): void {
+  mount(id: PanelTab, content: HTMLElement, back?: () => boolean): void {
     this.tab(id).append(content);
+    if (back) this.backs.set(id, back);
+  }
+
+  /** Esc in the overview: a page inside the open tab (a pet, the scene editor) goes back first. */
+  back(): boolean {
+    if (this.tucked || this.root.classList.contains('collapsed')) return false;
+    return this.backs.get(this.deps.settings.get().panelTab)?.() ?? false;
   }
 
   private tab(id: PanelTab): HTMLElement {

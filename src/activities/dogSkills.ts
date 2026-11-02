@@ -102,9 +102,13 @@ export class DogSkills {
     return this.skill !== null || (this.host.dog()?.busy ?? false);
   }
 
-  /** J: the next skill. Returns it, or null (busy, or Mochi isn't there; `zoom` may still find no room: 'noRoom'). */
-  next(zoomies: () => boolean): DogSkill | 'noRoom' | null {
+  /**
+   * J: the next skill, or skill `which` (a skill chip in the camp; J goes on from it). Returns it,
+   * or null (busy, or Mochi isn't there; `zoom` may still find no room: 'noRoom').
+   */
+  next(zoomies: () => boolean, which?: number): DogSkill | 'noRoom' | null {
     if (this.busy || !this.host.dog()) return null;
+    if (which !== undefined) this.nextSkill = which % SKILLS.length;
     const s = SKILLS[this.nextSkill];
     this.nextSkill = (this.nextSkill + 1) % SKILLS.length;
     return this.start(s, zoomies) ? s : 'noRoom';

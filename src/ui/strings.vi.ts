@@ -1,5 +1,10 @@
 import type { LayerId } from '../audio/types';
 
+/** A number of places on the island, Vietnamese style: 1,5 not 1.5. */
+function places(n: number): string {
+  return String(n).replace('.', ',');
+}
+
 /** All user-visible text, in Vietnamese. Keep labels short. */
 export const vi = {
   appTitle: 'Đảo Nhiệt Đới',
@@ -109,7 +114,8 @@ export const vi = {
     hasSound: 'Phát file âm thanh riêng',
     newTitle: 'Tạo cảnh mới',
     editTitle: (name: string) => `Sửa cảnh "${name}"`,
-    back: 'Quay lại (không lưu)',
+    back: 'Quay lại, không lưu (Esc)',
+    confirmBack: 'Bấm lần nữa để bỏ thay đổi',
     nameLabel: 'Tên cảnh',
     namePlaceholder: 'Ví dụ: Chiều mưa nhẹ',
     builtInName: 'Cảnh có sẵn giữ tên gốc.',
@@ -230,7 +236,9 @@ export const vi = {
     rename: 'Đổi tên',
     renameTitle: 'Tên mới (Enter để lưu)',
     out: 'Ra đảo',
-    outFull: (max: number): string => `Ra đảo tối đa ${max} con`,
+    outFull: (max: number): string => `Hết chỗ trên đảo (${max} chỗ)`,
+    room: (used: number, max: number): string => `Chỗ trên đảo: ${places(used)}/${max} · con nhỏ 1 chỗ, con lớn 2 chỗ`,
+    roomNeeds: (n: number): string => `Con này cần ${places(n)} chỗ`,
     home: 'Sống trên đảo',
     shiny: 'Lấp lánh',
     rankLine: (level: number, rank: number): string => `Level ${level} · Rank ${rank}`,
@@ -267,6 +275,22 @@ export const vi = {
     rarity: { rare: 'Hiếm', legendary: 'Huyền thoại' } as Record<string, string>,
     factsHint: 'Sức mạnh tăng theo Rank, Level 2 và Tiềm năng (★, có từ lúc sinh: chiêu mạnh hơn tới 15 %)',
     notHere: (name: string): string => `${name} đang không ở gần trên đảo, hoặc đang bận.`,
+    groups: { pets: 'Thú', eggs: 'Trứng', wild: 'Hoang dã' },
+    groupsLabel: 'Nhóm',
+    back: 'Quay lại danh sách (Esc)',
+    backTo: (name: string): string => `Thú Cưng · ${name}`,
+    details: (name: string): string => `Xem ${name}`,
+    quickFeed: (name: string): string => `Cho ${name} ăn 🍅`,
+    onIsland: 'Đang trên đảo',
+    canEvolve: 'Tiến hóa được',
+    roomLabel: 'Chỗ trên đảo',
+    roomHint: 'Con nhỏ 1 chỗ, con lớn 2 chỗ',
+    skills: 'Chiêu',
+    lockedLeft: (n: number, next: string): string => `🔒 Còn ${n} chiêu khóa · chiêu tiếp theo: ${next}`,
+    incubating: 'Đang ấp',
+    readyCount: (n: number): string => `${n} trứng sắp nở`,
+    noEggs: 'Chưa có trứng. Mua một quả bên dưới, rồi tập trung để ấp.',
+    focusTitle: 'Đang tập trung',
   },
   sync: {
     invite: 'Lưu Thú Cưng và cà chua vào Google Drive của bạn, để không mất khi đổi máy, đổi trình duyệt hay xóa dữ liệu trình duyệt. Không bắt buộc.',
@@ -295,19 +319,15 @@ export const vi = {
   },
   dash: {
     todo: 'Đang làm',
-    hint: '◯ xong · 🍅 ước lượng · nhấp đúp: sửa',
+    pomosToday: (n: number): string => `🍅 ${n} hôm nay`,
     clearDone: 'Xóa hết',
     undo: 'Hoàn tác',
     deleted: (text: string): string => `Đã xóa "${text}"`,
     cleared: (n: number): string => `Đã xóa ${n} việc đã xong`,
-    /** Before the current task's name on the timer strip. */
-    now: 'Đang làm',
-    next: 'Tiếp theo',
     add: 'Thêm việc…',
     addHint: 'Enter: thêm · Esc: thôi',
     editHint: 'Enter: lưu · Esc: thôi',
     doneToday: 'Đã xong hôm nay',
-    noneDone: 'Chưa xong việc nào',
     start: 'Bắt đầu tập trung',
     paused: 'Tạm dừng',
     inputLabel: 'Thêm việc cần làm',
@@ -507,7 +527,7 @@ export const vi = {
     pomodoro: 'Pomodoro: chạy / tạm dừng',
     desk: 'Góc làm việc: ngồi vào bàn / rời bàn',
     sit: 'Đứng gần bàn, bồn tắm hoặc võng: ngồi/nằm vào, đứng dậy · gần Thú Cưng: cho ăn 🍅',
-    leaveDesk: 'Đứng dậy (bàn làm việc, bồn tắm, võng) · ở toàn cảnh: thu gọn bảng',
+    leaveDesk: 'Đứng dậy (bàn làm việc, bồn tắm, võng) · ở toàn cảnh: quay lại trang trước trong bảng, hoặc thu gọn bảng',
     kayak: 'Gần biển: chèo kayak / lên bờ',
     journal: 'Nhật ký: các việc đã làm ở biển',
     surf: 'Gần biển: lướt ván (ra bãi sóng) / rời ván',

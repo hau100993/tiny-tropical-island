@@ -139,6 +139,13 @@ export class SceneView {
     for (const [id, c] of this.cards) c.card.setAttribute('aria-checked', String(id === s.activeScene));
   }
 
+  /** Esc: leaves the editor (asking first if it has changes). False when no editor is open. */
+  back(): boolean {
+    if (!this.editor) return false;
+    this.editor.back();
+    return true;
+  }
+
   private openEditor(p: ScenePreset | null): void {
     this.msg.textContent = '';
     const editor = new SceneEditor(

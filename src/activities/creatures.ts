@@ -16,7 +16,7 @@ import type { TrunkInstance } from '../world/vegetation/forest';
 import type { PetBody } from '../world/pets/bodies';
 // Type-only: the models, behaviours and the GLTFLoader are a separate chunk, fetched on first use.
 import type { CrabModel } from '../world/creatures/crabModel';
-import type { BubbleCrab, CrabPlayer, CrabSkill } from '../world/creatures/bubbleCrab';
+import type { BubbleCrab, CrabPlayer, CrabSkill, CrabStage } from '../world/creatures/bubbleCrab';
 import type { DragonModel } from '../world/creatures/dragonModel';
 import type { DragonSkill, FireDragon } from '../world/creatures/fireDragon';
 import type { JetStream } from '../world/creatures/jetStream';
@@ -236,6 +236,11 @@ export class Creatures {
     return this.crabPointer.hover || this.dragonPointer.hover || this.bunnyPointer.hover;
   }
 
+  /** Bọt's show for you at the desk (a stage seen from the chair), or null when you are not there. */
+  setCrabStage(stage: CrabStage | null): void {
+    this.crab?.brain.setStage(stage);
+  }
+
   /** Shows or hides each (loading it the first time it is shown). */
   setEnabled(crab: boolean, dragon: boolean, bunny: boolean): void {
     this.crabOn = crab;
@@ -253,15 +258,15 @@ export class Creatures {
    * Bọt's water skills (R: each press the next): which one started, 'busy' (one is under way)
    * or 'off' (Bọt is off or not loaded yet).
    */
-  waterSkill(): CrabSkill | 'busy' | 'off' {
+  waterSkill(which?: number): CrabSkill | 'busy' | 'off' {
     if (!this.crabOn || !this.crab) return 'off';
-    return this.crab.brain.command() ?? 'busy';
+    return this.crab.brain.command(which) ?? 'busy';
   }
 
   /** Hỏa Long's fire skills (X: each press the next); see waterSkill. */
-  fireSkill(): DragonSkill | 'busy' | 'off' {
+  fireSkill(which?: number): DragonSkill | 'busy' | 'off' {
     if (!this.dragonOn || !this.dragon) return 'off';
-    return this.dragon.brain.command() ?? 'busy';
+    return this.dragon.brain.command(which) ?? 'busy';
   }
 
   /**
@@ -359,9 +364,9 @@ export class Creatures {
     return true;
   }
 
-  /** An original's own next skill (its key's), started if it can now. */
-  originalNative(id: string): boolean {
-    const r = id === 'bot' ? this.waterSkill() : id === 'hoalong' ? this.fireSkill() : id === 'mam' ? this.grassSkill() : 'off';
+  /** An original's own next skill (its key's), or skill `which`, started if it can now. */
+  originalNative(id: string, which?: number): boolean {
+    const r = id === 'bot' ? this.waterSkill(which) : id === 'hoalong' ? this.fireSkill(which) : id === 'mam' ? this.grassSkill(which) : 'off';
     return r !== 'off' && r !== 'busy';
   }
 
@@ -410,9 +415,9 @@ export class Creatures {
   }
 
   /** Mầm's grass skills (Z: each press the next); see waterSkill. */
-  grassSkill(): BunnySkill | 'busy' | 'off' {
+  grassSkill(which?: number): BunnySkill | 'busy' | 'off' {
     if (!this.bunnyOn || !this.bunny) return 'off';
-    return this.bunny.brain.command() ?? 'busy';
+    return this.bunny.brain.command(which) ?? 'busy';
   }
 
   setViewport(heightPx: number, fovDeg: number): void {

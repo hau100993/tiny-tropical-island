@@ -72,7 +72,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 | `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up; next to a Thú Cưng (no seat near): feed it a 🍅 |
 | `K` | Walking on the beach or in the shallows: get into the kayak; in the kayak: step out (see *Kayak*) |
 | `L` | Walking on the beach or in the shallows: go surfing (see *Surfing*); on the board: slip off |
-| `Esc` | Seated (desk or bathtub): get up |
+| `Esc` | Seated (desk or bathtub): get up; in the overview: back from a page inside the panel (a pet, the scene editor; with unsaved scene changes press twice), else fold the panel |
 | `` ` `` (backquote) | Show/hide the stats overlay (FPS, CPU/GPU ms, draw calls) |
 
 ### Phones and tablets (touch)
@@ -265,8 +265,9 @@ something else, put your own image at `src/assets/local/mug-logo.png` (or `.jpg`
 that folder is git-ignored and takes precedence) and restart `npm run dev`. Wood has a procedural grain (shader, no textures); cushions, futon, chair and
 ceramics are rounded and smooth-shaded. Trees are kept out of the view from the glass to the sea.
 
-**The left monitor: VS Code and YouTube.** At rest the left monitor shows two small app icons
-over the same drifting colour background as the right monitor. Seated
+**The left monitor: VS Code and YouTube.** At rest the left monitor is a quiet desktop over the
+same drifting colour background as the right monitor: the island time, the scene and what is
+playing in the middle, and two small app icons in a dock at the bottom. Seated
 at the desk, click **VS Code** for the code editor that slowly types code, or **YouTube** (or
 press `U`) to play a video. With either open, a small button cluster sits in the screen's
 top-right corner; its power button (⏻) closes the editor or the video and brings the icons
@@ -315,28 +316,28 @@ and press **E** next to the chair. At the desk:
 **Soaking in the tub:** walk to the bath corner and press **E** next to the tub. You sit in the water looking out of the big window at the
 forest; drag to look around, **E** or **Esc** to get out.
 
-**The right monitor: Pomodoro and to-do list.** On top, a compact strip; its second line shows the
-task you are on in full (**Đang làm** while focusing, **Tiếp theo** on a break or before you
-start). While the Pomodoro runs
-(or is paused), the phase, the session dots, the time left in large digits, a progress line,
-**play/pause**, **skip** and **■ stop** (ends the Pomodoro: the strip goes back to the clock);
-otherwise the clock and date with a **Bắt đầu tập trung** button. On its right, two volume rows:
-**🔔** notifications (bell and bubble pops) and **🌊** the island's sound (the master volume).
-Click the icon to switch it off or on (🌊 is the same switch as the soundscape on a playing
-video), click or drag the bar to set the volume, or turn the wheel over it. Below the strip, two
-columns of "liquid glass" cards:
+**The right monitor: Pomodoro and to-do list.** On top, a compact one-row strip. While the
+Pomodoro runs (or is paused): the phase, the session dots, the time left in large digits, a
+progress line, **play/pause**, **skip** and **■ stop** (ends the Pomodoro: the strip goes back to
+the clock); otherwise the clock and date with a **Bắt đầu tập trung** button. On its right, two
+volume **knobs**: **🔔** notifications (bell and bubble pops) and **🌊** the island's sound (the
+master volume). The arc round a knob shows its level (pointing at it shows the %). **Click** a
+knob to switch it off or on (🌊 is the same switch as the soundscape on a playing video);
+**drag up or down** on it, or turn the **wheel** over it, to set the level. Below the strip, one
+list of "liquid glass" cards across the screen:
 
-- **Đang làm** (left): the tasks to do, in order, in large type (about 16 px on a 1080p
-  screen). The top one is the task you are on: it glows, and each focus session that ends adds a
+- **Đang làm**: the tasks to do, in order, in large type (about 16 px on a 1080p screen); on the
+  right of its title, today's 🍅 count. The top one is the task you are on: it glows, shows its
+  name in full (on a second line when it is long), and each focus session that ends adds a
   🍅 to it. Its **▶** starts a focus session (it turns into a green **⏸** while you focus; click
   to pause). Hover another task for its **▶**: that task moves to the top and focus starts (on a
   break, the rest of the break is skipped). **Drag** a card up or down to change the order; hover
   a card for its **✕** (delete; its place is kept, so ▶ never moves under the pointer).
   **Double-click** a task to edit its text in place: **Enter** or clicking elsewhere saves,
   **Esc** drops the change.
-- **Thêm việc…** at the bottom of that column: click it and type (Vietnamese input methods
+- **Thêm việc…** under the tasks: click it and type (Vietnamese input methods
   work), **Enter** adds the task, **Esc** stops typing.
-- Click a task's **ring ◯** when it is done, or drag its card onto the right column: Bọt's
+- Click a task's **ring ◯** when it is done: Bọt's
   **Bubble Burst** at desk size. One soap bubble (Bọt's own thin-film shader, rainbow at the
   rim) swells out of the ring (0.7 s), lets go and floats up toward you, wobbling (1.3 s), then
   bursts: its film races out and fades, and small bubbles, droplets and sparkles fly off all
@@ -346,15 +347,14 @@ columns of "liquid glass" cards:
 - **🍅 estimate:** click a task's 🍅 (a faint **🍅+** on hover when it has none) to count up how
   many focus sessions you expect it to take: it then shows **🍅 2/4** (done / expected), amber
   once past the estimate. Past 8 it goes back to none. Finished tasks keep it.
-- **Đã xong hôm nay** (right): today's finished tasks and 🍅 count; click one to put it back,
-  or its **✕** (on hover) to delete it; **Xóa hết** under the list clears them all (the day's
-  🍅 count stays). Scroll it with the wheel when it is longer than the screen. It empties at
-  midnight.
+- **✓ Đã xong hôm nay · 3 ▸**: one line under the list (hidden while nothing is done). Click it
+  to open today's finished tasks below it (click again to fold them); click one to put it back,
+  or its **✕** (on hover) to delete it; **Xóa hết** under them clears them all (the day's 🍅
+  count stays). It empties at midnight.
 - **Hoàn tác:** after deleting a task (or clearing the finished ones) a note at the bottom of the
   screen says what went, with **Hoàn tác** to bring it back, for 6 s.
-- The **wheel** over a column scrolls it (elsewhere it leans in, as before). While the Pomodoro
-  runs, the footer line (what is playing, the scene, the island time) is hidden to give the list
-  more room.
+- The **wheel** over the list scrolls it (elsewhere it leans in, as before). What is playing, the
+  scene and the island time are on the left monitor.
 - The list is saved in the browser (`localStorage`, key `tsw.todo`).
 - Performance: both monitors' drifting colour background is drawn by the screen's shader, and
   the canvas on top is redrawn only when something changes (once a second for the clock, fast
@@ -363,13 +363,21 @@ columns of "liquid glass" cards:
 
 ## Pomodoro (`T`, or **Cài đặt → Thẻ Pomodoro** in the panel)
 
-A small card in the bottom-left corner, the one place for the timer in the overview:
+A small glass pill (one or two lines) in the bottom-left corner, the one place for the timer in the overview:
 **25 min focus → 5 min break**, and a 15 min long break after every 4 focus sessions (the dots
-show how many are done). Buttons: start/pause, skip to the next part, reset, settings (⚙), hide
-(✕). Under the phase it shows the task you are on (the top task of the desk's to-do list) in
-full, on up to two lines. The card **shows itself** when the timer starts (`T`, or a task's ▶ on the desk monitor)
+show how many are done). Line 1: time, phase, dots and 🍅; line 2: the task you are on (the top
+task of the desk's to-do list), on up to two lines; when a part ends, the "time's up" message
+takes its place for 12 s and the pill glows. The pill is tinted by the phase (green focus, blue
+short break, lavender long break; paler and greyer while paused) and its **outline is the
+progress ring**, filling clockwise from the top. **Drag** the card anywhere (by the time or the
+task line); it keeps its place, relative to the window, across reloads. **Double-click** it to
+send it back to the corner. The buttons
+(start/pause, skip to the next part, reset, settings ⚙, hide ✕) appear only when the mouse is
+over the card (or with `Tab`); on a touch screen they stay on a line of their own. ⚙ opens the
+settings in a box above the card (below it when the card is in the top half). The card **shows itself** when the timer starts (`T`, or a task's ▶ on the desk monitor)
 and **hides itself** when the Pomodoro is ended (↺ here, ■ on the monitor). ✕ hides it while the
-timer runs on; the ring round the panel's ☰ still shows the progress. Without a keyboard, open it
+timer runs on; the ring round the panel's ☰ still shows the progress. **Walking** (first-person),
+the card is hidden and only that ring shows the timer. Without a keyboard, open it
 from **Cài đặt → Thẻ Pomodoro**.
 
 - **Settings (⚙):** lengths of focus, short and long break (minutes), long break after N
@@ -420,6 +428,12 @@ grow, learn skills, evolve; and they buy eggs that hatch into new species. Every
 panel's **Thú Cưng** tab (the camp, "Trại"). **During a focus session the camp is closed** (it
 only shows the egg's progress) and no creature asks to be fed: spending is for breaks.
 
+The camp has three groups beside the 🍅 count: **Thú** (a grid of small cards: avatar, Lv · R,
+an EXP bar, a green dot when out on the island, ↑ when it can evolve; hover a card for a quick
+🍅; click it for the pet's own page with its open skills, Cho ăn, Tiến hóa, Ra đảo, and ← to go
+back), **Trứng** (your eggs, painted with a pattern of the species inside; a ready one wobbles;
+then the shop) and **Hoang dã** (trust of each wild kind as three pips).
+
 - **Who:** the five who live on the island (Mochi, Bọt, Hỏa Long, Mầm, Bé Mập) and every new
   one. Each is an individual with its own name (new ones are named automatically from a list;
   ✎ renames), Level, Rank and look (size, a slight colour shift and an accessory from its seed).
@@ -436,18 +450,29 @@ only shows the egg's progress) and no creature asks to be fed: spending is for b
 - **Feeding on the island:** walk up to a creature (about 3 m) and look at it: a bubble
   **🍅 Cho Sương ăn?** shows its Rank and EXP. Click / tap it (hold to keep feeding) or press `E`:
   a tomato flies to it, hearts, its EXP fills; a Rank up shows a card, a new skill its name.
-  Walk off without feeding and that one doesn't ask again for 10 minutes. The camp has a feed
-  button for every creature too.
+  Walk off without feeding and that one doesn't ask again for 10 minutes. Mochi asks only when
+  you pet it: while stroking and for 8 s after letting go. The camp has a feed button for every
+  creature too.
 - **Eggs:** 5 / 10 / 20 🍅 for an egg that hatches after 2 / 5 / 10 more focus sessions (one egg
   incubates at a time). **Nở!** hatches a ready egg: it wobbles, bursts in rainbow light, and the
   new pet is there (in front of you while walking, else at the camp on the beach by the house).
   The longer eggs give rarer species and more **shiny** ones (golden, sparkling): 1/30, 1/20, 1/10.
 - **Ten egg species** (Level 1 name → Level 2 name; rarity):
   Nai Vàng → Nai Thần Rừng, Bé Na → Na Chín, Ếch Xanh → Ếch Vương, Ong Vàng → Ong Chúa (common);
-  Hổ Báo → Hổ Lửa, Nhện Halloween → Nhện Bí Ngô, Rồng Mây, Thú Lạ, Thú Hiếm (rare; the last
-  three get their real names once their models are in); **Kim Quy → Thần Kim Quy** (legendary:
+  Hổ Báo → Hổ Lửa, Nhện Halloween → Nhện Bí Ngô, Rồng Mây, Cá Ngựa → Long Mã, Chồn Lửa → Hỏa Hồ Vương (rare); **Kim Quy → Thần Kim Quy** (legendary:
   only from 10-session eggs, 1 in 15, **one per player**). 2-session eggs hatch commons,
   5-session eggs a rare one in four, 10-session eggs rares (or Kim Quy).
+- **Skills that look like their names** (the recipe skills: the Level 2 ones of the originals
+  and all six of each egg species). Besides bursts, shock waves, whirlwinds and showers of the
+  element, a skill can make the pet really **leap** or lunge (Pounce, Golden Leap, Lily Hop …),
+  shoot a **beam** (Tongue Snap snaps out and back, Moon Breath, Buzz Sting, Web Shot), call
+  **lightning** (Thunder Hive, Honey Zap, Monsoon Call), drop a giant golden **sword** from the sky
+  (Heaven's Blade, Thuận Thiên Light), draw a glowing **sigil** on the ground (a web, a lotus, a
+  honeycomb, a sun, a crescent moon, the eight trigrams, leaves), raise a **shield dome** (a
+  soap bubble, Kim Quy's golden hex shell), send a **swarm** circling (bees, leaves, stars, bats)
+  or a **rain of shapes** (stars, glowing pumpkins, leaves, fruit). Some have their own colours
+  (Kim Quy gold and jade, the spider pumpkin orange and purple, the bee honey). The sixth skill
+  of each is its **ultimate**: the view widens toward it, a big flash, several layers at once.
 - **Each one is different:** ♂/♀ (looks only: girls wear a bow), a rare **Bé tí** (×0.7) or
   **Khổng lồ** (×1.35) one in 20 each, and **Tiềm năng** 1–3 ★ from birth (skills up to +15 %).
   The camp shows **Sức mạnh**, a single strength number (species, Level, Rank, ★).
@@ -463,9 +488,15 @@ only shows the egg's progress) and no creature asks to be fed: spending is for b
   forest at night, **Nai Vàng** at the forest's edge at dawn and dusk (very shy). When one watches
   you, the bubble offers a throw (up to 12 m). Three tomatoes to wild ones of a kind (over any
   number of meetings) and one stays with you as a Thú Cưng (1/100 shiny).
-- **Out on the island:** up to **5** new pets at once (**Ra đảo** in the camp; new arrivals join
-  while there is room). They wander about the camp and follow you while you walk nearby; the
-  originals live on the island as before.
+- **Out on the island:** **5 to 10** new pets at once: the island has **10 places**, a small pet (bee, frog, snake, spider, seahorse, crab, bunny) takes 1, a middle one (tiger) 1.5, a big one (deer, cloud dragon, dragon, Kim Quy) 2; a tiny one half a place less, a huge one half more. The camp shows the places used (**Ra đảo** in the camp; new arrivals join
+  while there is room). They wander about the camp (7 m round) and follow you while you walk nearby,
+  each at its own place behind you (two rings, never on top of each other); flyers keep beside you,
+  above your head, so none hangs in front of the camera. The originals live on the island as before.
+- **Colours that stand out on the green island:** each species wears its name and element (a lime
+  frog, a yellow bee with black bands, an orange striped tiger, a golden deer and turtle, a pale
+  moon dragon, a fire-red Chồn Lửa, a spider with glowing pumpkin marks), and every pet has a thin
+  bright rim of light along its silhouette. The small ones (frog, spider, snake, bee, seahorse) are
+  a little bigger than life so they stand out of the grass.
 - **Nothing is ever lost:** no hunger, no decay, no penalty for a missed day.
 
 ### Saving to Google Drive (optional, Phase 13s)
@@ -622,7 +653,10 @@ sand and snow, and with **Tiếng bước chân & hoạt động** on you hear i
 speed so the paws don't slide; lying down and sitting are poses built in code (the file has none).
 
 **Bọt, the water creature (always there; trial of an elemental
-trio).** A small blue crab (~0.4 m) lives on the hammock's beach. It potters about the damp
+trio).** A small blue crab (~0.4 m) lives on the beach in front of the house, on the patch of sand you
+see from the desk left of the screens. **While you sit at the desk** it stays there and puts on a
+quiet show every 40–80 s: a giant soap bubble, a rainbow geyser or a dance in a cloud of bubbles
+(no water jets and no name cards, so it never pulls you out of your work). It potters about the damp
 sand, comes over to greet you when you walk near (a "yes" nod and a bubbly blub-blub), and now
 and then turns to the sea and fires a **water jet**: one glassy stream bent along its ballistic
 arc, fraying into drops at the end, shedding soap bubbles on the way and splashing and rippling
@@ -636,7 +670,7 @@ The jet flies hard and flat (up to ~10 m out to sea), a wide stream with a big s
 **Tiếng bước chân & hoạt động**. Loaded on first use (0.2 MB), its shaders compiled in the background.
 
 **Hỏa Long, the fire creature (always there).** A small red
-dragon (~1.5 m wingspan) always on the wing, looping lazily over the beach in front of the house,
+dragon (~1.5 m wingspan) always on the wing, looping lazily over the hammock's beach (out of sight of the desk, so its fire never distracts you there),
 a flame burning at the tip of its tail (smaller in the rain). Its fire lights the sand below it,
 faintly by day and warmly at night (a faked glow, no real light). It flies over to greet you when
 you walk near, and now and then flies out over the water's edge and **breathes fire**: from its
@@ -1206,6 +1240,9 @@ audio files in the repo.
 | `src/assets/creatures/fire-dragon.glb` ("Dragon Evolved") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/LlwD0QNUPj) | CC0 1.0 (public domain) | Hỏa Long the fire dragon, recoloured red and gold in code; its flying idle, fast flying, headbutt, yes and punch clips are used |
 | `src/assets/creatures/grass-bunny.glb` ("Bunny") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/irZjWFARyl) | CC0 1.0 (public domain) | Mầm the grass bunny, recoloured green and cream in code; the sprout on its head is made in code; its idle, walk, punch, wave and jump clips are used |
 | `src/assets/creatures/sea-shark.glb` ("Shark") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/YYsK3gRCBZ) | CC0 1.0 (public domain) | Bé Mập the baby shark, tinted and scaled small in code, its head enlarged on the Neck bone; its swim, fast swim and bite clips are used. (Named in Vietnamese on purpose: "Baby Shark" is a Pinkfong trademark.) |
+| Thú Cưng models in `src/assets/creatures/pets/`: `deer-l1.glb` ("Deer", [page](https://poly.pizza/m/T6Cs7tmMHJ)), `deer-l2.glb` ("Stag", [page](https://poly.pizza/m/tQdzbZ1Cmw)), `na-l1.glb` ("Snake", [page](https://poly.pizza/m/x9x0viZs8V)), `frog-l1.glb` ("Frog", [page](https://poly.pizza/m/9Z2V8fpazF)), `frog-l2.glb` ("Astronaut", [page](https://poly.pizza/m/0D54W8yfrA)), `frog-shiny.glb` ("Frog", [page](https://poly.pizza/m/37wofOCOzG)), `tiger-l1.glb` ("Cat", [page](https://poly.pizza/m/2f54vbV0In)), `bee-l1.glb` ("Armabee", [page](https://poly.pizza/m/42djT5zJnx)), `cloudDragon-l1.glb` ("Squidle", [page](https://poly.pizza/m/54QyRcsogk)), `cloudDragon-l2.glb` ("Demon", [page](https://poly.pizza/m/Mo2ky6vkf8)), `kind8-l1.glb` ("Monkroose", [page](https://poly.pizza/m/j4rVPvxyLg)), `spider-l1.glb` ("Spider", [page](https://poly.pizza/m/yRYJiAJyiM)), all by [Quaternius](https://quaternius.com/), via Poly Pizza | CC0 1.0 (public domain) | the Phase 13 species; fetched with `npm run pets:models`, rounded off at load (Loop subdivision in `src/world/smoothMesh.ts`) |
+| `src/assets/creatures/pets/seahorse-l1.glb` ("sea horse") by Device Lab, via [Poly Pizza](https://poly.pizza/m/2i8WB9jqzdc) | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Cá Ngựa; attribution required |
+| `src/assets/creatures/pets/kimquy-l1.glb` ("Turtle") by Poly by Google, via [Poly Pizza](https://poly.pizza/m/2LCcq8vhqJ3) | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Kim Quy the turtle; attribution required. The file has no skeleton: its legs and head are split off and animated in code (`src/world/pets/legRig.ts`) |
 | `src/assets/characters/man.glb` ("Hoodie Character") and `woman.glb` (a woman from the same pack) by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/gKLBoRsyKe) | CC0 1.0 (public domain) | rigged low-poly characters; their own animations are not used (they wear the procedural motion) |
 | `src/assets/decor/mug-logo.png` (TMA logo) | trademark of its owner, not covered by this project's license | added at the repository owner's request, for the desk mug only |
 | `public/audio/library/island-day.mp3`, `island-night.mp3` | redistribution permitted (confirmed by the repository owner) | built-in recordings, 15 min each; source: *TODO, add the original source and exact license* |

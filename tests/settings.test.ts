@@ -3,16 +3,16 @@ import { defaultSettings, fromSkyBalance, mouseLook, parseSettings, SETTINGS_VER
 import { parseSceneValues } from '../src/core/scenePresets';
 
 describe('parseSettings', () => {
-  it('maps the old day-cycle modes onto the island clock', () => {
+  it('maps the old day-cycle modes onto the island clock, always at ×1', () => {
     const p = (timeMode: string) => {
       const s = parseSettings(JSON.stringify({ timeMode, timeSpeed: 10 }));
       return [s.timeMode, s.timeSpeed, s.timePaused];
     };
-    expect(p('cycle24')).toEqual(['free', 60, false]);
-    expect(p('cycle6')).toEqual(['free', 240, false]);
-    expect(p('paused')).toEqual(['free', 10, true]);
-    expect(p('real')).toEqual(['real', 10, false]);
-    expect(parseSettings(JSON.stringify({ timeSpeed: 7 })).timeSpeed).toBe(60);
+    expect(p('cycle24')).toEqual(['free', 1, false]);
+    expect(p('cycle6')).toEqual(['free', 1, false]);
+    expect(p('paused')).toEqual(['free', 1, true]);
+    expect(p('real')).toEqual(['real', 1, false]);
+    expect(parseSettings(JSON.stringify({ timeMode: 'free', timeSpeed: 60 })).timeSpeed).toBe(1);
   });
 
   it('returns defaults for missing or corrupt data', () => {

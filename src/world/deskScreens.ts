@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { YT_LOGO } from '../ui/youtube';
+import { vi } from '../ui/strings.vi';
 import { attachScreenCanvas, type ScreenBackdrop } from './screenBackdrop';
+import { ellipsize, type ScreenInfo } from './deskDash';
 
 const W = 1024;
 const H = 576;
@@ -17,15 +19,27 @@ export interface PxRect {
   h: number;
 }
 
-const TILE = 92;
+// The idle screen is a desktop with a dock at the bottom centre, like a Mac's. Icons only, no
+// names. 48 px here is ~20-30 px on the real screen while seated (2026-10-30: smaller, user request).
+const TILE = 48;
+const TILE_GAP = 14;
+const DOCK_PAD = 10;
+const DOCK = {
+  w: 2 * TILE + TILE_GAP + 2 * DOCK_PAD,
+  h: TILE + 2 * DOCK_PAD,
+  y: H - TILE - 2 * DOCK_PAD - 16,
+};
+const DOCK_X = (W - DOCK.w) / 2;
 /**
- * The two app icons on the idle left screen (canvas pixels). DeskVideo lays real buttons exactly
- * over them while you sit at the desk.
+ * The two app icons in the idle left screen's dock (canvas pixels). DeskVideo lays real buttons
+ * exactly over them while you sit at the desk.
  */
 export const LAUNCHER: { code: PxRect; youtube: PxRect } = {
-  code: { x: W / 2 - 32 - TILE, y: H / 2 - 66, w: TILE, h: TILE },
-  youtube: { x: W / 2 + 32, y: H / 2 - 66, w: TILE, h: TILE },
+  code: { x: DOCK_X + DOCK_PAD, y: DOCK.y + DOCK_PAD, w: TILE, h: TILE },
+  youtube: { x: DOCK_X + DOCK_PAD + TILE + TILE_GAP, y: DOCK.y + DOCK_PAD, w: TILE, h: TILE },
 };
+/** How often the idle screen checks whether its info line (island time, scene, sound) changed (s). */
+const INFO_CHECK_S = 1;
 /** Redraw rate of the code editor (typing animation). */
 const EDITOR_FPS = 8;
 /** Beyond this distance (m) from the desk the screens are too small to read: don't redraw. */
@@ -185,8 +199,16 @@ export class DeskScreens {
   /** The idle screen's background, like the right monitor's (shifted so the two differ). */
   private readonly backdrop: ScreenBackdrop;
   private time = 0;
+  private infoTimer = 0;
+  private drawnOnce = false;
+  /** The island time, scene and sound last drawn on the idle screen. */
+  private infoKey = '';
 
-  constructor(mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>, anisotropy: number) {
+  constructor(
+    mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>,
+    anisotropy: number,
+    private readonly info: () => ScreenInfo,
+  ) {
     const canvas = document.createElement('canvas');
     canvas.width = W;
     canvas.height = H;
@@ -197,7 +219,7 @@ export class DeskScreens {
     this.editorTex = screen.texture;
     this.backdrop = screen.backdrop;
     mesh.getWorldPosition(this.center);
-    this.drawLeft();
+    // Not drawn here: `info` reads parts of the app built after this. The first update draws.
   }
 
   /** What the left screen shows; `videoLabel` is the loaded video's title (video mode). */
@@ -213,7 +235,9 @@ export class DeskScreens {
     this.time += dt;
     this.backdrop.time.value = this.time;
     const dist = camera.position.distanceTo(this.center);
-    if (dist > NEAR_ENOUGH) return;
+    // Far away only the first picture is drawn.
+    if (dist > NEAR_ENOUGH && this.drawnOnce) return;
+    this.drawnOnce = true;
     if (this.leftMode === 'editor') {
       this.editorTimer -= dt;
       if (this.editorTimer <= 0) {
@@ -221,8 +245,16 @@ export class DeskScreens {
         this.typeSome();
         this.drawLeft();
       }
-    } else if (this.leftDirty) {
-      this.drawLeft();
+    } else {
+      if (this.leftMode === 'idle') {
+        this.infoTimer -= dt;
+        if (this.infoTimer <= 0) {
+          this.infoTimer = INFO_CHECK_S;
+          const i = this.info();
+          if (infoKey(i) !== this.infoKey) this.leftDirty = true;
+        }
+      }
+      if (this.leftDirty) this.drawLeft();
     }
   }
 
@@ -281,27 +313,36 @@ export class DeskScreens {
   }
 
   /**
-   * A monitor at rest: the two app icons with their names over the drifting colour backdrop
-   * (the screen's shader, screenBackdrop.ts), darkened a little for the text. A still picture.
+   * A monitor at rest, over the drifting colour backdrop (the screen's shader, screenBackdrop.ts):
+   * the island time, scene and sound in the middle (quiet), the two app icons in a dock at the
+   * bottom. A still picture, drawn again when the info changes.
    */
   private drawIdle(): void {
     const g = this.editor;
     g.clearRect(0, 0, W, H);
-    g.fillStyle = 'rgba(5,14,22,0.32)';
+    g.fillStyle = 'rgba(5,14,22,0.22)';
     g.fillRect(0, 0, W, H);
+    this.drawInfo(g);
+
+    // The dock: a frosted bar, a little shadow under it.
+    roundRect(g, DOCK_X, DOCK.y + 3, DOCK.w, DOCK.h, 20, 'rgba(0,0,0,0.18)');
+    roundRect(g, DOCK_X, DOCK.y, DOCK.w, DOCK.h, 20, 'rgba(255,255,255,0.16)');
+    g.strokeStyle = 'rgba(255,255,255,0.28)';
+    g.lineWidth = 1;
+    g.beginPath();
+    g.roundRect(DOCK_X + 0.5, DOCK.y + 0.5, DOCK.w - 1, DOCK.h - 1, 20);
+    g.stroke();
 
     const { code, youtube } = LAUNCHER;
     const k = TILE / 150;
-    const radius = 24;
-    // Soft shadows under the tiles.
-    for (const r of [code, youtube]) roundRect(g, r.x + 2, r.y + 6, r.w - 4, r.h, radius, 'rgba(0,0,0,0.22)');
+    const radius = 11;
     // Code: a blue tile with a "</>" mark.
     const blue = g.createLinearGradient(0, code.y, 0, code.y + code.h);
     blue.addColorStop(0, '#3aa0ee');
     blue.addColorStop(1, '#0b5fae');
     roundRect(g, code.x, code.y, code.w, code.h, radius, blue);
     g.strokeStyle = '#ffffff';
-    g.lineWidth = 11 * k;
+    g.lineWidth = 13 * k;
     g.lineCap = 'round';
     g.lineJoin = 'round';
     const cx = code.x + code.w / 2;
@@ -318,24 +359,31 @@ export class DeskScreens {
     g.stroke();
     // YouTube: a white tile with the logo.
     roundRect(g, youtube.x, youtube.y, youtube.w, youtube.h, radius, '#f4f5f7');
-    const logoW = 100 * k;
+    const logoW = 104 * k;
     this.drawLogo(g, youtube.x + (youtube.w - logoW) / 2, youtube.y + (youtube.h - (logoW * 17) / 24) / 2, logoW);
-    // A light rim on both, like the glass on the right monitor.
-    g.strokeStyle = 'rgba(255,255,255,0.35)';
-    g.lineWidth = 1.5;
-    for (const r of [code, youtube]) {
-      g.beginPath();
-      g.roundRect(r.x + 0.75, r.y + 0.75, r.w - 1.5, r.h - 1.5, radius);
-      g.stroke();
-    }
-
-    g.font = `20px ${UI_FONT}`;
-    g.fillStyle = 'rgba(225,236,242,0.85)';
-    g.textAlign = 'center';
-    g.fillText('VS Code', code.x + code.w / 2, code.y + code.h + 32);
-    g.fillText('YouTube', youtube.x + youtube.w / 2, youtube.y + youtube.h + 32);
-    g.textAlign = 'left';
     this.editorTex.needsUpdate = true;
+  }
+
+  /** The island time, large and light, and one dim line under it: the scene and what is playing. */
+  private drawInfo(g: CanvasRenderingContext2D): void {
+    const i = this.info();
+    this.infoKey = infoKey(i);
+    const cy = (DOCK.y - 16) / 2 + 8;
+    g.save();
+    g.textAlign = 'center';
+    g.shadowColor = 'rgba(0,0,0,0.35)';
+    g.shadowBlur = 12;
+    g.font = `600 15px ${UI_FONT}`;
+    g.fillStyle = 'rgba(225,236,242,0.6)';
+    g.fillText(vi.dash.island.toUpperCase(), W / 2, cy - 62);
+    g.font = `200 64px ${UI_FONT}`;
+    g.fillStyle = 'rgba(255,255,255,0.92)';
+    g.fillText(i.islandTime, W / 2, cy);
+    g.font = `20px ${UI_FONT}`;
+    g.fillStyle = 'rgba(225,236,242,0.72)';
+    const line = `${i.scene || '—'}  ·  ♪ ${i.playing}`;
+    g.fillText(ellipsize(g, line, W - 200), W / 2, cy + 40);
+    g.restore();
   }
 
   private drawEditor(): void {
@@ -415,6 +463,10 @@ export class DeskScreens {
   dispose(): void {
     this.editorTex.dispose();
   }
+}
+
+function infoKey(i: ScreenInfo): string {
+  return `${i.islandTime}|${i.scene}|${i.playing}`;
 }
 
 function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number, fill: string | CanvasGradient): void {

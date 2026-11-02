@@ -4,6 +4,7 @@ import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js
 import { patchWorldMaterial } from '../patchMaterial';
 import type { SharedUniforms } from '../../core/uniforms';
 import { rayEllipsoid } from '../../activities/petting';
+import { smoothModel } from '../smoothMesh';
 import { findClip, fitToHeight, prepareSkinned } from './glbUtil';
 
 /** Height of the top of the eyes (m); the model is scaled to it. */
@@ -25,6 +26,15 @@ const PALETTE: Record<string, { color: string; roughness: number }> = {
   Black: { color: '#141414', roughness: 0.25 },
 };
 
+/**
+ * The file is low-poly (~3.6k triangles, flat facets): rounded off once at load, before the
+ * wild ones are cloned from it (they share the geometry). NaN skin weights are repaired first.
+ */
+function rounded(scene: THREE.Object3D): void {
+  prepareSkinned(scene);
+  smoothModel(scene, 1, 0.6);
+}
+
 const tmpV = new THREE.Vector3();
 const tmpV2 = new THREE.Vector3();
 const tmpM = new THREE.Matrix4();
@@ -45,6 +55,7 @@ export class CrabModel {
 
   static async load(url: string, shared: SharedUniforms): Promise<CrabModel> {
     const gltf = await new GLTFLoader().loadAsync(url);
+    rounded(gltf.scene);
     return new CrabModel(gltf.scene, gltf.animations, shared);
   }
 
@@ -54,6 +65,7 @@ export class CrabModel {
    */
   static async loadMany(url: string, shared: SharedUniforms, count: number): Promise<CrabModel[]> {
     const gltf = await new GLTFLoader().loadAsync(url);
+    rounded(gltf.scene);
     const out: CrabModel[] = [];
     for (let i = 0; i < count; i++) out.push(new CrabModel(cloneSkinned(gltf.scene) as THREE.Group, gltf.animations, shared));
     return out;

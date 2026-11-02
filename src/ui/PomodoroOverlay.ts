@@ -22,6 +22,20 @@ import {
 const STORAGE_KEY = 'tsw.pomodoro';
 /** How long the "time's up" message stays. */
 const NOTICE_MS = 12_000;
+/** Pointer travel (px) before a press on the card becomes a drag. */
+const DRAG_START_PX = 4;
+/** Progress ring stroke width (px); keep in sync with `.pomo-ring path` in styles.css. */
+const RING_STROKE = 3;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/**
+ * Where the dragged card sits, as a fraction (0..1) of the free space left and above it, so it
+ * keeps its corner when the window is resized. null: the default corner (CSS).
+ */
+interface CardPos {
+  x: number;
+  y: number;
+}
 
 export interface PomodoroDeps {
   /** Places a chime on the audio clock at a wall-clock time; null when sound isn't running. */
@@ -54,7 +68,7 @@ export interface PomodoroSnapshot {
 type NumberKey = 'focusMin' | 'breakMin' | 'longBreakMin' | 'longEvery';
 
 /**
- * Small Pomodoro card (bottom left): the one place for the timer in the overview. It shows
+ * Small two-line Pomodoro card (bottom left): the one place for the timer in the overview. It shows
  * itself when the timer starts (T) and hides when it is ended (↺ here, ⏹ on the desk monitor);
  * ✕ hides it while the timer runs on (the ring round the panel's ☰ still shows it). The timer
  * state lives in localStorage, so a reload or a restart of the browser continues where it was. The chime is scheduled ahead on the audio
@@ -65,7 +79,12 @@ export class PomodoroOverlay {
   private readonly phaseEl: HTMLElement;
   private readonly timeEl: HTMLElement;
   private readonly taskEl: HTMLElement;
-  private readonly bar: HTMLElement;
+  private readonly ringSvg: SVGSVGElement;
+  private readonly ringTrack: SVGPathElement;
+  private readonly ringPath: SVGPathElement;
+  /** Progress drawn last (0..1), to skip the transition when it goes back to 0. */
+  private shownProgress = 0;
+  private pos: CardPos | null;
   private readonly dots: HTMLElement;
   private readonly tomatoEl: HTMLElement;
   private readonly playBtn: HTMLButtonElement;
@@ -91,46 +110,72 @@ export class PomodoroOverlay {
     this.config = parsed.config;
     this.state = parsed.state;
     this.visible = isRecord(raw) && raw.visible === true;
+    this.pos = isRecord(raw) ? parsePos(raw.pos) : null;
 
+    // A pill of two lines: "5:00 Nghỉ ngắn ●●○○ 🍅 2", then the task (or, for a while, the
+    // notice). The buttons sit over the right of the first line and show only on hover or
+    // keyboard focus. The pill's tint tells the phase; its outline fills as the phase runs.
     this.root = el('section', 'pomodoro');
     this.root.setAttribute('aria-label', vi.pomodoro.title);
     const head = el('div', 'pomo-head');
+    this.timeEl = el('span', 'pomo-time');
+    this.timeEl.setAttribute('role', 'timer');
     this.phaseEl = el('span', 'pomo-phase');
+    const info = el('span', 'pomo-info');
     this.dots = el('span', 'pomo-dots');
     this.tomatoEl = el('span', 'pomo-tomatoes');
     this.tomatoEl.title = vi.pets.walletTitle;
-    const close = button('', () => this.setVisible(false), 'icon-btn small');
-    close.innerHTML = icons.close;
-    close.title = vi.pomodoro.hide;
-    close.setAttribute('aria-label', vi.pomodoro.hide);
-    head.append(this.phaseEl, this.dots, this.tomatoEl, close);
-    // The current task in full (up to two lines).
-    this.taskEl = el('div', 'pomo-task');
-
-    this.timeEl = el('div', 'pomo-time');
-    this.timeEl.setAttribute('role', 'timer');
-    const track = el('div', 'pomo-track');
-    this.bar = el('div', 'pomo-bar');
-    track.append(this.bar);
+    info.append(this.dots, this.tomatoEl);
 
     const controls = el('div', 'pomo-controls');
     this.playBtn = button('', () => this.toggleRunning(), 'icon-btn');
     const skipBtn = iconButton(icons.skip, vi.pomodoro.skip, () => this.skipPhase());
     const resetBtn = iconButton(icons.reset, vi.pomodoro.reset, () => this.resetTimer());
     const gearBtn = iconButton(icons.gear, vi.pomodoro.settings, () => {
+      this.placeSettings();
       this.settingsBox.hidden = !this.settingsBox.hidden;
       gearBtn.setAttribute('aria-expanded', String(!this.settingsBox.hidden));
+      // Open settings keep the buttons shown, so ⚙ can close them again.
+      this.root.classList.toggle('settings-open', !this.settingsBox.hidden);
     });
-    controls.append(this.playBtn, skipBtn, resetBtn, gearBtn);
+    const close = iconButton(icons.close, vi.pomodoro.hide, () => this.setVisible(false));
+    controls.append(this.playBtn, skipBtn, resetBtn, gearBtn, close);
+    head.append(this.timeEl, this.phaseEl, info, controls);
 
+    // The current task in full (up to two lines); the notice takes its place while shown.
+    this.taskEl = el('div', 'pomo-task');
     this.notice = el('div', 'pomo-notice');
     this.notice.setAttribute('role', 'status');
     this.notice.hidden = true;
+
+    // The progress ring: an SVG path along the pill's outline. pathLength="1" makes the whole
+    // outline 1 unit long, so a dash of length p shows p of it, evenly along the straight sides
+    // and round ends alike (a conic gradient would fill by angle: fast at the ends, slow along).
+    this.ringSvg = document.createElementNS(SVG_NS, 'svg');
+    this.ringSvg.classList.add('pomo-ring');
+    this.ringSvg.setAttribute('aria-hidden', 'true');
+    this.ringTrack = document.createElementNS(SVG_NS, 'path');
+    this.ringTrack.classList.add('track');
+    this.ringPath = document.createElementNS(SVG_NS, 'path');
+    this.ringPath.classList.add('fill');
+    for (const p of [this.ringTrack, this.ringPath]) p.setAttribute('pathLength', '1');
+    this.ringSvg.append(this.ringTrack, this.ringPath);
+
+    // Settings float above (or below) the card instead of stretching it.
     this.settingsBox = this.buildSettings();
     this.settingsBox.hidden = true;
 
-    this.root.append(head, this.taskEl, this.timeEl, track, controls, this.notice, this.settingsBox);
+    this.root.append(this.ringSvg, head, this.taskEl, this.notice, this.settingsBox);
     parent.append(this.root);
+
+    // The outline changes with the card's size (one or two lines, the notice); the free space
+    // for a dragged card with the window's.
+    new ResizeObserver(() => {
+      this.drawOutline();
+      this.applyPos();
+    }).observe(this.root);
+    window.addEventListener('resize', () => this.applyPos());
+    this.initDrag();
 
     window.setInterval(this.tick, 1000);
     document.addEventListener('visibilitychange', this.tick);
@@ -375,11 +420,11 @@ export class PomodoroOverlay {
   private showNotice(text: string): void {
     this.notice.textContent = this.config.chime && !this.deps.soundOn() ? `${text} ${vi.pomodoro.noSound}` : text;
     this.notice.hidden = false;
-    this.root.classList.add('ring');
+    this.root.classList.add('ring', 'noticing');
     window.clearTimeout(this.noticeTimer);
     this.noticeTimer = window.setTimeout(() => {
       this.notice.hidden = true;
-      this.root.classList.remove('ring');
+      this.root.classList.remove('ring', 'noticing');
     }, NOTICE_MS);
   }
 
@@ -388,7 +433,8 @@ export class PomodoroOverlay {
     const left = remaining(s, Date.now());
     const text = formatRemaining(left);
     this.root.hidden = !this.visible;
-    this.root.classList.toggle('on-break', isBreak(s.phase));
+    // The pill's tint (styles.css: .pomodoro[data-phase]).
+    if (this.root.dataset.phase !== s.phase) this.root.dataset.phase = s.phase;
     this.root.classList.toggle('paused', !s.running);
     const phase = vi.pomodoro.phases[s.phase];
     // Only touch the DOM when something visible changed (this runs every second).
@@ -400,7 +446,7 @@ export class PomodoroOverlay {
     this.taskEl.textContent = task;
     this.taskEl.title = task;
     this.timeEl.textContent = text;
-    this.bar.style.width = `${(100 * (1 - left / phaseMs(s.phase, this.config))).toFixed(2)}%`;
+    this.setProgress(1 - left / phaseMs(s.phase, this.config));
     this.dots.textContent = this.dotsText();
     this.playBtn.innerHTML = s.running ? icons.pause : icons.play;
     const label = s.running ? vi.pomodoro.pause : vi.pomodoro.start;
@@ -410,9 +456,126 @@ export class PomodoroOverlay {
     document.title = s.running ? `${text} · ${phase} — ${this.baseTitle}` : this.baseTitle;
   }
 
-  private save(): void {
-    writeStored(STORAGE_KEY, { config: this.config, state: this.state, visible: this.visible });
+  /** Fills `p` (0..1) of the outline; a 1 s linear transition makes the per-second steps glide. */
+  private setProgress(p: number): void {
+    const v = Math.min(1, Math.max(0, p));
+    // Going back (a new phase, a reset): jump instead of running the ring backwards.
+    this.ringPath.style.transition = v < this.shownProgress ? 'none' : '';
+    this.ringPath.style.strokeDasharray = `${v.toFixed(4)} 1`;
+    // A zero-length dash with round caps would still draw a dot.
+    this.ringPath.style.opacity = v > 0.001 ? '' : '0';
+    this.shownProgress = v;
   }
+
+  /**
+   * The pill's outline as a path starting at the middle of the top edge, clockwise, centred on
+   * the 1 px border (the SVG covers the border box, see `.pomo-ring`).
+   */
+  private drawOutline(): void {
+    const w = this.root.offsetWidth;
+    const h = this.root.offsetHeight;
+    if (w === 0 || h === 0) return;
+    const i = RING_STROKE / 2;
+    const r = h / 2 - i;
+    const right = w - i - r;
+    const left = i + r;
+    const d =
+      `M ${w / 2} ${i} H ${right} A ${r} ${r} 0 0 1 ${right} ${h - i} ` +
+      `H ${left} A ${r} ${r} 0 0 1 ${left} ${i} Z`;
+    this.ringSvg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    this.ringTrack.setAttribute('d', d);
+    this.ringPath.setAttribute('d', d);
+  }
+
+  /** Press anywhere on the card but its buttons and settings, then move: the card follows. */
+  private initDrag(): void {
+    let startX = 0;
+    let startY = 0;
+    let originLeft = 0;
+    let originTop = 0;
+    let pointer = -1;
+    let dragging = false;
+    this.root.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || !(e.target instanceof Element)) return;
+      if (e.target.closest('button, input, label, .pomo-settings')) return;
+      pointer = e.pointerId;
+      dragging = false;
+      // Capture at once: a quick first move can already be off the card.
+      this.root.setPointerCapture(pointer);
+      startX = e.clientX;
+      startY = e.clientY;
+      const r = this.root.getBoundingClientRect();
+      originLeft = r.left;
+      originTop = r.top;
+    });
+    this.root.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== pointer) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (!dragging) {
+        if (Math.hypot(dx, dy) < DRAG_START_PX) return;
+        dragging = true;
+        this.root.classList.add('dragging');
+      }
+      const freeX = Math.max(1, window.innerWidth - this.root.offsetWidth);
+      const freeY = Math.max(1, window.innerHeight - this.root.offsetHeight);
+      this.pos = {
+        x: Math.min(1, Math.max(0, (originLeft + dx) / freeX)),
+        y: Math.min(1, Math.max(0, (originTop + dy) / freeY)),
+      };
+      this.applyPos();
+    });
+    const end = (e: PointerEvent): void => {
+      if (e.pointerId !== pointer) return;
+      pointer = -1;
+      if (!dragging) return;
+      dragging = false;
+      this.root.classList.remove('dragging');
+      this.save();
+    };
+    this.root.addEventListener('pointerup', end);
+    this.root.addEventListener('pointercancel', end);
+    // Double-click: back to the default corner.
+    this.root.addEventListener('dblclick', (e) => {
+      if (e.target instanceof Element && e.target.closest('button, input, label, .pomo-settings')) return;
+      this.pos = null;
+      this.applyPos();
+      this.save();
+    });
+  }
+
+  /** Places a dragged card (inline left/top win over the CSS corner); clears it for the default. */
+  private applyPos(): void {
+    const st = this.root.style;
+    if (!this.pos) {
+      st.left = st.top = st.bottom = '';
+    } else {
+      const freeX = Math.max(0, window.innerWidth - this.root.offsetWidth);
+      const freeY = Math.max(0, window.innerHeight - this.root.offsetHeight);
+      st.left = `${Math.round(this.pos.x * freeX)}px`;
+      st.top = `${Math.round(this.pos.y * freeY)}px`;
+      st.bottom = 'auto';
+    }
+    if (!this.settingsBox.hidden) this.placeSettings();
+  }
+
+  /** Settings open toward the roomier side: below a card in the top half, leftward in the right half. */
+  private placeSettings(): void {
+    const r = this.root.getBoundingClientRect();
+    this.root.classList.toggle('settings-below', r.top + r.height / 2 < window.innerHeight / 2);
+    this.root.classList.toggle('settings-left', r.left + r.width / 2 > window.innerWidth / 2);
+  }
+
+  private save(): void {
+    writeStored(STORAGE_KEY, { config: this.config, state: this.state, visible: this.visible, pos: this.pos });
+  }
+}
+
+function parsePos(v: unknown): CardPos | null {
+  if (!isRecord(v)) return null;
+  const { x, y } = v;
+  if (typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) };
 }
 
 function iconButton(icon: string, label: string, onClick: () => void): HTMLButtonElement {
