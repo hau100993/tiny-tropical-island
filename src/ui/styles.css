@@ -1938,43 +1938,143 @@ body.touch .preset-edit {
   }
 }
 
-/* Welcome guide (ui/WelcomeGuide.ts): the shortcut card's look, one page at a time. */
+/*
+ * Welcome tour (ui/WelcomeGuide.ts). The lit area is one box whose huge box-shadow dims the rest
+ * of the screen (a "hole" without masks); JS moves it, the drawn pointer and the card each frame.
+ */
+.guide-tour {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  overflow: hidden;
+}
+
+.guide-light {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.85),
+    0 0 18px 4px rgba(120, 230, 220, 0.45),
+    0 0 0 200vmax rgba(6, 14, 20, 0.5);
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+/* The scene step: nothing dimmed, the pointer shows the drag on the island itself. */
+.guide-tour.dragging .guide-light {
+  opacity: 0;
+}
+
+.guide-pointer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+}
+
+.guide-pointer svg {
+  position: absolute;
+  /* The arrow's tip (3, 2 of 24) on the point. */
+  left: -3px;
+  top: -2px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4));
+  transition: transform 0.12s;
+}
+
+.guide-pointer.gone {
+  opacity: 0;
+}
+
+.guide-pointer.down svg {
+  transform: scale(0.86);
+}
+
+.guide-ring {
+  position: absolute;
+  left: -14px;
+  top: -14px;
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  opacity: 0;
+}
+
+.guide-pointer.clicking .guide-ring {
+  animation: guide-click 0.55s ease-out;
+}
+
+.guide-pointer.down .guide-ring {
+  opacity: 0.7;
+  transform: scale(0.6);
+}
+
+@keyframes guide-click {
+  0% {
+    opacity: 0.95;
+    transform: scale(0.3);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+/* Touch: a fingertip instead of the arrow. */
+.guide-tour.touch .guide-pointer svg {
+  display: none;
+}
+
+.guide-tour.touch .guide-ring {
+  opacity: 0.85;
+  background: rgba(255, 255, 255, 0.35);
+}
+
 .guide-card {
-  width: min(460px, 100%);
-  font-size: 13px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: min(340px, calc(100vw - 32px));
+  padding: 12px 14px 12px;
+  color: var(--panel-fg);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-shadow);
+  font-size: 12.5px;
+}
+
+.guide-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.guide-count {
+  color: var(--panel-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.guide-title {
+  margin: 2px 0 8px;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .guide-lines {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-height: 132px;
-  margin: 0;
+  gap: 6px;
+  margin: 0 0 12px;
   padding-left: 18px;
   line-height: 1.45;
-}
-
-.guide-dots {
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-  margin: 14px 0 12px;
-}
-
-.guide-dot {
-  width: 8px;
-  height: 8px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: var(--panel-border);
-  cursor: pointer;
-  transition: background 0.2s, transform 0.2s;
-}
-
-.guide-dot.active {
-  background: var(--panel-fg);
-  transform: scale(1.25);
 }
 
 .guide-foot {
@@ -2000,14 +2100,9 @@ body.touch .preset-edit {
   gap: 6px;
 }
 
-body.touch .guide-dot {
-  width: 12px;
-  height: 12px;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .guide-dot {
-    transition: none;
+  .guide-pointer.clicking .guide-ring {
+    animation: none;
   }
 }
 

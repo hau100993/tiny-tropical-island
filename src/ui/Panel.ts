@@ -13,7 +13,7 @@ import type { ScenePresetStore } from '../core/scenePresets';
 import { CHARACTER_IDS, PANEL_TABS, type CharacterId, type PanelTab, type Settings, type SettingsStore } from '../core/settings';
 import type { WalkView } from '../controls/walker';
 import { ShortcutsView } from './ShortcutsView';
-import { WelcomeGuide } from './WelcomeGuide';
+import { WelcomeGuide, type GuideHost } from './WelcomeGuide';
 import { formatClock } from '../world/celestial';
 import { nextSpeed } from './timeSpeed';
 import type { Fullscreen } from './fullscreen';
@@ -142,6 +142,8 @@ export class Panel {
   private asleep = false;
   /** A press inside the panel is held (dragging a slider): it stays open. */
   private held = false;
+  /** The welcome tour is showing the panel: tucked away, it stays open until the tour ends. */
+  private guided = false;
   /** The last press in the panel began while it was shut (touch: that tap opens it). */
   private pressedShut = false;
   private closeTimer = 0;
@@ -155,6 +157,7 @@ export class Panel {
     this.startQuality = s.quality;
 
     this.root = el('aside', 'panel');
+    this.root.dataset.guide = 'panel';
     this.root.setAttribute('aria-label', vi.appTitle);
     // Tucked away: pointing at the panel (or at the top-right corner, where it waits even when
     // out of sight) opens it; leaving closes it again after a moment, unless a slider is still
@@ -194,11 +197,12 @@ export class Panel {
     const header = el('div', 'panel-header');
     const title = el('h1', 'panel-title', vi.appTitle);
     this.shortcuts = new ShortcutsView(parent, deps.keymap);
-    this.guide = new WelcomeGuide(parent, deps.keymap, settings);
+    this.guide = new WelcomeGuide(parent, deps.keymap, settings, this.guideHost());
     const keysBtn = button('', () => this.toggleShortcuts(), 'icon-btn kbd-only');
     keysBtn.innerHTML = icons.keyboard;
     keysBtn.title = vi.panel.shortcutsBtn;
     keysBtn.setAttribute('aria-label', vi.panel.shortcutsBtn);
+    keysBtn.dataset.guide = 'keys';
     const fsBtn = button('', () => deps.fullscreen.toggle(), 'icon-btn fs-btn');
     const syncFs = (on: boolean): void => {
       fsBtn.innerHTML = on ? icons.minimize : icons.maximize;
@@ -212,6 +216,7 @@ export class Panel {
     this.collapseBtn = button('', () => this.toggle(), 'icon-btn');
     this.collapseBtn.innerHTML = icons.menu;
     const headerTools = el('div', 'header-tools');
+    headerTools.dataset.guide = 'header-tools';
     headerTools.append(keysBtn, fsBtn, this.collapseBtn);
     header.append(title, headerTools);
 
@@ -220,6 +225,7 @@ export class Panel {
     // computer's clock), and the hour slider painted with the colours of the day. Labels live in
     // tooltips.
     const time = el('div', 'time-bar');
+    time.dataset.guide = 'time';
     this.clockFace = el('div', 'clock-face');
     const clockMain = el('div', 'clock-main');
     this.clockDot = el('span', 'clock-dot');
@@ -254,6 +260,7 @@ export class Panel {
 
     const top = el('div', 'panel-top');
     const masterRow = el('div', 'mix-row master');
+    masterRow.dataset.guide = 'master';
     this.masterVolume = slider(vi.panel.master, mixer.current.master.volume, (v) => mixer.setMaster({ volume: v }), { ...VOLUME, defaultValue: 0.8 });
     this.masterMute = button('', () => mixer.toggleMuteAll(), 'icon-btn');
     masterRow.append(this.masterVolume.root, this.masterMute);
@@ -267,9 +274,11 @@ export class Panel {
     const tabBar = el('div', 'panel-tabs');
     tabBar.setAttribute('role', 'tablist');
     const content = el('div', 'panel-content');
+    content.dataset.guide = 'content';
     for (const id of PANEL_TABS) {
       const b = button('', () => settings.update({ panelTab: id }), 'panel-tab');
       b.setAttribute('role', 'tab');
+      b.dataset.guide = `tab-${id}`;
       b.innerHTML = `${TAB_ICONS[id]}<span>${vi.panel.sections[id]}</span>`;
       const body = el('div', 'tab-body');
       body.setAttribute('role', 'tabpanel');
@@ -395,6 +404,7 @@ export class Panel {
     this.handle.type = 'button';
     this.handle.innerHTML = icons.menu;
     this.handle.setAttribute('aria-label', vi.panel.expand);
+    this.handle.dataset.guide = 'handle';
     this.handle.addEventListener('click', (e) => {
       // Handled here: the panel's own click handler would take it for a click in an open panel.
       e.stopPropagation();
@@ -511,7 +521,7 @@ export class Panel {
 
   private scheduleClose(): void {
     // Touch: it stays open until shut by a tap (a lifted finger always "leaves").
-    if (!this.tucked || !this.peek || isTouch()) return;
+    if (!this.tucked || !this.peek || isTouch() || this.guided) return;
     window.clearTimeout(this.closeTimer);
     this.closeTimer = window.setTimeout(() => {
       if (this.held || this.root.matches(':hover') || (isTyping(document.activeElement) && this.root.contains(document.activeElement))) return;
@@ -602,7 +612,33 @@ export class Panel {
     return t.body;
   }
 
-  /** The welcome guide on start, unless "Không hiển thị lại" was ticked. */
+  /** What the welcome tour may do: open or shut the panel (also tucked away), pick a tab. */
+  private guideHost(): GuideHost {
+    return {
+      showPanel: (open) => {
+        this.guided = true;
+        if (this.tucked) {
+          window.clearTimeout(this.closeTimer);
+          window.clearTimeout(this.sleepTimer);
+          this.asleep = false;
+          this.peek = open;
+          this.syncCollapsed();
+        } else if (this.deps.settings.get().panelCollapsed === open) {
+          this.deps.settings.update({ panelCollapsed: !open });
+        }
+      },
+      release: () => {
+        this.guided = false;
+        this.scheduleClose();
+        this.scheduleSleep();
+      },
+      selectTab: (tab) => this.deps.settings.update({ panelTab: tab }),
+      currentTab: () => this.deps.settings.get().panelTab,
+      isPanelOpen: () => !this.root.classList.contains('collapsed'),
+    };
+  }
+
+  /** The welcome tour on start, unless "Không hiển thị lại" was ticked. */
   showGuideOnStart(): void {
     this.guide.showOnStart();
   }
