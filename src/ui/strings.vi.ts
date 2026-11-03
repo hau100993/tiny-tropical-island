@@ -508,6 +508,90 @@ export const vi = {
       glowMeadow: 'Combo Điện + Cỏ: Glowing Meadow',
     } as Record<string, string>,
   },
+  /** Welcome guide (ui/WelcomeGuide.ts). `k` gives a shortcut's printed key, so the text follows the keymap. */
+  guide: {
+    title: 'Hướng dẫn nhanh',
+    reopen: 'Xem lại hướng dẫn',
+    reopenHint: 'Mở lại bảng hướng dẫn cho người mới',
+    dontShow: 'Không hiển thị lại',
+    prev: 'Trước',
+    next: 'Tiếp',
+    done: 'Bắt đầu',
+    close: 'Đóng (Esc)',
+    step: (i: number, n: number) => `Trang ${i} / ${n}`,
+    pages: [
+      {
+        title: 'Chào mừng đến hòn đảo 🌴',
+        lines: () => [
+          'Một hòn đảo nhiệt đới 3D để mở trong lúc làm việc: biển, rừng dừa, ngôi nhà gỗ và âm thanh thiên nhiên.',
+          'Ứng dụng chạy hoàn toàn trên máy, không cần mạng. Mọi cài đặt được tự lưu lại.',
+        ],
+        touch: null,
+      },
+      {
+        title: 'Bảng điều khiển',
+        lines: (k: (code: string, fb: string) => string) => [
+          `Nút ☰ ở góc phải trên (hoặc phím ${k('KeyP', 'P')}) mở bảng. Nhấp tiêu đề bảng để thu gọn.`,
+          'Cảnh: chọn thời tiết, bầu trời, giờ trong ngày.',
+          'Âm thanh: âm lượng, bản ghi của bạn.',
+          'Góc nhìn: toàn cảnh, đi bộ, bàn làm việc, bồn tắm, võng.',
+          'Thú Cưng: nuôi, cho ăn, tiến hóa.',
+          'Cài đặt: chất lượng hình, nhân vật, sao lưu.',
+        ],
+        touch: null,
+      },
+      {
+        title: 'Di chuyển',
+        lines: (k: (code: string, fb: string) => string) => [
+          'Kéo chuột để xoay, cuộn để thu phóng, chuột phải để dời. Nhấp vào nước để tạo gợn sóng.',
+          `Phím ${k('KeyC', 'C')}: đi bộ trên đảo. W A S D để đi, Shift để chạy, Esc để nhả chuột.`,
+          `Gần biển: ${k('KeyK', 'K')} chèo kayak, ${k('KeyL', 'L')} lướt ván. Đi ra chỗ sâu là bơi.`,
+        ],
+        touch: () => [
+          'Một ngón kéo để xoay, hai ngón chụm để thu phóng. Chạm vào nước để tạo gợn sóng.',
+          'Góc nhìn → Đi bộ: dùng cần điều khiển trên màn hình để đi.',
+        ],
+      },
+      {
+        title: 'Âm thanh',
+        lines: (k: (code: string, fb: string) => string) => [
+          'Trình duyệt chỉ cho phát tiếng sau lần nhấp hoặc nhấn phím đầu tiên: nhấp bất kỳ đâu là có tiếng.',
+          `Phím ${k('KeyM', 'M')}: tắt/bật toàn bộ âm thanh.`,
+          'Tab Âm thanh: thêm bản ghi của riêng bạn và gắn vào từng cảnh. Khi chưa có file, âm nền được tự tạo theo cảnh.',
+        ],
+        touch: () => [
+          'Trình duyệt chỉ cho phát tiếng sau lần chạm đầu tiên: chạm bất kỳ đâu là có tiếng.',
+          'Tab Âm thanh: âm lượng chung, tắt tiếng, thêm bản ghi của riêng bạn.',
+        ],
+      },
+      {
+        title: 'Làm việc',
+        lines: (k: (code: string, fb: string) => string) => [
+          `Phím ${k('KeyT', 'T')}: chạy/tạm dừng Pomodoro (mặc định 25 phút tập trung, 5 phút nghỉ).`,
+          `Phím ${k('KeyB', 'B')}: ngồi vào bàn làm việc, xem Pomodoro và danh sách việc trên màn hình.`,
+          'Mỗi phiên tập trung xong được một quả cà chua 🍅 để nuôi Thú Cưng lớn dần.',
+        ],
+        touch: () => [
+          'Cài đặt → Thẻ Pomodoro: hẹn giờ tập trung (mặc định 25 phút, nghỉ 5 phút).',
+          'Góc nhìn → Góc làm việc: ngồi vào bàn, xem Pomodoro và danh sách việc.',
+          'Mỗi phiên tập trung xong được một quả cà chua 🍅 để nuôi Thú Cưng lớn dần.',
+        ],
+      },
+      {
+        title: 'Mẹo nhỏ',
+        lines: (k: (code: string, fb: string) => string) => [
+          `Phím ${k('KeyH', 'H')}: ẩn giao diện, chỉ còn hình nền sạch.`,
+          `Phím ${k('KeyF', 'F')}: toàn màn hình.`,
+          `Phím ${k('Slash', '?')}: xem toàn bộ phím tắt.`,
+          'Xem lại hướng dẫn này: tab Cài đặt → Xem lại hướng dẫn.',
+        ],
+        touch: () => [
+          'Nút ở góc bảng: toàn màn hình.',
+          'Xem lại hướng dẫn này: tab Cài đặt → Xem lại hướng dẫn.',
+        ],
+      },
+    ],
+  },
   shortcuts: {
     debug: 'Ẩn/hiện thông số',
     help: 'Mở/đóng bảng phím tắt này',

@@ -72,6 +72,8 @@ export interface Settings {
   synthFallback: boolean;
   /** Control panel: the tab shown. */
   panelTab: PanelTab;
+  /** "Không hiển thị lại" ticked on the welcome guide: it no longer opens by itself. */
+  guideHidden: boolean;
 }
 
 // The time bar is always shown above them (Panel), so it isn't one of these.
@@ -133,6 +135,7 @@ export function defaultSettings(): Settings {
     activeScene: 'b-sunny',
     synthFallback: true,
     panelTab: 'scene',
+    guideHidden: false,
   };
 }
 
@@ -236,6 +239,7 @@ export function parseSettings(json: string | null): Settings {
     // to collapse" (2026-10-27) are dropped: unknown fields are simply ignored.
     panelTab: (PANEL_TABS as readonly unknown[]).includes(raw.panelTab) ? (raw.panelTab as PanelTab) : defaults.panelTab,
     synthFallback: bool(raw.synthFallback, defaults.synthFallback),
+    guideHidden: bool(raw.guideHidden, defaults.guideHidden),
   };
 }
 

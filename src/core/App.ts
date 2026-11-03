@@ -577,6 +577,8 @@ export class App {
     window.addEventListener('resize', dock);
     dock();
     this.breathMeter = new BreathMeter(ui);
+    // First visit: the quick guide over the scene (until "Không hiển thị lại").
+    this.panel.showGuideOnStart();
     this.waveMeter = new WaveMeter(ui);
     this.fader = document.createElement('div');
     this.fader.className = 'fader';

@@ -46,6 +46,8 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 
 ## Controls
 
+On start a short **welcome guide** ("Hướng dẫn nhanh", 6 pages; `←` `→` or the dots to change page, `Esc` to close) opens over the scene. Tick **"Không hiển thị lại"** before closing to stop it opening by itself; **Cài đặt → Xem lại hướng dẫn** shows it again.
+
 | Input | Action |
 |---|---|
 | Left-drag | Rotate the camera; drag down to bring it to the sand or the sea surface and look up at the sky (it never goes below them) |

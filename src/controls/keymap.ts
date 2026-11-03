@@ -44,6 +44,11 @@ export class Keymap {
     this.shortcuts.set(shortcut.code, shortcut);
   }
 
+  /** The printed key of a registered shortcut (e.g. 'KeyH' → 'H'); `fallback` if none. */
+  keyLabel(code: string, fallback: string): string {
+    return this.shortcuts.get(code)?.keyLabel ?? fallback;
+  }
+
   list(): Shortcut[] {
     return [...this.shortcuts.values()].filter((s) => !s.unlisted);
   }
