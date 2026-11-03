@@ -13,6 +13,7 @@ import type { ScenePresetStore } from '../core/scenePresets';
 import { CHARACTER_IDS, PANEL_TABS, type CharacterId, type PanelTab, type Settings, type SettingsStore } from '../core/settings';
 import type { WalkView } from '../controls/walker';
 import { ShortcutsView } from './ShortcutsView';
+import { WelcomeGuide } from './WelcomeGuide';
 import { formatClock } from '../world/celestial';
 import { nextSpeed } from './timeSpeed';
 import type { Fullscreen } from './fullscreen';
@@ -111,6 +112,7 @@ export class Panel {
   /** Per tab: goes back from a page inside it (Esc); false when it shows no such page. */
   private readonly backs = new Map<PanelTab, () => boolean>();
   private readonly shortcuts: ShortcutsView;
+  private readonly guide: WelcomeGuide;
   private readonly synthFallback: ToggleControl;
   private readonly synthStatus: HTMLElement;
   private readonly qualityBtns = new Map<QualityLevel, HTMLButtonElement>();
@@ -192,6 +194,7 @@ export class Panel {
     const header = el('div', 'panel-header');
     const title = el('h1', 'panel-title', vi.appTitle);
     this.shortcuts = new ShortcutsView(parent, deps.keymap);
+    this.guide = new WelcomeGuide(parent, deps.keymap, settings);
     const keysBtn = button('', () => this.toggleShortcuts(), 'icon-btn kbd-only');
     keysBtn.innerHTML = icons.keyboard;
     keysBtn.title = vi.panel.shortcutsBtn;
@@ -365,6 +368,11 @@ export class Panel {
     const keysLink = button('', () => this.toggleShortcuts(), 'btn small with-icon');
     keysLink.innerHTML = `${icons.keyboard}<span>${vi.panel.shortcutsBtn}</span>`;
     keysRow.append(keysLink);
+    const guideRow = el('div', 'button-row');
+    const guideLink = button('', () => this.guide.show(), 'btn small with-icon');
+    guideLink.innerHTML = `${icons.info}<span>${vi.guide.reopen}</span>`;
+    guideLink.title = vi.guide.reopenHint;
+    guideRow.append(guideLink);
     this.tab('settings').append(
       el('div', 'subhead', vi.panel.quality),
       quality,
@@ -375,6 +383,7 @@ export class Panel {
       el('div', 'subhead', vi.pomodoro.title),
       pomoRow,
       keysRow,
+      guideRow,
       el('div', 'subhead', vi.backup.title),
       backupControls(),
     );
@@ -591,6 +600,11 @@ export class Panel {
     const t = this.tabs.get(id);
     if (!t) throw new Error(`Panel: no tab ${id}`);
     return t.body;
+  }
+
+  /** The welcome guide on start, unless "Không hiển thị lại" was ticked. */
+  showGuideOnStart(): void {
+    this.guide.showOnStart();
   }
 
   /** The shortcut card (? or the keyboard buttons). */

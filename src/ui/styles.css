@@ -1938,6 +1938,79 @@ body.touch .preset-edit {
   }
 }
 
+/* Welcome guide (ui/WelcomeGuide.ts): the shortcut card's look, one page at a time. */
+.guide-card {
+  width: min(460px, 100%);
+  font-size: 13px;
+}
+
+.guide-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 132px;
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.45;
+}
+
+.guide-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin: 14px 0 12px;
+}
+
+.guide-dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--panel-border);
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.guide-dot.active {
+  background: var(--panel-fg);
+  transform: scale(1.25);
+}
+
+.guide-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.guide-dont-show {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--panel-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.guide-nav {
+  display: flex;
+  gap: 6px;
+}
+
+body.touch .guide-dot {
+  width: 12px;
+  height: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-dot {
+    transition: none;
+  }
+}
+
 /*
  * Time section: the clock with three icon tools (stop/run, speed, the computer's clock) in one
  * row; the hour slider below, painted with the colours of the day. Labels are tooltips.

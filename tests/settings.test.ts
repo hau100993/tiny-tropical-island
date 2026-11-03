@@ -21,6 +21,13 @@ describe('parseSettings', () => {
     expect(parseSettings('42')).toEqual(defaultSettings());
   });
 
+  it('keeps "Không hiển thị lại" of the welcome guide, off when missing or invalid', () => {
+    expect(defaultSettings().guideHidden).toBe(false);
+    expect(parseSettings(JSON.stringify({ guideHidden: true })).guideHidden).toBe(true);
+    expect(parseSettings(JSON.stringify({ quality: 'high' })).guideHidden).toBe(false);
+    expect(parseSettings(JSON.stringify({ guideHidden: 'yes' })).guideHidden).toBe(false);
+  });
+
   it('keeps valid fields and replaces invalid ones with defaults', () => {
     const s = parseSettings(JSON.stringify({ version: 1, quality: 'high', footsteps: 'yes', autoRotate: true }));
     expect(s.quality).toBe('high');
