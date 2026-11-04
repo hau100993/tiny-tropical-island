@@ -583,11 +583,11 @@ files you may not redistribute. More details in [`public/audio/README.md`](publi
 
 Two views, switched with `V` (or **Sau lưng / Qua mắt** in *Góc nhìn*): behind your character, like
 a game (default), or through the character's eyes. The character is a young man dressed for
-the beach, built entirely in code (Korean-style curtain hair: a middle part, volume on top and two swept
-bangs framing the forehead, slim-fit
-pale linen shirt with an open collar, board shorts, bare feet, a bead bracelet, fair skin and a
-friendly face). The head is a sculpted sphere (jaw, cheekbones, nose, eye sockets, ears); the hair
-grows from a hairline and is made of tapered locks; chest, arms and calves have muscle shape; hands
+the beach, built entirely in code (a slim-fit pale linen shirt with an open collar, board shorts,
+bare feet, a bead bracelet, fair skin). The head is stylized like a cartoon, a little larger than
+life: round masses with a small nose and a round chin, dark round eyes with catch-lights and blinking lids, thick
+brows, a short smile, ears; the hair grows from a hairline and is made of a few chunky locks (a
+fringe swept to one side); chest, arms and calves have muscle shape; hands
 have fingers, feet have toes. The body is a skinned mesh on a 15-bone skeleton, so knees and
 elbows bend smoothly; each leg, foot included, is one surface (the shin bends forward into
 the instep and swells into the heel, so there is no seam at the ankle), the forearm runs on into

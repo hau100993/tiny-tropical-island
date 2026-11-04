@@ -9,16 +9,18 @@ import { KNOCK, knockLevel } from '../core/knock';
 import type { SharedUniforms } from '../core/uniforms';
 
 /**
- * The walker's body for the third-person view: a young man dressed for the beach (Korean
- * curtain hair: a middle part with two swept bangs framing the forehead, slim-fit pale linen shirt with an open collar, board
- * shorts, flip-flops, a bead bracelet), about 1.7 m tall, fair skin and a friendly face.
+ * The walker's body for the third-person view: a young man dressed for the beach (short
+ * textured crop, slim-fit pale linen shirt with an open collar, board shorts, flip-flops, a
+ * bead bracelet), about 1.7 m tall, fair skin and a friendly face.
  * Original design built in code.
  *
  * Shapes, all procedural:
- * - Head: a sphere sculpted vertex by vertex (narrower jaw, fuller skull, brow ridge, eye
- *   sockets, nose, cheekbones, chin), with eyes set into the sockets and ears.
- * - Hair: a shell that grows out of the scalp along a hairline (no hard helmet rim), plus
- *   ~50 tapered locks lying on it, so it reads as strands rather than a cap.
+ * - Head: stylized (cartoon), a little larger than life: the smooth union of round masses
+ *   (cranium, forehead, cheeks, soft jaw) with a small button nose. Dark, glossy round eyes
+ *   with catch-lights under lids that are caps of a sphere round the eyeball (they turn to
+ *   blink); thick brows, a short smile, ears.
+ * - Hair: a shell that grows out of the scalp along a hairline, plus ~30 wide, chunky locks
+ *   on it (a fringe swept to one side, locks fanning from the crown).
  * - Body and limbs: "tubes" through cross-sections (superellipses with separate front/back
  *   depth), so chest, calves and forearms have muscle shape instead of being cylinders.
  * - Hands with fingers and a thumb, feet with toes on the flip-flops.
@@ -35,13 +37,14 @@ import type { SharedUniforms } from '../core/uniforms';
  */
 
 const C = {
-  skin: '#f1cdb2',
-  lip: '#c27a6e',
-  blush: '#efbfae',
+  skin: '#efc6a6',
+  ear: '#ebbd9c',
+  mouth: '#8a5048',
   hair: '#1b1512',
-  sclera: '#f4f1ec',
-  iris: '#4a3222',
-  pupil: '#0f0b09',
+  hairLight: '#3a2c23',
+  brow: '#2a1e18',
+  sclera: '#ece6df',
+  iris: '#24180f',
   shirt: '#d6eaee',
   shirtDark: '#b9d2d9',
   button: '#f7f6f2',
@@ -62,6 +65,7 @@ const tmpQ = new THREE.Quaternion();
 const tmpE = new THREE.Euler();
 const tmpP = new THREE.Vector3();
 const tmpS = new THREE.Vector3();
+const tmpC3 = new THREE.Color();
 const UP = new THREE.Vector3(0, 1, 0);
 
 /** Moves/rotates/scales a fresh geometry (normals follow, so smooth shading stays correct). */
@@ -153,46 +157,125 @@ function sculpt(widthSeg: number, heightSeg: number, fn: (v: THREE.Vector3) => v
 // ---------------------------------------------------------------------------------------
 // Head
 
-/** Head half-size (m): width, height (crown to chin / 2), depth. */
-const HEAD = { w: 0.079, h: 0.113, d: 0.097 } as const;
-
 const gauss = (x: number, y: number, cx: number, cy: number, sx: number, sy: number): number =>
   Math.exp(-(((x - cx) / sx) ** 2 + ((y - cy) / sy) ** 2));
 
+/** Ellipsoid in head space (m): center, radii. */
+type Ellipsoid = readonly [cx: number, cy: number, cz: number, rx: number, ry: number, rz: number];
+
 /**
- * The head surface in the direction (x, y, z) from its center (front = −Z). Features are
- * bumps on the unit sphere, weighted toward the front so they never show on the back.
+ * The head's big masses, in a stylized (cartoon) build, not a realistic one: a round cranium,
+ * a full forehead and round cheeks over a short, soft jaw. The face is one near-vertical
+ * plane in profile (no muzzle), the chin round. The surface is their smooth union seen from
+ * the head center.
+ */
+const HEAD_MASSES: readonly Ellipsoid[] = [
+  [0, 0.018, 0.01, 0.078, 0.09, 0.092], // cranium
+  [0, 0.022, -0.016, 0.072, 0.07, 0.074], // forehead
+  [0, -0.022, -0.014, 0.068, 0.068, 0.072], // cheeks
+  [0, -0.056, -0.012, 0.054, 0.044, 0.062], // jaw, rounded
+  [0, -0.075, -0.046, 0.028, 0.028, 0.03], // chin: a small round knob in front
+  // The upper neck, part of the head's own surface: skull, jaw and neck flow into one another
+  // (no ledge or seam where a separate neck would meet the head). It goes down into the lower
+  // neck, meeting it where both are upright, so their shading matches; see `neckWeight`.
+  [0, -0.13, 0.024, 0.042, 0.1, 0.04],
+];
+/** The head is drawn larger than life (cartoon proportions), about its center. */
+const HEAD_SCALE = 1.12;
+
+/**
+ * How much a point of the head's skin (head space, after `HEAD_SCALE`) follows the torso
+ * instead of the head: none on the face and skull, more and more down the neck below the jaw
+ * line (lower at the chin than at the back), so the neck bends when the head turns.
+ */
+function neckWeight(y: number, z: number): number {
+  const jaw = HEAD_SCALE * (-0.1 + 0.038 * smoothstep(-0.07, 0.0, z / HEAD_SCALE));
+  return smoothstep(jaw - 0.005, jaw - 0.055, y);
+}
+
+/**
+ * Distance along the unit ray `d` from the head center to where it leaves ellipsoid `e`
+ * (0 if it misses). For an ellipsoid not around the center this is the far side, the one seen
+ * from outside.
+ */
+function rayExit(dx: number, dy: number, dz: number, e: Ellipsoid): number {
+  const ux = dx / e[3];
+  const uy = dy / e[4];
+  const uz = dz / e[5];
+  const ox = -e[0] / e[3];
+  const oy = -e[1] / e[4];
+  const oz = -e[2] / e[5];
+  const a = ux * ux + uy * uy + uz * uz;
+  const b = 2 * (ox * ux + oy * uy + oz * uz);
+  const c = ox * ox + oy * oy + oz * oz - 1;
+  const disc = b * b - 4 * a * c;
+  return disc > 0 ? Math.max(0, (-b + Math.sqrt(disc)) / (2 * a)) : 0;
+}
+
+/** Smooth maximum (blend width `k`): masses merge with a fillet instead of a crease. */
+function smax(a: number, b: number, k: number): number {
+  const h = Math.max(k - Math.abs(a - b), 0) / k;
+  return Math.max(a, b) + h * h * k * 0.25;
+}
+
+/**
+ * The head surface in the direction (x, y, z) from its center (front = −Z), in meters. The
+ * masses give the shape; on the face only a small, soft nose (a cartoon face reads by its
+ * eyes and brows, and realistic sockets, lips and cheekbones at this size look uncanny).
  */
 function headPoint(dx: number, dy: number, dz: number, out: THREE.Vector3): THREE.Vector3 {
   const l = Math.hypot(dx, dy, dz) || 1;
-  let x = dx / l;
-  let y = dy / l;
-  let z = dz / l;
-  const f = Math.max(0, -z) ** 2;
-  let r = 1;
-  r += f * 0.13 * gauss(x, y, 0, -0.12, 0.07, 0.17); // nose bridge
-  r += f * 0.07 * gauss(x, y, 0, -0.27, 0.1, 0.07); // nose tip
-  r += f * 0.03 * (gauss(x, y, 0.32, 0.2, 0.2, 0.07) + gauss(x, y, -0.32, 0.2, 0.2, 0.07)); // brow ridge
-  r -= f * 0.05 * (gauss(x, y, 0.38, 0.05, 0.13, 0.09) + gauss(x, y, -0.38, 0.05, 0.13, 0.09)); // eye sockets
-  r += f * 0.03 * (gauss(x, y, 0.5, -0.17, 0.14, 0.12) + gauss(x, y, -0.5, -0.17, 0.14, 0.12)); // cheekbones
-  r += f * 0.035 * gauss(x, y, 0, -0.5, 0.26, 0.15); // mouth
-  r += f * 0.05 * gauss(x, y, 0, -0.8, 0.2, 0.12); // chin
-  x *= r;
-  y *= r;
-  z *= r;
-  // Jaw narrower than the skull; fuller back of the head, flatter face.
-  const low = smoothstep(0.15, -0.95, y);
-  // Jaw angle: the lower sides stay a little fuller toward the back, under the ears.
-  const jaw = smoothstep(-0.25, -0.6, y) * smoothstep(-0.95, -0.7, y) * smoothstep(-0.7, -0.1, z) * smoothstep(0.5, 0.1, z);
-  x *= 1 - 0.18 * low + 0.07 * jaw;
-  z *= z > 0 ? 1.1 - 0.2 * low : 0.96 - 0.06 * low;
-  return out.set(x * HEAD.w, y * HEAD.h, z * HEAD.d);
+  const x = dx / l;
+  const y = dy / l;
+  const z = dz / l;
+  let r = 0;
+  for (const e of HEAD_MASSES) r = smax(r, rayExit(x, y, z, e), 0.03);
+  // Where the ray meets the face (m), and how much the ray faces forward.
+  const px = x * r;
+  const py = y * r;
+  const f = smoothstep(0.35, 0.8, -z);
+  // Nose: a short bridge growing toward a rounded tip, which stands out enough to cast its
+  // own shade; its underside tucks back in to the upper lip.
+  const bridge = smoothstep(0.004, -0.02, py) * smoothstep(-0.034, -0.026, py);
+  let d = bridge * (0.003 + 0.007 * smoothstep(0.0, -0.022, py)) * Math.exp(-((px / 0.0075) ** 2));
+  d += 0.006 * gauss(px, py, 0, -0.025, 0.0085, 0.0075); // tip
+  d += 0.0015 * gauss(px, py, 0, -0.078, 0.014, 0.01); // chin pad
+  r += f * d;
+  out.set(x * r, y * r, z * r);
+  // Under the jaw a clean plane rises from under the chin back to the throat, so nothing
+  // hangs there (no double chin). Only in front of the throat: the neck itself goes on down.
+  const floor = smax(out.y, -0.1 + 0.038 * smoothstep(-0.07, 0.0, out.z), 0.012);
+  out.y += (floor - out.y) * smoothstep(-0.008, -0.04, out.z);
+  // The lower face narrows a little toward the chin (a soft V seen from below, not a round
+  // jowl), so the chin reads as its own shape.
+  out.x *= 1 - 0.14 * smoothstep(-0.035, -0.08, out.y) * smoothstep(0.02, -0.06, out.z);
+  return out;
 }
 
-/** Hairline height (unit-sphere y) by angle around the head: forehead (high in the middle,
- * where the curtain bangs part), temples, over the ears, down to the nape. */
+/**
+ * Skin tone by place on the head (m, head space): a soft blush over the cheeks, and painted
+ * shade under the nose and between lip and chin. Under light from the front the shapes there
+ * barely shade themselves, so without it the nose and chin vanish.
+ */
+function skinTone(p: THREE.Vector3, base: THREE.Color, out: THREE.Color): THREE.Color {
+  const front = smoothstep(-0.04, -0.08, p.z);
+  const blush = front * gauss(Math.abs(p.x), p.y, 0.044, -0.03, 0.016, 0.012);
+  const shade =
+    front *
+    (0.22 * gauss(p.x, p.y, 0, -0.0325, 0.009, 0.0035) + // under the nose
+      0.05 * gauss(Math.abs(p.x), p.y, 0.008, -0.022, 0.004, 0.008) + // beside the tip
+      0.08 * gauss(p.x, p.y, 0, -0.064, 0.011, 0.0045)); // under the lip, over the chin
+  out.copy(base);
+  out.g *= 1 - 0.07 * blush;
+  out.b *= 1 - 0.07 * blush;
+  return out.multiplyScalar(1 - shade);
+}
+
+/** Hairline height (unit-sphere y) by angle around the head from the front: the forehead
+ * (a soft M at the temples), the sideburns in front of the ears, over the ears, down to the
+ * nape. */
 const HAIRLINE: ReadonlyArray<readonly [number, number]> = [
-  [0, 0.6], [0.3, 0.52], [0.6, 0.4], [0.85, 0.36], [1.2, 0.3], [1.5, 0.24], [1.8, 0.24], [2.3, -0.1], [2.8, -0.32], [Math.PI, -0.36],
+  [0, 0.66], [0.4, 0.62], [0.8, 0.44], [1.1, 0.2], [1.4, 0.1], [1.75, 0.12], [2.1, -0.04], [2.5, -0.28], [2.8, -0.4], [Math.PI, -0.44],
 ];
 
 function hairline(x: number, z: number): number {
@@ -207,16 +290,21 @@ function hairline(x: number, z: number): number {
 
 /**
  * Hair shell radius factor in a unit direction: below the hairline it sinks under the skin
- * (so the edge fades out instead of a rim); short at the sides and back, full and lifted on
- * top toward the front, with a shallow groove along the middle part (the curtain cut).
+ * (so the edge fades out instead of a rim). A short men's cut: close at the sides and back
+ * (a few mm, like a fade), fuller on top, lifted toward the front.
  */
 function hairScale(x: number, y: number, z: number): number {
-  const t = smoothstep(hairline(x, z) - 0.16, hairline(x, z) + 0.04, y);
-  const top = smoothstep(0.15, 0.85, y);
+  const hl = hairline(x, z);
+  const t = smoothstep(hl - 0.1, hl + 0.06, y);
+  // Thinning out over a band above the hairline, so the edge is a fade, not a ledge.
+  const fade = smoothstep(hl - 0.05, hl + 0.3, y);
+  const top = smoothstep(0.3, 0.9, y);
   const front = Math.max(0, -z);
-  // The part runs from the crown to the front hairline; the hair rises on both sides of it.
-  const part = Math.exp(-((x / 0.07) ** 2)) * smoothstep(0.15, -0.25, z) * top;
-  return 0.955 + t * (0.075 + 0.08 * top + 0.08 * front * top - 0.05 * part);
+  // Well below the hairline the shell shrinks deep inside the head. The head's surface goes
+  // on down the neck, whose skin bends with the torso while the hair moves with the head:
+  // a shell left just under that skin would show through it when the head turns.
+  const deep = smoothstep(hl - 0.12, hl - 0.4, y);
+  return 0.96 - 0.7 * deep + t * (0.02 + 0.035 * fade + 0.1 * top + 0.04 * front * top);
 }
 
 /**
@@ -242,7 +330,7 @@ function lock(
     const d = t * t;
     dir.set(a * d0.x + b * c.x + d * d1.x, a * d0.y + b * c.y + d * d1.y, a * d0.z + b * c.z + d * d1.z).normalize();
     // Just above the shell, so the strands are never buried in it.
-    const s = Math.max(hairScale(dir.x, dir.y, dir.z) + 0.012, 1.04);
+    const s = Math.max(hairScale(dir.x, dir.y, dir.z) + 0.008, 1.02);
     centers.push(headPoint(dir.x, dir.y, dir.z, new THREE.Vector3()).multiplyScalar(s));
   }
   const pos: number[] = [];
@@ -302,104 +390,185 @@ function lock(
 
 const v3 = (x: number, y: number, z: number): THREE.Vector3 => new THREE.Vector3(x, y, z);
 
+/** A unit direction at height `y` (unit sphere) toward (x, z) around the head. */
+function around(x: number, y: number, z: number): THREE.Vector3 {
+  const k = Math.sqrt(Math.max(0, 1 - y * y)) / (Math.hypot(x, z) || 1);
+  return v3(x * k, y, z * k);
+}
+
 /**
- * All the locks. Curtain bangs: from a middle part the hair lifts and sweeps out to each side,
- * the front locks arching over the forehead down to the temples (forehead open in the middle,
- * tips at the outer ends of the brows); top locks comb from the part down over the sides.
+ * A cartoon cut in a few big, chunky locks (not many fine strands): a fringe swept to one
+ * side over the forehead, its tips curling across, and wide locks fanning from the crown down
+ * the sides and back. Each lock a slightly different shade, so the clumps read.
  */
 function hairLocks(hair: GeoBuilder, rng: Rng): void {
   const jit = (a: number): number => (rng() - 0.5) * 2 * a;
-  const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
-  for (const s of [-1, 1]) {
-    // Curtain: roots along the front half of the part; the front ones arch over the forehead.
-    for (let i = 0; i <= 9; i++) {
-      const t = i / 9;
-      const d0 = v3(s * (0.03 + jit(0.01)), lerp(0.97, 0.66, t), lerp(-0.15, -0.74, t));
-      const d1 = v3(s * lerp(0.92, 0.66 + jit(0.03), t), lerp(0.48, 0.2, t) + jit(0.03), lerp(-0.2, -0.78, t));
-      // Lifted at the root, bulging forward and out, so the bangs have body.
-      const c = v3(s * lerp(0.55, 0.3, t), lerp(1.0, 0.72, t), lerp(-0.4, -1.05, t));
-      hair.add(lock(d0, c, d1, 0.013 + rng() * 0.004, 0.007), C.hair);
-    }
-    // Top: from the back half of the part, combed down over the side of the head.
-    for (let i = 0; i < 7; i++) {
-      const z = 0.05 + i * 0.08 + jit(0.03);
-      const d0 = v3(s * 0.03, 0.99, z);
-      const d1 = v3(s * 0.95, 0.45 + jit(0.05), z * 0.9);
-      const c = v3(s * 0.65, 1.0, z);
-      hair.add(lock(d0, c, d1, 0.014 + rng() * 0.004, 0.006), C.hair);
-    }
+  const dark = new THREE.Color(C.hair);
+  const light = new THREE.Color(C.hairLight);
+  const shade = (): THREE.Color => tmpC3.copy(dark).lerp(light, rng() * 0.8);
+  const crown = v3(0.08, 0.92, 0.38).normalize();
+  // Fringe: from the top of the head forward and down, swept toward +X.
+  const n = 8;
+  for (let i = 0; i < n; i++) {
+    const u = (2 * i) / (n - 1) - 1;
+    const d0 = v3(u * 0.35, 0.9, 0.3 + jit(0.04)).normalize();
+    const d1 = around(u * 0.62 + 0.3, 0.3 + 0.22 * Math.abs(u) + jit(0.04), -1);
+    const c = d0.clone().lerp(d1, 0.5).add(v3(0.12, 0.08, -0.1)).normalize();
+    hair.add(lock(d0, c, d1, 0.032 + rng() * 0.008, 0.013), shade());
   }
-  // Back: from the crown down toward the nape.
-  for (let i = 0; i < 10; i++) {
-    const a = -1.2 + (2.4 * i) / 9 + jit(0.06);
-    const d0 = v3(Math.sin(a) * 0.5, 0.85, Math.cos(a) * 0.5);
-    const d1 = v3(Math.sin(a) * 0.95, 0.12 + jit(0.08), Math.cos(a) * 0.95);
-    const c = v3((d0.x + d1.x) / 2, 0.6, (d0.z + d1.z) / 2 + 0.15);
-    hair.add(lock(d0, c, d1, 0.014 + rng() * 0.004, 0.005), C.hair);
+  // Sides and back: wide locks from the crown down to the hairline.
+  const m = 16;
+  for (let i = 0; i < m; i++) {
+    const phi = 0.95 + (i / (m - 1)) * (2 * Math.PI - 1.9) + jit(0.05);
+    const dx = Math.sin(phi);
+    const dz = -Math.cos(phi);
+    const d1 = around(dx, hairline(dx, dz) + 0.1 + jit(0.04), dz);
+    const d0 = crown.clone().lerp(v3(dx, 0.4, dz), 0.25).normalize();
+    const c = d0.clone().lerp(d1, 0.5).normalize();
+    hair.add(lock(d0, c, d1, 0.036 + rng() * 0.01, 0.012), shade());
   }
-  // Sides: short, combed back and down over the undercut.
-  for (const s of [-1, 1]) {
-    for (let i = 0; i < 5; i++) {
-      const z = -0.35 + i * 0.2;
-      const d0 = v3(s * 0.6, 0.78, z);
-      const d1 = v3(s, 0.4 + jit(0.04), z + 0.2);
-      const c = v3(s * 0.9, 0.68, z + 0.08);
-      hair.add(lock(d0, c, d1, 0.012 + rng() * 0.003, 0.005), C.hair);
-    }
+  // A few over the crown, to break up its top.
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + jit(0.3);
+    const d0 = crown.clone().add(v3(jit(0.05), 0, jit(0.05))).normalize();
+    const d1 = around(Math.sin(a), 0.72 + jit(0.06), -Math.cos(a));
+    hair.add(lock(d0, d0.clone().lerp(d1, 0.5).normalize(), d1, 0.03, 0.012), shade());
   }
 }
 
-/** Where the eyes sit (head space): unit-sphere direction x, y. */
-const EYE_X = 0.38;
-const EYE_Y = 0.05;
-const EYE = { rx: 0.0135, ry: 0.0095, rz: 0.006 } as const;
+/**
+ * Eye radius (m). Cartoon eyes: a dark, glossy ball set into the face so only a round cap
+ * shows (`EYE_OUT` of it stands out), with a white catch-light. No white or iris.
+ */
+const EYE_R = 0.012;
+const EYE_OUT = 0.0042;
+/** Eyelids: spherical caps just outside the eyeball, so they slide over it like real lids. */
+const LID_R = EYE_R * 1.08;
+/** Upper lid: cap half-angle, and how far (rad) its pole tips forward from straight up while
+ * open (tipped back, its edge just at the top of the eye: a lash line) and while shut (down
+ * past the bottom of the eye). */
+const LID_UP = { half: 1.06, open: -0.38, shut: 1.5 } as const;
+
+/**
+ * An eyelid: a cap of the sphere round the eyeball, centered on its pole (+Y for the upper
+ * lid, −Y for the lower), half-angle `half`. Painted skin, darkening to the lash line along
+ * its edge (`lash`: how dark). The cap is cut by a plane, but tipped toward the viewer its
+ * edge reads as the lid's arc, lowest over the middle of the eye.
+ */
+function lidCap(half: number, upper: boolean, lash: number): THREE.BufferGeometry {
+  const g = upper
+    ? new THREE.SphereGeometry(LID_R, 28, 16, 0, Math.PI * 2, 0, half)
+    : new THREE.SphereGeometry(LID_R, 28, 14, 0, Math.PI * 2, Math.PI - half, half);
+  const pos = g.getAttribute('position');
+  const col = new Float32Array(pos.count * 3);
+  const skin = new THREE.Color(C.skin);
+  const dark = new THREE.Color(C.brow);
+  for (let i = 0; i < pos.count; i++) {
+    const theta = Math.acos(clamp((upper ? 1 : -1) * pos.getY(i) / LID_R, -1, 1));
+    const k = lash * smoothstep(half - 0.3, half - 0.06, theta);
+    tmpC3.copy(skin).lerp(dark, k).toArray(col, i * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+
+/**
+ * An eyebrow along `pts` (on the skin): a flat band, thick at the inner end and thinning to
+ * a point at the outer end, lying on the skin (flattened along the surface normal).
+ */
+function brow(pts: THREE.Vector3[]): THREE.BufferGeometry {
+  const curve = new THREE.CatmullRomCurve3(pts);
+  const ts = 24;
+  const rs = 8;
+  const g = new THREE.TubeGeometry(curve, ts, 1, rs, false);
+  const pos = g.getAttribute('position');
+  const c = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  const off = new THREE.Vector3();
+  for (let j = 0; j <= ts; j++) {
+    const t = j / ts;
+    curve.getPointAt(t, c);
+    n.copy(c).normalize();
+    // Thick and blunt (a cartoon brow), a little thinner toward the outer end.
+    const w = 0.0042 * (1 - 0.35 * t) * Math.min(1, 0.55 + t * 5) * Math.min(1, 0.4 + (1 - t) * 6);
+    for (let i = 0; i <= rs; i++) {
+      const k = j * (rs + 1) + i;
+      off.fromBufferAttribute(pos, k).sub(c);
+      // Unit-radius offset: thin along the normal, `w` across the skin.
+      const along = off.dot(n);
+      off.addScaledVector(n, -along).multiplyScalar(w).addScaledVector(n, along * 0.0016 + 0.0008);
+      pos.setXYZ(k, c.x + off.x, c.y + off.y, c.z + off.z);
+    }
+  }
+  g.computeVertexNormals();
+  return g;
+}
+/** Eye centers on the face (head space, m): set wide and a little low, as on a cartoon face. */
+const EYE_X = 0.033;
+const EYE_Y = 0.002;
+
+/** The point on the face (front) at height y and sideways offset x (m, head space). */
+function facePoint(x: number, y: number, out: THREE.Vector3): THREE.Vector3 {
+  let z = -0.09;
+  for (let i = 0; i < 4; i++) z = headPoint(x, y, z, out).z;
+  return out;
+}
 
 interface HeadParts {
   skin: GeoBuilder;
   gloss: GeoBuilder;
-  /** Eye centers (head space), for the blinking lids. */
+  /** Eyeball centers (head space), for the blinking lids. */
   eyes: THREE.Vector3[];
 }
 
 function buildHead(p: HeadParts, rng: Rng): void {
   const q = new THREE.Vector3();
-  p.skin.add(sculpt(48, 36, (v) => headPoint(v.x, v.y, v.z, v)), C.skin);
+  const base = new THREE.Color(C.skin);
+  const tone = new THREE.Color();
+  // The head, painted per vertex (see skinTone).
+  const head = sculpt(64, 48, (v) => headPoint(v.x, v.y, v.z, v));
+  const pos = head.getAttribute('position');
+  const col = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    skinTone(q.fromBufferAttribute(pos, i), base, tone).toArray(col, i * 3);
+  }
+  head.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  p.skin.addPainted(head);
   for (const s of [-1, 1]) {
-    // Eye in its socket: white, iris, pupil, a catch light, a lash line along the top.
-    headPoint(s * EYE_X, EYE_Y, -1, q);
+    // Eye: the dark ball set into the face; the upper lid (a separate, blinking mesh) rests
+    // at its top edge as a lash line.
+    facePoint(s * EYE_X, EYE_Y, q);
     const ex = q.x;
     const ey = q.y;
-    const ez = q.z + 0.0035;
+    const ez = q.z + EYE_R - EYE_OUT;
     p.eyes.push(new THREE.Vector3(ex, ey, ez));
-    p.gloss.add(place(ball(1, 16, 12), ex, ey, ez, 0, 0, 0, EYE.rx, EYE.ry, EYE.rz), C.sclera);
-    const front = ez - EYE.rz;
-    p.gloss.add(place(ball(1, 14, 8), ex - s * 0.0008, ey - 0.0004, front + 0.0006, 0, 0, 0, 0.0074, 0.0078, 0.0016), C.iris);
-    p.gloss.add(place(ball(1, 10, 6), ex - s * 0.0008, ey - 0.0004, front + 0.0001, 0, 0, 0, 0.0036, 0.0038, 0.0012), C.pupil);
-    p.gloss.add(place(ball(0.0017, 6, 4), ex - s * 0.0008 + 0.0025, ey + 0.0026, front - 0.0006), C.sclera);
-    p.gloss.add(
-      place(new THREE.TorusGeometry(EYE.rx * 0.98, 0.0011, 4, 16, Math.PI), ex, ey + 0.0008, front + 0.0022, 0, 0, 0, 1, 0.95, 1),
-      C.hair,
+    p.gloss.add(place(ball(EYE_R, 20, 16), ex, ey, ez), C.iris);
+    // Catch-lights: a big one up and out, a small one below; both eyes lit from the same side.
+    const front = ez - EYE_R;
+    p.gloss.add(place(ball(1, 10, 8), ex + 0.0028, ey + 0.0032, front + 0.0012, 0, 0, 0, 0.0022, 0.0022, 0.0012), C.sclera);
+    p.gloss.add(place(ball(1, 8, 6), ex - 0.0022, ey - 0.0034, front + 0.0006, 0, 0, 0, 0.001, 0.001, 0.0008), C.sclera);
+    // Brow: a short, thick, gently arched band well above the eye.
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i <= 6; i++) {
+      const t = i / 6;
+      const by = 0.025 + 0.004 * Math.sin(Math.PI * t) - 0.003 * t;
+      pts.push(facePoint(s * (0.016 + 0.032 * t), by, new THREE.Vector3()));
+    }
+    p.gloss.add(brow(pts), C.brow);
+    // Ear: a small rounded shell with a rim, at the side, leaning back.
+    headPoint(s, -0.1, 0.07, q);
+    const ax = q.x + s * 0.001;
+    p.skin.add(place(ball(1, 12, 10), ax, q.y, q.z, -0.12, s * 0.28, 0, 0.007, 0.022, 0.015), C.ear);
+    p.skin.add(
+      place(new THREE.TorusGeometry(0.013, 0.0036, 6, 18, Math.PI * 1.45), ax + s * 0.002, q.y + 0.001, q.z, -0.12, Math.PI / 2 + s * 0.28, 0.2, 1, 1.4, 1),
+      C.ear,
     );
-    // Brows: slightly arched, following the brow ridge back toward the temples.
-    headPoint(s * 0.38, 0.27, -1, q);
-    p.gloss.add(place(new THREE.CapsuleGeometry(0.0027, 0.022, 3, 8), q.x, q.y, q.z - 0.0015, 0, s * 0.35, Math.PI / 2 - s * 0.12), C.hair);
-    // Soft blush on the cheeks.
-    headPoint(s * 0.5, -0.25, -1, q);
-    p.skin.add(place(ball(1, 10, 8), q.x, q.y, q.z + 0.003, 0, s * 0.5, 0, 0.012, 0.007, 0.002), C.blush);
-    // Ear: a flat shell with a rolled rim, angled back.
-    headPoint(s, -0.04, 0.12, q);
-    const ax = q.x + s * 0.002;
-    p.skin.add(place(ball(1, 12, 10), ax, q.y, q.z, 0, s * 0.3, 0, 0.007, 0.029, 0.018), C.skin);
-    p.skin.add(place(new THREE.TorusGeometry(0.016, 0.0038, 6, 18, Math.PI * 1.45), ax + s * 0.002, q.y + 0.001, q.z, 0, Math.PI / 2 + s * 0.3, 0.2, 1, 1.55, 1), C.skin);
   }
-  // A small, warm smile and a hint of the lower lip.
-  headPoint(0, -0.5, -1, q);
-  p.skin.add(place(new THREE.TorusGeometry(0.014, 0.0019, 5, 16, Math.PI), q.x, q.y + 0.003, q.z - 0.0008, 0, 0, Math.PI, 1, 0.45, 1), C.lip);
-  p.skin.add(place(ball(1, 12, 8), q.x, q.y - 0.006, q.z + 0.0012, 0, 0, 0, 0.009, 0.0032, 0.0035), C.lip);
-  // Nostrils.
-  for (const s of [-1, 1]) {
-    headPoint(s * 0.08, -0.31, -1, q);
-    p.skin.add(place(ball(1, 8, 6), q.x, q.y, q.z + 0.004, 0.4, 0, 0, 0.0035, 0.002, 0.003), '#b48a76');
+  // Mouth: a short, gentle smile.
+  for (let i = -6; i <= 6; i++) {
+    const mx = i * 0.0012;
+    facePoint(mx, -0.05 + 0.0032 * (i / 6) ** 2, q);
+    p.skin.add(place(ball(1, 6, 4), q.x, q.y, q.z - 0.0002, 0, 0, 0, 0.0018, 0.0009 * (1 - 0.5 * (i / 6) ** 2), 0.0012), C.mouth);
   }
   // Hair: shell grown from the scalp, then the locks on top.
   p.gloss.add(
@@ -1438,12 +1607,18 @@ export class Avatar {
     }
     cloth.add(place(new THREE.BoxGeometry(0.058, 0.064, 0.003), -0.068, 0.29, torsoFront(0.29, -0.068) - 0.0012, 0, 0.32, 0), C.shirtDark, T);
     cloth.add(place(new THREE.BoxGeometry(0.06, 0.012, 0.004), -0.068, 0.318, torsoFront(0.318, -0.068) - 0.002, 0, 0.32, 0), C.shirt, T);
-    // Neck: bends between the shoulders and the head.
+    // Lower neck: bends between the shoulders and the head. The upper neck is part of the
+    // head's surface (see HEAD_MASSES); this one rises from the collar and ends inside it.
     skin.add(
-      tube(rings([[0.4, 0.05, 0.046, 0.053], [0.45, 0.044, 0.042, 0.048], [0.5, 0.041, 0.04, 0.044], [0.57, 0.043, 0.042, 0.045]]), 20),
+      tube(rings([[0.4, 0.056, 0.05, 0.058], [0.45, 0.05, 0.045, 0.054], [0.49, 0.042, 0.036, 0.046], [0.52, 0.033, 0.026, 0.036]]), 20),
       C.skin,
       T,
-      blendY(T, this.head, 0.47, 0.56),
+      // Weighted like the head's own neck at the same place (moved into head space), so the
+      // two surfaces bend alike and this one stays inside when the head turns.
+      (_x, y, z) => {
+        const t = neckWeight(y - this.head.position.y, z - this.head.position.z);
+        return [[T, t], [this.head, 1 - t]];
+      },
     );
 
     // ---- Head ----
@@ -1451,18 +1626,17 @@ export class Avatar {
     const headGloss = new GeoBuilder(rng, 0);
     const eyes: THREE.Vector3[] = [];
     buildHead({ skin: headSkin, gloss: headGloss, eyes }, rng);
-    skin.add(headSkin.build(), null, this.head);
-    gloss.add(headGloss.build(), null, this.head);
-    // Eyelids: skin caps hinged at the top of each eye, squashed up while open; they blink.
-    const lidGeo = new THREE.SphereGeometry(1, 14, 10);
+    skin.add(headSkin.build().scale(HEAD_SCALE, HEAD_SCALE, HEAD_SCALE), null, this.head, (_x, y, z) => {
+      const t = neckWeight(y, z);
+      return [[T, t], [this.head, 1 - t]];
+    });
+    gloss.add(headGloss.build().scale(HEAD_SCALE, HEAD_SCALE, HEAD_SCALE), null, this.head);
+    // Upper lids: caps over the eyeballs, turning about the eyeball's center to blink.
+    const lidGeo = lidCap(LID_UP.half, true, 1).scale(HEAD_SCALE, HEAD_SCALE, HEAD_SCALE);
     for (const e of eyes) {
-      const hinge = new THREE.Group();
-      hinge.position.set(e.x, e.y + EYE.ry, e.z - 0.0006);
-      const lid = new THREE.Mesh(lidGeo, skinMat);
-      lid.scale.set(EYE.rx * 1.06, EYE.ry * 1.08, EYE.rz * 1.25);
-      lid.position.y = -EYE.ry;
-      hinge.add(lid);
-      hinge.scale.y = 0.12;
+      const hinge = new THREE.Mesh(lidGeo, skinMat);
+      hinge.position.copy(e).multiplyScalar(HEAD_SCALE);
+      hinge.rotation.x = -LID_UP.open;
       this.head.add(hinge);
       this.lids.push(hinge);
       this.ownMeshes.push(hinge);
@@ -1822,8 +1996,8 @@ export class Avatar {
         closed = 0;
       }
     }
-    const lid = 0.12 + 0.88 * Math.max(0, closed);
-    for (const h of this.lids) h.scale.y = lid;
+    const lid = LID_UP.open + (LID_UP.shut - LID_UP.open) * Math.max(0, closed);
+    for (const h of this.lids) h.rotation.x = -lid;
 
   }
 

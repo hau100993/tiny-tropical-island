@@ -40,6 +40,13 @@ export class GeoBuilder {
     this.addColored(g, tmpColor.r * k, tmpColor.g * k, tmpColor.b * k);
   }
 
+  /** Adds a geometry that already carries its own `color` attribute (painted per vertex). */
+  addPainted(g: THREE.BufferGeometry): void {
+    if (g.getAttribute('uv')) g.deleteAttribute('uv');
+    if (!g.getAttribute('normal')) g.computeVertexNormals();
+    this.parts.push(g.index ? g : indexed(g));
+  }
+
   private addColored(g: THREE.BufferGeometry, r: number, gr: number, b: number): void {
     if (g.getAttribute('uv')) g.deleteAttribute('uv');
     if (!g.getAttribute('normal')) g.computeVertexNormals();
