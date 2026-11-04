@@ -62,6 +62,8 @@ export interface Settings {
   footsteps: boolean;
   /** Walk mode view: through the eyes, or behind the character. */
   walkView: WalkView;
+  /** Riding the manta: its skill buttons on screen (the keys work either way). */
+  mantaSkillBar: boolean;
   /** Mouse steering speed while walking, paddling and surfing, 0..1 (see mouseLook). */
   mouseSpeed: number;
   /** Your character (third person, swimming, kayak, surfing). */
@@ -130,6 +132,7 @@ export function defaultSettings(): Settings {
     fireflies: true,
     footsteps: true,
     walkView: 'third',
+    mantaSkillBar: true,
     mouseSpeed: 0.4,
     character: 'default',
     activeScene: 'b-sunny',
@@ -232,6 +235,7 @@ export function parseSettings(json: string | null): Settings {
     fireflies: bool(raw.fireflies, defaults.fireflies),
     footsteps: bool(raw.footsteps, defaults.footsteps),
     walkView: raw.walkView === 'first' || raw.walkView === 'third' ? raw.walkView : defaults.walkView,
+    mantaSkillBar: bool(raw.mantaSkillBar, defaults.mantaSkillBar),
     mouseSpeed: unit(raw.mouseSpeed, defaults.mouseSpeed),
     character: (CHARACTER_IDS as readonly unknown[]).includes(raw.character) ? (raw.character as CharacterId) : defaults.character,
     activeScene: typeof raw.activeScene === 'string' ? raw.activeScene.slice(0, 64) : defaults.activeScene,

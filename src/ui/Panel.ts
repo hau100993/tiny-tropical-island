@@ -120,6 +120,7 @@ export class Panel {
   private readonly qualityNote: HTMLElement;
   private readonly autoRotate: ToggleControl;
   private readonly footsteps: ToggleControl;
+  private readonly mantaSkillBar: ToggleControl;
   private readonly walkViewBtns = new Map<WalkView, HTMLButtonElement>();
   private readonly startQuality: QualityLevel;
   private readonly bigClock: HTMLElement;
@@ -342,12 +343,16 @@ export class Panel {
       this.walkViewBtns.set(id, b);
       walkViews.append(b);
     }
+    this.mantaSkillBar = toggle(vi.panel.mantaSkillBar, s.mantaSkillBar, (on) => settings.update({ mantaSkillBar: on }));
+    const walkOpts = el('div', 'option-list');
+    walkOpts.append(this.mantaSkillBar.root);
     this.tab('view').append(
       tiles,
       el('div', 'subhead', vi.panel.orbitOptions),
       orbitOpts,
       el('div', 'subhead', vi.panel.walkOptions),
       walkViews,
+      walkOpts,
     );
 
     // --- Cài đặt ---
@@ -712,6 +717,7 @@ export class Panel {
     this.qualityNote.textContent = msaaChanged ? vi.panel.msaaReload : '';
     this.autoRotate.set(s.autoRotate);
     this.footsteps.set(s.footsteps);
+    this.mantaSkillBar.set(s.mantaSkillBar);
     this.synthFallback.set(s.synthFallback);
     for (const [id, b] of this.walkViewBtns) b.setAttribute('aria-pressed', String(id === s.walkView));
     this.mouseSpeed.set(s.mouseSpeed);

@@ -48,6 +48,9 @@ import type { BladeEvent, WaterSample } from '../activities/kayakPhysics';
 import { SwimEffects } from '../activities/swimEffects';
 import { SurfActivity } from '../activities/SurfActivity';
 import { MantaActivity } from '../activities/MantaActivity';
+import type { CircleCollider } from '../controls/collision';
+import { COOLDOWN, MantaSkills, type MantaSkillId } from '../activities/MantaSkills';
+import { MantaSkillBar } from '../ui/MantaSkillBar';
 import { Skyline } from '../activities/flight/skyline';
 import { ISLAND_CONFIG } from '../world/heightmap';
 import type { PopUp, SurfEvent } from '../activities/surfPhysics';
@@ -102,6 +105,8 @@ const REBOARD_ARM = 2.5;
 const TIME_RESET_HIDDEN = 3600;
 /** Upright screens zoom out at most this far (camera.zoom): 55° → ~81° vertical fov. */
 const PORTRAIT_MIN_ZOOM = 0.6;
+/** No moving obstacles (see CollisionWorld.movers). */
+const NO_MOVERS: readonly CircleCollider[] = [];
 /**
  * Shadows while walking, paddling or surfing: a square of ±PLAYER_SHADOW_HALF m whose center
  * sits PLAYER_SHADOW_AHEAD m in front of you (you see more ahead than behind).
@@ -147,6 +152,8 @@ export class App {
   private readonly surf: SurfActivity;
   /** Cá Đuối Trời: called with O, ridden over the island (Phase 15). */
   private readonly manta: MantaActivity;
+  private readonly mantaSkills: MantaSkills;
+  private mantaBar!: MantaSkillBar<MantaSkillId>;
   private readonly swimFx: SwimEffects;
   /** Air bubbles under water (exhaled while diving). */
   private readonly bubbles: Spray;
@@ -204,7 +211,7 @@ export class App {
   private dogModel: DogModel | null = null;
   private dog: DogCompanion | null = null;
   private dogLoading = false;
-  private readonly dogPlayer: DogPlayer = { x: 0, z: 0, y: 0, speed: 0, onFoot: true, atSea: false, seat: null };
+  private readonly dogPlayer: DogPlayer = { x: 0, z: 0, y: 0, speed: 0, onFoot: true, atSea: false, flying: false, seat: null };
   private readonly dogLook = new THREE.Vector3();
   /** Bọt the water crab and Hỏa Long the fire dragon (activities/creatures.ts). */
   private readonly creatures: Creatures;
@@ -383,6 +390,7 @@ export class App {
         },
         onNoRoom: () => this.activityMenu.flash(vi.manta.noRoomHere),
         onNoCallRoom: () => this.activityMenu.flash(vi.manta.noRoom),
+        onView: (view) => this.settings.update({ walkView: view }),
       },
       () => this.reducedMotion.matches,
     );
@@ -466,6 +474,7 @@ export class App {
     this.smoke = new Embers(sharedUniforms, 'smoke');
     this.dust = new Embers(sharedUniforms, 'steam');
     this.scene.add(this.lightning.mesh, this.smoke.points, this.dust.points);
+    this.mantaSkills = this.createMantaSkills();
     this.dogSkills = this.createDogSkills();
     this.combos = this.createCombos();
     this.ambush = this.createAmbush();
@@ -484,6 +493,15 @@ export class App {
     const ui = document.createElement('div');
     ui.className = 'ui-layer';
     this.skillCard = new SkillCard(ui);
+    this.mantaBar = new MantaSkillBar(
+      ui,
+      [
+        { id: 'frost', key: 'Q', name: vi.manta.skillShort.frost, icon: 'snow' },
+        { id: 'meteor', key: 'E', name: vi.manta.skillShort.meteor, icon: 'meteor' },
+        { id: 'aurora', key: 'R', name: vi.manta.skillShort.aurora, icon: 'aurora' },
+      ],
+      (id) => this.mantaSkills.cast(id),
+    );
     this.floatBars = new FloatBars(ui);
     this.hurtEl = document.createElement('div');
     this.hurtEl.className = 'hurt-flash';
@@ -699,7 +717,8 @@ export class App {
   private weatherTargets(): WeatherTargets {
     const s = this.settings.get();
     const k = this.calmVisual;
-    return { rain: s.visualRain * k, snow: s.visualSnow * k, wind: s.visualWind * k };
+    // Mưa Sao Băng brings its own snowfall for a while, on top of the scene's.
+    return { rain: s.visualRain * k, snow: Math.max(s.visualSnow * k, this.mantaSkills.snow), wind: s.visualWind * k };
   }
 
   /**
@@ -1004,6 +1023,11 @@ export class App {
       keyLabel: 'R',
       label: vi.shortcuts.waterSkill,
       action: () => {
+        // On the manta, R is its aurora (Bọt's skill waits until you're down).
+        if (this.cameras.mode === 'fly') {
+          this.mantaSkills.cast('aurora');
+          return;
+        }
         if (this.petGame.originalKey('bot') === 'done') return;
         const r = this.creatures.waterSkill();
         if (r === 'off') this.activityMenu.flash(vi.creatures.coming);
@@ -1046,8 +1070,12 @@ export class App {
           this.cameras.getUp();
           return;
         }
-        // In the kayak, E is the right-hand stroke (K steps out); on the manta, nothing.
-        if (this.cameras.mode === 'kayak' || this.cameras.mode === 'fly') return;
+        // In the kayak, E is the right-hand stroke (K steps out); on the manta, Mưa Sao Băng.
+        if (this.cameras.mode === 'fly') {
+          this.mantaSkills.cast('meteor');
+          return;
+        }
+        if (this.cameras.mode === 'kayak') return;
         const near = this.nearSeat();
         if (near) this.cameras.sit(near, true);
         // No seat here: E feeds the pet the bubble points at.
@@ -1099,6 +1127,14 @@ export class App {
       action: () => this.mantaKey(),
     });
     this.keymap.register({
+      code: 'KeyQ',
+      keyLabel: 'Q',
+      label: vi.shortcuts.mantaSkill,
+      action: () => {
+        if (this.cameras.mode === 'fly') this.mantaSkills.cast('frost');
+      },
+    });
+    this.keymap.register({
       code: 'KeyV',
       keyLabel: 'V',
       label: vi.shortcuts.view,
@@ -1128,6 +1164,7 @@ export class App {
     sharedUniforms.uTime.value = 0;
     this.world.dayNight.onTimeReset();
     this.world.footprints.clear();
+    this.mantaSkills.reset();
   }
 
   /** Long visible sessions: restart the shader clock behind a short fade, never mid-activity. */
@@ -1185,6 +1222,7 @@ export class App {
     this.world.water.applyProfile(profile);
     this.world.water.setStepRate(fps);
     this.world.weather.setQuality(profile);
+    this.mantaSkills.setQuality(profile.iceSpikes, profile.iceShards);
     this.world.grass.setCount(profile.grassCount);
     this.world.flowers.setCount(profile.flowerCount);
     this.env.waveStrength.target = s.waveStrength;
@@ -1774,6 +1812,8 @@ export class App {
     const p = this.dogPlayer;
     p.seat = mode === 'seat' ? this.cameras.seat : null;
     p.atSea = mode === 'kayak' || mode === 'surf' || ((mode === 'walk' || mode === 'orbit') && w.swimming);
+    // Up on the manta: it can't follow, it waits and watches.
+    p.flying = mode === 'fly';
     p.onFoot = (mode === 'walk' || mode === 'orbit') && !w.swimming;
     const body = mode === 'kayak' ? this.kayak.body : mode === 'surf' ? this.surf.body : mode === 'fly' ? this.manta : null;
     p.x = body ? body.x : w.x;
@@ -2161,6 +2201,24 @@ export class App {
   private onSwimStroke(e: SwimStroke): void {
     this.swimFx.stroke(e, this.walker);
     if (this.settings.get().footsteps) this.mixer.playPaddle('catch', 0.55 * e.strength, e.side * 0.5);
+  }
+
+  /** The manta's skills (Q / E / R while riding), drawn with the shared particles and sounds. */
+  private createMantaSkills(): MantaSkills {
+    const w = this.world;
+    return new MantaSkills(this.scene, sharedUniforms, this.manta, this.camera, {
+      card: (id) => this.skillCard.show(`${vi.manta.title}: ${vi.manta.skills[id]}`, id === 'frost' ? 'ice' : id === 'meteor' ? 'moon' : 'aurora'),
+      refuse: (id, why, seconds) => this.activityMenu.flash(why === 'needSea' ? vi.manta.needSea : vi.manta.cooldown(vi.manta.skills[id], seconds)),
+      // On you (the rider): straight ahead, near full; with the activity sounds, as the other skills.
+      sound: (kind, size) => {
+        if (this.settings.get().footsteps) this.mixer.playSkill(kind, size, 0.8, 0);
+      },
+      ripple: (x, z) => w.water.addRipple(x, z, 1.6, -0.12),
+      mist: this.dust,
+      sparkle: this.rainbow,
+      heightAt: (x, z) => w.heightmap.heightAt(x, z),
+      reducedMotion: () => this.reducedMotion.matches,
+    });
   }
 
   /**
@@ -2663,6 +2721,7 @@ export class App {
     this.rainbow.setViewport(this.drawingBuffer.y, fov);
     this.smoke.setViewport(this.drawingBuffer.y, fov);
     this.dust.setViewport(this.drawingBuffer.y, fov);
+    this.mantaSkills.setViewport(this.drawingBuffer.y, fov);
   };
 
   private tick = (dt: number, elapsed: number): void => {
@@ -2711,6 +2770,8 @@ export class App {
     this.mixer.setSeaState(sea);
 
     this.updateHammock(dt);
+    // The manta hovering by you is solid (its circles, where it is now).
+    this.colliders.world.movers = this.manta.blocking ? this.manta.blockers : NO_MOVERS;
     this.cameras.update(dt);
     this.touchControls.set(this.touchLayout());
     this.updateListener(dt);
@@ -2724,6 +2785,9 @@ export class App {
     this.seaGlow.update(dt);
     this.rainbow.update(dt);
     this.fx.update(dt);
+    this.mantaSkills.update(dt);
+    const m = this.mantaSkills;
+    this.mantaBar.update(s.mantaSkillBar && this.cameras.mode === 'fly' && this.manta.state === 'riding', (id) => [m.cooldown(id), COOLDOWN[id]]);
     this.dogSkills.update(dt);
     this.combos.update(dt);
     this.updateHealth(dt);

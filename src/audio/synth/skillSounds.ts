@@ -5,9 +5,14 @@ import { makeFilter, makeGain, type AudioEngine } from '../AudioEngine';
  * and a roar of brown noise), `thunder` (a sharp crack, then a long rolling rumble), `zap`
  * (electric crackle: a buzzing sawtooth jumping in pitch, with snaps), `whoosh` (a gust:
  * swept band-passed noise), `splash` (a burst of water: noise falling from bright to dull, with
- * droplets), `charge` (a power-up swell rising in pitch), `sonic` (a huge bark with an echo).
+ * droplets), `charge` (a power-up swell rising in pitch), `sonic` (a huge bark with an echo),
+ * and the manta's: `frost` (an icy hiss with the crackle of freezing and glassy tinkles),
+ * `starfall` (high falling glides over a soft whoosh, then a twinkle), `aurora` (a slow
+ * shimmering chord), `scrape` (one stroke of ice under a gliding body), `crack` (ice
+ * spikes bursting up: a sharp snap and a dull knock), `shatter` (a crystal breaking: glassy
+ * tinkles falling).
  */
-export type SkillSound = 'boom' | 'thunder' | 'zap' | 'whoosh' | 'splash' | 'charge' | 'sonic';
+export type SkillSound = 'boom' | 'thunder' | 'zap' | 'whoosh' | 'splash' | 'charge' | 'sonic' | 'frost' | 'starfall' | 'aurora' | 'scrape' | 'crack' | 'shatter';
 
 /**
  * One-shots on the direct bus; every node stops and disconnects itself. `size` 0..1 scales
@@ -82,6 +87,45 @@ export class SkillSounds {
           this.noise(p, n.pink, t + d, 'bandpass', 700, 300, 0.01, 0.3, 0.35 * gain * k);
         }
         this.tone(p, 'sine', 70, 35, t, 0.7, 0.6 * gain);
+        break;
+      case 'frost': {
+        // The breath: a long cold hiss, the ice cracking as it sets, glassy tinkles on top.
+        const dur = 1.2 + 1.8 * s;
+        this.noise(p, n.white, t, 'highpass', 2500, 6000, 0.15, dur, 0.35 * gain, 0.5);
+        this.noise(p, n.pink, t, 'bandpass', 900, 400, 0.1, dur * 0.8, 0.25 * gain, 1.5);
+        for (let i = 0; i < 6 + 6 * s; i++) this.noise(p, n.white, t + 0.2 + Math.random() * dur, 'bandpass', 1600 + Math.random() * 1500, 900, 0.002, 0.04, 0.3 * gain, 4);
+        for (let i = 0; i < 8; i++) this.tone(p, 'sine', 2600 + Math.random() * 2600, 2400 + Math.random() * 2000, t + 0.1 + Math.random() * dur, 0.35, 0.05 * gain);
+        break;
+      }
+      case 'starfall':
+        // A few stars streaking down (falling whistles), the air behind them, a twinkle at the end.
+        for (let i = 0; i < 3; i++) {
+          const d = i * (0.35 + 0.2 * Math.random());
+          this.tone(p, 'sine', 2200 + Math.random() * 900, 500 + Math.random() * 300, t + d, 1.1, 0.07 * gain);
+        }
+        this.noise(p, n.pink, t, 'bandpass', 2400, 500, 0.3, 1.2 + s, 0.35 * gain, 1.2);
+        for (let i = 0; i < 10; i++) this.tone(p, 'triangle', 1800 + Math.random() * 2400, 1700 + Math.random() * 2400, t + 1 + Math.random() * (1 + s), 0.25, 0.05 * gain);
+        break;
+      case 'aurora':
+        // A shimmering chord (C E G C E, a little detuned for the shimmer), swelling slowly.
+        for (const f of [523.25, 659.25, 783.99, 1046.5, 1318.5]) {
+          this.tone(p, 'sine', f, f * 1.003, t, 0.9 + 0.6 * s, 0.06 * gain, true);
+          this.tone(p, 'sine', f * 1.004, f, t + 0.9 + 0.6 * s, 2 + 1.5 * s, 0.06 * gain);
+        }
+        this.noise(p, n.white, t, 'highpass', 6000, 9000, 0.9, 2 + s, 0.08 * gain);
+        break;
+      case 'crack':
+        this.noise(p, n.white, t, 'highpass', 2200, 1200, 0.001, 0.06 + 0.05 * s, 0.45 * gain);
+        this.noise(p, n.brown, t, 'lowpass', 500, 150, 0.003, 0.15 + 0.1 * s, 0.5 * gain);
+        for (let i = 0; i < 3; i++) this.noise(p, n.white, t + 0.02 + Math.random() * 0.15, 'bandpass', 2500 + Math.random() * 2000, 1500, 0.001, 0.03, 0.25 * gain, 3);
+        break;
+      case 'shatter':
+        this.noise(p, n.white, t, 'bandpass', 4000, 2500, 0.002, 0.12, 0.25 * gain, 2);
+        for (let i = 0; i < 5 + 4 * s; i++) this.tone(p, 'sine', 3000 + Math.random() * 3500, 2600 + Math.random() * 3000, t + Math.random() * 0.4, 0.15, 0.06 * gain);
+        break;
+      case 'scrape':
+        // Ice under a gliding body: a short bright scrape, its pitch a little random.
+        this.noise(p, n.white, t, 'bandpass', 3000 + Math.random() * 1500, 1800, 0.02, 0.18 + 0.2 * s, 0.22 * gain, 2.5);
         break;
     }
   }

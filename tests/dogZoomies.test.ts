@@ -5,7 +5,7 @@ const spot = { x: 0, y: 0, z: 0, yaw: 0 };
 function world(clear: (x: number, z: number) => boolean): DogWorld {
   return { groundAt: () => 0, terrainAt: () => 1, deskSpot: spot, bathSpot: spot, hammockSpot: spot, inRoom: () => false, clear };
 }
-const you: DogPlayer = { x: 0, z: 0, y: 0, speed: 0, onFoot: true, atSea: false, seat: null };
+const you: DogPlayer = { x: 0, z: 0, y: 0, speed: 0, onFoot: true, atSea: false, flying: false, seat: null };
 
 describe('Mochi: Sao Băng (zoomies)', () => {
   it('runs laps round you on open ground, leaps, lands and follows again', () => {
@@ -29,5 +29,21 @@ describe('Mochi: Sao Băng (zoomies)', () => {
   it('with trees all round, it stays put', () => {
     const dog = new DogCompanion(world((x, z) => Math.hypot(x, z) < 1), { onStep: () => {}, onBark: () => {}, onZoom: () => {} }, { x: 0.5, z: 0 });
     expect(dog.zoomies(you)).toBe(false);
+  });
+});
+
+describe('Mochi while you fly the manta', () => {
+  it('stays where you took off, sitting and looking up at you, however far you fly', () => {
+    const dog = new DogCompanion(world(() => true), { onStep: () => {}, onBark: () => {}, onZoom: () => {} }, { x: 1.5, z: 1.5 });
+    const flying: DogPlayer = { ...you, onFoot: false, flying: true };
+    // You fly off 200 m out over the sea and circle there for half a minute.
+    for (let i = 0; i < 60 * 30; i++) {
+      const a = i / 300;
+      flying.x = 200 + Math.cos(a) * 20;
+      flying.z = Math.sin(a) * 20;
+      dog.update(1 / 60, flying);
+    }
+    expect(Math.hypot(dog.x - 1.5, dog.z - 1.5)).toBeLessThan(0.5);
+    expect(dog.action).toBe('sit');
   });
 });

@@ -49,6 +49,7 @@ export const vi = {
     qualityNames: { low: 'Thấp', medium: 'Vừa', high: 'Cao' },
     msaaReload: 'Khử răng cưa đổi sau khi tải lại trang.',
     autoRotate: 'Tự xoay camera',
+    mantaSkillBar: 'Hiện nút tuyệt chiêu khi cưỡi Cá Đuối',
     sky: 'Bầu trời',
     time: 'Giờ',
     realTime: 'Giờ thật (theo máy tính)',
@@ -459,7 +460,7 @@ export const vi = {
     noLaunch: 'Ra sát mép nước để hạ thuyền',
   },
   manta: {
-    controls: 'W: bay tới (giữ Shift: bay nhanh) · Chuột: lái hướng khi bay, nhìn lên để bay lên · A / D: rẽ · S: lùi (giữ Shift: lùi nhanh) · Space: hạ xuống, sát đất đứng yên thì nhấn Space để xuống · O: đáp xuống · V: đổi góc nhìn · C: toàn cảnh',
+    controls: 'W: bay tới (giữ Shift: bay nhanh) · Chuột: lái hướng khi bay, nhìn lên để bay lên · A / D: rẽ · S: lùi (giữ Shift: lùi nhanh) · Space: hạ xuống, sát đất đứng yên thì nhấn Space để xuống · O: đáp xuống · Q / E / R: tuyệt chiêu · V: đổi góc nhìn · C: toàn cảnh',
     title: 'Cá Đuối Trời',
     ride: 'Cưỡi Cá Đuối',
     coming: 'Cá Đuối Trời đang bay tới…',
@@ -467,6 +468,12 @@ export const vi = {
     noRoomHere: 'Bay tới chỗ trống (bãi cát, bãi cỏ) hoặc ra biển để đáp',
     up: 'Bay lên',
     down: 'Hạ xuống',
+    /** The skills' full names (the big card). */
+    skills: { frost: 'Hơi Thở Băng Giá', meteor: 'Mưa Sao Băng', aurora: 'Dải Lụa Cực Quang' },
+    /** Short names (the buttons). */
+    skillShort: { frost: 'Băng Giá', meteor: 'Sao Băng', aurora: 'Cực Quang' },
+    cooldown: (name: string, s: number) => `${name}: còn ${s} giây nữa`,
+    needSea: 'Bay thấp trên mặt biển để phun Hơi Thở Băng Giá',
   },
   layers: {
     waves: 'Sóng biển',
@@ -649,6 +656,7 @@ export const vi = {
     journal: 'Nhật ký: các việc đã làm ở biển',
     surf: 'Gần biển: lướt ván (ra bãi sóng) / rời ván',
     manta: 'Cá Đuối Trời: huýt sáo gọi / cưỡi lên / đáp xuống',
+    mantaSkill: 'Cưỡi Cá Đuối: Hơi Thở Băng Giá (E: Mưa Sao Băng, R: Dải Lụa Cực Quang)',
     mouse: 'Kéo: xoay · Cuộn: thu phóng · Chuột phải: dời · Nhấp vào nước: gợn sóng',
     sliderWheel: 'Thanh trượt: lăn chuột để chỉnh 5% (giờ: 15 phút) · giữ Shift để chỉnh mịn · nhấp đúp: về mặc định',
     sceneKeys: '1 – 9: chọn cảnh theo thứ tự trên bảng',
@@ -658,7 +666,7 @@ export const vi = {
     surfKeys: 'Lướt ván: nằm chèo W, A / D quay ván · hiện "Sóng tới!" thì nhấn Space: ván giữ hướng mũi đang chỉ (A / D vẫn chỉnh được), tự chèo và đứng lên · lướt 8 giây liền: Bé Mập nhảy lên ăn mừng · đứng: A / D ôm cua dọc sóng (Shift gắt, nghiêng quá là ngã, ngã thì tự leo lại lên ván) · W lấy đà · S hãm · L rời ván',
     journalKeys: 'Nhật ký (J): các việc ở biển, tự đánh dấu khi bạn làm xong, lưu lại cho lần sau',
     mantaKeys:
-      'Cá Đuối Trời: đi bộ hoặc bơi nhấn O để huýt sáo, nó bay tới đậu cạnh bạn · đứng gần nhấn Space (hoặc O): leo lên lưng · W bay tới theo hướng nhìn, nhìn lên để bay lên (Shift: nhanh) · A / D rẽ · S lùi (Shift: lùi nhanh) · Space hạ xuống, sát đất đứng yên thì nhấn Space lần nữa để xuống · O: đáp xuống chỗ trống hoặc mặt biển rồi nhảy xuống',
+      'Cá Đuối Trời: đi bộ hoặc bơi nhấn O để huýt sáo, nó bay tới đậu cạnh bạn · đứng gần nhấn Space (hoặc O): leo lên lưng · W bay tới theo hướng nhìn, nhìn lên để bay lên (Shift: nhanh) · A / D rẽ · S lùi (Shift: lùi nhanh) · Space hạ xuống, sát đất đứng yên thì nhấn Space lần nữa để xuống · O: đáp xuống chỗ trống hoặc mặt biển rồi nhảy xuống · Q Hơi Thở Băng Giá (bay thấp trên biển: đóng băng mặt biển, Cá Đuối lướt trên băng; nhìn lên để cất cánh) · E Mưa Sao Băng (sao băng và tuyết rơi) · R Dải Lụa Cực Quang (bay dọc theo dải lụa để được gió đẩy nhanh)',
     kayakKeys: 'Kayak: W chèo tới (giữ Shift: chèo nhanh) · A / D rẽ · S chèo lùi · Q / E chèo tay từng bên (Shift: chèo quét) · Space nhảy xuống bơi (bơi lại sát thuyền là tự leo lên) · K lên bờ',
   },
 } as const;

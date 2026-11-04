@@ -4,9 +4,10 @@ import { patchWorldMaterial } from '../patchMaterial';
 import { smoothModel } from '../smoothMesh';
 import type { SharedUniforms } from '../../core/uniforms';
 import { findClip, prepareSkinned } from './glbUtil';
+import { MANTA_WINGSPAN } from '../../activities/flight/mantaSize';
 
 /** Wingspan with the wings spread flat (m). */
-export const WINGSPAN = 7;
+export const WINGSPAN = MANTA_WINGSPAN;
 /** Time in the Swim clip where the wings lie flat: the glide pose. */
 const GLIDE_TIME = 4.0;
 /**
@@ -15,21 +16,16 @@ const GLIDE_TIME = 4.0;
  */
 const BACK = new THREE.Vector3(0, 0.3, 0.8);
 /**
- * The harness (file units): a strap round the head behind the eyes (its middle ~0.17 up, the
- * head ~1.1 wide and 0.46 tall there) and a handle arching up and back from it toward the rider
- * (within an arm's reach of the shoulders, ~0.5 m), held at GRIP_X either side of the middle.
+ * The harness: a strap round the head behind the eyes (file units: its middle ~0.17 up, the head
+ * ~1.1 wide and 0.46 tall there) and a handle arching up and back from it to where the rider's
+ * hands are. The grips are set in metres from where the rider lies (an arm's reach from the
+ * shoulders, whatever the manta's size): `x` either side, `up`, `ahead`.
  */
 const STRAP = { z: 2.1, y: 0.17, halfW: 0.62, halfH: 0.29, tilt: 0.12, r: 0.04 } as const;
-const HANDLE: readonly (readonly [number, number, number])[] = [
-  [-0.34, 0.43, 2.0],
-  [-0.3, 0.6, 1.68],
-  [-0.17, 0.63, 1.42],
-  [0.17, 0.63, 1.42],
-  [0.3, 0.6, 1.68],
-  [0.34, 0.43, 2.0],
-];
-const GRIP_X = 0.17;
-const GRIP = { y: 0.63, z: 1.42 } as const;
+// Measured on the avatar lying here: shoulders ±0.19 wide, 0.25 up, 0.13 ahead; arm (shoulder to
+// wrist) 0.495 m, and the palm holds ~4.5 cm past the wrist. The grips sit shoulder-wide where
+// the wrist ends up at ~97% of that reach: arms nearly straight.
+const GRIP = { x: 0.19, up: 0.345, ahead: 0.645 } as const;
 
 const tmpV = new THREE.Vector3();
 const tmpQ = new THREE.Quaternion();
@@ -144,6 +140,13 @@ export class MantaModel {
   private readonly tailRest: THREE.Quaternion[];
   private readonly materials: THREE.Material[] = [];
   private readonly duration: number;
+  /** Metres per file unit (the fit to WINGSPAN). */
+  private readonly scale: number;
+  /** The grips (file units; x for the right hand) and a wing tip in the glide pose (file units, right). */
+  private readonly grip = new THREE.Vector3();
+  private readonly tip = new THREE.Vector3();
+  /** The front of the head (file units, z). */
+  private front = 0;
   private flap = 0;
   private tailYaw = 0;
   private tailPitch = 0;
@@ -177,7 +180,10 @@ export class MantaModel {
     // Wingspan with the wings flat.
     scene.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(scene, true);
-    this.body.scale.setScalar(WINGSPAN / (box.max.x - box.min.x));
+    this.scale = WINGSPAN / (box.max.x - box.min.x);
+    this.body.scale.setScalar(this.scale);
+    this.findTip(scene);
+    this.grip.set(GRIP.x / this.scale, BACK.y + GRIP.up / this.scale, BACK.z + GRIP.ahead / this.scale);
     this.body.add(scene);
     this.body.add(this.harness(shared));
     this.root.add(this.body);
@@ -220,6 +226,23 @@ export class MantaModel {
    * `aManta` per vertex: across (x, from the middle) and along (from the front of the head
    * backward), in the file's metres, measured in the rest pose (so the pattern rides the skin).
    */
+  /** The right wing's tip in the glide pose (the skinned vertex furthest out), file units. */
+  private findTip(scene: THREE.Object3D): void {
+    let best = -Infinity;
+    scene.traverse((o) => {
+      const mesh = o as THREE.SkinnedMesh;
+      if (!mesh.isSkinnedMesh) return;
+      const n = mesh.geometry.getAttribute('position').count;
+      for (let i = 0; i < n; i++) {
+        mesh.getVertexPosition(i, tmpV).applyMatrix4(mesh.matrixWorld);
+        if (tmpV.x > best) {
+          best = tmpV.x;
+          this.tip.copy(tmpV);
+        }
+      }
+    });
+  }
+
   private paintCoordinates(scene: THREE.Object3D): void {
     const meshes: THREE.Mesh[] = [];
     let front = -Infinity;
@@ -240,6 +263,7 @@ export class MantaModel {
       }
       mesh.geometry.setAttribute('aManta', new THREE.BufferAttribute(uv, 2));
     }
+    this.front = front;
   }
 
   /** Where it is and how it's tilted: yaw (forward (−sin, −cos)), pitch nose-up +, roll right wing down +. */
@@ -297,10 +321,14 @@ export class MantaModel {
       ring.push(new THREE.Vector3(STRAP.halfW * Math.sin(a), STRAP.y + STRAP.halfH * Math.cos(a), STRAP.z - STRAP.tilt * Math.cos(a)));
     }
     const strap = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(ring, true), 64, STRAP.r, 8, true), mat);
-    const handle = new THREE.Mesh(
-      new THREE.TubeGeometry(new THREE.CatmullRomCurve3(HANDLE.map(([x, y, z]) => new THREE.Vector3(x, y, z))), 32, STRAP.r * 0.85, 8, false),
-      mat,
-    );
+    // From the strap's sides, up and back to the grips, across between them.
+    const g0 = this.grip;
+    const side = STRAP.halfW * 0.55;
+    const from = new THREE.Vector3(side, STRAP.y + STRAP.halfH * 0.9, STRAP.z - 0.1);
+    const mid = new THREE.Vector3((side + g0.x) / 2 + 0.03, (from.y + g0.y) / 2 + 0.06, (from.z + g0.z) / 2);
+    const handlePts = [from, mid, g0].map((p) => p.clone().setX(-p.x));
+    handlePts.push(...[g0, mid, from].map((p) => p.clone()));
+    const handle = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(handlePts), 32, STRAP.r * 0.85, 8, false), mat);
     const g = new THREE.Group();
     for (const m of [strap, handle]) {
       m.castShadow = true;
@@ -312,7 +340,19 @@ export class MantaModel {
 
   /** Where the rider's left (0) or right (1) hand holds the handle (world). */
   gripPoint(i: number, out: THREE.Vector3): THREE.Vector3 {
-    return out.set((i === 0 ? -1 : 1) * GRIP_X, GRIP.y, GRIP.z).applyMatrix4(this.body.matrixWorld);
+    // The file faces +Z, so its −x side is the manta's (and the rider's) right.
+    return out.set((i === 0 ? 1 : -1) * this.grip.x, this.grip.y, this.grip.z).applyMatrix4(this.body.matrixWorld);
+  }
+
+  /** The left (0) or right (1) wing tip (world; the wings flat, not following each beat). */
+  wingTip(i: number, out: THREE.Vector3): THREE.Vector3 {
+    // The file faces +Z, so its −x side is the manta's right.
+    return out.set((i === 0 ? 1 : -1) * this.tip.x, this.tip.y, this.tip.z).applyMatrix4(this.body.matrixWorld);
+  }
+
+  /** The tip of its head, `up` m above its middle (world). */
+  nose(up: number, out: THREE.Vector3): THREE.Vector3 {
+    return out.set(0, BACK.y + up / this.scale, this.front).applyMatrix4(this.body.matrixWorld);
   }
 
   /** Where the rider lies (world, no scale): origin on its back under the chest, −Z toward the head. */

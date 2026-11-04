@@ -122,6 +122,11 @@ export interface TerrainQuery<S extends string> {
 export class CollisionWorld<S extends string> {
   private readonly grid: CircleGrid;
   private readonly local = { x: 0, z: 0 };
+  /**
+   * Things that move and block the way (the manta hovering by you): circles set from outside
+   * every frame, resolved like the trees. Empty when there are none.
+   */
+  movers: readonly CircleCollider[] = [];
 
   constructor(
     private readonly terrain: TerrainQuery<S>,
@@ -171,21 +176,23 @@ export class CollisionWorld<S extends string> {
   resolve(x: number, z: number, feetY: number, radius: number, out: { x: number; z: number }): void {
     let px = x;
     let pz = z;
+    const push = (c: CircleCollider): void => {
+      const dx = px - c.x;
+      const dz = pz - c.z;
+      const min = c.r + radius;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= min * min) return;
+      const d = Math.sqrt(d2);
+      if (d < 1e-6) {
+        px = c.x + min;
+        return;
+      }
+      px = c.x + (dx / d) * min;
+      pz = c.z + (dz / d) * min;
+    };
     for (let pass = 0; pass < 2; pass++) {
-      this.grid.forEachNear(px, pz, radius, (c) => {
-        const dx = px - c.x;
-        const dz = pz - c.z;
-        const min = c.r + radius;
-        const d2 = dx * dx + dz * dz;
-        if (d2 >= min * min) return;
-        const d = Math.sqrt(d2);
-        if (d < 1e-6) {
-          px = c.x + min;
-          return;
-        }
-        px = c.x + (dx / d) * min;
-        pz = c.z + (dz / d) * min;
-      });
+      this.grid.forEachNear(px, pz, radius, push);
+      for (const c of this.movers) push(c);
       for (const b of this.boxes) {
         // Only boxes that overlap the body's height span and can't simply be stepped over.
         if (b.yMax <= feetY + 0.05 || b.yMin >= feetY + BODY_HEIGHT) continue;

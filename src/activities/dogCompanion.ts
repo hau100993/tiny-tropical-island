@@ -11,6 +11,8 @@ export interface DogPlayer {
   onFoot: boolean;
   /** In the sea: swimming, diving, in the kayak or on the surfboard. */
   atSea: boolean;
+  /** Up on the manta (flying, or hovering on it): it can't follow, it stays and watches. */
+  flying: boolean;
   /** Sitting somewhere: at the desk, in the bath, in the hammock (null: not). */
   seat: 'desk' | 'bath' | 'hammock' | null;
 }
@@ -368,7 +370,16 @@ export class DogCompanion {
       }
     }
 
-    if (p.atSea) {
+    if (p.flying) {
+      // You flew off on the manta: it stays where it is, sitting and watching you in the sky.
+      tx = this.x;
+      tz = this.z;
+      stopAt = 0.2;
+      faceYaw = Math.atan2(p.x - this.x, p.z - this.z);
+      rest = true;
+      pose = 'sit';
+      alone = true;
+    } else if (p.atSea) {
       // Pacing the water's edge, watching you.
       this.shoreTimer -= dt;
       if (this.shoreTimer <= 0) {

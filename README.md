@@ -67,7 +67,7 @@ On start a short **guided tour** ("Hướng dẫn nhanh", 12 steps) plays over t
 | `B` | Work desk: sit down at the desk in the house (from anywhere) / get up |
 | `G` | Call Mochi the dog: it runs straight to you |
 | `J` | Mochi's skills, each press the next: **Shooting Star**, **Sonic Bark**, **Lightning Strike** (see *Mochi*) |
-| `R` | Bọt the water crab's skills, each press the next: water jet (at you if you stand within 10 m, else out to sea), bubble shower, rainbow geyser (see *Three skills each*) |
+| `R` | (On the manta: its aurora, see *Cá Đuối Trời*.) Bọt the water crab's skills, each press the next: water jet (at you if you stand within 10 m, else out to sea), bubble shower, rainbow geyser (see *Three skills each*) |
 | `X` | Hỏa Long the fire dragon's skills, each press the next: fire breath (at you if you stand within 12 m: it dries you; else onto the sea), ring of fire, meteor shower |
 | `Z` | Mầm the grass bunny's skills, each press the next: Leaf Blossom (flowers spring up where the leaves land; within 10 m of you: a ring of flowers round you), the pollen dance, dandelion breeze |
 | `U` | Seated at the desk: play a YouTube link on the left monitor, same as clicking the YouTube icon on that monitor (see *The house and the work desk*). Elsewhere: pause / resume that video |
@@ -992,10 +992,13 @@ in, and drips when it comes out. These marks live in a sharp "wake map" (48 m ar
 
 ## Cá Đuối Trời: the flying manta (`O`, Phase 15)
 
-A manta ray about 7 m across that flies. Walking (or swimming), press `O`: you whistle, and
+A manta ray 5 m across (sized to its rider) that flies. An ice creature: flying, it sheds
+glinting snowflakes off its wings, and once it's quick a pale spiral of cold wind streams off
+each wing tip (stronger the faster it goes; none with reduced motion). Walking (or swimming), press `O`: you whistle, and
 it glides in (from far over the sea the first time) and hovers a metre over open ground beside
 you, or on the water next to you when you swim. Nowhere open near you (in the forest, inside the
-house): a note says so. Press `Space` (or `O`) next to it to hop onto its back.
+house): a note says so. Press `Space` (or `O`) next to it to hop onto its back. Hovering there it
+is solid: you walk round it, not through it.
 
 | Input | Action |
 |---|---|
@@ -1004,8 +1007,10 @@ house): a note says so. Press `Space` (or `O`) next to it to hop onto its back.
 | `S` (hold) | Back up (~5 m/s); `Shift` + `S`: back up fast (~10 m/s). Let go of everything and it slows to a hover |
 | `Space` (hold) | Go down (straight down at a hover, a dive when flying). Low over the ground or the sea and standing still, press `Space` again to hop off |
 | Mouse | Look around; after a moment without the mouse the view drifts back behind it |
-| `V` | Character view ↔ eyes view |
+| Wheel / pinch | Camera closer or further (3–24 m), as walking; in past the closest: the eyes view, out again: behind |
+| `V` | Character view ↔ eyes view: from just over the tip of its head, so nothing blocks the view (its wings at the edges) |
 | `O` | Land: it comes down where it is and you hop off to its right. Over the sea you drop into the water and swim. Over trees or a roof it says to find an open place |
+| `Q` / `E` / `R` | Its three skills (see below); also the buttons above the bottom of the screen |
 | `C` | Back to the orbit view; `C` again puts you back on it (it waits in the air) |
 | Phones | Joystick: fly and turn; **Bay lên** / **Hạ xuống** buttons; the corner button lands |
 
@@ -1025,6 +1030,38 @@ flies; the body lifts on each downstroke and the tail trails the turns. It wears
 harness: a strap round its head and a handle arching back from it. You ride lying face down
 along its back holding the handle, head up looking ahead; slow, the lower legs are lifted and
 swing idly; fast, you lie flat and streamlined, legs nearly straight.
+
+### Its skills (`Q` / `E` / `R` while riding)
+
+Riding, a row of three buttons shows the skills (click or tap them too); a dark sweep shows the
+recharge. *Góc nhìn* → *Hiện nút tuyệt chiêu khi cưỡi Cá Đuối* hides them (the keys still work).
+A big name card appears when one is cast. On the manta, `E` and `R` are its skills; Bọt's `R`
+works again once you are down.
+
+| Key | Skill | What it does | Recharge |
+|---|---|---|---|
+| `Q` | **Hơi Thở Băng Giá** | Low over the open sea (under ~16 m): it breathes frost for 4.5 s and the sea freezes into a road of ice 6–11 m wide (its width wanders) ahead of it, along wherever you steer. Clusters of crystal spikes burst up along both edges in a wave behind the breath (a few tall ones), broken plates drift off on the waves, and the freezing front flashes and throws up ice and mist. Over the ice the manta comes down and glides on it, level, never slower than ~16 m/s (ice has no grip), throwing up crystals with a scrape. Look up while flying forward to take off again. The top shows a network of plates and cracks, bubbles and glitter; at night the spikes and cracks glow. After ~40 s the spikes crumble with a tinkle and the plates sink one by one. Not over the beach or the reef shallows | 10 s |
+| `E` | **Mưa Sao Băng** | For 12 s shooting stars streak across the sky in front of you (all from one radiant, like a real shower) and burst into glittering ice crystals; snow starts to fall over the island for ~40 s (it settles a little, then melts) with crystals twinkling round you | 30 s |
+| `R` | **Dải Lụa Cực Quang** | For 10 s an aurora unfurls up from both wing tips along your path: two curtains, green at the foot to violet at the top, folding and shimmering; they hang there for ~45 s. Fly along between them again and their wind carries you past sprint speed, shedding rainbow motes | 18 s |
+
+How they are drawn: the ice road and the aurora curtains are one ribbon class each
+(`world/creatures/trailRibbon.ts`): a ring buffer of path points with a cross-section (the ice: a
+slab with bevelled sides; the aurora: two vertical curtains). The CPU writes one point per push;
+the shaders do the rest (freezing outward, melting, unfolding, the rays). The meteors are one
+instanced quad mesh whose vertex shader flies each streak from its start to its end on the shader
+clock. The ice's spikes and drifting plates are two more instanced meshes
+(`world/creatures/iceCrystals.ts`): each spike's placement goes into its instance matrix once,
+its growth (overshooting, then settling) and crumbling happen in the vertex shader; the plates
+ride the same Gerstner waves as the sea, computed in their vertex shader. Their crystal shader is
+opaque and fakes the light through the ice (a dark-to-white gradient, a bright rim, inner
+cracks, glints). The road's plates and cracks are Voronoi (cellular) noise, which also decides
+when each plate sinks. Spikes and plates at most: Low 200 / 60, Medium 400 / 120, High
+600 / 200 (fewer clusters on the lower presets). Measured on Medium with a road filling the view:
+under 1 ms of GPU time (within the frame-to-frame noise), nothing once it has melted. The
+crystals are a new kind of the shared particle pool (`frost`). All sounds are
+synthesized (an icy hiss with crackles, falling whistles and a twinkle, a shimmering chord, the
+scrape of ice). The ice is a flat slab 0.6 m over the calm sea: in very rough seas the wave
+crests can wash over its edges.
 
 ## Day, night and sky
 

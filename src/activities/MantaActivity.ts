@@ -5,22 +5,28 @@ import type { WalkView } from '../controls/walker';
 import type { SharedUniforms } from '../core/uniforms';
 import { clamp, damp, smoothstep } from '../core/math';
 import { DragLook } from '../controls/dragLook';
+import { Pinch } from '../controls/pinch';
+import type { CircleCollider } from '../controls/collision';
 import { isTyping } from '../controls/keymap';
 import { moveInput, readMove, touchInput } from '../controls/touchInput';
 import { CLEARANCE, CRUISE, MantaFlight, angleTo, flightInput } from './flight/mantaFlight';
 import type { Skyline } from './flight/skyline';
+import { MANTA_WINGSPAN } from './flight/mantaSize';
 import mantaUrl from '../assets/creatures/sky-manta.glb?url';
 
 const LOOK_SPEED = 0.0022;
 const PITCH = { first: [-1.3, 1.2], third: [-1.2, 0.9] } as const;
 /** The view's resting pitch: looking this far down is level flight. */
 const LEVEL_PITCH = -0.18;
-/** Third person: camera distance behind the rider's head (the manta is 7 m across). */
-const ARM = 8.5;
+/** Third person: camera distance behind the rider's head (a little more than the wingspan). */
+const ARM = MANTA_WINGSPAN + 2;
 /** Where the third-person camera looks: this far above the rider's chest (m). */
 const HEAD = 0.9;
-/** The rider's eyes in the back's frame (lying, the chest raised: ahead and a little up). */
-const EYE = { y: 0.42, z: -0.62 } as const;
+/**
+ * Through the eyes (V): the view from just over the tip of its head (m up, m ahead), so its head
+ * isn't in the way and the whole island is in view; the wings at the edges.
+ */
+const EYE = { up: 0.55, ahead: 0.25 } as const;
 /**
  * Lying on its back (see Avatar.updateProneRide), by speed: slow, the chest up and the lower
  * legs lifted, swinging idly; fast, flat along it, legs nearly straight (streamlined).
@@ -29,8 +35,22 @@ const SLOW = { chest: 0.38, knee: 1.0, swing: 0.3 } as const;
 const FAST = { chest: 0.1, knee: 0.25, swing: 0.05 } as const;
 /** Resting: its middle hovers this high over the ground or the sea (m), clear of both. */
 const REST_Y = 1.15;
+/**
+ * Mouse wheel / pinch while riding (as walking): the camera arm from `min` to `max` m, × `step`
+ * per notch; in past `min`: through the eyes, out from there: behind again.
+ */
+const ZOOM = { min: 3, max: 24, step: 1.18 } as const;
+/** Wheel delta (px) of one notch, and a pinch's step in notches (as the walker's). */
+const NOTCH_PX = 100;
+const PINCH_STEP = 0.2;
+/** Hovering by you it blocks the way: its body and each wing as circles (m: offset to the side, radius). */
+const BLOCK = [
+  [0, MANTA_WINGSPAN * 0.22],
+  [-MANTA_WINGSPAN * 0.3, MANTA_WINGSPAN * 0.13],
+  [MANTA_WINGSPAN * 0.3, MANTA_WINGSPAN * 0.13],
+] as const;
 /** Close enough (m) to climb on. */
-const MOUNT_NEAR = 5.5;
+const MOUNT_NEAR = MANTA_WINGSPAN * 0.5 + 2;
 /** Where it lands when called: this far from you (m), tried in rings. */
 const CALL_RINGS = [6.5, 9, 12, 16] as const;
 /** The first call: it comes in from over the sea, this far out (m) and this high. */
@@ -38,6 +58,13 @@ const FIRST_FROM = { dist: 230, height: 55 } as const;
 /** Climbing on and off (s). */
 const HOP_ON = 0.9;
 const HOP_OFF = 0.75;
+/**
+ * Gliding on the ice road (Hơi Thở Băng Giá): its middle rides this high over the ice (wings
+ * flat); it settles onto ice under it from up to `catch` m above, carried at `speed` m/s at
+ * least (ice has no grip). Looking up while flying forward (or the up button) takes off, and
+ * it won't settle again for `lift` s.
+ */
+const SKATE = { clear: 0.75, catch: 14, speed: 16, takeoff: 0.32, lift: 3 } as const;
 /** Seconds without mouse movement before the view drifts back behind the manta. */
 const RECENTER_AFTER = 1.2;
 const KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight']);
@@ -61,12 +88,19 @@ export interface MantaEvents {
   onNoRoom(): void;
   /** Called, but nowhere near you is open enough for it to come down. */
   onNoCallRoom(): void;
+  /** The wheel asks for the other view (in past the nearest: through the eyes; out: behind). */
+  onView(view: WalkView): void;
 }
 
 export interface MantaWorld {
   skyline: Skyline;
   heightAt(x: number, z: number): number;
   seaHeight(x: number, z: number): number;
+}
+
+/** The ice road under the manta (see IceRoad.floorAt): its top, or −Infinity. */
+export interface IceFloor {
+  floorAt(x: number, z: number, now: number): number;
 }
 
 /** Where the walker stands (for the hop on). */
@@ -87,7 +121,7 @@ const UP = new THREE.Vector3(0, 1, 0);
 /**
  * Cá Đuối Trời (Phase 15): a manta ray that flies. Called with a whistle (it glides in and
  * hovers beside you), ridden on its back (MantaFlight, steered like the walker: W forward, the
- * mouse aims while moving, A/D turn, Space/Q up/down), landed where there's room. Loads its
+ * mouse aims while moving, A/D turn, Space down; Q / E / R its skills, see MantaSkills), landed where there's room. Loads its
  * model on the first call.
  */
 export class MantaActivity {
@@ -98,6 +132,11 @@ export class MantaActivity {
   viewPitch = LEVEL_PITCH;
   /** Third person: camera distance (shorter near the ground). */
   arm = ARM;
+  /** The arm the wheel chose (the camera eases to it, shorter when the ground is in the way). */
+  private armWant = ARM;
+  private pinchNotches = 0;
+  /** Its body and wings as circles for the walker to bump into (see `blocking`). */
+  readonly blockers: CircleCollider[] = BLOCK.map(([, r]) => ({ x: 0, z: 0, r }));
   readonly flight: MantaFlight;
   /** What the avatar needs to lie on its back holding the harness (world space), every frame. */
   readonly ride: RidePose = {
@@ -109,6 +148,11 @@ export class MantaActivity {
     lookPitch: 0,
     firstPerson: false,
   };
+  /** The ice road (set by MantaSkills): the flight's floor includes it. */
+  ice: IceFloor | null = null;
+  /** 0 flying … 1 gliding on the ice, eased. */
+  skating = 0;
+  private liftT = 0;
   /** 0 slow … 1 fast (see SLOW, FAST), eased with the speed. */
   private pace = 0;
   private _state: MantaState = 'away';
@@ -152,7 +196,9 @@ export class MantaActivity {
     private readonly events: MantaEvents,
     private readonly reducedMotion: () => boolean,
   ) {
-    this.flight = new MantaFlight(world.skyline);
+    this.flight = new MantaFlight({
+      floor: (x, z) => Math.max(world.skyline.floor(x, z), this.iceAt(x, z)),
+    });
     window.addEventListener('keydown', (e) => {
       if (!this.active || !KEYS.has(e.code) || e.ctrlKey || e.altKey || e.metaKey || isTyping(e.target)) return;
       this.keys.add(e.code);
@@ -170,6 +216,73 @@ export class MantaActivity {
       },
       LOOK_SPEED,
     );
+    dom.addEventListener(
+      'wheel',
+      (e) => {
+        if (!this.active) return;
+        e.preventDefault();
+        const px = e.deltaMode === WheelEvent.DOM_DELTA_PIXEL ? e.deltaY : e.deltaY * NOTCH_PX;
+        this.zoom(px / NOTCH_PX);
+      },
+      { passive: false },
+    );
+    // Two fingers: the arm in and out like the wheel (fingers apart: closer).
+    new Pinch(
+      dom,
+      () => {
+        if (!this.active) return;
+        this.look.release();
+        this.pinchNotches = 0;
+      },
+      (factor) => {
+        if (!this.active) return;
+        this.pinchNotches -= Math.log(factor) / Math.log(ZOOM.step);
+        if (Math.abs(this.pinchNotches) < PINCH_STEP) return;
+        this.zoom(this.pinchNotches);
+        this.pinchNotches = 0;
+      },
+    );
+  }
+
+  /** `notches` of the wheel (> 0: out), as the walker's. */
+  zoom(notches: number): void {
+    if (notches === 0) return;
+    if (this.view === 'first') {
+      if (notches > 0) {
+        this.armWant = ZOOM.min;
+        this.events.onView('third');
+      }
+      return;
+    }
+    const next = this.armWant * Math.pow(ZOOM.step, notches);
+    if (next < ZOOM.min * 0.92) {
+      this.events.onView('first');
+      return;
+    }
+    this.armWant = Math.min(ZOOM.max, Math.max(ZOOM.min, next));
+  }
+
+  /**
+   * Hovering beside you (or you hopping on or off): it's solid, the walker goes round it.
+   * `blockers` then hold its circles, placed this frame.
+   */
+  get blocking(): boolean {
+    const s = this._state;
+    if (s !== 'resting' && s !== 'boarding' && s !== 'alighting') return false;
+    const f = this.flight;
+    // Its side (right) is (cos, −sin) of its heading.
+    const sx = Math.cos(f.yaw);
+    const sz = -Math.sin(f.yaw);
+    for (let i = 0; i < BLOCK.length; i++) {
+      this.blockers[i].x = f.x + sx * BLOCK[i][0];
+      this.blockers[i].z = f.z + sz * BLOCK[i][0];
+    }
+    return true;
+  }
+
+  /** The ice's top at (x, z), or −Infinity. */
+  private iceAt(x: number, z: number): number {
+    return this.ice ? this.ice.floorAt(x, z, this.shared.uTime.value) : -Infinity;
   }
 
   get state(): MantaState {
@@ -196,6 +309,8 @@ export class MantaActivity {
    */
   get settled(): boolean {
     const f = this.flight;
+    // Not on the ice (you'd step off into the sea under it).
+    if (this.skating > 0.1) return false;
     return this._state === 'riding' && Math.abs(f.speed) < 0.6 && f.y - (this.world.skyline.floor(f.x, f.z) + CLEARANCE) < 0.6;
   }
 
@@ -335,7 +450,7 @@ export class MantaActivity {
     if (this._state !== 'riding') return false;
     const f = this.flight;
     const water = this.world.heightAt(f.x, f.z) < -0.9;
-    if (!water && !this.world.skyline.open(f.x, f.z, 3)) {
+    if (this.iceAt(f.x, f.z) > -Infinity || (!water && !this.world.skyline.open(f.x, f.z, 3))) {
       this.events.onNoRoom();
       return false;
     }
@@ -347,7 +462,7 @@ export class MantaActivity {
     this.active = true;
     this.keys.clear();
     this.mouseIdle = 0;
-    this.arm = ARM;
+    this.arm = this.armWant;
     this.camera.rotation.order = 'YXZ';
     this.look.start();
   }
@@ -372,6 +487,7 @@ export class MantaActivity {
     dt = Math.min(dt, 0.05);
     this.time += dt;
     const f = this.flight;
+    if (this._state !== 'riding') this.skating = 0;
     switch (this._state) {
       case 'arriving':
         this.arrive(dt);
@@ -384,9 +500,7 @@ export class MantaActivity {
       case 'riding':
         if (this.active) this.steer(dt);
         else this.idleInput();
-        f.clearance = CLEARANCE;
-        f.update(dt, this.input);
-        this.flapFromFlight();
+        this.flyOrGlide(dt);
         break;
       case 'landing':
         this.descend(dt);
@@ -402,6 +516,40 @@ export class MantaActivity {
     this.pace += (want - this.pace) * damp(2.5, dt);
     this.updateRide();
     if (this.active) this.applyCamera(dt);
+  }
+
+  /**
+   * Flying, or gliding on the ice road: over ice and low enough (not taking off), it eases down
+   * onto it, level, and slides on without losing speed; off the ice the clearance eases back
+   * up (no jump).
+   */
+  private flyOrGlide(dt: number): void {
+    const f = this.flight;
+    const c = this.input;
+    const ice = this.iceAt(f.x, f.z);
+    const takeoff = c.climb > 0 || (c.thrust > 0 && c.aimPitch > SKATE.takeoff);
+    if (takeoff && this.skating > 0.5) this.liftT = SKATE.lift;
+    this.liftT = Math.max(0, this.liftT - dt);
+    const on = ice > -Infinity && f.y < ice + SKATE.catch && !takeoff && this.liftT === 0;
+    this.skating += ((on ? 1 : 0) - this.skating) * damp(on ? 2.5 : 1.5, dt);
+    if (this.skating < 0.01) this.skating = 0;
+    f.clearance = CLEARANCE + (SKATE.clear - CLEARANCE) * this.skating;
+    const before = f.speed;
+    f.update(dt, c);
+    if (this.skating > 0.01 && ice > -Infinity) {
+      const target = ice + f.clearance;
+      f.y += (target - f.y) * damp(3 * this.skating, dt);
+      f.pitch *= 1 - this.skating * damp(6, dt);
+      f.vy *= 1 - this.skating;
+      // No grip on ice: coasting keeps its speed, and it's carried at least SKATE.speed.
+      if (before > 0 && c.back === 0) {
+        if (c.thrust === 0) f.speed = Math.max(f.speed, before - 0.3 * dt);
+        if (f.speed < SKATE.speed) f.speed += (SKATE.speed - f.speed) * damp(1.5 * this.skating, dt);
+      }
+    }
+    this.flapFromFlight();
+    // Wings flat on the ice (a glide), so the tips don't dip into it.
+    this.flap += (0.04 - this.flap) * this.skating;
   }
 
   /** Along the curve, easing out to a stop; the heading follows the curve, then turns to land. */
@@ -502,8 +650,9 @@ export class MantaActivity {
     const f = this.flight;
     const yaw = f.yaw;
     // Right of the manta (forward (−sin, −cos); right is (cos, −sin)), clear of the wing.
-    const x = f.x + Math.cos(yaw) * 4.2;
-    const z = f.z - Math.sin(yaw) * 4.2;
+    const off = MANTA_WINGSPAN * 0.5 + 0.7;
+    const x = f.x + Math.cos(yaw) * off;
+    const z = f.z - Math.sin(yaw) * off;
     const y = this.groundY(x, z);
     this.alight = { x, z, yaw };
     this.hopFrom.copy(this.ride.back);
@@ -626,8 +775,11 @@ export class MantaActivity {
   private applyCamera(dt: number): void {
     const seat = this.ride.back;
     const roll = this.reducedMotion() ? 0 : this.flight.roll;
-    if (this.view === 'first') {
-      tmpV.set(0, EYE.y, EYE.z).applyMatrix4(seat);
+    if (this.view === 'first' && this.model) {
+      // Ahead of the nose along its heading.
+      this.model.nose(EYE.up, tmpV);
+      tmpV.x -= Math.sin(this.flight.yaw) * EYE.ahead;
+      tmpV.z -= Math.cos(this.flight.yaw) * EYE.ahead;
       this.camera.position.copy(tmpV);
       this.camera.rotation.set(this.viewPitch, this.viewYaw, -roll * 0.6, 'YXZ');
       return;
@@ -639,7 +791,7 @@ export class MantaActivity {
     const fy = Math.sin(this.viewPitch);
     const fz = -Math.cos(this.viewYaw) * cp;
     // Shorter when looking up from close to the ground (the camera would go under it).
-    this.arm += (ARM - this.arm) * damp(3, dt);
+    this.arm += (this.armWant - this.arm) * damp(3, dt);
     let cx = tmpV.x - fx * this.arm;
     let cy = tmpV.y - fy * this.arm;
     let cz = tmpV.z - fz * this.arm;
@@ -652,6 +804,13 @@ export class MantaActivity {
     }
     this.camera.position.set(cx, cy, cz);
     this.camera.rotation.set(this.viewPitch, this.viewYaw, -roll * 0.3, 'YXZ');
+  }
+
+  /** A wing tip (0 left, 1 right) in the world; false before the model is here. */
+  wingTip(i: number, out: THREE.Vector3): boolean {
+    if (!this.model || this._state === 'away') return false;
+    this.model.wingTip(i, out);
+    return true;
   }
 
   dispose(): void {

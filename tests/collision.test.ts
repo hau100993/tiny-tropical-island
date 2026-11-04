@@ -27,6 +27,16 @@ describe('CollisionWorld', () => {
     expect(out.x).toBeCloseTo(4.6, 5);
   });
 
+  it('pushes the walker out of moving obstacles while they are set', () => {
+    const w = new CollisionWorld<S>(flat, [], [], []);
+    w.movers = [{ x: 20, z: 0, r: 1.1 }];
+    w.resolve(20.5, 0, 0, 0.3, out);
+    expect(Math.hypot(out.x - 20, out.z)).toBeCloseTo(1.4, 5);
+    w.movers = [];
+    w.resolve(20.5, 0, 0, 0.3, out);
+    expect(out.x).toBeCloseTo(20.5, 5);
+  });
+
   it('handles rotated boxes', () => {
     // A thin wall rotated 90°: its long side now runs along x.
     const wall: BoxCollider = { ...frame(0, 5, Math.PI / 2), hx: 0.1, hz: 3, yMin: 0, yMax: 2 };

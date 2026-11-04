@@ -2,6 +2,8 @@ import { el } from './components';
 
 /** Whose skill: sets the card's colours (styles: .skill-card.water …). */
 export type SkillElement = 'water' | 'fire' | 'grass' | 'spark' | 'moon' | 'combo';
+/** A card's colours: an element's, or the manta's ice and aurora. */
+export type CardStyle = SkillElement | 'ice' | 'aurora';
 
 /** How long a card stays up (ms; its CSS animation lasts as long). */
 const CARD_MS = 2200;
@@ -29,7 +31,7 @@ export class SkillCard {
   }
 
   /** `text`: "Who: Skill name" (the creatures' skill strings); the part after ": " is the name. */
-  show(text: string, element: SkillElement): void {
+  show(text: string, element: CardStyle): void {
     // A combo's card isn't cut short by the skills that made it.
     const now = performance.now();
     if (element !== 'combo' && now < this.comboUntil) return;
