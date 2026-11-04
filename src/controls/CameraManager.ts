@@ -4,13 +4,17 @@ import type { Walker } from './walker';
 import type { DeskPose, DeskView } from './deskView';
 import type { KayakActivity } from '../activities/KayakActivity';
 import type { SurfActivity } from '../activities/SurfActivity';
+import type { MantaActivity } from '../activities/MantaActivity';
 
-/** 'seat': sitting at the desk, in the bathtub or lying in the hammock. 'kayak': paddling. 'surf': on the surfboard. */
-export type CameraMode = 'orbit' | 'walk' | 'seat' | 'kayak' | 'surf';
+/**
+ * 'seat': sitting at the desk, in the bathtub or lying in the hammock. 'kayak': paddling. 'surf':
+ * on the surfboard. 'fly': on the manta's back.
+ */
+export type CameraMode = 'orbit' | 'walk' | 'seat' | 'kayak' | 'surf' | 'fly';
 export type SeatId = 'desk' | 'bath' | 'hammock';
 
 /** Near plane per mode: close enough not to clip walls (or the monitors) indoors. */
-const NEAR = { orbit: 0.3, walk: 0.08, seat: 0.05, kayak: 0.08, surf: 0.08 } as const;
+const NEAR = { orbit: 0.3, walk: 0.08, seat: 0.05, kayak: 0.08, surf: 0.08, fly: 0.08 } as const;
 
 export interface SeatSpot {
   /** Where the eyes are when seated, and the look direction. */
@@ -28,8 +32,8 @@ export class CameraManager {
   mode: CameraMode = 'orbit';
   /** Which seat, while mode is 'seat'. */
   seat: SeatId = 'desk';
-  /** Where `C` returns to from the overview: walking, the kayak you were paddling, the surfboard. */
-  private play: 'walk' | 'kayak' | 'surf' = 'walk';
+  /** Where `C` returns to from the overview: walking, the kayak you were paddling, the surfboard, the manta. */
+  private play: 'walk' | 'kayak' | 'surf' | 'fly' = 'walk';
   private readonly savedPos = new THREE.Vector3();
   private readonly savedTarget = new THREE.Vector3();
   private readonly listeners: Array<(mode: CameraMode) => void> = [];
@@ -41,6 +45,7 @@ export class CameraManager {
     private readonly sitter: DeskView,
     private readonly kayak: KayakActivity,
     private readonly surf: SurfActivity,
+    private readonly manta: MantaActivity,
     private readonly spawn: { x: number; z: number; yaw: number },
     private readonly seats: Record<SeatId, SeatSpot>,
   ) {}
@@ -50,7 +55,9 @@ export class CameraManager {
   }
 
   toggle(): void {
-    this.setMode(this.mode === 'orbit' ? this.play : 'orbit');
+    // Back to the manta only if you are still on it (it may have flown to your whistle since).
+    const play = this.play === 'fly' && !this.manta.riding ? 'walk' : this.play;
+    this.setMode(this.mode === 'orbit' ? play : 'orbit');
   }
 
   /** Sit down at `id` (from anywhere, or move from the other seat). `animate`: glide there. */
@@ -89,17 +96,21 @@ export class CameraManager {
       this.kayak.exit();
     } else if (from === 'surf') {
       this.surf.exit();
+    } else if (from === 'fly') {
+      this.manta.exit();
     } else {
       this.sitter.exit();
     }
     // Enter the new one.
-    if (mode === 'walk' || mode === 'kayak' || mode === 'surf') this.play = mode;
+    if (mode === 'walk' || mode === 'kayak' || mode === 'surf' || mode === 'fly') this.play = mode;
     if (mode === 'seat') {
       this.sitter.enter(this.seats[this.seat].seat, animate);
     } else if (mode === 'kayak') {
       this.kayak.enter();
     } else if (mode === 'surf') {
       this.surf.enter();
+    } else if (mode === 'fly') {
+      this.manta.enter();
     } else if (mode === 'walk') {
       if (from === 'seat') {
         const s = this.seats[this.seat].stand;
@@ -121,8 +132,9 @@ export class CameraManager {
     if (this.mode === 'walk') this.walker.update(dt);
     else if (this.mode === 'seat') this.sitter.update(dt);
     else if (this.mode === 'orbit') this.orbit.update(dt);
-    // The kayak and the surfboard float (and are ridden) in every mode.
+    // The kayak and the surfboard float (and are ridden) in every mode; the manta flies.
     this.kayak.update(dt);
     this.surf.update(dt, this.camera.position);
+    this.manta.update(dt);
   }
 }

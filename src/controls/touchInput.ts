@@ -8,6 +8,8 @@ export const touchInput = {
   y: 0,
   /** The rise/dive button held (Space while swimming and diving). */
   jump: false,
+  /** The "down" button held (Q on the flying manta). */
+  down: false,
 };
 
 /** Pushed this far (of the joystick's reach) you run, crawl, sprint or carve hard (Shift). */

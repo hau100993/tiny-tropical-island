@@ -458,6 +458,16 @@ export const vi = {
     jump: 'Nhảy xuống bơi',
     noLaunch: 'Ra sát mép nước để hạ thuyền',
   },
+  manta: {
+    controls: 'W: bay tới (giữ Shift: bay nhanh) · Chuột: lái hướng khi bay, nhìn lên để bay lên · A / D: rẽ · S: lùi (giữ Shift: lùi nhanh) · Space: hạ xuống, sát đất đứng yên thì nhấn Space để xuống · O: đáp xuống · V: đổi góc nhìn · C: toàn cảnh',
+    title: 'Cá Đuối Trời',
+    ride: 'Cưỡi Cá Đuối',
+    coming: 'Cá Đuối Trời đang bay tới…',
+    noRoom: 'Quanh đây không có chỗ trống để Cá Đuối đáp',
+    noRoomHere: 'Bay tới chỗ trống (bãi cát, bãi cỏ) hoặc ra biển để đáp',
+    up: 'Bay lên',
+    down: 'Hạ xuống',
+  },
   layers: {
     waves: 'Sóng biển',
     birds: 'Chim hót',
@@ -638,6 +648,7 @@ export const vi = {
     kayak: 'Gần biển: chèo kayak / lên bờ',
     journal: 'Nhật ký: các việc đã làm ở biển',
     surf: 'Gần biển: lướt ván (ra bãi sóng) / rời ván',
+    manta: 'Cá Đuối Trời: huýt sáo gọi / cưỡi lên / đáp xuống',
     mouse: 'Kéo: xoay · Cuộn: thu phóng · Chuột phải: dời · Nhấp vào nước: gợn sóng',
     sliderWheel: 'Thanh trượt: lăn chuột để chỉnh 5% (giờ: 15 phút) · giữ Shift để chỉnh mịn · nhấp đúp: về mặc định',
     sceneKeys: '1 – 9: chọn cảnh theo thứ tự trên bảng',
@@ -646,6 +657,8 @@ export const vi = {
     diveKeys: 'Lặn: đang bơi nhấn Space · W bơi theo hướng nhìn · Space trồi lên · dưỡng khí ~45 giây, hết thì tự nổi',
     surfKeys: 'Lướt ván: nằm chèo W, A / D quay ván · hiện "Sóng tới!" thì nhấn Space: ván giữ hướng mũi đang chỉ (A / D vẫn chỉnh được), tự chèo và đứng lên · lướt 8 giây liền: Bé Mập nhảy lên ăn mừng · đứng: A / D ôm cua dọc sóng (Shift gắt, nghiêng quá là ngã, ngã thì tự leo lại lên ván) · W lấy đà · S hãm · L rời ván',
     journalKeys: 'Nhật ký (J): các việc ở biển, tự đánh dấu khi bạn làm xong, lưu lại cho lần sau',
+    mantaKeys:
+      'Cá Đuối Trời: đi bộ hoặc bơi nhấn O để huýt sáo, nó bay tới đậu cạnh bạn · đứng gần nhấn Space (hoặc O): leo lên lưng · W bay tới theo hướng nhìn, nhìn lên để bay lên (Shift: nhanh) · A / D rẽ · S lùi (Shift: lùi nhanh) · Space hạ xuống, sát đất đứng yên thì nhấn Space lần nữa để xuống · O: đáp xuống chỗ trống hoặc mặt biển rồi nhảy xuống',
     kayakKeys: 'Kayak: W chèo tới (giữ Shift: chèo nhanh) · A / D rẽ · S chèo lùi · Q / E chèo tay từng bên (Shift: chèo quét) · Space nhảy xuống bơi (bơi lại sát thuyền là tự leo lên) · K lên bờ',
   },
 } as const;

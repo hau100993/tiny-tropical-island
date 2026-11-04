@@ -290,6 +290,16 @@ export class Mixer {
     this.footsteps?.bunny(kind, gain, pan);
   }
 
+  /** Your whistle for the manta (see Footsteps.whistle). */
+  playWhistle(gain: number): void {
+    this.footsteps?.whistle(gain);
+  }
+
+  /** The manta's wings as it lands (see Footsteps.wingWhoosh). */
+  playWingWhoosh(gain: number): void {
+    this.footsteps?.wingWhoosh(gain);
+  }
+
   /** Kayak paddle splash (see Footsteps.paddle); follows the footsteps on/off setting. */
   playPaddle(kind: 'catch' | 'exit', strength: number, pan: number): void {
     this.footsteps?.paddle(kind, strength, pan);

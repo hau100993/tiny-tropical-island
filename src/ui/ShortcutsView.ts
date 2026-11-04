@@ -4,7 +4,7 @@ import { vi } from './strings.vi';
 import type { Keymap } from '../controls/keymap';
 
 /** The longer hints under the key list (mouse, sliders, each activity). */
-const HINTS = ['mouse', 'sliderWheel', 'sceneKeys', 'walkKeys', 'swimKeys', 'diveKeys', 'kayakKeys', 'surfKeys'] as const;
+const HINTS = ['mouse', 'sliderWheel', 'sceneKeys', 'walkKeys', 'swimKeys', 'diveKeys', 'kayakKeys', 'surfKeys', 'mantaKeys'] as const;
 
 /**
  * "Phím tắt": every keyboard shortcut and the activity hints, in a card over the scene (? or the

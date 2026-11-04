@@ -8,7 +8,7 @@ import { GpuTimer } from './gpuTimer';
 import { createWorld, FOG_FAR, FOG_FAR_CLEAR, FOG_NEAR, FOG_NEAR_CLEAR, type World } from '../world/World';
 import { ISLAND_SHADOW_HALF } from '../world/lighting';
 import { createOrbitCamera, type OrbitCamera } from '../controls/orbit';
-import { Keymap } from '../controls/keymap';
+import { Keymap, isTyping } from '../controls/keymap';
 import { onWaterClick, type ClickAim } from '../controls/waterClick';
 import { PetPointer } from '../controls/petPointer';
 import { DragLook } from '../controls/dragLook';
@@ -47,6 +47,9 @@ import { createKayakEnv } from '../activities/kayakEnv';
 import type { BladeEvent, WaterSample } from '../activities/kayakPhysics';
 import { SwimEffects } from '../activities/swimEffects';
 import { SurfActivity } from '../activities/SurfActivity';
+import { MantaActivity } from '../activities/MantaActivity';
+import { Skyline } from '../activities/flight/skyline';
+import { ISLAND_CONFIG } from '../world/heightmap';
 import type { PopUp, SurfEvent } from '../activities/surfPhysics';
 import { Avatar, type AvatarPose, type AvatarRig, type SwimPose } from '../world/avatar';
 // Type-only: the .glb modules (and three's GLTFLoader with them) are a separate chunk, fetched
@@ -142,6 +145,8 @@ export class App {
   private readonly walker: Walker;
   private readonly kayak: KayakActivity;
   private readonly surf: SurfActivity;
+  /** Cá Đuối Trời: called with O, ridden over the island (Phase 15). */
+  private readonly manta: MantaActivity;
   private readonly swimFx: SwimEffects;
   /** Air bubbles under water (exhaled while diving). */
   private readonly bubbles: Spray;
@@ -361,6 +366,26 @@ export class App {
       () => sharedUniforms.uTime.value,
     );
     this.surf.place(w.layout.surf.board.x, w.layout.surf.board.z, w.layout.surf.board.rotY);
+    // What stands on the island, for flying over it (baked once from the meshes just built).
+    const skyline = new Skyline(w.heightmap, ISLAND_CONFIG.size);
+    skyline.bake(this.scene, new Set<THREE.Object3D>([w.grass.mesh]));
+    this.manta = new MantaActivity(
+      this.camera,
+      this.renderer.domElement,
+      this.scene,
+      sharedUniforms,
+      { skyline, heightAt: (x, z) => w.heightmap.heightAt(x, z), seaHeight: this.seaHeight },
+      {
+        onArrive: () => this.mixer.playWingWhoosh(0.5),
+        onAlight: (x, z, yaw) => {
+          this.walker.placeAt(x, z, yaw);
+          if (this.cameras.mode === 'fly') this.cameras.setMode('walk');
+        },
+        onNoRoom: () => this.activityMenu.flash(vi.manta.noRoomHere),
+        onNoCallRoom: () => this.activityMenu.flash(vi.manta.noRoom),
+      },
+      () => this.reducedMotion.matches,
+    );
     this.deskView = new DeskView(this.camera, this.renderer.domElement);
     // House-local seat → world-space camera pose (desk faces the sea, the tub the forest).
     const spot = (h: HouseSeat): SeatSpot => {
@@ -369,7 +394,7 @@ export class App {
       const yaw = this.colliders.seaYaw + (h.facesSea ? 0 : Math.PI);
       return { seat: { x: seat.x, y: h.eyeY, z: seat.z, yaw, pitch: h.pitch }, stand: { x: stand.x, z: stand.z, yaw } };
     };
-    this.cameras = new CameraManager(this.camera, this.orbit, this.walker, this.deskView, this.kayak, this.surf, this.colliders.spawn, {
+    this.cameras = new CameraManager(this.camera, this.orbit, this.walker, this.deskView, this.kayak, this.surf, this.manta, this.colliders.spawn, {
       desk: spot(w.house.desk),
       bath: spot(w.house.bath),
       hammock: this.hammockSpot(),
@@ -399,6 +424,7 @@ export class App {
     this.walker.setView(s.walkView);
     this.kayak.setView(s.walkView);
     this.surf.setView(s.walkView);
+    this.manta.setView(s.walkView);
     onWaterClick(
       this.renderer.domElement,
       this.camera,
@@ -490,7 +516,7 @@ export class App {
       status: () => this.screenInfo(),
       view: () => {
         const m = this.cameras.mode;
-        return m === 'seat' ? this.cameras.seat : m === 'kayak' || m === 'surf' ? 'walk' : m;
+        return m === 'seat' ? this.cameras.seat : m === 'kayak' || m === 'surf' || m === 'fly' ? 'walk' : m;
       },
       onViewChange: (fn) => this.cameras.onChange(fn),
       goTo: (view) => this.goTo(view),
@@ -587,8 +613,9 @@ export class App {
       const walking = mode === 'walk';
       const paddling = mode === 'kayak';
       const surfing = mode === 'surf';
-      document.body.classList.toggle('walking', walking || paddling || surfing);
-      this.panel.setWalking(walking || paddling || surfing);
+      const flying = mode === 'fly';
+      document.body.classList.toggle('walking', walking || paddling || surfing || flying);
+      this.panel.setWalking(walking || paddling || surfing || flying);
       document.body.classList.toggle('at-desk', mode === 'seat');
       const atDesk = mode === 'seat' && this.cameras.seat === 'desk';
       this.deskVideo.setSeated(atDesk);
@@ -597,6 +624,7 @@ export class App {
       document.body.classList.toggle('at-work-desk', atDesk);
       if (paddling) this.walkHint.update(true, vi.kayak.controls);
       else if (surfing) this.walkHint.update(true, this.surfControls());
+      else if (flying) this.walkHint.update(true, vi.manta.controls);
       else this.walkHint.update(walking, this.walkControls());
       if (!walking && !paddling) this.activityMenu.set(null);
       const seat = this.cameras.seat;
@@ -1018,8 +1046,8 @@ export class App {
           this.cameras.getUp();
           return;
         }
-        // In the kayak, E is the right-hand stroke (K steps out).
-        if (this.cameras.mode === 'kayak') return;
+        // In the kayak, E is the right-hand stroke (K steps out); on the manta, nothing.
+        if (this.cameras.mode === 'kayak' || this.cameras.mode === 'fly') return;
         const near = this.nearSeat();
         if (near) this.cameras.sit(near, true);
         // No seat here: E feeds the pet the bubble points at.
@@ -1037,6 +1065,15 @@ export class App {
       },
     });
     this.keymap.register({ code: 'KeyC', keyLabel: 'C', label: vi.shortcuts.walk, action: () => this.cameras.toggle() });
+    // Space by the manta: climb on (walking or swimming beside it); on its back, settled low and
+    // still: hop off. A fresh press only, so holding Space to come down never throws you off.
+    // (Otherwise Space keeps its own uses: diving, coming down on the manta.)
+    window.addEventListener('keydown', (e) => {
+      if (e.code !== 'Space' || e.repeat || e.ctrlKey || e.altKey || e.metaKey || isTyping(e.target)) return;
+      const mode = this.cameras.mode;
+      if (mode === 'walk' && this.boardManta()) e.preventDefault();
+      else if (mode === 'fly' && this.manta.settled) this.manta.land();
+    });
     this.keymap.register({
       code: 'KeyK',
       keyLabel: 'K',
@@ -1054,6 +1091,12 @@ export class App {
         if (this.cameras.mode === 'surf') this.leaveSurf();
         else if (this.cameras.mode === 'walk' && this.nearSea()) this.boardSurf();
       },
+    });
+    this.keymap.register({
+      code: 'KeyO',
+      keyLabel: 'O',
+      label: vi.shortcuts.manta,
+      action: () => this.mantaKey(),
     });
     this.keymap.register({
       code: 'KeyV',
@@ -1102,7 +1145,7 @@ export class App {
       lighting.setShadowFocus(0, 0, ISLAND_SHADOW_HALF);
       return;
     }
-    const p = m === 'kayak' ? this.kayak.body : m === 'surf' ? this.surf.body : this.walker;
+    const p = m === 'kayak' ? this.kayak.body : m === 'surf' ? this.surf.body : m === 'fly' ? this.manta : this.walker;
     const f = this.camera.getWorldDirection(this.tmpDir);
     const fl = Math.hypot(f.x, f.z) || 1;
     lighting.setShadowFocus(p.x + (f.x / fl) * PLAYER_SHADOW_AHEAD, p.z + (f.z / fl) * PLAYER_SHADOW_AHEAD, PLAYER_SHADOW_HALF);
@@ -1148,6 +1191,7 @@ export class App {
     if (s.walkView !== this.walker.view) this.walker.setView(s.walkView);
     if (s.walkView !== this.kayak.view) this.kayak.setView(s.walkView);
     if (s.walkView !== this.surf.view) this.surf.setView(s.walkView);
+    if (s.walkView !== this.manta.view) this.manta.setView(s.walkView);
     this.library.setActivePreset(s.activeScene);
     this.updateSynth();
     this.overlay.setVisible(s.showDebug);
@@ -1731,7 +1775,7 @@ export class App {
     p.seat = mode === 'seat' ? this.cameras.seat : null;
     p.atSea = mode === 'kayak' || mode === 'surf' || ((mode === 'walk' || mode === 'orbit') && w.swimming);
     p.onFoot = (mode === 'walk' || mode === 'orbit') && !w.swimming;
-    const body = mode === 'kayak' ? this.kayak.body : mode === 'surf' ? this.surf.body : null;
+    const body = mode === 'kayak' ? this.kayak.body : mode === 'surf' ? this.surf.body : mode === 'fly' ? this.manta : null;
     p.x = body ? body.x : w.x;
     p.z = body ? body.z : w.z;
     p.y = w.feetY;
@@ -2120,6 +2164,54 @@ export class App {
   }
 
   /**
+   * O: whistle for the manta (walking or swimming), climb on when it hovers beside you, or (on
+   * its back) come down and step off where there's room.
+   */
+  private mantaKey(): void {
+    const m = this.manta;
+    if (this.cameras.mode === 'fly') {
+      m.land();
+      return;
+    }
+    if (this.cameras.mode !== 'walk') return;
+    const w = this.walker;
+    if (w.diving || this.boardManta()) return;
+    const rider = this.mantaRider;
+    rider.x = w.x;
+    rider.z = w.z;
+    rider.feetY = w.swimming ? w.surfaceY - 0.9 : w.feetY;
+    rider.yaw = w.yaw;
+    const r = m.call(rider, w.swimming);
+    if (r === 'noRoom') {
+      this.activityMenu.flash(vi.manta.noRoom);
+      return;
+    }
+    this.mixer.playWhistle(0.6);
+    if (r === 'coming') this.activityMenu.flash(vi.manta.coming);
+  }
+
+  private readonly mantaRider = { x: 0, z: 0, feetY: 0, yaw: 0 };
+
+  /** Onto the manta's back if it hovers beside you (walking or swimming, not under water). */
+  private boardManta(): boolean {
+    const w = this.walker;
+    if (this.cameras.mode !== 'walk' || w.diving || !this.manta.canMount(w.x, w.z)) return false;
+    const rider = this.mantaRider;
+    rider.x = w.x;
+    rider.z = w.z;
+    rider.feetY = w.swimming ? w.surfaceY - 0.9 : w.feetY;
+    rider.yaw = w.yaw;
+    if (!this.manta.board(rider)) return false;
+    this.cameras.setMode('fly');
+    return true;
+  }
+
+  private readonly mantaCard: ActivityCard = {
+    title: vi.manta.title,
+    items: [{ key: 'Space', label: vi.manta.ride, run: () => this.boardManta() }],
+  };
+
+  /**
    * K at the shore: into the kayak. It is pulled into the water in front of you (from the sand,
    * or wherever you left it), unless it already floats right next to you. The screen fades
    * through black meanwhile, like getting into a seat from afar.
@@ -2178,6 +2270,15 @@ export class App {
     exit: () => this.keymap.run('KeyL'),
   };
   private readonly seatTouch: TouchLayout = { stick: false, buttons: [], exit: () => this.keymap.run('Escape') };
+  /** The manta: the joystick flies, two buttons go up and down, the corner button lands. */
+  private readonly flyTouch: TouchLayout = {
+    stick: true,
+    buttons: [
+      { label: vi.manta.up, icon: 'rise', main: true, down: () => (touchInput.jump = true), up: () => (touchInput.jump = false) },
+      { label: vi.manta.down, icon: 'dive', down: () => (touchInput.down = true), up: () => (touchInput.down = false) },
+    ],
+    exit: () => this.keymap.run('KeyO'),
+  };
 
   /** On touch a card is only worth showing with something to tap (not key hints alone). */
   private touchCard(card: ActivityCard | null): ActivityCard | null {
@@ -2195,6 +2296,8 @@ export class App {
         return this.kayakTouch;
       case 'surf':
         return this.surf.waveComing ? this.surfWaveTouch : this.surfTouch;
+      case 'fly':
+        return this.flyTouch;
       case 'seat':
         return this.seatTouch;
       default:
@@ -2394,6 +2497,13 @@ export class App {
       }
       return;
     }
+    if (this.cameras.mode === 'fly') {
+      // Lying on its back holding the harness (or hopping on and off); through the eyes too: your arms are in view.
+      this.avatar.group.visible = true;
+      this.avatar.updateProneRide(dt, this.manta.ride);
+      this.syncCharacter();
+      return;
+    }
     if (this.cameras.mode === 'kayak') {
       // Through the eyes too: your arms and legs are in view while paddling.
       const show = this.kayak.view === 'first' || this.kayak.arm > 0.7;
@@ -2474,10 +2584,14 @@ export class App {
       // What you can do here: sit at the desk, the bath, the hammock; the sea's activities.
       const near = this.nearSeat();
       const seatCard = near === 'desk' ? this.deskCard : near === 'bath' ? this.bathCard : near === 'hammock' ? this.hammockCard : null;
-      this.activityMenu.set(this.touchCard(seatCard ?? (this.inSea() ? this.seaOffer() : null)));
+      const w = this.walker;
+      const manta = this.manta.canMount(w.x, w.z) && !w.diving ? this.mantaCard : null;
+      this.activityMenu.set(this.touchCard(seatCard ?? manta ?? (this.inSea() ? this.seaOffer() : null)));
       this.activityMenu.update(dt, this.walker.speed > 0.15);
     } else if (mode === 'kayak') {
       this.activityMenu.update(dt, Math.abs(this.kayak.body.speed) > 0.3);
+    } else if (mode === 'fly') {
+      this.activityMenu.update(dt, this.manta.flight.speed > 1);
     }
     this.listenerTimer -= dt;
     if (this.listenerTimer > 0) return;
@@ -2487,13 +2601,14 @@ export class App {
     const k = this.kayak;
     const paddling = mode === 'kayak';
     const surfing = mode === 'surf';
+    const flying = mode === 'fly';
     const sb = this.surf.body;
     // (On touch the corner button leaves the kayak: no card.)
     if (paddling) this.activityMenu.set(isTouch() ? null : k.landingSpot(this.tmpSpot) ? this.kayakLandCard : this.kayakCard);
     if (surfing) this.walkHint.setPrompt(this.surf.waveComing ? (isTouch() ? vi.surf.touch.cue : vi.surf.cue) : null);
-    const x = atDesk ? seat.x : paddling ? k.body.x : surfing ? sb.x : this.walker.x;
-    const z = atDesk ? seat.z : paddling ? k.body.z : surfing ? sb.z : this.walker.z;
-    const yaw = atDesk ? seat.yaw : paddling ? k.body.yaw + k.lookYaw : surfing ? sb.yaw + this.surf.lookYaw : this.walker.yaw;
+    const x = atDesk ? seat.x : paddling ? k.body.x : surfing ? sb.x : flying ? this.manta.x : this.walker.x;
+    const z = atDesk ? seat.z : paddling ? k.body.z : surfing ? sb.z : flying ? this.manta.z : this.walker.z;
+    const yaw = atDesk ? seat.yaw : paddling ? k.body.yaw + k.lookYaw : surfing ? sb.yaw + this.surf.lookYaw : flying ? this.manta.viewYaw : this.walker.yaw;
     const l = this.listener;
     l.walking = true;
     l.shoreDistance = this.world.heightmap.distanceToShore(x, z);
@@ -2501,7 +2616,7 @@ export class App {
     const r = Math.hypot(x, z) || 1;
     l.seaSide = (x / r) * Math.cos(yaw) - (z / r) * Math.sin(yaw);
     l.trees = this.colliders.treesNear(x, z, 12);
-    l.shelter = atDesk ? (this.cameras.seat === 'hammock' ? 'none' : 'room') : paddling || surfing ? 'none' : this.walker.shelter;
+    l.shelter = atDesk ? (this.cameras.seat === 'hammock' ? 'none' : 'room') : paddling || surfing || flying ? 'none' : this.walker.shelter;
     this.mixer.setListener(l);
   }
 

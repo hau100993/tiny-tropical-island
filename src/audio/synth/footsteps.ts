@@ -315,6 +315,52 @@ export class Footsteps {
     }
   }
 
+  /**
+   * Your whistle for the manta: two rising notes, a sine with a quick vibrato and a little breath
+   * (high noise) on each.
+   */
+  whistle(gain: number): void {
+    const ctx = this.engine.ctx;
+    const t = ctx.currentTime + 0.01;
+    const r = 0.97 + Math.random() * 0.06;
+    for (const [dt, f0, f1, dur] of [[0, 1500, 1900, 0.22], [0.3, 1700, 2500, 0.42]] as const) {
+      const at = t + dt;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f0 * r, at);
+      osc.frequency.exponentialRampToValueAtTime(f1 * r, at + dur * 0.7);
+      // Vibrato: a 6 Hz wobble of ±1.5 %.
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 6;
+      const depth = ctx.createGain();
+      depth.gain.value = f1 * r * 0.015;
+      lfo.connect(depth).connect(osc.frequency);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(0.16 * gain, at + 0.03);
+      g.gain.setTargetAtTime(0, at + dur * 0.75, dur / 5);
+      osc.connect(g).connect(this.out);
+      osc.start(at);
+      lfo.start(at);
+      osc.stop(at + dur * 1.6);
+      lfo.stop(at + dur * 1.6);
+      osc.onended = () => {
+        osc.disconnect();
+        lfo.disconnect();
+        depth.disconnect();
+        g.disconnect();
+      };
+      this.burst(this.out, this.engine.noise.pink, at, 'bandpass', 3000, 1.2, 0.02, dur, 0.03 * gain);
+    }
+  }
+
+  /** A big soft wing beat (the manta landing or taking off): a low swell of noise. */
+  wingWhoosh(gain: number): void {
+    const t = this.engine.ctx.currentTime + 0.01;
+    this.burst(this.out, this.engine.noise.pink, t, 'lowpass', 500, 0.7, 0.18, 0.7, 0.45 * gain, 220);
+    this.burst(this.out, this.engine.noise.pink, t + 0.55, 'lowpass', 420, 0.7, 0.2, 0.8, 0.35 * gain, 180);
+  }
+
   private voice(dest: AudioNode, f0: number, f1: number, t: number, dur: number, gain: number, formant1: number, formant2: number): void {
     const ctx = this.engine.ctx;
     const osc = ctx.createOscillator();

@@ -947,6 +947,22 @@ export interface SurfPose {
   firstPerson: boolean;
 }
 
+/** Lying face down on a creature's back, holding its harness (the manta). */
+export interface RidePose {
+  /** World transform of the back: origin on it under the chest, −Z toward the head, +Y up. */
+  back: THREE.Matrix4;
+  /** World positions of the left and right hands (on the harness's handle). */
+  hands: readonly [THREE.Vector3, THREE.Vector3];
+  /** Knee bend per leg (rad): the lower legs lift off its back. */
+  knees: [number, number];
+  /** Chest raised off its back (rad): up at rest, low and flat at speed. */
+  chest: number;
+  /** Where the head looks, relative to the back (rad). */
+  lookYaw: number;
+  lookPitch: number;
+  firstPerson: boolean;
+}
+
 /** Joint angles of one swimming pose (rad), per side where it matters [left, right]. */
 interface SwimAngles {
   shX: [number, number];
@@ -1249,6 +1265,7 @@ const palmB = new THREE.Vector3();
 /** Elbow pole for swimming (torso frame, right arm): out to the side and up toward the back. */
 const SWIM_POLE = new THREE.Vector3(0.75, 0.05, 0.65).normalize();
 const poleTmp = new THREE.Vector3();
+const palmTmp = new THREE.Vector3();
 /** Petting: how far (m) the pelvis comes down and back, and the forward lean (rad). */
 const PET_CROUCH = 0.36;
 const PET_BACK = 0.09;
@@ -2063,6 +2080,46 @@ export class Avatar {
     for (let i = 0; i < 2; i++) {
       tmpD.set(0, ANKLE_H * this.k, i === 0 ? -0.33 : 0.37).applyMatrix4(p.board);
       this.reachLeg(i, tmpD, 0);
+    }
+    this.blinkEyes(dt);
+  }
+
+  /**
+   * Riding the manta: face down along its back like lying on the surfboard, the chest raised by
+   * `chest`, both hands on the harness's handle ahead of the head (elbows out), the lower legs
+   * lifted by the knees, the head looking ahead (and round with the view).
+   */
+  updateProneRide(dt: number, p: Readonly<RidePose>): void {
+    this.time += dt;
+    this.seated = true;
+    this.rootY = Number.NaN;
+    const root = this.group;
+    p.back.decompose(root.position, root.quaternion, tmpS);
+    root.scale.setScalar(this.k);
+    this.torso.scale.y = 1;
+    this.head.scale.setScalar(p.firstPerson ? 0.001 : 1);
+    for (let i = 0; i < 2; i++) {
+      const side = i === 0 ? -1 : 1;
+      this.hipJoints[i].rotation.set(0.02, 0, side * 0.07);
+      this.knees[i].rotation.set(-p.knees[i], 0, 0);
+      // Toes pointed back.
+      this.ankles[i].rotation.set(-0.9, 0, 0);
+    }
+    this.hips.position.set(0, HIP_Y, 0);
+    this.hips.rotation.set(0, 0, 0);
+    this.torso.rotation.set(p.chest, 0, 0);
+    // The face raised off its back to look ahead (the rest of the way the chest doesn't), then with the view.
+    this.head.rotation.set(clamp(1.35 - p.chest + p.lookPitch * 0.4, 0.5, 1.5), clamp(p.lookYaw, -1, 1), 0);
+    // Face down, head toward its head: body +Y → back −Z (as on the surfboard).
+    root.quaternion.multiply(tmpQ.setFromAxisAngle(tmpP.set(1, 0, 0), -Math.PI / 2));
+    tmpP.set(0, 0.11 * this.k, 1.12 * this.k).applyMatrix4(p.back);
+    root.position.copy(tmpP);
+    root.updateMatrixWorld(true);
+    // Palms down over the handle, a little forward; elbows out to the sides.
+    palmTmp.set(0, -1, -0.3).transformDirection(p.back);
+    for (let i = 0; i < 2; i++) {
+      poleTmp.set((i === 0 ? -1 : 1) * 0.8, -0.1, 0.55).normalize();
+      this.reachArm(i, p.hands[i], poleTmp, palmTmp);
     }
     this.blinkEyes(dt);
   }

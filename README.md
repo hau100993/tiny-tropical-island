@@ -74,6 +74,7 @@ On start a short **guided tour** ("Hướng dẫn nhanh", 12 steps) plays over t
 | `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up; next to a Thú Cưng (no seat near): feed it a 🍅 |
 | `K` | Walking on the beach or in the shallows: get into the kayak; in the kayak: step out (see *Kayak*) |
 | `L` | Walking on the beach or in the shallows: go surfing (see *Surfing*); on the board: slip off |
+| `O` | Walking or swimming: whistle for Cá Đuối Trời, the flying manta; next to it: climb on; on its back: land and step off (see *Cá Đuối Trời*) |
 | `Esc` | Seated (desk or bathtub): get up; in the overview: back from a page inside the panel (a pet, the scene editor; with unsaved scene changes press twice), else fold the panel |
 | `` ` `` (backquote) | Show/hide the stats overlay (FPS, CPU/GPU ms, draw calls) |
 
@@ -989,6 +990,42 @@ that drift behind for a few seconds, the blade throws a splash ring and droplets
 in, and drips when it comes out. These marks live in a sharp "wake map" (48 m around the kayak,
 9 cm per texel) that the water shader reads for foam and bumps, so they work anywhere at sea.
 
+## Cá Đuối Trời: the flying manta (`O`, Phase 15)
+
+A manta ray about 7 m across that flies. Walking (or swimming), press `O`: you whistle, and
+it glides in (from far over the sea the first time) and hovers a metre over open ground beside
+you, or on the water next to you when you swim. Nowhere open near you (in the forest, inside the
+house): a note says so. Press `Space` (or `O`) next to it to hop onto its back.
+
+| Input | Action |
+|---|---|
+| `W` (hold) | Fly forward (~14 m/s); `Shift` + `W`: fast (~26 m/s). While `W` is held the mouse steers: it flies where you look, so look up to climb |
+| `A` / `D` | Turn left / right; it banks into the turn |
+| `S` (hold) | Back up (~5 m/s); `Shift` + `S`: back up fast (~10 m/s). Let go of everything and it slows to a hover |
+| `Space` (hold) | Go down (straight down at a hover, a dive when flying). Low over the ground or the sea and standing still, press `Space` again to hop off |
+| Mouse | Look around; after a moment without the mouse the view drifts back behind it |
+| `V` | Character view ↔ eyes view |
+| `O` | Land: it comes down where it is and you hop off to its right. Over the sea you drop into the water and swim. Over trees or a roof it says to find an open place |
+| `C` | Back to the orbit view; `C` again puts you back on it (it waits in the air) |
+| Phones | Joystick: fly and turn; **Bay lên** / **Hạ xuống** buttons; the corner button lands |
+
+It can't crash: at load the island is baked into a 2 m "skyline" grid (the highest tree, roof,
+rock, ground or sea in each cell, from the bounding boxes of the meshes) and the flight looks
+1 s ahead on it and climbs early. A soft ceiling sits at ~140 m, and past ~520 m from the island
+it turns back by itself. How it flies: a small point body (no physics library) with thrust
+against drag (∝ speed²), height traded for speed when diving or climbing, and a bank angle
+that follows the turn like a real glider's (`tan(roll) = speed × turn rate / g`).
+
+How it looks: Quaternius' manta model (CC0), rounded off at load (two steps of Loop
+subdivision) and painted in its shader: a deep blue back that turns teal toward the wing tips,
+the pale shoulder chevrons real mantas have, pale spots on the wings that glow softly at night,
+a white belly with dark spots, and an iridescent rim. Its wings beat with the file's one clip
+(Swim), crossfaded with the same clip held where the wings are flat (a glide) by how hard it
+flies; the body lifts on each downstroke and the tail trails the turns. It wears a teal
+harness: a strap round its head and a handle arching back from it. You ride lying face down
+along its back holding the handle, head up looking ahead; slow, the lower legs are lifted and
+swing idly; fast, you lie flat and streamlined, legs nearly straight.
+
 ## Day, night and sky
 
 **The clock** (the time bar at the top of the panel's list, always shown):
@@ -1229,6 +1266,7 @@ audio files in the repo.
 | `src/assets/creatures/water-crab.glb` ("Crab Enemy") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/Gs3yfsV5lB) | CC0 1.0 (public domain) | Bọt the water crab, recoloured blue in code; its idle, walk, bite, yes and dance clips are used. The file has 6 vertices with NaN skin weights (an export fault), repaired at load |
 | `src/assets/creatures/fire-dragon.glb` ("Dragon Evolved") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/LlwD0QNUPj) | CC0 1.0 (public domain) | Hỏa Long the fire dragon, recoloured red and gold in code; its flying idle, fast flying, headbutt, yes and punch clips are used |
 | `src/assets/creatures/grass-bunny.glb` ("Bunny") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/irZjWFARyl) | CC0 1.0 (public domain) | Mầm the grass bunny, recoloured green and cream in code; the sprout on its head is made in code; its idle, walk, punch, wave and jump clips are used |
+| `src/assets/creatures/sky-manta.glb` ("Manta ray") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/yzD8b7ZHZm) | CC0 1.0 (public domain) | Cá Đuối Trời, the flying manta; repainted in its shader and rounded off at load; its one clip (Swim) is used |
 | `src/assets/creatures/sea-shark.glb` ("Shark") by [Quaternius](https://quaternius.com/), via [Poly Pizza](https://poly.pizza/m/YYsK3gRCBZ) | CC0 1.0 (public domain) | Bé Mập the baby shark, tinted and scaled small in code, its head enlarged on the Neck bone; its swim, fast swim and bite clips are used. (Named in Vietnamese on purpose: "Baby Shark" is a Pinkfong trademark.) |
 | Thú Cưng models in `src/assets/creatures/pets/`: `deer-l1.glb` ("Deer", [page](https://poly.pizza/m/T6Cs7tmMHJ)), `deer-l2.glb` ("Stag", [page](https://poly.pizza/m/tQdzbZ1Cmw)), `na-l1.glb` ("Snake", [page](https://poly.pizza/m/x9x0viZs8V)), `frog-l1.glb` ("Frog", [page](https://poly.pizza/m/9Z2V8fpazF)), `frog-l2.glb` ("Astronaut", [page](https://poly.pizza/m/0D54W8yfrA)), `frog-shiny.glb` ("Frog", [page](https://poly.pizza/m/37wofOCOzG)), `tiger-l1.glb` ("Cat", [page](https://poly.pizza/m/2f54vbV0In)), `bee-l1.glb` ("Armabee", [page](https://poly.pizza/m/42djT5zJnx)), `cloudDragon-l1.glb` ("Squidle", [page](https://poly.pizza/m/54QyRcsogk)), `cloudDragon-l2.glb` ("Demon", [page](https://poly.pizza/m/Mo2ky6vkf8)), `kind8-l1.glb` ("Monkroose", [page](https://poly.pizza/m/j4rVPvxyLg)), `spider-l1.glb` ("Spider", [page](https://poly.pizza/m/yRYJiAJyiM)), all by [Quaternius](https://quaternius.com/), via Poly Pizza | CC0 1.0 (public domain) | the Phase 13 species; fetched with `npm run pets:models`, rounded off at load (Loop subdivision in `src/world/smoothMesh.ts`) |
 | `src/assets/creatures/pets/seahorse-l1.glb` ("sea horse") by Device Lab, via [Poly Pizza](https://poly.pizza/m/2i8WB9jqzdc) | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Cá Ngựa; attribution required |
