@@ -105,6 +105,8 @@ const REBOARD_ARM = 2.5;
 const TIME_RESET_HIDDEN = 3600;
 /** Upright screens zoom out at most this far (camera.zoom): 55° → ~81° vertical fov. */
 const PORTRAIT_MIN_ZOOM = 0.6;
+/** Seconds the "whistle for the manta" hint stays after stepping down from the house. */
+const MANTA_HINT_S = 8;
 /** No moving obstacles (see CollisionWorld.movers). */
 const NO_MOVERS: readonly CircleCollider[] = [];
 /**
@@ -2006,6 +2008,7 @@ export class App {
     items: [
       { key: 'K', label: vi.sea.kayak, icon: 'kayak', run: () => this.keymap.run('KeyK') },
       { key: 'L', label: vi.surf.menu, icon: 'surf', run: () => this.keymap.run('KeyL') },
+      { key: 'O', label: vi.manta.call, icon: 'manta', run: () => this.keymap.run('KeyO') },
       { key: 'W', label: vi.sea.swim, icon: 'swim' },
     ],
   };
@@ -2268,6 +2271,30 @@ export class App {
     title: vi.manta.title,
     items: [{ key: 'Space', label: vi.manta.ride, run: () => this.boardManta() }],
   };
+  /** On the beach, or just down from the house: a hint that the manta comes when whistled. */
+  private readonly mantaCallCard: ActivityCard = {
+    title: vi.manta.title,
+    items: [{ key: 'O', label: vi.manta.call, icon: 'manta', run: () => this.keymap.run('KeyO') }],
+  };
+  /** Until when (s, performance.now / 1000) the call hint stays after stepping down from the house. */
+  private mantaHintUntil = 0;
+  /** Was the walker on wooden floor (the house, its porch and steps) last frame? */
+  private onWood = false;
+
+  /**
+   * The whistle hint: on the beach near the sea, or for a few seconds after stepping down from
+   * the house onto the ground. Not while it's coming, nor once it hovers beside you.
+   */
+  private mantaCallHint(): ActivityCard | null {
+    const w = this.walker;
+    const now = performance.now() / 1000;
+    const wood = w.surface === 'wood';
+    if (this.onWood && !wood && !w.swimming) this.mantaHintUntil = now + MANTA_HINT_S;
+    this.onWood = wood;
+    const st = this.manta.state;
+    if (st === 'arriving' || this.manta.active || w.diving) return null;
+    return this.nearSea() || now < this.mantaHintUntil ? this.mantaCallCard : null;
+  }
 
   /**
    * K at the shore: into the kayak. It is pulled into the water in front of you (from the sand,
@@ -2644,7 +2671,8 @@ export class App {
       const seatCard = near === 'desk' ? this.deskCard : near === 'bath' ? this.bathCard : near === 'hammock' ? this.hammockCard : null;
       const w = this.walker;
       const manta = this.manta.canMount(w.x, w.z) && !w.diving ? this.mantaCard : null;
-      this.activityMenu.set(this.touchCard(seatCard ?? manta ?? (this.inSea() ? this.seaOffer() : null)));
+      const call = this.mantaCallHint();
+      this.activityMenu.set(this.touchCard(seatCard ?? manta ?? (this.inSea() ? this.seaOffer() : call)));
       this.activityMenu.update(dt, this.walker.speed > 0.15);
     } else if (mode === 'kayak') {
       this.activityMenu.update(dt, Math.abs(this.kayak.body.speed) > 0.3);

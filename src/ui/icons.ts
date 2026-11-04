@@ -54,6 +54,7 @@ export const icons = {
   info: svg('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>'),
   // Activity card (ui/ActivityMenu.ts).
   kayak: svg('<path d="M2 14c3 3.5 17 3.5 20 0z"/><path d="m6 6 12 12"/><path d="m4.5 4.5 2.5 1.5-1 1zM19.5 19.5 17 18l1-1z" fill="currentColor"/>'),
+  manta: svg('<path d="M12 6C9 6 6 9 2 10c3 1 6 3 10 3s7-2 10-3c-4-1-7-4-10-4z"/><path d="M12 13v8"/>'),
   surf: svg('<path d="M6 18C8 12 13 6 19 4c.5 5-3.5 11-10 14.5z"/><path d="M8 15 17 6"/><path d="M2 21c2 0 2.5-1 4.5-1s2.5 1 4.5 1 2.5-1 4.5-1 2.5 1 4.5 1"/>'),
   swim: svg('<circle cx="17" cy="6" r="2"/><path d="m4 13 5-4 4 3 3-2"/><path d="M2 18c2 0 2.5-1.5 4.5-1.5S9 18 11 18s2.5-1.5 4.5-1.5S18 18 20 18"/>'),
   dive: svg('<path d="M12 3v9M8.5 8.5 12 12l3.5-3.5"/><path d="M2 17c2 0 2.5-1.5 4.5-1.5S9 17 11 17s2.5-1.5 4.5-1.5S18 17 20 17"/><path d="M5 21h14"/>'),

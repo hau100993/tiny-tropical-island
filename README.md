@@ -998,7 +998,8 @@ each wing tip (stronger the faster it goes; none with reduced motion). Walking (
 it glides in (from far over the sea the first time) and hovers a metre over open ground beside
 you, or on the water next to you when you swim. Nowhere open near you (in the forest, inside the
 house): a note says so. Press `Space` (or `O`) next to it to hop onto its back. Hovering there it
-is solid: you walk round it, not through it.
+is solid: you walk round it, not through it. A card reminds you of the whistle (**O: Huýt sáo gọi Cá
+Đuối**) on the beach near the sea, and for a few seconds after you step down from the house.
 
 | Input | Action |
 |---|---|

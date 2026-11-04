@@ -463,6 +463,7 @@ export const vi = {
     controls: 'W: bay tới (giữ Shift: bay nhanh) · Chuột: lái hướng khi bay, nhìn lên để bay lên · A / D: rẽ · S: lùi (giữ Shift: lùi nhanh) · Space: hạ xuống, sát đất đứng yên thì nhấn Space để xuống · O: đáp xuống · Q / E / R: tuyệt chiêu · V: đổi góc nhìn · C: toàn cảnh',
     title: 'Cá Đuối Trời',
     ride: 'Cưỡi Cá Đuối',
+    call: 'Huýt sáo gọi Cá Đuối',
     coming: 'Cá Đuối Trời đang bay tới…',
     noRoom: 'Quanh đây không có chỗ trống để Cá Đuối đáp',
     noRoomHere: 'Bay tới chỗ trống (bãi cát, bãi cỏ) hoặc ra biển để đáp',
