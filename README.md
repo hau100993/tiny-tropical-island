@@ -585,7 +585,8 @@ Two views, switched with `V` (or **Sau lưng / Qua mắt** in *Góc nhìn*): beh
 a game (default), or through the character's eyes. The character is a young man dressed for
 the beach, built entirely in code (a slim-fit pale linen shirt with an open collar, board shorts,
 bare feet, a bead bracelet, fair skin). The head is stylized like a cartoon, a little larger than
-life: round masses with a small nose and a round chin, dark round eyes with catch-lights and blinking lids, thick
+life: round masses with a small nose and a round chin, dark round eyes with catch-lights and blinking lids (half closed in **a smiling squint** when a
+tomato lands on a pet or while petting Mochi), thick
 brows, a short smile, ears; the hair grows from a hairline and is made of a few chunky locks (a
 fringe swept to one side); chest, arms and calves have muscle shape; hands
 have fingers, feet have toes. The body is a skinned mesh on a 15-bone skeleton, so knees and

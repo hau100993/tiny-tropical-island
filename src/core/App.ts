@@ -940,6 +940,8 @@ export class App {
       loadWild: (kind) => this.creatures.loadPetModel(kind),
       pop: () => {
         if (this.mixer.started) this.mixer.scheduleBubblePop(0, false);
+        // You smile when a tomato lands.
+        this.avatar.cheer();
       },
       wind: () => sharedUniforms.uWind.value,
       campNotices: () => this.petNotices.element(this.wallet.roster),
@@ -1734,6 +1736,7 @@ export class App {
   /** Pressed on Mochi: walking, it comes to sit in front of you for your hand; from above it stays put. */
   private startPetting(): void {
     if (!this.dog) return;
+    this.avatar.cheer(2.5);
     this.petHold = 0;
     this.petTravel = 0;
     const walking = this.cameras.mode === 'walk';
@@ -2573,6 +2576,12 @@ export class App {
 
   /** The character is shown in third-person walking, unless the camera is pressed right up to it. */
   private updateAvatar(dt: number): void {
+    // The eyes look back at the camera when it is in front of the face (the character view
+    // turned round); otherwise they glance about.
+    const cam = this.camera.position;
+    const head = this.avatar.group.position;
+    const near = Math.hypot(cam.x - head.x, cam.z - head.z) < 8;
+    this.avatar.lookAt(near && this.avatar.group.visible ? cam : null);
     if (this.cameras.mode === 'surf') {
       const show = (this.surf.view === 'first' || this.surf.arm > 0.7) && !this.surf.riderHidden;
       this.avatar.group.visible = show;

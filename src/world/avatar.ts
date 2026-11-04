@@ -1508,6 +1508,9 @@ export class Avatar {
   private readonly ownMeshes: THREE.Object3D[] = [];
   /** Seconds until the next blink; negative while the eyes are closing/opening. */
   private blink = 2;
+  /** Seconds of a happy moment left (see cheer), and its eased weight. */
+  private joy = 0;
+  private joyW = 0;
 
   constructor(
     shared: SharedUniforms,
@@ -1986,6 +1989,17 @@ export class Avatar {
   }
 
   /** Blink every few seconds (a quick close and open). */
+  /**
+   * Eyes following a target (the camera in front of the face). The cartoon head's eyes are
+   * painted on, with no bones to turn: nothing to do (kept so the callers needn't know).
+   */
+  lookAt(_target: THREE.Vector3 | null): void {}
+
+  /** A happy moment (fed a pet, petting Mochi) for `seconds`: the lids come half down, a smiling squint. */
+  cheer(seconds = 1.6): void {
+    this.joy = Math.max(this.joy, seconds);
+  }
+
   private blinkEyes(dt: number): void {
     this.blink -= dt;
     let closed = 0;
@@ -1996,7 +2010,10 @@ export class Avatar {
         closed = 0;
       }
     }
-    const lid = LID_UP.open + (LID_UP.shut - LID_UP.open) * Math.max(0, closed);
+    this.joy = Math.max(0, this.joy - dt);
+    this.joyW += ((this.joy > 0 ? 1 : 0) - this.joyW) * Math.min(1, dt * 8);
+    const shut = Math.max(Math.max(0, closed), 0.45 * this.joyW);
+    const lid = LID_UP.open + (LID_UP.shut - LID_UP.open) * shut;
     for (const h of this.lids) h.rotation.x = -lid;
 
   }
