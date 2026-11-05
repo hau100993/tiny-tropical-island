@@ -43,6 +43,12 @@ export const icons = {
   flame: svg('<path d="M12 22c4 0 6.5-2.6 6.5-6.2 0-4.3-3.6-6.7-4.5-10.8-2.6 1.8-3.4 4.4-3 6.6-1.4-.7-2.2-2-2.4-3.4C6.6 10 5.5 12.6 5.5 15.8 5.5 19.4 8 22 12 22z"/><path d="M12 22c-1.6 0-2.7-1.2-2.7-2.8 0-1.8 1.4-2.6 2.7-4.4 1.3 1.8 2.7 2.6 2.7 4.4 0 1.6-1.1 2.8-2.7 2.8z"/>'),
   fog: svg('<path d="M4 9h16M2 13h20M5 17h14M8 21h8"/><path d="M8 5a4 4 0 0 1 8 0"/>'),
   aurora: svg('<path d="M3 18c2-6 4-9 6-9s2 6 4 6 3-7 8-11"/><path d="M3 14c2-4 3-5 4-5"/><path d="m18 18 .7 1.5L20 20l-1.3.5L18 22l-.7-1.5L16 20l1.3-.5z" fill="currentColor"/>'),
+  // The manta's skills (big, in their colours, on the round buttons).
+  skillFrost: svg('<path d="M12 2.5v19M3.8 7.25l16.4 9.5M20.2 7.25 3.8 16.75"/><path d="m9.3 4 2.7 2 2.7-2M9.3 20l2.7-2 2.7 2M4 10.6l3.2-.4-1.4-3M20 13.4l-3.2.4 1.4 3M20 10.6l-3.2-.4 1.4-3M4 13.4l3.2.4-1.4 3"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>'),
+  skillMeteor: svg('<path d="M3 3l8.5 8.5M7.5 2.5l6 6M2.5 7.5l6 6" stroke-width="1.6" opacity=".75"/><path d="m16 10.6 1.6 3.3 3.6.5-2.6 2.5.6 3.6-3.2-1.7-3.2 1.7.6-3.6-2.6-2.5 3.6-.5z" fill="currentColor"/>'),
+  skillAurora: svg('<path d="M3 20c1.5-6 3-10 5-10s2 5 4 5 3-9 9-12"/><path d="M3 15c1.2-4 2.4-6 3.8-6.2" opacity=".7"/><path d="M14 20c1.5-3 3-4.5 5-4.5" opacity=".7"/><path d="m19 2.5.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z" fill="currentColor" stroke="none"/>'),
+  skillRings: svg('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.6v8.8M8.2 9.8l7.6 4.4M15.8 9.8l-7.6 4.4" stroke-width="1.6"/><path d="m20.5 1.5.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z" fill="currentColor" stroke="none"/>'),
+  ring: svg('<circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>'),
   meteor: svg('<path d="M4 4l9 9M8 3l7 7M3 8l7 7"/><circle cx="16.5" cy="16.5" r="3.5" fill="currentColor"/>'),
   snow: svg('<path d="M12 2v20M4 7l16 10M20 7 4 17"/><path d="m9 3 3 2 3-2M9 21l3-2 3 2"/>'),
   bookmark: svg('<path d="M6 3h12v18l-6-4-6 4z"/>'),

@@ -1,5 +1,5 @@
 import { parseJson, readStored, writeStored } from '../core/storage';
-import { addStartingGift, earnFocus, emptyLedger, mergeLedgers, parseLedger, tomatoes, withEvent, type EarnResult, type Ledger } from './ledger';
+import { addStartingGift, earnFocus, earnRing, emptyLedger, mergeLedgers, parseLedger, tomatoes, withEvent, type EarnResult, type Ledger } from './ledger';
 import { buildRoster, type Action, type Roster } from './roster';
 
 export const PETS_KEY = 'tsw.pets';
@@ -88,6 +88,18 @@ export class TomatoWallet {
     });
     if (results.includes('earned')) this.askPersist();
     return results;
+  }
+
+  /** The ring course flown to the end (started at `startedAt`, ms): one tomato. */
+  earnRing(startedAt: number): boolean {
+    let earned = false;
+    this.commit((l) => {
+      const r = earnRing(l, startedAt);
+      earned = r.earned;
+      return r.ledger;
+    });
+    if (earned) this.askPersist();
+    return earned;
   }
 
   private commit(change: (l: Ledger) => Ledger): void {

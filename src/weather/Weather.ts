@@ -33,6 +33,11 @@ export class Weather {
   private splashDebt = 0;
   /** Sky grey-out from current weather (applied by DayNight on top of the time-of-day palette). */
   overcast = 0;
+  /**
+   * Snow from a clear sky (the manta's meteor shower, 0..1): flakes falling and settling like
+   * the scene's snow, but no clouds and no grey sky (the shooting stars need it clear).
+   */
+  clearSnow = 0;
 
   constructor(
     scene: THREE.Scene,
@@ -104,7 +109,8 @@ export class Weather {
     this.snow.update(dt);
     this.wind.update(dt);
     const rain = this.rain.value;
-    const snow = this.snow.value;
+    const sceneSnow = this.snow.value;
+    const snow = Math.max(sceneSnow, this.clearSnow);
     const wind = this.wind.value;
 
     this.acc = stepAccumulation(this.acc, rain, snow, dt);
@@ -129,7 +135,7 @@ export class Weather {
       this.water.addRipple(Math.cos(a) * r, Math.sin(a) * r, 0.7, -0.06);
     }
 
-    this.overcast = overcast(rain, snow, wind);
+    this.overcast = overcast(rain, sceneSnow, wind);
   }
 
   get wetness(): number {

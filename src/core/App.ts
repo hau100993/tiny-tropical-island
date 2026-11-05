@@ -49,8 +49,9 @@ import { SwimEffects } from '../activities/swimEffects';
 import { SurfActivity } from '../activities/SurfActivity';
 import { MantaActivity } from '../activities/MantaActivity';
 import type { CircleCollider } from '../controls/collision';
-import { COOLDOWN, MantaSkills, type MantaSkillId } from '../activities/MantaSkills';
+import { COOLDOWN, MANTA_SKILLS, MantaSkills, type MantaSkillId } from '../activities/MantaSkills';
 import { MantaSkillBar } from '../ui/MantaSkillBar';
+import { RingHud } from '../ui/RingHud';
 import { Skyline } from '../activities/flight/skyline';
 import { ISLAND_CONFIG } from '../world/heightmap';
 import type { PopUp, SurfEvent } from '../activities/surfPhysics';
@@ -105,6 +106,8 @@ const REBOARD_ARM = 2.5;
 const TIME_RESET_HIDDEN = 3600;
 /** Upright screens zoom out at most this far (camera.zoom): 55° → ~81° vertical fov. */
 const PORTRAIT_MIN_ZOOM = 0.6;
+/** The manta's shortcut (whistle / land), pressed as Shift + Space (see registerShortcuts). */
+const MANTA_KEY = 'ShiftSpace';
 /** Seconds the "whistle for the manta" hint stays after stepping down from the house. */
 const MANTA_HINT_S = 8;
 /** No moving obstacles (see CollisionWorld.movers). */
@@ -156,6 +159,7 @@ export class App {
   private readonly manta: MantaActivity;
   private readonly mantaSkills: MantaSkills;
   private mantaBar!: MantaSkillBar<MantaSkillId>;
+  private ringHud!: RingHud;
   private readonly swimFx: SwimEffects;
   /** Air bubbles under water (exhaled while diving). */
   private readonly bubbles: Spray;
@@ -476,12 +480,13 @@ export class App {
     this.smoke = new Embers(sharedUniforms, 'smoke');
     this.dust = new Embers(sharedUniforms, 'steam');
     this.scene.add(this.lightning.mesh, this.smoke.points, this.dust.points);
+    // (Before the manta's skills: its entrance makes the sea glow.)
+    this.seaGlow = new Embers(sharedUniforms, 'sea');
+    this.scene.add(this.seaGlow.points);
     this.mantaSkills = this.createMantaSkills();
     this.dogSkills = this.createDogSkills();
     this.combos = this.createCombos();
     this.ambush = this.createAmbush();
-    this.seaGlow = new Embers(sharedUniforms, 'sea');
-    this.scene.add(this.seaGlow.points);
     this.beMap = this.createShark();
     this.listenShoo();
 
@@ -498,12 +503,14 @@ export class App {
     this.mantaBar = new MantaSkillBar(
       ui,
       [
-        { id: 'frost', key: 'Q', name: vi.manta.skillShort.frost, icon: 'snow' },
-        { id: 'meteor', key: 'E', name: vi.manta.skillShort.meteor, icon: 'meteor' },
-        { id: 'aurora', key: 'R', name: vi.manta.skillShort.aurora, icon: 'aurora' },
+        { id: 'frost', key: '1', name: vi.manta.skills.frost, icon: 'skillFrost' },
+        { id: 'meteor', key: '2', name: vi.manta.skills.meteor, icon: 'skillMeteor' },
+        { id: 'aurora', key: '3', name: vi.manta.skills.aurora, icon: 'skillAurora' },
+        { id: 'rings', key: '4', name: vi.manta.skills.rings, icon: 'skillRings' },
       ],
       (id) => this.mantaSkills.cast(id),
     );
+    this.ringHud = new RingHud(ui);
     this.floatBars = new FloatBars(ui);
     this.hurtEl = document.createElement('div');
     this.hurtEl.className = 'hurt-flash';
@@ -614,7 +621,13 @@ export class App {
     this.petCursor = new PetCursor();
     this.activityMenu = new ActivityMenu(ui);
     // The card sits under the menu bar; it follows the panel (opened over it, faded out of sight).
-    const dock = (): void => this.activityMenu.dock(this.panel.dockRect());
+    // Riding the manta, its skill buttons take that spot and the card moves down under them.
+    const dock = (): void => {
+      const rect = this.panel.dockRect();
+      this.mantaBar.dock(rect);
+      this.activityMenu.dock(rect && { ...rect, right: rect.right + this.mantaBar.width });
+    };
+    this.mantaBar.onToggle = dock;
     this.panel.onLayout = () => {
       dock();
       // Again once the panel's own transition has settled.
@@ -719,8 +732,7 @@ export class App {
   private weatherTargets(): WeatherTargets {
     const s = this.settings.get();
     const k = this.calmVisual;
-    // Mưa Sao Băng brings its own snowfall for a while, on top of the scene's.
-    return { rain: s.visualRain * k, snow: Math.max(s.visualSnow * k, this.mantaSkills.snow), wind: s.visualWind * k };
+    return { rain: s.visualRain * k, snow: s.visualSnow * k, wind: s.visualWind * k };
   }
 
   /**
@@ -1027,11 +1039,8 @@ export class App {
       keyLabel: 'R',
       label: vi.shortcuts.waterSkill,
       action: () => {
-        // On the manta, R is its aurora (Bọt's skill waits until you're down).
-        if (this.cameras.mode === 'fly') {
-          this.mantaSkills.cast('aurora');
-          return;
-        }
+        // On the manta, R does nothing (its skills are 1 – 4; Bọt's waits until you're down).
+        if (this.cameras.mode === 'fly') return;
         if (this.petGame.originalKey('bot') === 'done') return;
         const r = this.creatures.waterSkill();
         if (r === 'off') this.activityMenu.flash(vi.creatures.coming);
@@ -1074,12 +1083,8 @@ export class App {
           this.cameras.getUp();
           return;
         }
-        // In the kayak, E is the right-hand stroke (K steps out); on the manta, Mưa Sao Băng.
-        if (this.cameras.mode === 'fly') {
-          this.mantaSkills.cast('meteor');
-          return;
-        }
-        if (this.cameras.mode === 'kayak') return;
+        // In the kayak, E is the right-hand stroke (K steps out); on the manta, nothing (1 – 4).
+        if (this.cameras.mode === 'kayak' || this.cameras.mode === 'fly') return;
         const near = this.nearSeat();
         if (near) this.cameras.sit(near, true);
         // No seat here: E feeds the pet the bubble points at.
@@ -1103,6 +1108,14 @@ export class App {
     window.addEventListener('keydown', (e) => {
       if (e.code !== 'Space' || e.repeat || e.ctrlKey || e.altKey || e.metaKey || isTyping(e.target)) return;
       const mode = this.cameras.mode;
+      // Shift + Space: the whistle (walking or swimming); on its back, land.
+      if (e.shiftKey) {
+        if (mode === 'walk' || mode === 'fly') {
+          e.preventDefault();
+          this.keymap.run(MANTA_KEY);
+        }
+        return;
+      }
       if (mode === 'walk' && this.boardManta()) e.preventDefault();
       else if (mode === 'fly' && this.manta.settled) this.manta.land();
     });
@@ -1124,19 +1137,13 @@ export class App {
         else if (this.cameras.mode === 'walk' && this.nearSea()) this.boardSurf();
       },
     });
+    // Shift + Space (the Space listener above runs it): the keymap matches single keys, so it
+    // is listed under a code no key sends; buttons run it through the keymap as any other.
     this.keymap.register({
-      code: 'KeyO',
-      keyLabel: 'O',
+      code: MANTA_KEY,
+      keyLabel: 'Shift + Space',
       label: vi.shortcuts.manta,
       action: () => this.mantaKey(),
-    });
-    this.keymap.register({
-      code: 'KeyQ',
-      keyLabel: 'Q',
-      label: vi.shortcuts.mantaSkill,
-      action: () => {
-        if (this.cameras.mode === 'fly') this.mantaSkills.cast('frost');
-      },
     });
     this.keymap.register({
       code: 'KeyV',
@@ -1144,7 +1151,7 @@ export class App {
       label: vi.shortcuts.view,
       action: () => this.settings.update({ walkView: this.settings.get().walkView === 'third' ? 'first' : 'third' }),
     });
-    // 1–9: the scenes in the order of the panel's cards.
+    // 1–9: the scenes in the order of the panel's cards; on the manta, 1 – 4 are its skills.
     for (let i = 1; i <= 9; i++) {
       this.keymap.register({
         code: `Digit${i}`,
@@ -1152,11 +1159,18 @@ export class App {
         label: vi.shortcuts.sceneKeys,
         unlisted: true,
         action: () => {
+          if (this.cameras.mode === 'fly') {
+            const skill = MANTA_SKILLS[i - 1];
+            if (skill) this.mantaSkills.cast(skill);
+            return;
+          }
           const p = this.scenes.all()[i - 1];
           if (p) this.applyScene(p.id);
         },
       });
     }
+    // Listed once, for the manta's four skills.
+    this.keymap.register({ code: 'MantaSkills', keyLabel: '1 – 4', label: vi.shortcuts.mantaSkill, action: () => undefined });
     this.keymap.register({ code: 'Backquote', keyLabel: '`', label: vi.shortcuts.debug, action: toggleSetting('showDebug') });
     // The ? key (Shift + /): any layout's / key works, Shift or not.
     this.keymap.register({ code: 'Slash', keyLabel: '?', label: vi.shortcuts.help, action: () => this.panel.toggleShortcuts() });
@@ -2011,7 +2025,7 @@ export class App {
     items: [
       { key: 'K', label: vi.sea.kayak, icon: 'kayak', run: () => this.keymap.run('KeyK') },
       { key: 'L', label: vi.surf.menu, icon: 'surf', run: () => this.keymap.run('KeyL') },
-      { key: 'O', label: vi.manta.call, icon: 'manta', run: () => this.keymap.run('KeyO') },
+      { key: '⇧ Space', label: vi.manta.call, icon: 'manta', run: () => this.keymap.run(MANTA_KEY) },
       { key: 'W', label: vi.sea.swim, icon: 'swim' },
     ],
   };
@@ -2209,12 +2223,13 @@ export class App {
     if (this.settings.get().footsteps) this.mixer.playPaddle('catch', 0.55 * e.strength, e.side * 0.5);
   }
 
-  /** The manta's skills (Q / E / R while riding), drawn with the shared particles and sounds. */
+  /** The manta's skills (1 – 4 while riding), drawn with the shared particles and sounds. */
   private createMantaSkills(): MantaSkills {
     const w = this.world;
     return new MantaSkills(this.scene, sharedUniforms, this.manta, this.camera, {
-      card: (id) => this.skillCard.show(`${vi.manta.title}: ${vi.manta.skills[id]}`, id === 'frost' ? 'ice' : id === 'meteor' ? 'moon' : 'aurora'),
-      refuse: (id, why, seconds) => this.activityMenu.flash(why === 'needSea' ? vi.manta.needSea : vi.manta.cooldown(vi.manta.skills[id], seconds)),
+      card: (id) => this.skillCard.show(`${vi.manta.title}: ${vi.manta.skills[id]}`, id === 'meteor' ? 'moon' : id === 'aurora' ? 'aurora' : 'ice'),
+      refuse: (id, why, seconds) =>
+        this.activityMenu.flash(why === 'needSea' ? vi.manta.needSea : why === 'running' ? vi.manta.ringRunning : vi.manta.cooldown(vi.manta.skills[id], seconds)),
       // On you (the rider): straight ahead, near full; with the activity sounds, as the other skills.
       sound: (kind, size) => {
         if (this.settings.get().footsteps) this.mixer.playSkill(kind, size, 0.8, 0);
@@ -2222,13 +2237,33 @@ export class App {
       ripple: (x, z) => w.water.addRipple(x, z, 1.6, -0.12),
       mist: this.dust,
       sparkle: this.rainbow,
+      glow: this.seaGlow,
+      fx: this.fx,
+      wave: (x, z, r, k) => w.water.addRipple(x, z, r, k),
+      floor: (x, z) => this.manta.floorAt(x, z),
+      rings: {
+        start: (level) => this.ringHud.start(vi.manta.ringLevel[level], level),
+        progress: (passed, total, elapsed, left) => this.ringHud.update(passed, total, elapsed, left),
+        miss: () => this.activityMenu.flash(vi.manta.ringMiss),
+        end: (result, passed, total, elapsed, tomato) => {
+          if (result === 'abort') {
+            this.ringHud.hide();
+            return;
+          }
+          const won = result === 'done';
+          this.ringHud.update(passed, total, elapsed, 0);
+          this.ringHud.end(won ? vi.manta.ringDone(total, elapsed.toFixed(1), tomato) : vi.manta.ringTimeout(passed, total), won);
+          if (won) this.avatar.cheer(2);
+        },
+        reward: (startedAt) => this.wallet.earnRing(startedAt),
+      },
       heightAt: (x, z) => w.heightmap.heightAt(x, z),
       reducedMotion: () => this.reducedMotion.matches,
     });
   }
 
   /**
-   * O: whistle for the manta (walking or swimming), climb on when it hovers beside you, or (on
+   * Shift + Space: whistle for the manta (walking or swimming), climb on when it hovers beside you, or (on
    * its back) come down and step off where there's room.
    */
   private mantaKey(): void {
@@ -2277,7 +2312,7 @@ export class App {
   /** On the beach, or just down from the house: a hint that the manta comes when whistled. */
   private readonly mantaCallCard: ActivityCard = {
     title: vi.manta.title,
-    items: [{ key: 'O', label: vi.manta.call, icon: 'manta', run: () => this.keymap.run('KeyO') }],
+    items: [{ key: '⇧ Space', label: vi.manta.call, icon: 'manta', run: () => this.keymap.run(MANTA_KEY) }],
   };
   /** Until when (s, performance.now / 1000) the call hint stays after stepping down from the house. */
   private mantaHintUntil = 0;
@@ -2295,7 +2330,7 @@ export class App {
     if (this.onWood && !wood && !w.swimming) this.mantaHintUntil = now + MANTA_HINT_S;
     this.onWood = wood;
     const st = this.manta.state;
-    if (st === 'arriving' || this.manta.active || w.diving) return null;
+    if (st === 'rising' || st === 'arriving' || this.manta.active || w.diving) return null;
     return this.nearSea() || now < this.mantaHintUntil ? this.mantaCallCard : null;
   }
 
@@ -2365,7 +2400,7 @@ export class App {
       { label: vi.manta.up, icon: 'rise', main: true, down: () => (touchInput.jump = true), up: () => (touchInput.jump = false) },
       { label: vi.manta.down, icon: 'dive', down: () => (touchInput.down = true), up: () => (touchInput.down = false) },
     ],
-    exit: () => this.keymap.run('KeyO'),
+    exit: () => this.keymap.run(MANTA_KEY),
   };
 
   /** On touch a card is only worth showing with something to tap (not key hints alone). */
@@ -2592,9 +2627,10 @@ export class App {
       return;
     }
     if (this.cameras.mode === 'fly') {
-      // Lying on its back holding the harness (or hopping on and off); through the eyes too: your arms are in view.
+      // Standing on its back holding the rein (or hopping on and off).
       this.avatar.group.visible = true;
-      this.avatar.updateProneRide(dt, this.manta.ride);
+      this.avatar.updateStandRide(dt, this.manta.ride);
+      this.manta.holdRein(this.avatar.reinHand(this.tmpEye));
       this.syncCharacter();
       return;
     }
@@ -2770,6 +2806,8 @@ export class App {
     this.calmVisual += (this.calmTarget - this.calmVisual) * (1 - Math.exp(-dt / CALM_EASE));
     const weather = this.world.weather;
     weather.setTargets(this.weatherTargets());
+    // Mưa Sao Băng's snow for a while, from a clear sky (on top of the scene's).
+    weather.clearSnow = this.mantaSkills.snow;
     weather.update(dt, wallSeconds());
 
     // Sky after weather: the time-of-day palette is greyed by the weather's overcast.

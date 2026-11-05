@@ -8,8 +8,11 @@ const GRAVITY = 9.81;
 
 /** Anything that throws droplets (the paddle now). */
 export interface SpraySink {
-  /** One droplet at (x, y, z) with velocity (vx, vy, vz) m/s and a radius in meters. */
-  drop(x: number, y: number, z: number, vx: number, vy: number, vz: number, size: number): void;
+  /**
+   * One droplet at (x, y, z) with velocity (vx, vy, vz) m/s and a radius in meters; it lasts
+   * at most `life` s (default 1.5; fading over the last half second).
+   */
+  drop(x: number, y: number, z: number, vx: number, vy: number, vz: number, size: number, life?: number): void;
 }
 
 const VERT = /* glsl */ `
@@ -57,7 +60,7 @@ export type SprayKind = 'spray' | 'jet' | 'bubbles';
 /**
  * Water droplets thrown by the paddle (or air bubbles under water, kind 'bubbles'): a few hundred points with ballistic motion (CPU, tiny
  * arrays, no allocation per frame), drawn as soft round sprites. A droplet ends when it falls
- * back below the water it came from or after a second and a half.
+ * back below the water it came from or after its life (a second and a half unless given).
  */
 export class Spray implements SpraySink {
   readonly points: THREE.Points;
@@ -69,6 +72,7 @@ export class Spray implements SpraySink {
   private readonly age: Float32Array;
   private readonly floor: Float32Array;
   private readonly radius: Float32Array;
+  private readonly life: Float32Array;
   private next = 0;
   private readonly scale: { value: number };
 
@@ -77,12 +81,15 @@ export class Spray implements SpraySink {
     private readonly kind: SprayKind = 'spray',
     /** Bubbles: the sea surface above (x, z), where they pop. */
     private readonly ceiling: (x: number, z: number) => number = () => 0,
+    /** Pool size (default: 1000, a jet 3000). */
+    size?: number,
   ) {
-    const max = (this.max = kind === 'jet' ? MAX_JET : MAX);
+    const max = (this.max = size ?? (kind === 'jet' ? MAX_JET : MAX));
     this.vel = new Float32Array(max * 3);
     this.age = new Float32Array(max);
     this.floor = new Float32Array(max);
     this.radius = new Float32Array(max);
+    this.life = new Float32Array(max);
     const geo = new THREE.BufferGeometry();
     this.pos = new THREE.BufferAttribute(new Float32Array(max * 3), 3).setUsage(THREE.DynamicDrawUsage);
     this.size = new THREE.BufferAttribute(new Float32Array(max), 1).setUsage(THREE.DynamicDrawUsage);
@@ -112,7 +119,7 @@ export class Spray implements SpraySink {
     this.scale.value = heightPx / (2 * Math.tan((fovDeg * Math.PI) / 360));
   }
 
-  drop(x: number, y: number, z: number, vx: number, vy: number, vz: number, size: number): void {
+  drop(x: number, y: number, z: number, vx: number, vy: number, vz: number, size: number, life = 1.5): void {
     const i = this.next;
     this.next = (this.next + 1) % this.max;
     const p = this.pos.array as Float32Array;
@@ -125,6 +132,7 @@ export class Spray implements SpraySink {
     this.age[i] = 0;
     this.floor[i] = Math.min(y, 0) - 0.05;
     this.radius[i] = size;
+    this.life[i] = life;
     this.live = true;
   }
 
@@ -160,7 +168,7 @@ export class Spray implements SpraySink {
         p[i * 3] += this.vel[i * 3] * dt;
         p[i * 3 + 1] += this.vel[i * 3 + 1] * dt;
         p[i * 3 + 2] += this.vel[i * 3 + 2] * dt;
-        dead = this.age[i] > 1.5 || (p[i * 3 + 1] < this.floor[i] && this.vel[i * 3 + 1] < 0);
+        dead = this.age[i] > this.life[i] || (p[i * 3 + 1] < this.floor[i] && this.vel[i * 3 + 1] < 0);
       }
       if (dead) {
         this.age[i] = Infinity;
@@ -168,7 +176,7 @@ export class Spray implements SpraySink {
         continue;
       }
       s[i] = this.radius[i];
-      f[i] = this.kind === 'bubbles' ? Math.min(1, this.age[i] * 6) : 1 - Math.max(0, this.age[i] - 1) * 2;
+      f[i] = this.kind === 'bubbles' ? Math.min(1, this.age[i] * 6) : 1 - Math.max(0, this.age[i] - this.life[i] + 0.5) * 2;
       last = i;
     }
     this.points.geometry.setDrawRange(0, last + 1);

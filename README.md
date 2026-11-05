@@ -74,7 +74,7 @@ On start a short **guided tour** ("Hướng dẫn nhanh", 12 steps) plays over t
 | `E` | While walking next to the desk or the bathtub: sit down / get in; seated: get up; next to a Thú Cưng (no seat near): feed it a 🍅 |
 | `K` | Walking on the beach or in the shallows: get into the kayak; in the kayak: step out (see *Kayak*) |
 | `L` | Walking on the beach or in the shallows: go surfing (see *Surfing*); on the board: slip off |
-| `O` | Walking or swimming: whistle for Cá Đuối Trời, the flying manta; next to it: climb on; on its back: land and step off (see *Cá Đuối Trời*) |
+| `Shift` + `Space` | Walking or swimming: whistle for Cá Đuối Trời, the flying manta; next to it: climb on; on its back: land and step off (see *Cá Đuối Trời*) |
 | `Esc` | Seated (desk or bathtub): get up; in the overview: back from a page inside the panel (a pet, the scene editor; with unsaved scene changes press twice), else fold the panel |
 | `` ` `` (backquote) | Show/hide the stats overlay (FPS, CPU/GPU ms, draw calls) |
 
@@ -134,7 +134,7 @@ Its tooltip names the scene and what is playing. The app always opens with the p
 its ☰, the scene in front. `Esc` in the overview shuts the open panel too. While a Pomodoro runs,
 a thin ring round the ☰ fills through the phase (accent while focusing, blue on a break).
 Walking and with `H` the same ☰ is fainter (and fades further when left alone; not while a
-Pomodoro runs); pointing at it opens the panel. The selected scene card is tinted and has a ✓ on its icon; cards keep an even height
+Pomodoro runs); only a click on it (or `P`) opens the panel, so the mouse passing by doesn't. The selected scene card is tinted and has a ✓ on its icon; cards keep an even height
 (only a long name makes its own row taller).
 Every slider also moves with the **mouse wheel** over it (wheel up = more): 5% per notch,
 15 minutes on the **Giờ** sliders (wrapping past midnight); hold **Shift** for fine steps (1%,
@@ -991,15 +991,21 @@ that drift behind for a few seconds, the blade throws a splash ring and droplets
 in, and drips when it comes out. These marks live in a sharp "wake map" (48 m around the kayak,
 9 cm per texel) that the water shader reads for foam and bumps, so they work anywhere at sea.
 
-## Cá Đuối Trời: the flying manta (`O`, Phase 15)
+## Cá Đuối Trời: the flying manta (`Shift` + `Space`, Phase 15)
 
 A manta ray 5 m across (sized to its rider) that flies. An ice creature: flying, it sheds
 glinting snowflakes off its wings, and once it's quick a pale spiral of cold wind streams off
-each wing tip (stronger the faster it goes; none with reduced motion). Walking (or swimming), press `O`: you whistle, and
-it glides in (from far over the sea the first time) and hovers a metre over open ground beside
-you, or on the water next to you when you swim. Nowhere open near you (in the forest, inside the
-house): a note says so. Press `Space` (or `O`) next to it to hop onto its back. Hovering there it
-is solid: you walk round it, not through it. A card reminds you of the whistle (**O: Huýt sáo gọi Cá
+each wing tip (stronger the faster it goes; none with reduced motion). Walking (or swimming), press `Shift` + `Space`: you whistle, and
+it comes up out of the sea, 55–135 m off in front of you if it can: for 2 s the sea churns and
+glows over it with a deep swelling rumble (rings spreading, water boiling up, mist), then it
+bursts out climbing steeply in a crown of water and a column dragged up behind it (a shock ring,
+a little camera shake, a roar of water that rains back down a moment later), loops high over the
+sea with a barrel roll on the way down, water streaming off its wings, and curves in to hover a
+metre over open ground beside you, or on the water next to you when you swim. The loop is turned
+~50° off the line to you so you see its circle from the beach. With no open sea near (or
+whistled from beyond 80 m when it's already out) it just flies in. Nowhere open near you (in the forest, inside the
+house): a note says so. Press `Space` (or `Shift` + `Space`) next to it to hop onto its back. Hovering there it
+is solid: you walk round it, not through it. A card reminds you of the whistle (**Shift + Space: Huýt sáo gọi Cá
 Đuối**) on the beach near the sea, and for a few seconds after you step down from the house.
 
 | Input | Action |
@@ -1011,8 +1017,8 @@ is solid: you walk round it, not through it. A card reminds you of the whistle (
 | Mouse | Look around; after a moment without the mouse the view drifts back behind it |
 | Wheel / pinch | Camera closer or further (3–24 m), as walking; in past the closest: the eyes view, out again: behind |
 | `V` | Character view ↔ eyes view: from just over the tip of its head, so nothing blocks the view (its wings at the edges) |
-| `O` | Land: it comes down where it is and you hop off to its right. Over the sea you drop into the water and swim. Over trees or a roof it says to find an open place |
-| `Q` / `E` / `R` | Its three skills (see below); also the buttons above the bottom of the screen |
+| `Shift` + `Space` | Land: it comes down where it is and you hop off to its right. Over the sea you drop into the water and swim. Over trees or a roof it says to find an open place |
+| `1` – `4` | Its four skills (see below); also the round buttons under the menu's ☰. (Riding, the number keys cast skills instead of picking scenes) |
 | `C` | Back to the orbit view; `C` again puts you back on it (it waits in the air) |
 | Phones | Joystick: fly and turn; **Bay lên** / **Hạ xuống** buttons; the corner button lands |
 
@@ -1029,29 +1035,37 @@ the pale shoulder chevrons real mantas have, pale spots on the wings that glow s
 a white belly with dark spots, and an iridescent rim. Its wings beat with the file's one clip
 (Swim), crossfaded with the same clip held where the wings are flat (a glide) by how hard it
 flies; the body lifts on each downstroke and the tail trails the turns. It wears a teal
-harness: a strap round its head and a handle arching back from it. You ride lying face down
-along its back holding the handle, head up looking ahead; slow, the lower legs are lifted and
-swing idly; fast, you lie flat and streamlined, legs nearly straight.
+strap round its head with a rein tied to the top. You ride standing on its back like on a
+surfboard: sideways, left foot toward its head, the front hand holding the rein taut (a rope
+from the knot to your hand), the back arm out for balance, looking toward its head and round
+with the view. The faster it flies, the lower you crouch (lowest gliding on the ice), and you
+lean into its turns.
 
-### Its skills (`Q` / `E` / `R` while riding)
+### Its skills (`1` – `4` while riding)
 
-Riding, a row of three buttons shows the skills (click or tap them too); a dark sweep shows the
-recharge. *Góc nhìn* → *Hiện nút tuyệt chiêu khi cưỡi Cá Đuối* hides them (the keys still work).
-A big name card appears when one is cast. On the manta, `E` and `R` are its skills; Bọt's `R`
-works again once you are down.
+Riding, a column of four round buttons under the menu's ☰ (top right, out of the manta's way)
+shows the skills: each a dark glass orb tinted with the skill's colour, its own picture large and
+glowing on it, its key inside along the bottom; as big as the ☰ (measured, so they match exactly); pointing at one shows its name beside it (click or tap
+them too). A dark sweep shows the recharge, and a ring of colour flashes out when it's ready.
+The activity card sits to the left of the column. *Góc nhìn* → *Hiện nút tuyệt chiêu khi cưỡi Cá Đuối* hides them (the keys still work).
+A big name card appears when one is cast. On the manta `1` – `4` cast its skills (the scene keys
+1 – 9 work again once you are down); `Q`, `E` and `R` do nothing up there.
 
 | Key | Skill | What it does | Recharge |
 |---|---|---|---|
-| `Q` | **Hơi Thở Băng Giá** | Low over the open sea (under ~16 m): it breathes frost for 4.5 s and the sea freezes into a road of ice 6–11 m wide (its width wanders) ahead of it, along wherever you steer. Clusters of crystal spikes burst up along both edges in a wave behind the breath (a few tall ones), broken plates drift off on the waves, and the freezing front flashes and throws up ice and mist. Over the ice the manta comes down and glides on it, level, never slower than ~16 m/s (ice has no grip), throwing up crystals with a scrape. Look up while flying forward to take off again. The top shows a network of plates and cracks, bubbles and glitter; at night the spikes and cracks glow. After ~40 s the spikes crumble with a tinkle and the plates sink one by one. Not over the beach or the reef shallows | 10 s |
-| `E` | **Mưa Sao Băng** | For 12 s shooting stars streak across the sky in front of you (all from one radiant, like a real shower) and burst into glittering ice crystals; snow starts to fall over the island for ~40 s (it settles a little, then melts) with crystals twinkling round you | 30 s |
-| `R` | **Dải Lụa Cực Quang** | For 10 s an aurora unfurls up from both wing tips along your path: two curtains, green at the foot to violet at the top, folding and shimmering; they hang there for ~45 s. Fly along between them again and their wind carries you past sprint speed, shedding rainbow motes | 18 s |
+| `1` | **Hơi Thở Băng Giá** | Low over the open sea (under ~16 m): it breathes frost for 4.5 s and the sea freezes into a road of ice 6–11 m wide (its width wanders) ahead of it, along wherever you steer. Clusters of crystal spikes burst up along both edges in a wave behind the breath (a few tall ones), broken plates drift off on the waves, and the freezing front flashes and throws up ice and mist. Over the ice the manta comes down and glides on it, level, never slower than ~16 m/s (ice has no grip), throwing up crystals with a scrape. Look up while flying forward to take off again. The top shows a network of plates and cracks, bubbles and glitter; at night the spikes and cracks glow. After ~40 s the spikes crumble with a tinkle and the plates sink one by one. Not over the beach or the reef shallows | 10 s |
+| `2` | **Mưa Sao Băng** | For 12 s shooting stars streak down across your view: they all come from one radiant just above the top of the view, so perspective fans them out as in a real shower. Each has a white-hot head that flares as it burns out, a short bright tail and a faint coloured train (blue-white, green, violet or orange) that lingers and spreads for ~1.5 s, then bursts into glittering ice crystals. Snow falls over the island for ~40 s from a clear sky (it settles a little, then melts; the sky doesn't grey) with crystals twinkling round you | 30 s |
+| `3` | **Dải Lụa Cực Quang** | For 10 s an aurora unfurls up from both wing tips along your path: two curtains, green at the foot to violet at the top, folding and shimmering; they hang there for ~45 s. Fly along between them again and their wind carries you past sprint speed, shedding rainbow motes | 18 s |
+| `4` | **Vòng Tròn Băng Giá** | An FPV-style race: a course of ice rings forms ahead of you. Each is built in layers, as magic-ring effects are: a thin tube of clear ice (4–5 cm, never thinner than a pixel far off) that glints as you move (ice grains that flash when the light lines up, after Shopf / Wang & Bowles) with a hint of rainbow at its edges, a soft halo, a six-armed snowflake seal turning slowly inside (a hexagonal plate with branching arms, as snow grows), a dashed rune ring, six small snowflakes on the frame, a nearly clear film that shows colours only at a grazing look, and star-shaped sparkles orbiting it with snow swirling into the middle. The frame is a circle or a snowflake's hexagon (random per course). The rings ahead stay faint outlines. Every cast is new and random: the difficulty (**Dễ** / **Vừa** / **Khó**: 5–7 rings of radius 5–6 m, 40–50 m apart, with gentle bends; 7–10 rings of 4–5 m; or 9–13 rings of 3.2–4 m, 27–36 m apart, with sharp bends and climbs), the number of rings, each ring's size, and the line's shape (slalom, arc, wave, helix, zig-zag, or a mix that changes every three rings); it stays clear of the island's hills and trees and bends back toward the island if it runs far out. Three rings show at a time; the next one pulses, and shines when you are lined up on its hole. Fly through it and a ring of light races out from the frame, the sparkles scatter and the ice bursts into ~110 slivers thrown on with you, with a burst of speed (+3.5 m/s). The sound, in layers: the air rushing past, the ice snapping (a crack over a low thump), a glassy FM bell on the ring's note (a step up a pentatonic scale each ring, so a run climbs like a tune) and its octave, and the slivers tinkling down; right through the middle: a sparkling run of notes up and rainbow motes too. Each ring has its own time (a bar at the top, amber then red); missing it beside the ring, turn round and try again. Fly them all: **🍅 +1** (one tomato per course flown to the end). Out of time: the rest melt away. A readout at the top shows rings passed, the clock and the difficulty | 3 s after a course |
 
 How they are drawn: the ice road and the aurora curtains are one ribbon class each
 (`world/creatures/trailRibbon.ts`): a ring buffer of path points with a cross-section (the ice: a
 slab with bevelled sides; the aurora: two vertical curtains). The CPU writes one point per push;
 the shaders do the rest (freezing outward, melting, unfolding, the rays). The meteors are one
-instanced quad mesh whose vertex shader flies each streak from its start to its end on the shader
-clock. The ice's spikes and drifting plates are two more instanced meshes
+instanced quad mesh drawn in screen space: the vertex shader projects each streak's visible stretch
+to pixels on the shader clock, and the fragment shader draws a round head and a teardrop tail from
+the pixel distance to the head and to that 2D segment (so the paths' strong foreshortening never
+squashes the head). The ice's spikes and drifting plates are two more instanced meshes
 (`world/creatures/iceCrystals.ts`): each spike's placement goes into its instance matrix once,
 its growth (overshooting, then settling) and crumbling happen in the vertex shader; the plates
 ride the same Gerstner waves as the sea, computed in their vertex shader. Their crystal shader is

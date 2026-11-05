@@ -81,13 +81,11 @@ const WALK_VIEWS: readonly WalkView[] = ['third', 'first'];
 const TICK_MS = 500;
 /**
  * Tucked away (walking, or the UI hidden with H): it closes this long (ms) after the pointer
- * leaves; walking, its handle then grows faint after SLEEP_MS more. Pointing at the top-right
- * corner (CORNER_W × CORNER_H px) brings it back.
+ * leaves; walking, its handle then grows faint after SLEEP_MS more. A click on the handle brings
+ * it back.
  */
 const CLOSE_MS = 600;
 const SLEEP_MS = 5000;
-const CORNER_W = 200;
-const CORNER_H = 120;
 
 interface Tab {
   button: HTMLButtonElement;
@@ -160,24 +158,11 @@ export class Panel {
     this.root = el('aside', 'panel');
     this.root.dataset.guide = 'panel';
     this.root.setAttribute('aria-label', vi.appTitle);
-    // Tucked away: pointing at the panel (or at the top-right corner, where it waits even when
-    // out of sight) opens it; leaving closes it again after a moment, unless a slider is still
-    // being dragged or you are typing in it.
+    // Tucked away: only a click on its ☰ handle (or P) opens it, never merely pointing at it, so
+    // the mouse passing the corner doesn't pop it open. Leaving closes it again after a moment,
+    // unless a slider is still being dragged or you are typing in it.
     // A finger has no hover (and "leaves" on every lift): on touch screens a tap opens the tucked
     // panel and a tap on the scene or the collapse button shuts it (watchSceneClicks, toggle).
-    this.root.addEventListener('pointerenter', (e) => {
-      if (e.pointerType !== 'touch') this.open();
-    });
-    window.addEventListener('pointermove', (e) => {
-      if (!this.tucked || this.peek || e.buttons !== 0 || e.pointerType === 'touch') return;
-      // Over the activity card under the menu bar: that isn't the corner.
-      if (e.target instanceof Element && e.target.closest('[data-no-corner]')) return;
-      if (e.clientX > window.innerWidth - CORNER_W && e.clientY < CORNER_H) {
-        this.open();
-        // Opened from the corner without entering it: it closes again unless pointed at.
-        this.scheduleClose();
-      }
-    });
     this.root.addEventListener('pointerleave', () => this.scheduleClose());
     this.root.addEventListener('focusout', () => this.scheduleClose());
     this.root.addEventListener('pointerdown', () => {
@@ -404,7 +389,7 @@ export class Panel {
 
     this.root.append(header, top, tabBar, content);
     // Out of sight (walking and left alone, or the UI hidden with H): only a small round handle
-    // stays where the bar was (styles: .panel.handle); pointing at it opens the panel.
+    // stays where the bar was (styles: .panel.handle); clicking it opens the panel.
     this.handle = el('button', 'panel-handle');
     this.handle.type = 'button';
     this.handle.innerHTML = icons.menu;
@@ -568,13 +553,14 @@ export class Panel {
    * keep the last); in the overview, beside the open panel at the top; null while the panel is
    * open over it.
    */
-  dockRect(): { top: number; right: number; width: number } | null {
+  dockRect(): { top: number; right: number; width: number; handle?: number } | null {
     if (this.tucked && this.peek) return null;
     const r = this.root.getBoundingClientRect();
     // A sheet along the bottom (upright phone): the top right corner is free.
     if (r.top > window.innerHeight / 2) return { top: 12, right: 12, width: 0 };
     if (!this.tucked) return { top: 12, right: window.innerWidth - r.left + 12, width: 0 };
-    return { top: r.bottom + 8, right: 12, width: 0 };
+    // Tucked into its round ☰: its size too (the manta's skill buttons match it).
+    return { top: r.bottom + 8, right: 12, width: 0, handle: r.width };
   }
 
   /**

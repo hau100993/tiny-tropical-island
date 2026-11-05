@@ -42,7 +42,7 @@ export interface Ledger {
 }
 
 /** How each kind changes the tomato count per unit of `n`. Unknown kinds (a newer save) count 0. */
-const TOMATO_SIGN: Readonly<Record<string, number>> = { focus: 1, gift: 1, feed: -1, evolve: -1, egg: -1, trust: -1 };
+const TOMATO_SIGN: Readonly<Record<string, number>> = { focus: 1, gift: 1, ring: 1, feed: -1, evolve: -1, egg: -1, trust: -1 };
 
 const GIFT_ID = 'gift';
 const MAX_EVENTS = 50_000;
@@ -105,6 +105,16 @@ export function earnFocus(
   if (now - endedAt > LIVE_SLACK_MS) return { ledger: l as Ledger, result: 'late' };
   if (focusToday(l, endedAt) >= DAILY_FOCUS_CAP) return { ledger: l as Ledger, result: 'cap' };
   return { ledger: withEvent(l, { id, t: endedAt, kind: 'focus', n: 1 }), result: 'earned' };
+}
+
+/**
+ * A run of the manta's ring course (Vòng Tròn Băng Giá) flown to the end: one tomato. The id
+ * comes from when the run started, so it is paid once per run (even if reported twice).
+ */
+export function earnRing(l: Readonly<Ledger>, startedAt: number): { ledger: Ledger; earned: boolean } {
+  const id = `r${Math.round(startedAt)}`;
+  if (l.events.some((e) => e.id === id)) return { ledger: l as Ledger, earned: false };
+  return { ledger: withEvent(l, { id, t: startedAt, kind: 'ring', n: 1 }), earned: true };
 }
 
 /** Union by id. The same id twice: the larger `n` wins (only the gift can differ). */

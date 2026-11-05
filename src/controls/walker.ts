@@ -176,6 +176,8 @@ export class Walker {
       if (!this.active || !MOVE_KEYS.has(e.code) || e.ctrlKey || e.altKey || e.metaKey) return;
       // The cursor is free: typing in the panel isn't walking.
       if (isTyping(e.target)) return;
+      // Shift + Space whistles for the manta (App): not a dive or a rise.
+      if (e.code === 'Space' && e.shiftKey) return;
       this.keys.add(e.code);
       e.preventDefault();
     });

@@ -1116,17 +1116,19 @@ export interface SurfPose {
   firstPerson: boolean;
 }
 
-/** Lying face down on a creature's back, holding its harness (the manta). */
+/**
+ * Standing on a creature's back like on a surfboard, one hand on its rein (the manta).
+ */
 export interface RidePose {
-  /** World transform of the back: origin on it under the chest, −Z toward the head, +Y up. */
+  /** World transform of where you stand: origin on its back between the feet, −Z toward its head, +Y up. */
   back: THREE.Matrix4;
-  /** World positions of the left and right hands (on the harness's handle). */
-  hands: readonly [THREE.Vector3, THREE.Vector3];
-  /** Knee bend per leg (rad): the lower legs lift off its back. */
-  knees: [number, number];
-  /** Chest raised off its back (rad): up at rest, low and flat at speed. */
-  chest: number;
-  /** Where the head looks, relative to the back (rad). */
+  /** Where the rein is tied (world): the front hand reaches toward it and holds it there. */
+  rein: THREE.Vector3;
+  /** Knees bent (0..1): a little at rest, low and tucked at speed. */
+  crouch: number;
+  /** Leaning into the turn (rad, > 0 turning left). */
+  lean: number;
+  /** Where the head looks, relative to looking at its head (rad). */
   lookYaw: number;
   lookPitch: number;
   firstPerson: boolean;
@@ -1434,7 +1436,9 @@ const palmB = new THREE.Vector3();
 /** Elbow pole for swimming (torso frame, right arm): out to the side and up toward the back. */
 const SWIM_POLE = new THREE.Vector3(0.75, 0.05, 0.65).normalize();
 const poleTmp = new THREE.Vector3();
-const palmTmp = new THREE.Vector3();
+const tmpA2 = new THREE.Vector3();
+/** How far the front hand reaches toward the rein (m, before scale): just short of the arm's length. */
+const REIN_REACH = 0.47;
 /** Petting: how far (m) the pelvis comes down and back, and the forward lean (rad). */
 const PET_CROUCH = 0.36;
 const PET_BACK = 0.09;
@@ -2276,11 +2280,12 @@ export class Avatar {
   }
 
   /**
-   * Riding the manta: face down along its back like lying on the surfboard, the chest raised by
-   * `chest`, both hands on the harness's handle ahead of the head (elbows out), the lower legs
-   * lifted by the knees, the head looking ahead (and round with the view).
+   * Riding the manta standing, like the surfboard: sideways across its back (left foot toward
+   * its head), knees bent by `crouch`, hips into the turn; the front (left) hand reaches toward
+   * the rein's knot and holds the rein there (see reinHand), the back arm out for balance; the
+   * head looks toward its head, and round with the view.
    */
-  updateProneRide(dt: number, p: Readonly<RidePose>): void {
+  updateStandRide(dt: number, p: Readonly<RidePose>): void {
     this.time += dt;
     this.seated = true;
     this.rootY = Number.NaN;
@@ -2289,30 +2294,37 @@ export class Avatar {
     root.scale.setScalar(this.k);
     this.torso.scale.y = 1;
     this.head.scale.setScalar(p.firstPerson ? 0.001 : 1);
-    for (let i = 0; i < 2; i++) {
-      const side = i === 0 ? -1 : 1;
-      this.hipJoints[i].rotation.set(0.02, 0, side * 0.07);
-      this.knees[i].rotation.set(-p.knees[i], 0, 0);
-      // Toes pointed back.
-      this.ankles[i].rotation.set(-0.9, 0, 0);
-    }
-    this.hips.position.set(0, HIP_Y, 0);
-    this.hips.rotation.set(0, 0, 0);
-    this.torso.rotation.set(p.chest, 0, 0);
-    // The face raised off its back to look ahead (the rest of the way the chest doesn't), then with the view.
-    this.head.rotation.set(clamp(1.35 - p.chest + p.lookPitch * 0.4, 0.5, 1.5), clamp(p.lookYaw, -1, 1), 0);
-    // Face down, head toward its head: body +Y → back −Z (as on the surfboard).
-    root.quaternion.multiply(tmpQ.setFromAxisAngle(tmpP.set(1, 0, 0), -Math.PI / 2));
-    tmpP.set(0, 0.11 * this.k, 1.12 * this.k).applyMatrix4(p.back);
-    root.position.copy(tmpP);
+    const drop = 0.1 + 0.22 * p.crouch;
+    this.hips.position.set(0, HIP_Y - drop, 0);
+    this.hips.rotation.set(p.lean * 0.45, 0.25, 0);
+    this.torso.rotation.set(-0.25 - 0.25 * p.crouch, 0.45, 0);
+    // Back arm out and down behind for balance, swaying a little.
+    this.shoulders[1].rotation.set(0.35 + 0.08 * Math.sin(this.time * 1.7), 0, 1.0 + 0.08 * Math.sin(this.time * 1.3));
+    this.elbows[1].rotation.set(0.3, 0, 0);
+    this.wrists[1].rotation.set(0, 0, 0);
+    this.head.rotation.set(clamp(0.1 + p.lookPitch * 0.4, -0.5, 0.6), clamp(0.75 + p.lookYaw, -0.4, 1.5), 0);
+    // Sideways across its back: body −Z (its front) → back +X.
+    root.quaternion.multiply(tmpQ.setFromAxisAngle(UP, -Math.PI / 2));
     root.updateMatrixWorld(true);
-    // Palms down over the handle, a little forward; elbows out to the sides.
-    palmTmp.set(0, -1, -0.3).transformDirection(p.back);
+    // Feet about shoulder width and a half apart along its back.
     for (let i = 0; i < 2; i++) {
-      poleTmp.set((i === 0 ? -1 : 1) * 0.8, -0.1, 0.55).normalize();
-      this.reachArm(i, p.hands[i], poleTmp, palmTmp);
+      tmpD.set(0, ANKLE_H * this.k, i === 0 ? -0.33 : 0.37).applyMatrix4(p.back);
+      this.reachLeg(i, tmpD, 0);
     }
+    // Front hand: toward the knot, nearly at arm's length (the rein pulls it straight), the
+    // elbow down, palm in.
+    this.shoulders[0].getWorldPosition(tmpP);
+    const toKnot = tmpD.subVectors(p.rein, tmpP);
+    const reach = Math.min(REIN_REACH * this.k, Math.max(0.1, toKnot.length() - 0.05));
+    tmpA2.copy(tmpP).addScaledVector(toKnot.normalize(), reach);
+    poleTmp.set(-0.5, -0.8, 0.2).normalize();
+    this.reachArm(0, tmpA2, poleTmp, null);
     this.blinkEyes(dt);
+  }
+
+  /** The front hand's grip on the rein (world), after updateStandRide. */
+  reinHand(out: THREE.Vector3): THREE.Vector3 {
+    return this.wrists[0].getWorldPosition(out);
   }
 
   /** Back on the feet after sitting: rest orientation for every bone (walking sets the rest). */

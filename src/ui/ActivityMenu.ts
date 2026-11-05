@@ -48,8 +48,6 @@ export class ActivityMenu {
   constructor(parent: HTMLElement) {
     this.root = el('div', 'activity-menu');
     this.root.setAttribute('role', 'region');
-    // Pointing at it isn't pointing at the menu's corner (Panel).
-    this.root.dataset.noCorner = '';
     this.title = el('div', 'activity-title');
     this.list = el('div', 'activity-list');
     this.note = el('div', 'activity-note');

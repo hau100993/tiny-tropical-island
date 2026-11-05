@@ -14,7 +14,7 @@ function hash(n: number): number {
  * perfect pentagon; flat faces (no shared vertices: the facets catch the light one by one).
  * `aH`: height 0 (foot) … 1 (tip) for the colour.
  */
-function spikeGeometry(): THREE.BufferGeometry {
+export function spikeGeometry(): THREE.BufferGeometry {
   const sides = 5;
   const ring = (y: number, r: number): THREE.Vector3[] =>
     Array.from({ length: sides }, (_, k) => {
@@ -44,7 +44,7 @@ function spikeGeometry(): THREE.BufferGeometry {
 }
 
 /** A broken-off plate of ice, radius ~1, 0.15 thick: an uneven hexagon with flat sides. */
-function shardGeometry(): THREE.BufferGeometry {
+export function shardGeometry(): THREE.BufferGeometry {
   const sides = 6;
   const pts = Array.from({ length: sides }, (_, k) => {
     const a = (k / sides) * Math.PI * 2 + (hash(k + 30) - 0.5) * 0.7;
@@ -166,7 +166,11 @@ void main() {
 }
 `;
 
-const CRYSTAL_FRAG = /* glsl */ `
+/**
+ * Faceted ice (shared with the ice rings): needs the varyings vWorld, vLocal, vH (0 foot … 1
+ * tip), vSeed and vFresh (an inner glow: forming, or a ring that is next).
+ */
+export const CRYSTAL_FRAG = /* glsl */ `
 uniform float uTime;
 uniform vec3 uLightDir;
 uniform vec3 uLightColor;
@@ -223,7 +227,7 @@ const tmpE = new THREE.Euler();
 const tmpP = new THREE.Vector3();
 const tmpS = new THREE.Vector3();
 
-function crystalUniforms(shared: SharedUniforms): Record<string, THREE.IUniform> {
+export function crystalUniforms(shared: SharedUniforms): Record<string, THREE.IUniform> {
   return {
     uTime: shared.uTime,
     uLightDir: shared.uLightDir,

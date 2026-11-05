@@ -599,7 +599,7 @@ body.touch .kbd-only {
 /* ---------- Walk mode ---------- */
 
 /* Walking, paddling, surfing: the panel waits collapsed
-   and faded in its corner, out of the scene; pointing at it opens it (Panel.setWalking). */
+   and faded in its corner, out of the scene; clicking its ☰ opens it (Panel.setWalking). */
 body.walking .panel {
   opacity: 0.35;
   transition: opacity 0.2s, transform 0.4s;
@@ -3882,59 +3882,73 @@ body.ui-hidden .feed-bubble {
   color: #3a7fd6;
 }
 
-/* ---------- The manta's skills (Q / E / R while riding) ---------- */
+/* ---------- The manta's skills (1 – 4 while riding) ---------- */
 
+/* A column of round buttons under the menu's ☰, top right (top/right from Panel.dockRect). */
 .manta-skills {
   position: fixed;
-  left: 50%;
-  bottom: 84px;
-  transform: translateX(-50%);
+  top: 66px;
+  right: 12px;
+  z-index: 5;
   display: flex;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.4s ease;
+  transition: opacity 0.3s ease;
 }
 
-.manta-skills.on {
+.manta-skills.on:not(.covered) {
   opacity: 1;
   pointer-events: auto;
 }
 
 .manta-skill {
   --cd: 0;
-  --el: #8fe3ff;
+  --el: #6ec8ff;
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  width: 78px;
-  padding: 7px 4px 6px;
+  display: grid;
+  place-items: center;
+  /* As big as the menu's round ☰ (set from its measured size: MantaSkillBar.dock). */
+  width: var(--skill-size, 38px);
+  height: var(--skill-size, 38px);
+  box-sizing: border-box;
+  padding: 0;
   font: inherit;
   color: var(--panel-fg);
-  background: var(--panel-bg);
-  border: 1px solid color-mix(in srgb, var(--el) 70%, transparent);
-  border-radius: 14px;
+  /* A dark glass orb tinted with the skill's colour (the bright picture stands out on it, day
+     or night), lit from its middle, with a sheen on top. */
+  background:
+    radial-gradient(ellipse 70% 40% at 50% 12%, rgba(255, 255, 255, 0.35), transparent 70%),
+    radial-gradient(circle at 50% 55%, color-mix(in srgb, var(--el) 45%, #0a2232), rgba(6, 20, 30, 0.82) 75%);
+  border: 1px solid color-mix(in srgb, var(--el) 75%, white);
+  border-radius: 50%;
   backdrop-filter: var(--glass-filter);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--el) 35%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--el) 55%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.6);
   cursor: pointer;
-  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 
-.manta-skill.meteor { --el: #b9c4ff; }
-.manta-skill.aurora { --el: #5cf0a8; }
+.manta-skill.meteor { --el: #b19dff; }
+.manta-skill.aurora { --el: #3fe89a; }
+.manta-skill.rings { --el: #8ff3ff; }
 
 .manta-skill:hover {
-  background: color-mix(in srgb, var(--el) 22%, var(--panel-bg));
+  transform: scale(1.08);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--el) 80%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
-/* Recharging: a dark sweep over what's left. */
+.manta-skill:active {
+  transform: scale(0.95);
+}
+
+/* Recharging: a dark sweep over what's left, the picture greyed. */
 .manta-skill::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: conic-gradient(rgba(0, 0, 0, 0.55) calc(var(--cd) * 360deg), transparent 0);
+  border-radius: 50%;
+  background: conic-gradient(rgba(0, 10, 20, 0.55) calc(var(--cd) * 360deg), transparent 0);
   pointer-events: none;
 }
 
@@ -3943,38 +3957,188 @@ body.ui-hidden .feed-bubble {
   border-color: var(--panel-border);
 }
 
-.manta-skill-key {
-  position: absolute;
-  top: 3px;
-  left: 6px;
-  font-size: 10px;
-  font-weight: 700;
-  opacity: 0.75;
+.manta-skill.cooling .manta-skill-icon {
+  filter: grayscale(0.7) brightness(0.85);
 }
 
+/* Ready again: a ring of its colour flashes out. */
+.manta-skill.fresh {
+  animation: manta-skill-fresh 0.7s ease-out;
+}
+
+@keyframes manta-skill-fresh {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--el) 90%, transparent); }
+  100% { box-shadow: 0 0 0 11px transparent, 0 0 14px color-mix(in srgb, var(--el) 55%, transparent); }
+}
+
+/* The skill's own picture: large, in its colour, glowing. */
 .manta-skill-icon {
-  color: var(--el);
+  color: color-mix(in srgb, var(--el) 75%, white);
   line-height: 0;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--el) 85%, transparent)) drop-shadow(0 1px 1px rgba(0, 30, 50, 0.45));
 }
 
 .manta-skill-icon svg {
-  width: 22px;
-  height: 22px;
+  width: 19px;
+  height: 19px;
 }
 
-.manta-skill-name {
-  font-size: 10.5px;
-  line-height: 1.2;
-  text-align: center;
+/* (Lifted a little: the key sits under it, inside the circle.) */
+.manta-skill-icon {
+  transform: translateY(-3px);
 }
 
-body.touch .manta-skills {
-  bottom: auto;
-  top: 72px;
+/* Its key inside the circle, small along its bottom edge. */
+.manta-skill-key {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  transform: translateX(-50%);
+  font-size: 8.5px;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9), 0 0 6px color-mix(in srgb, var(--el) 80%, transparent);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Its name beside it while pointed at. */
+.manta-skill::before {
+  content: attr(data-name);
+  position: absolute;
+  right: calc(100% + 10px);
+  top: 50%;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--panel-fg);
+  background: var(--panel-bg);
+  border: 1px solid color-mix(in srgb, var(--el) 60%, transparent);
+  border-radius: 999px;
+  backdrop-filter: var(--glass-filter);
+  opacity: 0;
+  transform: translate(6px, -50%);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+}
+
+.manta-skill:hover::before {
+  opacity: 1;
+  transform: translate(0, -50%);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .manta-skills {
+  .manta-skills,
+  .manta-skill,
+  .manta-skill::before {
+    transition: none;
+  }
+
+  .manta-skill.fresh {
+    animation: none;
+  }
+}
+
+/* Vòng Tròn Băng Giá: the course readout, top middle (ui/RingHud.ts). */
+.ring-hud {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  z-index: 5;
+  min-width: 220px;
+  padding: 7px 14px 8px;
+  color: var(--panel-fg);
+  background: var(--panel-bg);
+  border: 1px solid color-mix(in srgb, #8fe3ff 55%, transparent);
+  border-radius: 14px;
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-shadow), 0 0 14px rgba(143, 227, 255, 0.35);
+  transform: translate(-50%, -8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.ring-hud.on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.ring-hud-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ring-hud-icon {
+  color: #8fe3ff;
+  line-height: 0;
+}
+
+.ring-hud-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ring-hud-count {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.ring-hud-clock {
+  margin-left: auto;
+  opacity: 0.85;
+}
+
+.ring-hud-level {
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--lv) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--lv) 70%, transparent);
+}
+
+.ring-hud-level.easy { --lv: #5cf0a8; }
+.ring-hud-level.normal { --lv: #8fe3ff; }
+.ring-hud-level.hard { --lv: #ff8a8a; }
+
+.ring-hud-track {
+  height: 4px;
+  margin-top: 6px;
+  border-radius: 2px;
+  background: rgba(127, 127, 127, 0.25);
+  overflow: hidden;
+}
+
+.ring-hud-bar {
+  height: 100%;
+  background: #8fe3ff;
+  transform-origin: left;
+}
+
+.ring-hud-bar.warn { background: #ffc46b; }
+.ring-hud-bar.late { background: #ff7070; }
+
+.ring-hud-result {
+  display: none;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.ring-hud.ended .ring-hud-result { display: block; }
+.ring-hud.ended .ring-hud-track { display: none; }
+.ring-hud.won { border-color: #5cf0a8; box-shadow: var(--glass-shadow), 0 0 18px rgba(92, 240, 168, 0.5); }
+
+
+@media (prefers-reduced-motion: reduce) {
+  .ring-hud {
     transition: none;
   }
 }

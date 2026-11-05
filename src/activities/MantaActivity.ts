@@ -12,6 +12,7 @@ import { moveInput, readMove, touchInput } from '../controls/touchInput';
 import { CLEARANCE, CRUISE, MantaFlight, angleTo, flightInput } from './flight/mantaFlight';
 import type { Skyline } from './flight/skyline';
 import { MANTA_WINGSPAN } from './flight/mantaSize';
+import { MantaSummon } from './flight/mantaSummon';
 import mantaUrl from '../assets/creatures/sky-manta.glb?url';
 
 const LOOK_SPEED = 0.0022;
@@ -20,19 +21,19 @@ const PITCH = { first: [-1.3, 1.2], third: [-1.2, 0.9] } as const;
 const LEVEL_PITCH = -0.18;
 /** Third person: camera distance behind the rider's head (a little more than the wingspan). */
 const ARM = MANTA_WINGSPAN + 2;
-/** Where the third-person camera looks: this far above the rider's chest (m). */
-const HEAD = 0.9;
+/** Where the third-person camera looks: this far above the rider's feet (m), about the chest. */
+const HEAD = 1.5;
 /**
  * Through the eyes (V): the view from just over the tip of its head (m up, m ahead), so its head
  * isn't in the way and the whole island is in view; the wings at the edges.
  */
 const EYE = { up: 0.55, ahead: 0.25 } as const;
 /**
- * Lying on its back (see Avatar.updateProneRide), by speed: slow, the chest up and the lower
- * legs lifted, swinging idly; fast, flat along it, legs nearly straight (streamlined).
+ * Standing on its back like on a surfboard (see Avatar.updateStandRide): the knees bend more
+ * the faster it goes (`slow` … `fast`), more still gliding on the ice; leaning into the turns
+ * by `lean` × its bank.
  */
-const SLOW = { chest: 0.38, knee: 1.0, swing: 0.3 } as const;
-const FAST = { chest: 0.1, knee: 0.25, swing: 0.05 } as const;
+const STANCE = { slow: 0.2, fast: 0.75, ice: 0.9, lean: 0.9 } as const;
 /** Resting: its middle hovers this high over the ground or the sea (m), clear of both. */
 const REST_Y = 1.15;
 /**
@@ -53,8 +54,21 @@ const BLOCK = [
 const MOUNT_NEAR = MANTA_WINGSPAN * 0.5 + 2;
 /** Where it lands when called: this far from you (m), tried in rings. */
 const CALL_RINGS = [6.5, 9, 12, 16] as const;
-/** The first call: it comes in from over the sea, this far out (m) and this high. */
+/** No sea to come up from near you: it flies in from over the sea, this far out (m) and this high. */
 const FIRST_FROM = { dist: 230, height: 55 } as const;
+/**
+ * Where it comes up out of the sea when called (see MantaSummon): `dist` m from you (nearest
+ * first), toward where you look if it can; the sea at least `deep` m deep there and open water
+ * (no land, deeper than `clear`) under the whole loop, `back` m behind to `ahead` m past it.
+ */
+const BREACH = { dist: [55, 70, 90, 110, 135], deep: 3, clear: -0.8, back: 14, ahead: 8 } as const;
+/**
+ * Its loop is turned this far (rad) off the line to where it lands, so from the beach you see
+ * the loop's circle (head-on it would only go up and down); it curves in to you after.
+ */
+const LOOP_SIDE = 0.9;
+/** Called from farther than this (m), it doesn't fly over: it dives and comes up near you. */
+const FAR_CALL = 80;
 /** Climbing on and off (s). */
 const HOP_ON = 0.9;
 const HOP_OFF = 0.75;
@@ -71,20 +85,21 @@ const KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ArrowUp', 'Arrow
 
 /**
  * - away: not out yet (not loaded, or never called).
+ * - rising: called, it comes up out of the sea and loops (MantaSummon), then arrives.
  * - arriving: gliding in along a curve to where it will land.
  * - resting: hovering a metre over the ground or the sea, wings rippling slowly.
  * - boarding / alighting: you hop on / off.
  * - riding: flown by you (or, outside the flying view, hovering where you left it).
  * - landing: coming down where it is before you hop off.
  */
-export type MantaState = 'away' | 'arriving' | 'resting' | 'boarding' | 'riding' | 'landing' | 'alighting';
+export type MantaState = 'away' | 'rising' | 'arriving' | 'resting' | 'boarding' | 'riding' | 'landing' | 'alighting';
 
 export interface MantaEvents {
   /** It came down beside you (a soft whoosh of wings). */
   onArrive(x: number, z: number): void;
   /** You hopped off at (x, z) facing `yaw`: put the walker there. */
   onAlight(x: number, z: number, yaw: number): void;
-  /** "O" over the forest or a roof: no room to land here. */
+  /** Shift + Space over the forest or a roof: no room to land here. */
   onNoRoom(): void;
   /** Called, but nowhere near you is open enough for it to come down. */
   onNoCallRoom(): void;
@@ -121,7 +136,7 @@ const UP = new THREE.Vector3(0, 1, 0);
 /**
  * Cá Đuối Trời (Phase 15): a manta ray that flies. Called with a whistle (it glides in and
  * hovers beside you), ridden on its back (MantaFlight, steered like the walker: W forward, the
- * mouse aims while moving, A/D turn, Space down; Q / E / R its skills, see MantaSkills), landed where there's room. Loads its
+ * mouse aims while moving, A/D turn, Space down; 1 – 4 its skills, see MantaSkills), landed where there's room. Loads its
  * model on the first call.
  */
 export class MantaActivity {
@@ -138,12 +153,12 @@ export class MantaActivity {
   /** Its body and wings as circles for the walker to bump into (see `blocking`). */
   readonly blockers: CircleCollider[] = BLOCK.map(([, r]) => ({ x: 0, z: 0, r }));
   readonly flight: MantaFlight;
-  /** What the avatar needs to lie on its back holding the harness (world space), every frame. */
+  /** What the avatar needs to stand on its back holding the rein (world space), every frame. */
   readonly ride: RidePose = {
     back: new THREE.Matrix4(),
-    hands: [new THREE.Vector3(), new THREE.Vector3()],
-    knees: [SLOW.knee, SLOW.knee],
-    chest: SLOW.chest,
+    rein: new THREE.Vector3(),
+    crouch: STANCE.slow,
+    lean: 0,
     lookYaw: 0,
     lookPitch: 0,
     firstPerson: false,
@@ -153,9 +168,11 @@ export class MantaActivity {
   /** 0 flying … 1 gliding on the ice, eased. */
   skating = 0;
   private liftT = 0;
-  /** 0 slow … 1 fast (see SLOW, FAST), eased with the speed. */
+  /** 0 slow … 1 fast (see STANCE), eased with the speed. */
   private pace = 0;
   private _state: MantaState = 'away';
+  /** Its entrance out of the sea (read by MantaSkills for the churn and the splash). */
+  readonly summon = new MantaSummon();
   private model: MantaModel | null = null;
   private loading = false;
   /** Called before the model arrived: where to come to once it has. */
@@ -326,6 +343,8 @@ export class MantaActivity {
    */
   call(rider: Readonly<Rider>, swimming: boolean): 'coming' | 'noRoom' | 'busy' {
     if (this.active) return 'busy';
+    // Already on its way up out of the sea (a second whistle doesn't start it over).
+    if (this._state === 'rising') return 'coming';
     if (!this.model) {
       this.pending = { ...rider };
       void this.load();
@@ -361,7 +380,20 @@ export class MantaActivity {
     if (!spot) return false;
     const f = this.flight;
     this.p2.set(spot.x, this.restHeight(spot.x, spot.z), spot.z);
-    if (this._state === 'away') {
+    // Face across your view, a little toward you: the side of its back, ready to climb on.
+    this.landYaw = Math.atan2(-(r.x - spot.x), -(r.z - spot.z)) + Math.PI / 2;
+    if (this.model) this.model.root.visible = true;
+    // Not out yet, or far off: up out of the sea in front of you.
+    if (this._state === 'away' || this._state === 'rising' || Math.hypot(f.x - r.x, f.z - r.z) > FAR_CALL) {
+      const b = this.findBreach(r, spot);
+      if (b) {
+        this.summon.start(b.x, b.z, b.yaw, this.world.seaHeight(b.x, b.z));
+        this._state = 'rising';
+        this.rise(0);
+        return true;
+      }
+    }
+    if (this._state === 'away' || this._state === 'rising') {
       // From far over the open sea, beyond the spot as seen from the island's middle.
       const d = Math.hypot(spot.x, spot.z) || 1;
       const out = FIRST_FROM.dist;
@@ -375,11 +407,65 @@ export class MantaActivity {
     const len = this.p0.distanceTo(this.p1) + this.p1.distanceTo(this.p2);
     this.pathDur = Math.max(3.5, len / 15);
     this.pathT = 0;
-    // Face across your view, a little toward you: the side of its back, ready to climb on.
-    this.landYaw = Math.atan2(-(r.x - spot.x), -(r.z - spot.z)) + Math.PI / 2;
     this._state = 'arriving';
-    if (this.model) this.model.root.visible = true;
     return true;
+  }
+
+  /**
+   * Where to come up out of the sea, and its heading: on rings round you, ahead of you first;
+   * deep enough there and open sea under the whole loop, turned LOOP_SIDE off the line to `spot`.
+   */
+  private findBreach(r: Readonly<Rider>, spot: { x: number; z: number }): { x: number; z: number; yaw: number } | null {
+    const side = Math.random() < 0.5 ? 1 : -1;
+    const h = this.world.heightAt;
+    for (const dist of BREACH.dist) {
+      for (let k = 0; k < 16; k++) {
+        const a = r.yaw + (k % 2 === 0 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 8);
+        const x = r.x - Math.sin(a) * dist;
+        const z = r.z - Math.cos(a) * dist;
+        if (h(x, z) > -BREACH.deep) continue;
+        // Either side (a random one first).
+        for (const sgn of [side, -side]) {
+          const yaw = Math.atan2(-(spot.x - x), -(spot.z - z)) + sgn * LOOP_SIDE;
+          const ux = -Math.sin(yaw);
+          const uz = -Math.cos(yaw);
+          let open = true;
+          for (let s = -BREACH.back; s <= BREACH.ahead && open; s += 2) open = h(x + ux * s, z + uz * s) < BREACH.clear;
+          if (open) return { x, z, yaw };
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Up out of the sea and round the loop; then the glide in to where it lands. */
+  private rise(dt: number): void {
+    const f = this.flight;
+    const m = this.summon;
+    const y0 = f.y;
+    m.update(dt);
+    f.x = m.x;
+    f.y = m.y;
+    f.z = m.z;
+    f.yaw = m.yaw;
+    f.pitch = m.pitch;
+    f.roll = m.roll;
+    f.speed = m.speed;
+    f.yawRate = 0;
+    f.vy = dt > 0 ? (f.y - y0) / dt : 0;
+    this.flap = m.flap;
+    this.rate = m.rate;
+    if (m.active) return;
+    // Out of the loop low and level: glide on in, at the speed it has. The curve leaves along
+    // its heading (no snap), then curves round and down to where it lands.
+    this.p0.set(f.x, f.y, f.z);
+    const d = Math.hypot(this.p2.x - f.x, this.p2.z - f.z);
+    const lead = Math.max(2, d * 0.45);
+    this.p1.set(f.x + m.fx * lead, Math.max(f.y, this.p2.y + 2), f.z + m.fz * lead);
+    // The curve leaves at 4·|p1 − p0| / pathDur (ease-out): match its speed.
+    this.pathDur = Math.max(2.5, (4 * this.p0.distanceTo(this.p1)) / Math.max(m.speed, 5));
+    this.pathT = 0;
+    this._state = 'arriving';
   }
 
   /** Open ground (or water when swimming) on rings around the rider, the nearest first. */
@@ -423,6 +509,11 @@ export class MantaActivity {
     }
   }
 
+  /** The highest thing at (x, z) it flies over: terrain, trees, the house (the sea: 0). */
+  floorAt(x: number, z: number): number {
+    return this.world.skyline.floor(x, z);
+  }
+
   /** Ground or sea surface under (x, z). */
   private groundY(x: number, z: number): number {
     const h = this.world.heightAt(x, z);
@@ -434,18 +525,18 @@ export class MantaActivity {
     return Math.max(this.groundY(x, z), this.world.skyline.floor(x, z)) + REST_Y;
   }
 
-  /** "O" next to it: climb on (the view switches to flying with this). */
+  /** Space (or Shift + Space) next to it: climb on (the view switches to flying with this). */
   board(r: Readonly<Rider>): boolean {
     if (!this.model || !this.canMount(r.x, r.z)) return false;
     this._state = 'boarding';
     this.hopT = 0;
-    this.hopFrom.compose(tmpV.set(r.x, r.feetY + 0.9, r.z), tmpQ.setFromAxisAngle(UP, r.yaw), tmpS.set(1, 1, 1));
+    this.hopFrom.compose(tmpV.set(r.x, r.feetY, r.z), tmpQ.setFromAxisAngle(UP, r.yaw), tmpS.set(1, 1, 1));
     this.viewYaw = this.flight.yaw;
     this.viewPitch = LEVEL_PITCH;
     return true;
   }
 
-  /** "O" riding: come down here and let you off; false (and a note) over trees or a roof. */
+  /** Shift + Space riding: come down here and let you off; false (and a note) over trees or a roof. */
   land(): boolean {
     if (this._state !== 'riding') return false;
     const f = this.flight;
@@ -489,6 +580,9 @@ export class MantaActivity {
     const f = this.flight;
     if (this._state !== 'riding') this.skating = 0;
     switch (this._state) {
+      case 'rising':
+        this.rise(dt);
+        break;
       case 'arriving':
         this.arrive(dt);
         break;
@@ -509,8 +603,9 @@ export class MantaActivity {
     model.setPose(f.x, f.y, f.z, f.yaw, f.pitch, f.roll);
     model.update(dt, this.flap, this.rate, f.yawRate, f.vy);
     model.backMatrix(this.ride.back);
-    model.gripPoint(0, this.ride.hands[0]);
-    model.gripPoint(1, this.ride.hands[1]);
+    model.reinKnot(this.ride.rein);
+    // Nobody on it: the rein is put away (the rider's hand sets it while riding: holdRein).
+    if (!this.riding) model.setRein(null);
     this.hop(dt);
     const want = this._state === 'riding' ? clamp((Math.abs(f.speed) - 2) / (CRUISE - 2), 0, 1) : 0;
     this.pace += (want - this.pace) * damp(2.5, dt);
@@ -656,7 +751,7 @@ export class MantaActivity {
     const y = this.groundY(x, z);
     this.alight = { x, z, yaw };
     this.hopFrom.copy(this.ride.back);
-    this.hopTo.compose(tmpV.set(x, y + 0.9, z), tmpQ.setFromAxisAngle(UP, yaw), tmpS.set(1, 1, 1));
+    this.hopTo.compose(tmpV.set(x, y, z), tmpQ.setFromAxisAngle(UP, yaw), tmpS.set(1, 1, 1));
     this.hopT = 0;
     this._state = 'alighting';
   }
@@ -757,15 +852,14 @@ export class MantaActivity {
     if (f.pitch < -0.25 && c.thrust === 0) this.flap = 0.05;
   }
 
-  /** Chest and legs by the pace (the feet swing idly, out of step); the head looks where the view does. */
+  /** The stance by the pace and the turn; the head looks where the view does. */
   private updateRide(): void {
     const p = this.ride;
     const k = this.pace;
-    p.chest = SLOW.chest + (FAST.chest - SLOW.chest) * k;
-    const knee = SLOW.knee + (FAST.knee - SLOW.knee) * k;
-    const swing = this.reducedMotion() ? 0 : SLOW.swing + (FAST.swing - SLOW.swing) * k;
-    p.knees[0] = knee + swing * Math.sin(this.time * 1.3);
-    p.knees[1] = knee + swing * Math.sin(this.time * 1.3 + 2.1);
+    const crouch = STANCE.slow + (STANCE.fast - STANCE.slow) * k;
+    p.crouch = crouch + (STANCE.ice - crouch) * this.skating;
+    // Banked right (roll > 0) is a right turn: lean toward the toes (the pose's lean < 0).
+    p.lean = this._state === 'riding' ? -this.flight.roll * STANCE.lean : 0;
     p.lookYaw = this.active ? clamp(angleTo(this.flight.yaw, this.viewYaw), -1, 1) : 0;
     p.lookPitch = this.active ? this.viewPitch - LEVEL_PITCH : 0;
     p.firstPerson = this.active && this.view === 'first';
@@ -804,6 +898,11 @@ export class MantaActivity {
     }
     this.camera.position.set(cx, cy, cz);
     this.camera.rotation.set(this.viewPitch, this.viewYaw, -roll * 0.3, 'YXZ');
+  }
+
+  /** The rider's front hand holds the rein at `hand` (world): the rope runs there from the knot. */
+  holdRein(hand: THREE.Vector3): void {
+    this.model?.setRein(hand);
   }
 
   /** A wing tip (0 left, 1 right) in the world; false before the model is here. */

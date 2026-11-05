@@ -11,23 +11,22 @@ export const WINGSPAN = MANTA_WINGSPAN;
 /** Time in the Swim clip where the wings lie flat: the glide pose. */
 const GLIDE_TIME = 4.0;
 /**
- * Where the rider lies, in the file's own units (≈ m): the point on its back under the chest
- * (the back's top is ~0.3 there, measured), the head reaching toward the harness.
+ * Where the rider stands, in the file's own units: on the top of its back between the feet,
+ * behind the head (the back's top is ~0.3 up there).
  */
-const BACK = new THREE.Vector3(0, 0.3, 0.8);
+const BACK = new THREE.Vector3(0, 0.33, 0.45);
 /**
  * The harness: a strap round the head behind the eyes (file units: its middle ~0.17 up, the head
- * ~1.1 wide and 0.46 tall there) and a handle arching up and back from it to where the rider's
- * hands are. The grips are set in metres from where the rider lies (an arm's reach from the
- * shoulders, whatever the manta's size): `x` either side, `up`, `ahead`.
+ * ~1.1 wide and 0.46 tall there); the rein is tied at its top and runs to the rider's front hand.
  */
 const STRAP = { z: 2.1, y: 0.17, halfW: 0.62, halfH: 0.29, tilt: 0.12, r: 0.04 } as const;
-// Measured on the avatar lying here: shoulders ±0.19 wide, 0.25 up, 0.13 ahead; arm (shoulder to
-// wrist) 0.495 m, and the palm holds ~4.5 cm past the wrist. The grips sit shoulder-wide where
-// the wrist ends up at ~97% of that reach: arms nearly straight.
-const GRIP = { x: 0.19, up: 0.345, ahead: 0.645 } as const;
+/** The rein's thickness (m): a rope. */
+const REIN_R = 0.012;
 
 const tmpV = new THREE.Vector3();
+const tmpA = new THREE.Vector3();
+const tmpB = new THREE.Vector3();
+const tmpInvM = new THREE.Matrix4();
 const tmpQ = new THREE.Quaternion();
 const tmpQ2 = new THREE.Quaternion();
 const tmpS = new THREE.Vector3();
@@ -142,9 +141,10 @@ export class MantaModel {
   private readonly duration: number;
   /** Metres per file unit (the fit to WINGSPAN). */
   private readonly scale: number;
-  /** The grips (file units; x for the right hand) and a wing tip in the glide pose (file units, right). */
-  private readonly grip = new THREE.Vector3();
+  /** A wing tip in the glide pose (file units, right). */
   private readonly tip = new THREE.Vector3();
+  /** The rein: a rope from the strap's top to the rider's hand (a unit cylinder, stretched each frame). */
+  private rein: THREE.Mesh | null = null;
   /** The front of the head (file units, z). */
   private front = 0;
   private flap = 0;
@@ -183,7 +183,6 @@ export class MantaModel {
     this.scale = WINGSPAN / (box.max.x - box.min.x);
     this.body.scale.setScalar(this.scale);
     this.findTip(scene);
-    this.grip.set(GRIP.x / this.scale, BACK.y + GRIP.up / this.scale, BACK.z + GRIP.ahead / this.scale);
     this.body.add(scene);
     this.body.add(this.harness(shared));
     this.root.add(this.body);
@@ -309,7 +308,7 @@ export class MantaModel {
     bone.updateMatrixWorld(true);
   }
 
-  /** Teal leather straps: round the head, and the handle the rider holds. */
+  /** A teal leather strap round the head, and the rein tied to it (hidden until held). */
   private harness(shared: SharedUniforms): THREE.Group {
     const mat = new THREE.MeshStandardMaterial({ color: '#2f8a8c', roughness: 0.5, metalness: 0.05 });
     patchWorldMaterial(mat, { wet: true, porosity: 0.3 }, shared);
@@ -321,27 +320,40 @@ export class MantaModel {
       ring.push(new THREE.Vector3(STRAP.halfW * Math.sin(a), STRAP.y + STRAP.halfH * Math.cos(a), STRAP.z - STRAP.tilt * Math.cos(a)));
     }
     const strap = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(ring, true), 64, STRAP.r, 8, true), mat);
-    // From the strap's sides, up and back to the grips, across between them.
-    const g0 = this.grip;
-    const side = STRAP.halfW * 0.55;
-    const from = new THREE.Vector3(side, STRAP.y + STRAP.halfH * 0.9, STRAP.z - 0.1);
-    const mid = new THREE.Vector3((side + g0.x) / 2 + 0.03, (from.y + g0.y) / 2 + 0.06, (from.z + g0.z) / 2);
-    const handlePts = [from, mid, g0].map((p) => p.clone().setX(-p.x));
-    handlePts.push(...[g0, mid, from].map((p) => p.clone()));
-    const handle = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(handlePts), 32, STRAP.r * 0.85, 8, false), mat);
+    strap.castShadow = true;
+    strap.receiveShadow = true;
+    // The rein: in the root's frame (no scale), from its base at y 0 to y 1, stretched in setRein.
+    const rein = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 6, 1, true).translate(0, 0.5, 0), mat);
+    rein.castShadow = true;
+    rein.visible = false;
+    rein.matrixAutoUpdate = false;
+    this.rein = rein;
+    this.root.add(rein);
     const g = new THREE.Group();
-    for (const m of [strap, handle]) {
-      m.castShadow = true;
-      m.receiveShadow = true;
-      g.add(m);
-    }
+    g.add(strap);
     return g;
   }
 
-  /** Where the rider's left (0) or right (1) hand holds the handle (world). */
-  gripPoint(i: number, out: THREE.Vector3): THREE.Vector3 {
-    // The file faces +Z, so its −x side is the manta's (and the rider's) right.
-    return out.set((i === 0 ? 1 : -1) * this.grip.x, this.grip.y, this.grip.z).applyMatrix4(this.body.matrixWorld);
+  /** Where the rein is tied: the top of the strap (world). */
+  reinKnot(out: THREE.Vector3): THREE.Vector3 {
+    return out.set(0, STRAP.y + STRAP.halfH, STRAP.z - STRAP.tilt).applyMatrix4(this.body.matrixWorld);
+  }
+
+  /** The rein taut from its knot to `hand` (world), or put away (null: nobody holds it). */
+  setRein(hand: THREE.Vector3 | null): void {
+    const rein = this.rein;
+    if (!rein) return;
+    rein.visible = hand !== null;
+    if (!hand) return;
+    // Both ends into the root's frame; a cylinder from one to the other.
+    tmpInvM.copy(this.root.matrixWorld).invert();
+    const a = this.reinKnot(tmpA).applyMatrix4(tmpInvM);
+    const b = tmpB.copy(hand).applyMatrix4(tmpInvM);
+    const d = b.sub(a);
+    const len = d.length();
+    tmpQ.setFromUnitVectors(UP, d.multiplyScalar(1 / Math.max(len, 1e-6)));
+    rein.matrix.compose(a, tmpQ, tmpS.set(REIN_R, len, REIN_R));
+    rein.matrixWorldNeedsUpdate = true;
   }
 
   /** The left (0) or right (1) wing tip (world; the wings flat, not following each beat). */
@@ -355,7 +367,7 @@ export class MantaModel {
     return out.set(0, BACK.y + up / this.scale, this.front).applyMatrix4(this.body.matrixWorld);
   }
 
-  /** Where the rider lies (world, no scale): origin on its back under the chest, −Z toward the head. */
+  /** Where the rider stands (world, no scale): origin on its back between the feet, −Z toward the head. */
   backMatrix(out: THREE.Matrix4): THREE.Matrix4 {
     const p = tmpV.copy(BACK).applyMatrix4(this.body.matrixWorld);
     this.root.getWorldQuaternion(tmpQ).multiply(TURN_SEAT);
