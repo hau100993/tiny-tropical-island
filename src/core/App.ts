@@ -9,6 +9,7 @@ import { createWorld, FOG_FAR, FOG_FAR_CLEAR, FOG_NEAR, FOG_NEAR_CLEAR, type Wor
 import { ISLAND_SHADOW_HALF } from '../world/lighting';
 import { createOrbitCamera, type OrbitCamera } from '../controls/orbit';
 import { Keymap, isTyping } from '../controls/keymap';
+import { parseJson, readStored, writeStored } from './storage';
 import { onWaterClick, type ClickAim } from '../controls/waterClick';
 import { PetPointer } from '../controls/petPointer';
 import { DragLook } from '../controls/dragLook';
@@ -108,6 +109,16 @@ const TIME_RESET_HIDDEN = 3600;
 const PORTRAIT_MIN_ZOOM = 0.6;
 /** The manta's shortcut (whistle / land), pressed as Shift + Space (see registerShortcuts). */
 const MANTA_KEY = 'ShiftSpace';
+/** Quick tips while riding: the first `first` s after taking off, then every `every` s, each shown `show` ms. */
+const FLY_TIP = { first: 2.5, every: 6, show: 3800 } as const;
+type FlyTip = 'view' | 'skills' | 'trick';
+const FLY_TIP_ORDER: readonly FlyTip[] = ['view', 'skills', 'trick'];
+const FLY_TIPS_KEY = 'tsw.flyTips';
+/** The fly tips already used (a list of their ids in localStorage). */
+function loadFlyTips(): FlyTip[] {
+  const raw = parseJson(readStored(FLY_TIPS_KEY));
+  return Array.isArray(raw) ? raw.filter((t): t is FlyTip => FLY_TIP_ORDER.includes(t as FlyTip)) : [];
+}
 /**
  * Calling the manta from the sea: this many clicks on it in a row, each within `gap` s of the
  * last, on water at least `-deep` m deep (anything wet, not the beach; it comes up nearby where it is deep enough).
@@ -516,7 +527,9 @@ export class App {
         { id: 'aurora', key: '3', name: vi.manta.skills.aurora, icon: 'skillAurora' },
         { id: 'rings', key: '4', name: vi.manta.skills.rings, icon: 'skillRings' },
       ],
-      (id) => this.mantaSkills.cast(id),
+      (id) => {
+        if (this.mantaSkills.cast(id)) this.flyTipUsed('skills');
+      },
     );
     this.ringHud = new RingHud(ui);
     this.floatBars = new FloatBars(ui);
@@ -1122,6 +1135,11 @@ export class App {
       if (mode === 'walk' && this.boardManta()) e.preventDefault();
       else if (mode === 'fly' && this.manta.settled) this.manta.land();
     });
+    // Q while flying fast (Shift + W held) on the manta: three barrel rolls (Q does nothing else up there).
+    window.addEventListener('keydown', (e) => {
+      if (e.code !== 'KeyQ' || e.repeat || e.ctrlKey || e.altKey || e.metaKey || isTyping(e.target)) return;
+      if (this.cameras.mode === 'fly') this.barrelRoll();
+    });
     this.keymap.register({
       code: 'KeyK',
       keyLabel: 'K',
@@ -1152,7 +1170,10 @@ export class App {
       code: 'KeyV',
       keyLabel: 'V',
       label: vi.shortcuts.view,
-      action: () => this.settings.update({ walkView: this.settings.get().walkView === 'third' ? 'first' : 'third' }),
+      action: () => {
+        if (this.cameras.mode === 'fly') this.flyTipUsed('view');
+        this.settings.update({ walkView: this.settings.get().walkView === 'third' ? 'first' : 'third' });
+      },
     });
     // 1–9: the scenes in the order of the panel's cards; on the manta, 1 – 4 are its skills.
     for (let i = 1; i <= 9; i++) {
@@ -1164,7 +1185,7 @@ export class App {
         action: () => {
           if (this.cameras.mode === 'fly') {
             const skill = MANTA_SKILLS[i - 1];
-            if (skill) this.mantaSkills.cast(skill);
+            if (skill && this.mantaSkills.cast(skill)) this.flyTipUsed('skills');
             return;
           }
           const p = this.scenes.all()[i - 1];
@@ -1172,8 +1193,9 @@ export class App {
         },
       });
     }
-    // Listed once, for the manta's four skills.
+    // Listed once, for the manta's four skills; Shift + W + Q (its own listener) for the barrel rolls.
     this.keymap.register({ code: 'MantaSkills', keyLabel: '1 – 4', label: vi.shortcuts.mantaSkill, action: () => undefined });
+    this.keymap.register({ code: 'MantaTrick', keyLabel: 'Shift + W + Q', label: vi.shortcuts.mantaTrick, action: () => this.barrelRoll() });
     this.keymap.register({ code: 'Backquote', keyLabel: '`', label: vi.shortcuts.debug, action: toggleSetting('showDebug') });
     // The ? key (Shift + /): any layout's / key works, Shift or not.
     this.keymap.register({ code: 'Slash', keyLabel: '?', label: vi.shortcuts.help, action: () => this.panel.toggleShortcuts() });
@@ -2293,6 +2315,45 @@ export class App {
   }
 
   private readonly mantaRider = { x: 0, z: 0, feetY: 0, yaw: 0 };
+  /** Fly tips already used once (never shown again), and this ride's timer and next tip. */
+  private readonly flyTipsDone = new Set<FlyTip>(loadFlyTips());
+  private flyTipT = 0;
+  private flyTipNext = 0;
+
+  /** Shift + W + Q riding: Vũ Điệu Xoắn Ốc (three barrel rolls), or a note why not now. */
+  private barrelRoll(): void {
+    const r = this.manta.barrelRoll();
+    if (r === 'ok') {
+      this.flyTipUsed('trick');
+      this.skillCard.show(`${vi.manta.title}: ${vi.manta.trick}`, 'aurora');
+    } else if (r === 'low') this.activityMenu.flash(vi.manta.trickLow);
+    else if (r === 'slow') this.activityMenu.flash(vi.manta.trickSlow);
+  }
+
+  /** You used a control a tip was about: that tip is never shown again. */
+  private flyTipUsed(tip: FlyTip): void {
+    if (this.flyTipsDone.has(tip)) return;
+    this.flyTipsDone.add(tip);
+    writeStored(FLY_TIPS_KEY, [...this.flyTipsDone]);
+  }
+
+  /**
+   * Riding: quick tips one after another in the bubble over your head (the first a moment after
+   * you take off, then every FLY_TIP.every s), each until you have used what it's about.
+   */
+  private updateFlyTips(dt: number): void {
+    if (this.cameras.mode !== 'fly' || this.manta.state !== 'riding') {
+      this.flyTipT = 0;
+      this.flyTipNext = 0;
+      return;
+    }
+    this.flyTipT += dt;
+    if (this.flyTipT < FLY_TIP.first + this.flyTipNext * FLY_TIP.every) return;
+    while (this.flyTipNext < FLY_TIP_ORDER.length && this.flyTipsDone.has(FLY_TIP_ORDER[this.flyTipNext])) this.flyTipNext++;
+    if (this.flyTipNext >= FLY_TIP_ORDER.length) return;
+    this.activityMenu.flash(vi.manta.flyTips[FLY_TIP_ORDER[this.flyTipNext]], FLY_TIP.show);
+    this.flyTipNext++;
+  }
   /** Clicks on the open sea in a row (each within SEA_CALL.gap s of the last) and when the last was. */
   private seaClicks = 0;
   private seaClickAt = -1e9;
@@ -2930,6 +2991,7 @@ export class App {
     this.updateSurfing();
     this.updateAvatar(dt);
     this.placePrompt(dt);
+    this.updateFlyTips(dt);
     this.updateDog(dt);
     this.creatures.setCrabStage(this.cameras.mode === 'seat' && this.cameras.seat === 'desk' ? this.crabStage : null);
     this.creatures.update(dt);

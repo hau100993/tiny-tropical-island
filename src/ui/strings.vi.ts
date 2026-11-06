@@ -460,7 +460,7 @@ export const vi = {
     noLaunch: 'Ra sát mép nước để hạ thuyền',
   },
   manta: {
-    controls: 'W: bay tới (giữ Shift: bay nhanh) · Chuột: lái hướng khi bay, nhìn lên để bay lên · A / D: rẽ · S: lùi (giữ Shift: lùi nhanh) · Space: hạ xuống, sát đất đứng yên thì nhấn Space để xuống · Shift + Space: đáp xuống · 1 – 4: tuyệt chiêu · V: đổi góc nhìn · C: toàn cảnh',
+    controls: 'W: bay tới (giữ Shift: bay nhanh) · Chuột: lái hướng khi bay, nhìn lên để bay lên · A / D: rẽ · S: lùi (giữ Shift: lùi nhanh) · Space: hạ xuống, sát đất đứng yên thì nhấn Space để xuống · Shift + Space: đáp xuống · 1 – 4: tuyệt chiêu · Shift + W + Q: xoay 3 vòng · V: đổi góc nhìn · C: toàn cảnh',
     title: 'Cá Đuối Trời',
     ride: 'Cưỡi Cá Đuối',
     call: 'Huýt sáo gọi Cá Đuối',
@@ -476,6 +476,16 @@ export const vi = {
     skills: { frost: 'Hơi Thở Băng Giá', meteor: 'Mưa Sao Băng', aurora: 'Dải Lụa Cực Quang', rings: 'Vòng Tròn Băng Giá' },
     /** Vòng Tròn Băng Giá: the course's difficulty, notes and result. */
     ringLevel: { easy: 'Dễ', normal: 'Vừa', hard: 'Khó' },
+    /** Shift + W + Q: three barrel rolls (the card), and why not now. */
+    trick: 'Vũ Điệu Xoắn Ốc',
+    trickLow: 'Bay cao hơn chút nữa rồi giữ Shift + W, nhấn Q để xoay',
+    trickSlow: 'Giữ Shift + W để bay nhanh, rồi nhấn Q để xoay',
+    /** Quick tips while flying, one after another (each until you have used it once). */
+    flyTips: {
+      view: 'Nhấn V: góc nhìn FPV, qua mắt Cá Đuối',
+      skills: 'Nhấn 1 – 4: ra tuyệt chiêu',
+      trick: 'Đang bay nhanh (Shift + W), nhấn thêm Q: Cá Đuối xoay 3 vòng',
+    },
     ringRunning: 'Đang bay đường vòng băng: bay hết vòng hoặc chờ hết giờ',
     ringMiss: 'Trượt vòng! Vòng lại bay xuyên qua',
     ringDone: (n: number, s: string, tomato: boolean) => `Hoàn thành ${n} vòng · ${s} s${tomato ? ' · 🍅 +1' : ''}`,
@@ -679,6 +689,7 @@ export const vi = {
     surf: 'Gần biển: lướt ván (ra bãi sóng) / rời ván',
     manta: 'Cá Đuối Trời: huýt sáo gọi / cưỡi lên / đáp xuống',
     mantaSkill: 'Cưỡi Cá Đuối: 1 Hơi Thở Băng Giá · 2 Mưa Sao Băng · 3 Dải Lụa Cực Quang · 4 Vòng Tròn Băng Giá',
+    mantaTrick: 'Cưỡi Cá Đuối đang bay nhanh (Shift + W), nhấn thêm Q: Vũ Điệu Xoắn Ốc (xoay 3 vòng)',
     mouse: 'Kéo: xoay · Cuộn: thu phóng · Chuột phải: dời · Nhấp vào nước: gợn sóng',
     sliderWheel: 'Thanh trượt: lăn chuột để chỉnh 5% (giờ: 15 phút) · giữ Shift để chỉnh mịn · nhấp đúp: về mặc định',
     sceneKeys: '1 – 9: chọn cảnh theo thứ tự trên bảng (đang cưỡi Cá Đuối: 1 – 4 là tuyệt chiêu)',
@@ -688,7 +699,7 @@ export const vi = {
     surfKeys: 'Lướt ván: nằm chèo W, A / D quay ván · hiện "Sóng tới!" thì nhấn Space: ván giữ hướng mũi đang chỉ (A / D vẫn chỉnh được), tự chèo và đứng lên · lướt 8 giây liền: Bé Mập nhảy lên ăn mừng · đứng: A / D ôm cua dọc sóng (Shift gắt, nghiêng quá là ngã, ngã thì tự leo lại lên ván) · W lấy đà · S hãm · L rời ván',
     journalKeys: 'Nhật ký (J): các việc ở biển, tự đánh dấu khi bạn làm xong, lưu lại cho lần sau',
     mantaKeys:
-      'Cá Đuối Trời: đi bộ hoặc bơi nhấn Shift + Space để huýt sáo, nó bay tới đậu cạnh bạn · đứng gần nhấn Space: leo lên lưng · W bay tới theo hướng nhìn, nhìn lên để bay lên (Shift: nhanh) · A / D rẽ · S lùi (Shift: lùi nhanh) · Space hạ xuống, sát đất đứng yên thì nhấn Space lần nữa để xuống · Shift + Space: đáp xuống chỗ trống hoặc mặt biển rồi nhảy xuống · 1 Hơi Thở Băng Giá (bay thấp trên biển: đóng băng mặt biển, Cá Đuối lướt trên băng; nhìn lên để cất cánh) · 2 Mưa Sao Băng (sao băng và tuyết rơi) · 3 Dải Lụa Cực Quang (bay dọc theo dải lụa để được gió đẩy nhanh) · 4 Vòng Tròn Băng Giá (một đường vòng băng ngẫu nhiên phía trước: bay xuyên qua từng vòng trước khi hết giờ, bay hết được 🍅)',
+      'Cá Đuối Trời: đi bộ hoặc bơi nhấn Shift + Space để huýt sáo, nó bay tới đậu cạnh bạn · đứng gần nhấn Space: leo lên lưng · W bay tới theo hướng nhìn, nhìn lên để bay lên (Shift: nhanh) · A / D rẽ · S lùi (Shift: lùi nhanh) · Space hạ xuống, sát đất đứng yên thì nhấn Space lần nữa để xuống · Shift + Space: đáp xuống chỗ trống hoặc mặt biển rồi nhảy xuống · 1 Hơi Thở Băng Giá (bay thấp trên biển: đóng băng mặt biển, Cá Đuối lướt trên băng; nhìn lên để cất cánh) · 2 Mưa Sao Băng (sao băng và tuyết rơi) · 3 Dải Lụa Cực Quang (bay dọc theo dải lụa để được gió đẩy nhanh) · 4 Vòng Tròn Băng Giá (một đường vòng băng ngẫu nhiên phía trước: bay xuyên qua từng vòng trước khi hết giờ, bay hết được 🍅) · Bay nhanh (Shift + W) nhấn thêm Q: Vũ Điệu Xoắn Ốc, Cá Đuối xoay 3 vòng (bay đủ cao)',
     kayakKeys: 'Kayak: W chèo tới (giữ Shift: chèo nhanh) · A / D rẽ · S chèo lùi · Q / E chèo tay từng bên (Shift: chèo quét) · Space nhảy xuống bơi (bơi lại sát thuyền là tự leo lên) · K lên bờ',
   },
 } as const;

@@ -150,6 +150,8 @@ export class MantaSkills {
   private readonly emitDebt = { breath: 0, mist: 0, glitter: 0, spray: 0, sparkle: 0, aura: 0 };
   private scrapeT = 0;
   private dt = 0;
+  /** The barrel rolls' turn being whooshed (−1: none). */
+  private trickTurn = -1;
   private boosting = false;
 
   constructor(
@@ -433,6 +435,7 @@ export class MantaSkills {
       }
     }
     this.entrance.update(dt, m.summon, (i, out) => m.wingTip(i, out));
+    this.barrelRollFx(dt);
     this.dt = dt;
     this.flyCourse(now);
     this.iceRings.update(now);
@@ -480,6 +483,35 @@ export class MantaSkills {
       // Left behind (a little of its speed), drifting out and down.
       const back = speed * (0.15 + Math.random() * 0.2);
       this.frost.emit(tmpTip.x, tmpTip.y, tmpTip.z, -fx * back + (Math.random() - 0.5) * 1.2, (Math.random() - 0.7) * 1.2, -fz * back + (Math.random() - 0.5) * 1.2, 0.18 + Math.random() * 0.25);
+    }
+  }
+
+  /**
+   * Vũ Điệu Xoắn Ốc (MantaActivity.barrelRoll): a chime as it starts, a whoosh each turn, and
+   * frost and rainbow motes streaming off both wing tips (their wind spirals by itself).
+   */
+  private barrelRollFx(dt: number): void {
+    const k = this.manta.trick;
+    if (k < 0) {
+      this.trickTurn = -1;
+      return;
+    }
+    const turn = Math.min(2, Math.floor((0.5 - 0.5 * Math.cos(Math.PI * k)) * 3));
+    if (turn !== this.trickTurn) {
+      if (this.trickTurn < 0) this.hooks.sound('aurora', 0.4);
+      this.trickTurn = turn;
+      this.hooks.sound('whoosh', 0.7);
+    }
+    const f = this.manta.flight;
+    const back = -0.3 * f.speed;
+    this.emitDebt.sparkle += dt * 70;
+    while (this.emitDebt.sparkle >= 1) {
+      this.emitDebt.sparkle -= 1;
+      if (!this.manta.wingTip(Math.random() < 0.5 ? 0 : 1, tmpTip)) break;
+      const vx = -Math.sin(f.yaw) * back + (Math.random() - 0.5);
+      const vz = -Math.cos(f.yaw) * back + (Math.random() - 0.5);
+      this.frost.emit(tmpTip.x, tmpTip.y, tmpTip.z, vx, (Math.random() - 0.5), vz, 0.2 + Math.random() * 0.25);
+      if (Math.random() < 0.5) this.hooks.sparkle.emit(tmpTip.x, tmpTip.y, tmpTip.z, vx, Math.random() - 0.3, vz, 0.22 + Math.random() * 0.15);
     }
   }
 

@@ -87,6 +87,12 @@ const HOP_OFF = 0.75;
  * it won't settle again for `lift` s.
  */
 const SKATE = { clear: 0.75, catch: 14, speed: 16, takeoff: 0.32, lift: 3 } as const;
+/**
+ * Shift + W + Q riding: Vũ Điệu Xoắn Ốc, three barrel rolls about its own axis in `time` s (eased in
+ * and out), rising `hop` m at the middle, `boost` m/s faster (up to `top`). Only `clear` m or
+ * more above what's below, flying at least `speed` m/s, not on the ice; again after `rest` s.
+ */
+const TRICK = { time: 2.4, turns: 3, hop: 2.2, boost: 5, top: 30, clear: 4, speed: 4, rest: 0.6 } as const;
 /** Seconds without mouse movement before the view drifts back behind the manta. */
 const RECENTER_AFTER = 1.2;
 const KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight']);
@@ -175,6 +181,12 @@ export class MantaActivity {
   ice: IceFloor | null = null;
   /** 0 flying … 1 gliding on the ice, eased. */
   skating = 0;
+  /** The barrel rolls (Shift + W + Q): seconds in, or −1; their roll (rad) and lift (m), on the pose only. */
+  private trickT = -1;
+  private trickDir = 1;
+  private trickRoll = 0;
+  private trickLift = 0;
+  private trickReady = 0;
   private liftT = 0;
   /** 0 slow … 1 fast (see STANCE), eased with the speed. */
   private pace = 0;
@@ -657,7 +669,8 @@ export class MantaActivity {
         this.descend(dt);
         break;
     }
-    model.setPose(f.x, f.y, f.z, f.yaw, f.pitch, f.roll);
+    this.updateTrick(dt);
+    model.setPose(f.x, f.y + this.trickLift, f.z, f.yaw, f.pitch, f.roll + this.trickRoll);
     model.update(dt, this.flap, this.rate, f.yawRate, f.vy);
     model.backMatrix(this.ride.back);
     model.reinKnot(this.ride.rein);
@@ -668,6 +681,51 @@ export class MantaActivity {
     this.pace += (want - this.pace) * damp(2.5, dt);
     this.updateRide();
     if (this.active) this.applyCamera(dt);
+  }
+
+  /** Flying fast: Shift and W (or ↑) held. */
+  private get sprinting(): boolean {
+    const k = this.keys;
+    return (k.has('ShiftLeft') || k.has('ShiftRight')) && (k.has('KeyW') || k.has('ArrowUp'));
+  }
+
+  /** 0 … 1 through the barrel rolls, or −1 (MantaSkills' sparkles and whooshes follow it). */
+  get trick(): number {
+    return this.trickT < 0 ? -1 : Math.min(1, this.trickT / TRICK.time);
+  }
+
+  /**
+   * Q while flying fast (Shift + W held): three barrel rolls. 'ok', or why not: 'low' (too near
+   * the ground, the sea or the ice), 'slow' (not flying fast), 'busy' (rolling already, or not
+   * flying it).
+   */
+  barrelRoll(): 'ok' | 'low' | 'slow' | 'busy' {
+    if (this._state !== 'riding' || !this.active || this.trickT >= 0 || this.time < this.trickReady) return 'busy';
+    const f = this.flight;
+    if (!this.sprinting || f.speed < TRICK.speed) return 'slow';
+    if (this.skating > 0.1 || f.y - this.world.skyline.floor(f.x, f.z) < TRICK.clear) return 'low';
+    this.trickT = 0;
+    // Rolling the way it's turning (right if level).
+    this.trickDir = f.roll > 0.05 ? 1 : f.roll < -0.05 ? -1 : -1;
+    f.speed = Math.max(f.speed, Math.min(TRICK.top, f.speed + TRICK.boost));
+    return 'ok';
+  }
+
+  private updateTrick(dt: number): void {
+    if (this.trickT < 0) return;
+    if (this._state !== 'riding') this.trickT = TRICK.time;
+    this.trickT += dt;
+    const k = Math.min(1, this.trickT / TRICK.time);
+    // Eased in and out (a sine ease): it winds up, whips round, and settles level.
+    const e = 0.5 - 0.5 * Math.cos(Math.PI * k);
+    this.trickRoll = this.trickDir * Math.PI * 2 * TRICK.turns * e;
+    this.trickLift = Math.sin(Math.PI * k) * TRICK.hop;
+    if (k >= 1) {
+      this.trickT = -1;
+      this.trickRoll = 0;
+      this.trickLift = 0;
+      this.trickReady = this.time + TRICK.rest;
+    }
   }
 
   /**
@@ -958,7 +1016,9 @@ export class MantaActivity {
       tmpV.x -= Math.sin(this.flight.yaw) * EYE.ahead;
       tmpV.z -= Math.cos(this.flight.yaw) * EYE.ahead;
       this.camera.position.copy(tmpV);
-      this.camera.rotation.set(this.viewPitch, this.viewYaw, -roll * 0.6, 'YXZ');
+      // Through its eyes the world turns round with the barrel rolls (not with reduced motion).
+      const spin = this.reducedMotion() ? 0 : this.trickRoll;
+      this.camera.rotation.set(this.viewPitch, this.viewYaw, -roll * 0.6 - spin, 'YXZ');
       return;
     }
     tmpV.setFromMatrixPosition(seat);

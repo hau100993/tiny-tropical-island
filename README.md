@@ -1019,7 +1019,9 @@ is solid: you walk round it, not through it. A card reminds you of the whistle (
 | Wheel / pinch | Camera closer or further (3–24 m), as walking; in past the closest: the eyes view, out again: behind |
 | `V` | Character view ↔ eyes view: from just over the tip of its head, so nothing blocks the view (its wings at the edges) |
 | `Shift` + `Space` | Land: it comes down where it is and you hop off to its right (wet sand and the shallows count: you wade off). Over the sea you drop into the water and swim. No room right there (palms, bushes, a roof): it glides to the nearest open spot within ~35 m, ahead first, and comes down there. Only deep in the forest does it say to find an open place |
+| (tips) | Riding, quick tips show in the bubble over your head one after another (`V`: the FPV view, `1` – `4`: skills, `Shift` + `W` + `Q`: the barrel rolls), each until you have used it once (remembered in this browser) |
 | `1` – `4` | Its four skills (see below); also the round buttons under the menu's ☰. (Riding, the number keys cast skills instead of picking scenes) |
+| `Q` while flying fast (`Shift` + `W` held) | **Vũ Điệu Xoắn Ốc**: three barrel rolls about its own axis in 2.4 s (wound up, whipped round, settled level), lifting ~2 m at the middle and a little faster after; frost and rainbow motes stream off the wing tips (their wind spirals), a chime and a whoosh each turn. You stay on its back, upside down at times. Through its eyes (`V`) the world turns round with it (not with reduced motion). Needs some height (≥ 4 m over what's below), flying fast (Shift + W held), not on the ice |
 | `C` | Back to the orbit view; `C` again puts you back on it (it waits in the air) |
 | Phones | Joystick: fly and turn; **Bay lên** / **Hạ xuống** buttons; the corner button lands |
 
@@ -1050,7 +1052,7 @@ glowing on it, its key inside along the bottom; as big as the ☰ (measured, so 
 them too). A dark sweep shows the recharge, and a ring of colour flashes out when it's ready.
 *Góc nhìn* → *Hiện nút tuyệt chiêu khi cưỡi Cá Đuối* hides them (the keys still work).
 A big name card appears when one is cast. On the manta `1` – `4` cast its skills (the scene keys
-1 – 9 work again once you are down); `Q`, `E` and `R` do nothing up there.
+1 – 9 work again once you are down); `E` and `R` do nothing up there; `Q` only rolls (while flying fast).
 
 | Key | Skill | What it does | Recharge |
 |---|---|---|---|
