@@ -46,7 +46,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 
 ## Controls
 
-On start a short **guided tour** ("Hướng dẫn nhanh", 12 steps) plays over the scene: a drawn pointer glides to each place (☰, the clock, volume, each tab, the shortcut and full-screen buttons), "clicks" it so the panel really opens or changes tab, the place is lit and the rest dimmed, and a card says what it does; the last steps show dragging on the island. `→` / `Enter` next, `←` back, `Esc` skip. Tick **"Không hiển thị lại"** to stop it opening by itself; **Cài đặt → Xem lại hướng dẫn** plays it again. On touch screens the keyboard step is skipped and the pointer is a fingertip.
+On start a short **guided tour** ("Hướng dẫn nhanh", 13 steps) plays over the scene: a drawn pointer glides to each place (☰, the clock, volume, each tab, the shortcut and full-screen buttons), "clicks" it so the panel really opens or changes tab, the place is lit and the rest dimmed, and a card says what it does; the last steps show dragging on the island and how to ride Cá Đuối Trời (call it with Shift + Space or seven clicks on the sea, climb on with Space, fly with W and the mouse, skills on 1 – 4, land with Shift + Space). `→` / `Enter` next, `←` back, `Esc` skip. Tick **"Không hiển thị lại"** to stop it opening by itself; **Cài đặt → Xem lại hướng dẫn** plays it again. On touch screens the keyboard step is skipped and the pointer is a fingertip.
 
 | Input | Action |
 |---|---|
@@ -75,6 +75,7 @@ On start a short **guided tour** ("Hướng dẫn nhanh", 12 steps) plays over t
 | `K` | Walking on the beach or in the shallows: get into the kayak; in the kayak: step out (see *Kayak*) |
 | `L` | Walking on the beach or in the shallows: go surfing (see *Surfing*); on the board: slip off |
 | `Shift` + `Space` | Walking or swimming: whistle for Cá Đuối Trời, the flying manta; next to it: climb on; on its back: land and step off (see *Cá Đuối Trời*) |
+| Click the sea 7 times | Another way to call the manta (walking or in the overview): seven clicks on the water in a row, each within 1.5 s; the sea lights up a little more with each, from the third a note counts them, and it comes up out of the sea where you clicked (or the nearest place deep enough), then flies to you |
 | `Esc` | Seated (desk or bathtub): get up; in the overview: back from a page inside the panel (a pet, the scene editor; with unsaved scene changes press twice), else fold the panel |
 | `` ` `` (backquote) | Show/hide the stats overlay (FPS, CPU/GPU ms, draw calls) |
 
@@ -89,7 +90,7 @@ layout) the page switches to a touch layout.
 | Pinch / two-finger drag | Zoom / pan |
 | Tap on the water | Splash |
 | Tap the panel bar (or the ☰ handle) | Open the panel; tap the scene to close it |
-| Rows on the activity card | Tap them (same as their keys); on touch the card stays while something is on offer |
+| Rows of the activity bubble | Tap them (same as their keys); on touch the bubble stays open while something is on offer |
 
 **Playing on a phone** (walking, swimming, diving, kayak, surfboard, seats): on-screen controls
 appear, like a mobile game.
@@ -1047,7 +1048,7 @@ Riding, a column of four round buttons under the menu's ☰ (top right, out of t
 shows the skills: each a dark glass orb tinted with the skill's colour, its own picture large and
 glowing on it, its key inside along the bottom; as big as the ☰ (measured, so they match exactly); pointing at one shows its name beside it (click or tap
 them too). A dark sweep shows the recharge, and a ring of colour flashes out when it's ready.
-The activity card sits to the left of the column. *Góc nhìn* → *Hiện nút tuyệt chiêu khi cưỡi Cá Đuối* hides them (the keys still work).
+*Góc nhìn* → *Hiện nút tuyệt chiêu khi cưỡi Cá Đuối* hides them (the keys still work).
 A big name card appears when one is cast. On the manta `1` – `4` cast its skills (the scene keys
 1 – 9 work again once you are down); `Q`, `E` and `R` do nothing up there.
 

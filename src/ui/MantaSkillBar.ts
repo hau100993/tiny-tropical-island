@@ -8,9 +8,8 @@ export interface SkillButton<Id extends string> {
   icon: keyof typeof icons;
 }
 
-/** A button's size (px): the menu's round ☰ as measured (see dock); the gap between them. */
+/** A button's size (px) until the menu's round ☰ has been measured (see dock). */
 const SIZE = 38;
-const GAP = 8;
 /** A recharged skill flashes this long (ms). */
 const FRESH_MS = 700;
 
@@ -27,7 +26,7 @@ export class MantaSkillBar<Id extends string> {
   private readonly items: { id: Id; btn: HTMLButtonElement; shown: number; timer: number }[] = [];
   private visible = false;
   private size = SIZE;
-  /** Shown or hidden: what docks beside it moves (see `width`). */
+  /** Shown or hidden (App re-docks it). */
   onToggle: (() => void) | null = null;
 
   constructor(parent: HTMLElement, skills: readonly SkillButton<Id>[], cast: (id: Id) => void) {
@@ -50,11 +49,6 @@ export class MantaSkillBar<Id extends string> {
       this.items.push({ id: s.id, btn, shown: -1, timer: 0 });
     }
     parent.append(this.root);
-  }
-
-  /** Room it takes at the right while shown (px, with the gap beside it), else 0. */
-  get width(): number {
-    return this.visible ? this.size + GAP : 0;
   }
 
   /**

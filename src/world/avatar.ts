@@ -2373,6 +2373,13 @@ export class Avatar {
   }
 
   /** Shows or hides the built-in body (its skeleton keeps moving either way). */
+  /** The top of the head (world, m): where a speech bubble's tail points. */
+  headTop(out: THREE.Vector3): THREE.Vector3 {
+    this.head.getWorldPosition(out);
+    out.y += 0.32 * this.group.scale.y;
+    return out;
+  }
+
   setOwnBodyVisible(on: boolean): void {
     for (const m of this.ownMeshes) m.visible = on;
   }

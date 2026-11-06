@@ -108,6 +108,11 @@ const TIME_RESET_HIDDEN = 3600;
 const PORTRAIT_MIN_ZOOM = 0.6;
 /** The manta's shortcut (whistle / land), pressed as Shift + Space (see registerShortcuts). */
 const MANTA_KEY = 'ShiftSpace';
+/**
+ * Calling the manta from the sea: this many clicks on it in a row, each within `gap` s of the
+ * last, on water at least `-deep` m deep (anything wet, not the beach; it comes up nearby where it is deep enough).
+ */
+const SEA_CALL = { clicks: 7, gap: 1.5, deep: -0.3 } as const;
 /** Seconds the "whistle for the manta" hint stays after stepping down from the house. */
 const MANTA_HINT_S = 8;
 /** No moving obstacles (see CollisionWorld.movers). */
@@ -442,7 +447,10 @@ export class App {
     onWaterClick(
       this.renderer.domElement,
       this.camera,
-      (x, z) => this.world.water.addRipple(x, z, 3, -1.0),
+      (x, z) => {
+        this.world.water.addRipple(x, z, 3, -1.0);
+        this.seaClick(x, z);
+      },
       // A click on Mochi (or a creature) pets it instead.
       () =>
         this.petPointer.active || this.petPointer.hover || this.creatures.hover || this.petGame?.hover
@@ -620,13 +628,8 @@ export class App {
     ui.append(rotateHint);
     this.petCursor = new PetCursor();
     this.activityMenu = new ActivityMenu(ui);
-    // The card sits under the menu bar; it follows the panel (opened over it, faded out of sight).
-    // Riding the manta, its skill buttons take that spot and the card moves down under them.
-    const dock = (): void => {
-      const rect = this.panel.dockRect();
-      this.mantaBar.dock(rect);
-      this.activityMenu.dock(rect && { ...rect, right: rect.right + this.mantaBar.width });
-    };
+    // Riding the manta, its skill buttons sit under the menu's ☰ and follow the panel.
+    const dock = (): void => this.mantaBar.dock(this.panel.dockRect());
     this.mantaBar.onToggle = dock;
     this.panel.onLayout = () => {
       dock();
@@ -2025,7 +2028,7 @@ export class App {
     items: [
       { key: 'K', label: vi.sea.kayak, icon: 'kayak', run: () => this.keymap.run('KeyK') },
       { key: 'L', label: vi.surf.menu, icon: 'surf', run: () => this.keymap.run('KeyL') },
-      { key: '⇧ Space', label: vi.manta.call, icon: 'manta', run: () => this.keymap.run(MANTA_KEY) },
+      { key: 'Shift + Space', label: vi.manta.call, icon: 'manta', run: () => this.keymap.run(MANTA_KEY) },
       { key: 'W', label: vi.sea.swim, icon: 'swim' },
     ],
   };
@@ -2290,6 +2293,54 @@ export class App {
   }
 
   private readonly mantaRider = { x: 0, z: 0, feetY: 0, yaw: 0 };
+  /** Clicks on the open sea in a row (each within SEA_CALL.gap s of the last) and when the last was. */
+  private seaClicks = 0;
+  private seaClickAt = -1e9;
+
+  /**
+   * A click on the open sea: seven in a row call the manta, up out of the sea where the last
+   * one landed (if it's deep and open there), and on to you. Each click lights the sea a little
+   * more; from the third a note counts them.
+   */
+  private seaClick(x: number, z: number): void {
+    const mode = this.cameras.mode;
+    if ((mode !== 'orbit' && mode !== 'walk') || this.manta.active) return;
+    if (this.world.heightmap.heightAt(x, z) > SEA_CALL.deep) {
+      this.seaClicks = 0;
+      return;
+    }
+    const now = performance.now() / 1000;
+    this.seaClicks = now - this.seaClickAt > SEA_CALL.gap ? 1 : this.seaClicks + 1;
+    this.seaClickAt = now;
+    const n = this.seaClicks;
+    const y = this.seaHeight(x, z);
+    for (let i = 0; i < 4 + n * 4; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * (0.8 + n * 0.35);
+      this.seaGlow.emit(x + Math.cos(a) * r, y + 0.05, z + Math.sin(a) * r, Math.cos(a) * 0.6, 0, Math.sin(a) * 0.6, 0.12 + n * 0.02);
+    }
+    if (n < SEA_CALL.clicks) {
+      if (n >= 3) this.activityMenu.flash(vi.manta.seaCall(n, SEA_CALL.clicks), 1200);
+      return;
+    }
+    this.seaClicks = 0;
+    const w = this.walker;
+    if (mode === 'walk' && w.diving) return;
+    const rider = this.mantaRider;
+    rider.x = w.x;
+    rider.z = w.z;
+    rider.feetY = w.swimming ? w.surfaceY - 0.9 : w.feetY;
+    rider.yaw = w.yaw;
+    const r = this.manta.call(rider, w.swimming, { x, z });
+    if (r === 'noRoom') {
+      this.activityMenu.flash(vi.manta.noRoom);
+      return;
+    }
+    if (r === 'coming') {
+      this.mixer.playWhistle(0.6);
+      this.activityMenu.flash(vi.manta.seaCalled);
+    }
+  }
 
   /** Onto the manta's back if it hovers beside you (walking or swimming, not under water). */
   private boardManta(): boolean {
@@ -2312,7 +2363,7 @@ export class App {
   /** On the beach, or just down from the house: a hint that the manta comes when whistled. */
   private readonly mantaCallCard: ActivityCard = {
     title: vi.manta.title,
-    items: [{ key: '⇧ Space', label: vi.manta.call, icon: 'manta', run: () => this.keymap.run(MANTA_KEY) }],
+    items: [{ key: 'Shift + Space', label: vi.manta.call, icon: 'manta', run: () => this.keymap.run(MANTA_KEY) }],
   };
   /** Until when (s, performance.now / 1000) the call hint stays after stepping down from the house. */
   private mantaHintUntil = 0;
@@ -2609,6 +2660,32 @@ export class App {
     }
   }
 
+  private readonly promptAt = { x: 0, y: 0 };
+  private readonly tmpHead = new THREE.Vector3();
+
+  /**
+   * The activity bubble over your head: the head's top projected to the screen (px), or none
+   * (through the eyes, seated, the overview, the head off screen): then low in the middle.
+   */
+  private placePrompt(dt: number): void {
+    const mode = this.cameras.mode;
+    let at: { x: number; y: number } | null = null;
+    if ((mode === 'walk' || mode === 'kayak' || mode === 'fly' || mode === 'surf') && this.avatar.group.visible) {
+      const p = this.avatar.headTop(this.tmpHead);
+      // Through the eyes the head is at the camera: no bubble over it.
+      if (p.distanceToSquared(this.camera.position) > 1.5) {
+        this.camera.updateMatrixWorld();
+        p.project(this.camera);
+        if (p.z < 1 && Math.abs(p.x) < 1.1 && Math.abs(p.y) < 1.1) {
+          at = this.promptAt;
+          at.x = (p.x * 0.5 + 0.5) * window.innerWidth;
+          at.y = (-p.y * 0.5 + 0.5) * window.innerHeight;
+        }
+      }
+    }
+    this.activityMenu.place(at, dt);
+  }
+
   /** The character is shown in third-person walking, unless the camera is pressed right up to it. */
   private updateAvatar(dt: number): void {
     // The eyes look back at the camera when it is in front of the face (the character view
@@ -2852,6 +2929,7 @@ export class App {
     this.updateListener(dt);
     this.updateSurfing();
     this.updateAvatar(dt);
+    this.placePrompt(dt);
     this.updateDog(dt);
     this.creatures.setCrabStage(this.cameras.mode === 'seat' && this.cameras.seat === 'desk' ? this.crabStage : null);
     this.creatures.update(dt);

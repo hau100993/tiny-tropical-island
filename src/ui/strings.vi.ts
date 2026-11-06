@@ -465,7 +465,10 @@ export const vi = {
     ride: 'Cưỡi Cá Đuối',
     call: 'Huýt sáo gọi Cá Đuối',
     coming: 'Cá Đuối Trời đang bay tới…',
-    noRoom: 'Quanh đây không có chỗ trống để Cá Đuối đáp',
+    /** Clicking the sea, the 3rd … 6th click of the 7 that call it. */
+    seaCall: (n: number, of: number) => `Gọi Cá Đuối từ biển… ${n} / ${of}`,
+    seaCalled: 'Biển đang chuyển động… Cá Đuối Trời tới đây!',
+    noRoom: 'Quanh đây toàn cây, Cá Đuối không có chỗ hạ xuống: ra bãi cát hoặc mép nước rồi huýt sáo lại',
     noRoomHere: 'Bay tới chỗ trống (bãi cát, bãi cỏ) hoặc ra biển để đáp',
     up: 'Bay lên',
     down: 'Hạ xuống',
@@ -630,6 +633,20 @@ export const vi = {
           `Phím ${k('KeyC', 'C')}: đi bộ trên đảo (W A S D, Shift để chạy).`,
         ],
         touch: () => ['Một ngón kéo để xoay, hai ngón chụm để thu phóng.', 'Chạm vào mặt nước để tạo gợn sóng.'],
+      },
+      manta: {
+        title: 'Cưỡi Cá Đuối Trời 🪽',
+        lines: (k: Key) => [
+          `Đi bộ (${k('KeyC', 'C')}) ra bãi biển rồi nhấn ${k('ShiftSpace', 'Shift + Space')} để huýt sáo, hoặc nhấp vào mặt biển 7 lần liên tiếp: Cá Đuối trồi lên từ biển, lượn một vòng rồi bay tới cạnh bạn.`,
+          'Đứng gần nó nhấn Space để leo lên lưng. W bay tới, chuột lái hướng (nhìn lên để bay lên), A / D rẽ, Space hạ xuống, lăn chuột: camera xa / gần.',
+          'Phím 1 – 4: tuyệt chiêu Băng Giá, Sao Băng, Cực Quang và Vòng Tròn Băng Giá (bay xuyên hết các vòng được một 🍅).',
+          `Nhấn ${k('ShiftSpace', 'Shift + Space')} lần nữa để đáp xuống và nhảy khỏi lưng.`,
+        ],
+        touch: () => [
+          'Đi bộ ra bãi biển, chạm "Huýt sáo gọi Cá Đuối" trong bong bóng trên đầu nhân vật, hoặc chạm mặt biển 7 lần liên tiếp.',
+          'Chạm "Cưỡi Cá Đuối" để leo lên; cần điều khiển để bay, nút Bay lên / Hạ xuống.',
+          'Các nút tròn bên phải là tuyệt chiêu; nút ở góc để đáp xuống.',
+        ],
       },
       done: {
         title: 'Sẵn sàng! 🌊',

@@ -897,82 +897,154 @@ body:is(.walking, .ui-hidden) .panel.handle.pomo-on {
   }
 }
 
-/* What you can do here (ui/ActivityMenu.ts): a card under the menu bar, top right, in the
-   panel's style; the top follows the panel (set inline). Rows are buttons, keys on the right. */
+/* What you can do here (ui/ActivityMenu.ts): a speech bubble over the character's head, a
+   fixed size on screen; its tail points down at the head. The root is only placed (a transform
+   each frame; left/top stay 0); the bubble and the note above it are what show. Solid colours
+   (not glass): readable over sand, sea or sky, and the tail matches the bubble exactly. */
+:root {
+  --bubble-bg: rgba(255, 255, 255, 0.94);
+  --bubble-fg: #0d2a31;
+  --bubble-muted: #557079;
+  --bubble-line: rgba(13, 42, 49, 0.08);
+  --bubble-hover: rgba(11, 138, 127, 0.1);
+  --cap-bg: #f3f6f7;
+  --cap-edge: rgba(13, 42, 49, 0.22);
+  --note-bg: #fff4dc;
+  --note-fg: #6b4400;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bubble-bg: rgba(17, 38, 46, 0.94);
+    --bubble-fg: #eef8f9;
+    --bubble-muted: #9fbcc3;
+    --bubble-line: rgba(255, 255, 255, 0.08);
+    --bubble-hover: rgba(95, 224, 207, 0.12);
+    --cap-bg: #24414a;
+    --cap-edge: rgba(0, 0, 0, 0.45);
+    --note-bg: #3a2e14;
+    --note-fg: #ffd98f;
+  }
+}
+
 .activity-menu {
   position: fixed;
-  top: 66px;
-  right: 12px;
+  left: 0;
+  top: 0;
   z-index: 5;
-  box-sizing: border-box;
-  width: 250px; /* then the menu bar's width (inline) */
-  max-width: calc(100vw - 24px);
-  padding: 8px;
-  color: var(--panel-fg);
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius);
-  backdrop-filter: var(--glass-filter);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
-  font-size: 13.5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: min(320px, calc(100vw - 24px));
   opacity: 0;
   visibility: hidden;
-  transform: translateY(-8px);
   pointer-events: none;
-  transition: opacity 0.25s, transform 0.25s, top 0.25s, visibility 0s 0.25s;
+  /* Fades in quickly, out slowly (no jarring pop). */
+  transition: opacity 0.45s, visibility 0s 0.45s;
+  will-change: transform;
 }
 
 .activity-menu.show {
   opacity: 1;
   visibility: visible;
-  transform: none;
+  transition: opacity 0.15s;
+}
+
+.activity-bubble {
+  position: relative;
+  box-sizing: border-box;
+  padding: 5px;
+  color: var(--bubble-fg);
+  background: var(--bubble-bg);
+  border-radius: 16px;
+  /* One shadow round the bubble and its tail together. */
+  filter: drop-shadow(0 4px 12px rgba(0, 30, 40, 0.22));
+  font-size: 13px;
   pointer-events: auto;
-  transition: opacity 0.25s, transform 0.25s, top 0.25s;
+  transform-origin: 50% 100%;
+  transform: scale(0.9);
+  transition: transform 0.15s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.activity-menu.show .activity-bubble {
+  transform: none;
+}
+
+/* The tail: a small triangle under its middle, the bubble's own colour. */
+.activity-bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 16px;
+  height: 8px;
+  background: var(--bubble-bg);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  transform: translateX(-50%);
+}
+
+.activity-menu.free .activity-bubble::after {
+  display: none;
+}
+
+/* Nothing on offer (just a note): no bubble. */
+.activity-menu.note-only .activity-bubble {
+  display: none;
 }
 
 .activity-title {
-  margin: 2px 10px 6px;
-  color: var(--panel-muted);
-  font-size: 11.5px;
+  margin: 2px 8px 3px;
+  color: var(--bubble-muted);
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.activity-title[hidden] {
+  display: none;
 }
 
 .activity-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .activity-item {
   display: flex;
   box-sizing: border-box;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  min-height: 36px;
-  padding: 6px 10px;
-  color: inherit;
+  min-height: 28px;
+  padding: 3px 9px 3px 7px;
+  color: var(--bubble-muted);
   background: transparent;
   border: 0;
-  border-radius: 8px;
+  border-radius: 11px;
   font: inherit;
+  font-size: 12.5px;
   text-align: left;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.activity-item:hover {
-  background: var(--control-bg-hover);
+/* The main action: larger and darker, its key caps in the accent colour. */
+.activity-item.main {
+  min-height: 34px;
+  color: var(--bubble-fg);
+  font-size: 14px;
+  font-weight: 600;
 }
 
-.activity-item:active {
-  background: var(--control-bg);
+.activity-item:hover {
+  background: var(--bubble-hover);
 }
 
 /* A hint, not an action (a key you hold: W, Space). */
 .activity-item.hint {
-  color: var(--panel-muted);
   cursor: default;
 }
 
@@ -981,67 +1053,135 @@ body:is(.walking, .ui-hidden) .panel.handle.pomo-on {
 }
 
 .activity-icon {
-  display: inline-flex;
+  display: inline-grid;
+  place-items: center;
   flex: none;
+  width: 22px;
+  height: 22px;
   color: var(--accent);
-}
-
-.activity-item.hint .activity-icon {
-  color: inherit;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-radius: 50%;
 }
 
 .activity-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
+}
+
+.activity-item.main .activity-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.activity-item.main .activity-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .activity-label {
   flex: 1;
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
-/* Key caps a little bigger than in the panel's lists; one-letter keys all the same width. */
-.activity-item kbd.key {
+/* Keyboard caps: each key its own cap ("Shift" + "Space"), a sans font, a raised bottom edge. */
+.keycaps {
+  display: inline-flex;
   flex: none;
-  min-width: 22px;
-  padding: 0 5px;
-  font-size: 11px;
-  line-height: 18px;
+  align-items: center;
+  gap: 3px;
 }
 
-/* A short note as the card's last row (with no card on offer, the card shows just the note). */
+/* The other rows' keys share a column (see ActivityMenu.set), so their labels line up. */
+.activity-item:not(.main) .keycaps {
+  min-width: var(--keys-w, 0);
+}
+
+.keycaps-plus {
+  color: var(--bubble-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.activity-menu kbd.keycap {
+  box-sizing: border-box;
+  min-width: 20px;
+  height: 20px;
+  margin: 0;
+  padding: 0 6px;
+  font: 600 11px 'Segoe UI', system-ui, sans-serif;
+  line-height: 18px;
+  text-align: center;
+  color: var(--bubble-fg);
+  background: var(--cap-bg);
+  border: 1px solid var(--cap-edge);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+}
+
+.activity-item.main kbd.keycap {
+  height: 22px;
+  line-height: 19px;
+  color: #fff;
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 60%, black);
+}
+
+body.touch .keycaps {
+  display: none;
+}
+
+/* Folded while you walk: a small pill with the main action's icon and keys. */
+.activity-menu.compact .activity-bubble {
+  padding: 3px;
+  border-radius: 999px;
+}
+
+.activity-menu.compact .activity-title,
+.activity-menu.compact .activity-item:not(.main),
+.activity-menu.compact .activity-label {
+  display: none;
+}
+
+.activity-menu.compact .activity-item.main {
+  min-height: 26px;
+  padding: 1px 6px 1px 2px;
+  gap: 6px;
+}
+
+/* A short note: a small amber bubble of its own above (a line of speech). */
 .activity-note {
   display: none;
   align-items: center;
-  gap: 10px;
-  margin-top: 6px;
-  padding: 8px 10px 4px;
-  border-top: 1px solid var(--panel-border);
-  line-height: 1.4;
+  gap: 7px;
+  box-sizing: border-box;
+  max-width: 280px;
+  padding: 6px 12px 6px 8px;
+  color: var(--note-fg);
+  background: var(--note-bg);
+  border-radius: 14px;
+  filter: drop-shadow(0 3px 10px rgba(0, 30, 40, 0.2));
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  pointer-events: auto;
 }
 
 .activity-menu.noting .activity-note {
   display: flex;
 }
 
-.activity-menu.note-only .activity-title,
-.activity-menu.note-only .activity-list {
-  display: none;
-}
-
-.activity-menu.note-only .activity-note {
-  margin-top: 0;
-  padding-top: 4px;
-  border-top: 0;
-}
-
 .activity-note .activity-icon {
-  color: var(--panel-muted);
+  width: 20px;
+  height: 20px;
+  color: var(--note-fg);
+  background: color-mix(in srgb, var(--note-fg) 14%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .activity-menu {
-    transform: none;
+  .activity-menu,
+  .activity-menu.show,
+  .activity-bubble {
+    transition: none;
   }
 }
 

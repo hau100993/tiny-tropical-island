@@ -54,6 +54,7 @@ const STEPS: readonly Step[] = [
   { id: 'settings', point: 'tab-settings', light: 'content', enter: { open: true }, click: { tab: 'settings' } },
   { id: 'keys', point: 'keys', light: 'header-tools', enter: { open: true }, keyboard: true },
   { id: 'world', point: null, drag: true, enter: { open: false } },
+  { id: 'manta', point: null, enter: { open: false } },
   { id: 'done', point: null, enter: { open: false } },
 ];
 

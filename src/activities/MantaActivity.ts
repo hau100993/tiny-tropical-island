@@ -59,7 +59,7 @@ const BLOCK = [
 /** Close enough (m) to climb on. */
 const MOUNT_NEAR = MANTA_WINGSPAN * 0.5 + 2;
 /** Where it lands when called: this far from you (m), tried in rings. */
-const CALL_RINGS = [6.5, 9, 12, 16] as const;
+const CALL_RINGS = [6.5, 9, 12, 16, 20, 25] as const;
 /** No sea to come up from near you: it flies in from over the sea, this far out (m) and this high. */
 const FIRST_FROM = { dist: 230, height: 55 } as const;
 /**
@@ -75,6 +75,8 @@ const BREACH = { dist: [55, 70, 90, 110, 135], deep: 3, clear: -0.8, back: 14, a
 const LOOP_SIDE = 0.9;
 /** Called from farther than this (m), it doesn't fly over: it dives and comes up near you. */
 const FAR_CALL = 80;
+/** Called from a point of the sea (clicked): it comes up there if that's within this far (m) of you. */
+const FROM_REACH = 220;
 /** Climbing on and off (s). */
 const HOP_ON = 0.9;
 const HOP_OFF = 0.75;
@@ -183,6 +185,8 @@ export class MantaActivity {
   private loading = false;
   /** Called before the model arrived: where to come to once it has. */
   private pending: Rider | null = null;
+  /** Where in the sea it was called from (clicked), to come up there; null: in front of you. */
+  private callFrom: { x: number; z: number } | null = null;
   private readonly keys = new Set<string>();
   private readonly mv = moveInput();
   private readonly input = flightInput();
@@ -349,10 +353,11 @@ export class MantaActivity {
    * swim). 'coming', or 'noRoom' when nowhere near is open, or 'busy' (you are on it). Left
    * riderless in the air (you went to a seat), it comes too.
    */
-  call(rider: Readonly<Rider>, swimming: boolean): 'coming' | 'noRoom' | 'busy' {
+  call(rider: Readonly<Rider>, swimming: boolean, from: { x: number; z: number } | null = null): 'coming' | 'noRoom' | 'busy' {
     if (this.active) return 'busy';
     // Already on its way up out of the sea (a second whistle doesn't start it over).
     if (this._state === 'rising') return 'coming';
+    this.callFrom = from && Math.hypot(from.x - rider.x, from.z - rider.z) < FROM_REACH ? { ...from } : null;
     if (!this.model) {
       this.pending = { ...rider };
       void this.load();
@@ -393,7 +398,9 @@ export class MantaActivity {
     if (this.model) this.model.root.visible = true;
     // Not out yet, or far off: up out of the sea in front of you.
     if (this._state === 'away' || this._state === 'rising' || Math.hypot(f.x - r.x, f.z - r.z) > FAR_CALL) {
-      const b = this.findBreach(r, spot);
+      const from = this.callFrom;
+      this.callFrom = null;
+      const b = (from && this.breachNear(from.x, from.z, spot)) ?? this.findBreach(r, spot);
       if (b) {
         this.summon.start(b.x, b.z, b.yaw, this.world.seaHeight(b.x, b.z));
         this._state = 'rising';
@@ -424,24 +431,43 @@ export class MantaActivity {
    * deep enough there and open sea under the whole loop, turned LOOP_SIDE off the line to `spot`.
    */
   private findBreach(r: Readonly<Rider>, spot: { x: number; z: number }): { x: number; z: number; yaw: number } | null {
-    const side = Math.random() < 0.5 ? 1 : -1;
-    const h = this.world.heightAt;
     for (const dist of BREACH.dist) {
       for (let k = 0; k < 16; k++) {
         const a = r.yaw + (k % 2 === 0 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 8);
-        const x = r.x - Math.sin(a) * dist;
-        const z = r.z - Math.cos(a) * dist;
-        if (h(x, z) > -BREACH.deep) continue;
-        // Either side (a random one first).
-        for (const sgn of [side, -side]) {
-          const yaw = Math.atan2(-(spot.x - x), -(spot.z - z)) + sgn * LOOP_SIDE;
-          const ux = -Math.sin(yaw);
-          const uz = -Math.cos(yaw);
-          let open = true;
-          for (let s = -BREACH.back; s <= BREACH.ahead && open; s += 2) open = h(x + ux * s, z + uz * s) < BREACH.clear;
-          if (open) return { x, z, yaw };
-        }
+        const b = this.breachAt(r.x - Math.sin(a) * dist, r.z - Math.cos(a) * dist, spot);
+        if (b) return b;
       }
+    }
+    return null;
+  }
+
+  /** Coming up at (x, z) (where you clicked the sea), or the nearest place round it deep and open enough. */
+  private breachNear(x: number, z: number, spot: { x: number; z: number }): { x: number; z: number; yaw: number } | null {
+    const here = this.breachAt(x, z, spot);
+    if (here) return here;
+    for (let d = 6; d <= 48; d += 6) {
+      for (let k = 0; k < 12; k++) {
+        const a = (k / 12) * Math.PI * 2;
+        const b = this.breachAt(x + Math.cos(a) * d, z + Math.sin(a) * d, spot);
+        if (b) return b;
+      }
+    }
+    return null;
+  }
+
+  /** Coming up at (x, z): deep enough, and open sea under the loop on one side or the other. */
+  private breachAt(x: number, z: number, spot: { x: number; z: number }): { x: number; z: number; yaw: number } | null {
+    const h = this.world.heightAt;
+    if (h(x, z) > -BREACH.deep) return null;
+    const side = Math.random() < 0.5 ? 1 : -1;
+    // Either side (a random one first).
+    for (const sgn of [side, -side]) {
+      const yaw = Math.atan2(-(spot.x - x), -(spot.z - z)) + sgn * LOOP_SIDE;
+      const ux = -Math.sin(yaw);
+      const uz = -Math.cos(yaw);
+      let open = true;
+      for (let s = -BREACH.back; s <= BREACH.ahead && open; s += 2) open = h(x + ux * s, z + uz * s) < BREACH.clear;
+      if (open) return { x, z, yaw };
     }
     return null;
   }
@@ -476,7 +502,7 @@ export class MantaActivity {
     this._state = 'arriving';
   }
 
-  /** Open ground (or water when swimming) on rings around the rider, the nearest first. */
+  /** Room near the rider (or water when swimming) on rings around them, the nearest first. */
   private findSpot(r: Readonly<Rider>, swimming: boolean): { x: number; z: number } | null {
     const sky = this.world.skyline;
     for (const dist of CALL_RINGS) {
@@ -486,7 +512,9 @@ export class MantaActivity {
         const x = r.x - Math.sin(a) * dist;
         const z = r.z - Math.cos(a) * dist;
         const h = this.world.heightAt(x, z);
-        if (swimming ? h < -1.2 && sky.floor(x, z) < 0.5 : sky.open(x, z, 4)) return { x, z };
+        // Walking: dry land, wet sand or the shallows (you wade to it), with room for its wings.
+        const ok = swimming ? h < -1.2 && sky.floor(x, z) < 0.5 : h > -0.9 && sky.clear(x, z, LAND.clear) && this.iceAt(x, z) === -Infinity;
+        if (ok) return { x, z };
       }
     }
     return null;
