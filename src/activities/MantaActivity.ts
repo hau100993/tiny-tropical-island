@@ -37,6 +37,12 @@ const STANCE = { slow: 0.2, fast: 0.75, ice: 0.9, lean: 0.9 } as const;
 /** Resting: its middle hovers this high over the ground or the sea (m), clear of both. */
 const REST_Y = 1.15;
 /**
+ * Landing (Shift + Space): where it is if there's room (`clear` m round it free of anything
+ * over a low bush; the sea or the shallows count), else the nearest such spot on rings up to
+ * `reach` m away, ahead of it first; it glides there at up to `speed` m/s as it comes down.
+ */
+const LAND = { reach: [5, 9, 14, 20, 27, 35], clear: 3, speed: 9 } as const;
+/**
  * Mouse wheel / pinch while riding (as walking): the camera arm from `min` to `max` m, × `step`
  * per notch; in past `min`: through the eyes, out from there: behind again.
  */
@@ -192,6 +198,8 @@ export class MantaActivity {
   /** Where it faces once landed (you, more or less). */
   private landYaw = 0;
   // ---- Resting ----
+  /** Where it is coming down (Shift + Space), or null: right where it is. */
+  private landTo: { x: number; z: number } | null = null;
   private restX = 0;
   private restZ = 0;
   private restY = 0;
@@ -539,14 +547,35 @@ export class MantaActivity {
   /** Shift + Space riding: come down here and let you off; false (and a note) over trees or a roof. */
   land(): boolean {
     if (this._state !== 'riding') return false;
-    const f = this.flight;
-    const water = this.world.heightAt(f.x, f.z) < -0.9;
-    if (this.iceAt(f.x, f.z) > -Infinity || (!water && !this.world.skyline.open(f.x, f.z, 3))) {
+    const spot = this.findLanding();
+    if (!spot) {
       this.events.onNoRoom();
       return false;
     }
+    this.landTo = spot;
     this._state = 'landing';
     return true;
+  }
+
+  /** Room to come down at (x, z): the sea, or ground or shallows with nothing tall round it (not the ice). */
+  private landable(x: number, z: number): boolean {
+    if (this.iceAt(x, z) > -Infinity) return false;
+    return this.world.heightAt(x, z) < -0.9 || this.world.skyline.clear(x, z, LAND.clear);
+  }
+
+  /** Right here if there's room, else the nearest spot that has, ahead first; null: none near. */
+  private findLanding(): { x: number; z: number } | null {
+    const f = this.flight;
+    if (this.landable(f.x, f.z)) return { x: f.x, z: f.z };
+    for (const d of LAND.reach) {
+      for (let k = 0; k < 16; k++) {
+        const a = f.yaw + (k % 2 === 0 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 8);
+        const x = f.x - Math.sin(a) * d;
+        const z = f.z - Math.cos(a) * d;
+        if (this.landable(x, z)) return { x, z };
+      }
+    }
+    return null;
   }
 
   enter(): void {
@@ -720,20 +749,46 @@ export class MantaActivity {
     c.aimPitch = Number.NaN;
     f.clearance = REST_Y;
     f.update(dt, c);
-    const target = this.restHeight(f.x, f.z);
+    // Gliding over to the spot it picked (if not right here), turning toward it.
+    let far = 0;
+    const to = this.landTo;
+    if (to) {
+      const dx = to.x - f.x;
+      const dz = to.z - f.z;
+      far = Math.hypot(dx, dz);
+      if (far > 0.05) {
+        const v = Math.min(LAND.speed, far * 1.5);
+        const step = Math.min(far, v * dt);
+        f.x += (dx / far) * step;
+        f.z += (dz / far) * step;
+        if (far > 2) {
+          const yaw = f.yaw;
+          f.yaw += angleTo(yaw, Math.atan2(-dx, -dz)) * damp(3, dt);
+          f.yawRate = angleTo(yaw, f.yaw) / Math.max(dt, 1e-3);
+        }
+      }
+    }
+    // Down to its resting height, but over the treetops while it still has a way to go.
+    const target = far > 3 ? Math.max(this.restHeight(f.x, f.z), this.world.skyline.floor(f.x, f.z) + CLEARANCE) : this.restHeight(f.x, f.z);
     const dy = target - f.y;
     // Down at up to 14 m/s, slowing near the end.
     f.y += clamp(dy * damp(1.8, dt), -14 * dt, 14 * dt);
     this.flap = 0.55;
     this.rate = 1.2;
-    if (Math.abs(dy) < 0.25 && f.speed < 0.6) {
-      const water = this.world.heightAt(f.x, f.z) < -0.9;
-      // Drifted over something while braking: no room here after all.
-      if (!water && !this.world.skyline.open(f.x, f.z, 3)) {
-        this._state = 'riding';
-        this.events.onNoRoom();
+    if (Math.abs(dy) < 0.25 && far < 0.3 && f.speed < 0.6) {
+      // Drifted over something while braking: on to the nearest spot with room.
+      if (!this.landable(f.x, f.z)) {
+        const spot = this.findLanding();
+        if (!spot) {
+          this._state = 'riding';
+          this.landTo = null;
+          this.events.onNoRoom();
+          return;
+        }
+        this.landTo = spot;
         return;
       }
+      this.landTo = null;
       this.restX = f.x;
       this.restZ = f.z;
       this.startAlight();

@@ -1017,7 +1017,7 @@ is solid: you walk round it, not through it. A card reminds you of the whistle (
 | Mouse | Look around; after a moment without the mouse the view drifts back behind it |
 | Wheel / pinch | Camera closer or further (3–24 m), as walking; in past the closest: the eyes view, out again: behind |
 | `V` | Character view ↔ eyes view: from just over the tip of its head, so nothing blocks the view (its wings at the edges) |
-| `Shift` + `Space` | Land: it comes down where it is and you hop off to its right. Over the sea you drop into the water and swim. Over trees or a roof it says to find an open place |
+| `Shift` + `Space` | Land: it comes down where it is and you hop off to its right (wet sand and the shallows count: you wade off). Over the sea you drop into the water and swim. No room right there (palms, bushes, a roof): it glides to the nearest open spot within ~35 m, ahead first, and comes down there. Only deep in the forest does it say to find an open place |
 | `1` – `4` | Its four skills (see below); also the round buttons under the menu's ☰. (Riding, the number keys cast skills instead of picking scenes) |
 | `C` | Back to the orbit view; `C` again puts you back on it (it waits in the air) |
 | Phones | Joystick: fly and turn; **Bay lên** / **Hạ xuống** buttons; the corner button lands |

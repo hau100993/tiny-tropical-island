@@ -89,8 +89,14 @@ export class Skyline {
    * manta to hover, a metre up, wings spread).
    */
   open(x: number, z: number, r: number): boolean {
-    const g = this.heightmap.heightAt(x, z);
-    if (g < 0.2) return false;
+    return this.heightmap.heightAt(x, z) >= 0.2 && this.clear(x, z, r);
+  }
+
+  /**
+   * Nothing taller than a low bush (1.2 m) within `r` m, whatever the ground: dry land, wet sand
+   * or the shallows (where it can come down and you wade off).
+   */
+  clear(x: number, z: number, r: number): boolean {
     for (let dz = -r; dz <= r; dz += CELL) {
       for (let dx = -r; dx <= r; dx += CELL) {
         if (this.floor(x + dx, z + dz) > Math.max(0, this.heightmap.heightAt(x + dx, z + dz)) + 1.2) return false;
