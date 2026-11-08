@@ -48,6 +48,8 @@ export const icons = {
   skillMeteor: svg('<path d="M3 3l8.5 8.5M7.5 2.5l6 6M2.5 7.5l6 6" stroke-width="1.6" opacity=".75"/><path d="m16 10.6 1.6 3.3 3.6.5-2.6 2.5.6 3.6-3.2-1.7-3.2 1.7.6-3.6-2.6-2.5 3.6-.5z" fill="currentColor"/>'),
   skillAurora: svg('<path d="M3 20c1.5-6 3-10 5-10s2 5 4 5 3-9 9-12"/><path d="M3 15c1.2-4 2.4-6 3.8-6.2" opacity=".7"/><path d="M14 20c1.5-3 3-4.5 5-4.5" opacity=".7"/><path d="m19 2.5.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z" fill="currentColor" stroke="none"/>'),
   skillRings: svg('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.6v8.8M8.2 9.8l7.6 4.4M15.8 9.8l-7.6 4.4" stroke-width="1.6"/><path d="m20.5 1.5.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z" fill="currentColor" stroke="none"/>'),
+  /** Săn Bong Bóng's fire button: a beam striking a bubble. */
+  skillLaser: svg('<path d="M3 21 13.5 10.5" stroke-width="2.2"/><circle cx="17" cy="7" r="4.2"/><path d="M15.4 5.6a1.8 1.8 0 0 1 1.6-.8" stroke-width="1.3"/><path d="m11 13 1.6-.4.4-1.6" stroke-width="1.4"/>'),
   ring: svg('<circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>'),
   meteor: svg('<path d="M4 4l9 9M8 3l7 7M3 8l7 7"/><circle cx="16.5" cy="16.5" r="3.5" fill="currentColor"/>'),
   snow: svg('<path d="M12 2v20M4 7l16 10M20 7 4 17"/><path d="m9 3 3 2 3-2M9 21l3-2 3 2"/>'),

@@ -112,8 +112,8 @@ const PORTRAIT_MIN_ZOOM = 0.6;
 const MANTA_KEY = 'ShiftSpace';
 /** Quick tips while riding: the first `first` s after taking off, then every `every` s, each shown `show` ms. */
 const FLY_TIP = { first: 2.5, every: 6, show: 3800 } as const;
-type FlyTip = 'view' | 'skills' | 'trick';
-const FLY_TIP_ORDER: readonly FlyTip[] = ['view', 'skills', 'trick'];
+type FlyTip = 'view' | 'skills' | 'trick' | 'shoot';
+const FLY_TIP_ORDER: readonly FlyTip[] = ['shoot', 'view', 'skills', 'trick'];
 const FLY_TIPS_KEY = 'tsw.flyTips';
 /** The fly tips already used (a list of their ids in localStorage). */
 function loadFlyTips(): FlyTip[] {
@@ -536,6 +536,8 @@ export class App {
     );
     this.ringHud = new RingHud(ui);
     this.hunt = this.createHunt(ui);
+    // Touch screens fire the laser from a round button under the skills (tap: flash, hold: beam).
+    this.mantaBar.addHold('laser', vi.manta.hunt.fire, 'skillLaser', () => this.hunt.press(), () => this.hunt.release());
     this.floatBars = new FloatBars(ui);
     this.hurtEl = document.createElement('div');
     this.hurtEl.className = 'hurt-flash';
@@ -1197,6 +1199,7 @@ export class App {
     }
     // Listed once, for the manta's four skills; Shift + W + Q (its own listener) for the barrel rolls.
     this.keymap.register({ code: 'MantaSkills', keyLabel: '1 – 4', label: vi.shortcuts.mantaSkill, action: () => undefined });
+    this.keymap.register({ code: 'MantaShoot', keyLabel: 'Chuột trái', label: vi.shortcuts.mantaShoot, action: () => undefined });
     this.keymap.register({ code: 'MantaTrick', keyLabel: 'Shift + W + Q', label: vi.shortcuts.mantaTrick, action: () => this.barrelRoll() });
     this.keymap.register({ code: 'Backquote', keyLabel: '`', label: vi.shortcuts.debug, action: toggleSetting('showDebug') });
     // The ? key (Shift + /): any layout's / key works, Shift or not.
@@ -2270,6 +2273,7 @@ export class App {
       reducedMotion: () => this.reducedMotion.matches,
       // With the activity sounds, as the manta's skills.
       shot: (beam) => {
+        this.flyTipUsed('shoot');
         if (!beam && this.settings.get().footsteps) this.mixer.playSkill('laser', 0, 0.8, 0);
       },
       burst: (_x, _y, _z, combo) => {
@@ -2391,7 +2395,8 @@ export class App {
     if (this.flyTipT < FLY_TIP.first + this.flyTipNext * FLY_TIP.every) return;
     while (this.flyTipNext < FLY_TIP_ORDER.length && this.flyTipsDone.has(FLY_TIP_ORDER[this.flyTipNext])) this.flyTipNext++;
     if (this.flyTipNext >= FLY_TIP_ORDER.length) return;
-    this.activityMenu.flash(vi.manta.flyTips[FLY_TIP_ORDER[this.flyTipNext]], FLY_TIP.show);
+    const tip = FLY_TIP_ORDER[this.flyTipNext];
+    this.activityMenu.flash(tip === 'shoot' && isTouch() ? vi.manta.flyTips.shootTouch : vi.manta.flyTips[tip], FLY_TIP.show);
     this.flyTipNext++;
   }
   /** Clicks on the open sea in a row (each within SEA_CALL.gap s of the last) and when the last was. */

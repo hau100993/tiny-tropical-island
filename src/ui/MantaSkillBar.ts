@@ -52,6 +52,37 @@ export class MantaSkillBar<Id extends string> {
   }
 
   /**
+   * A button held rather than clicked (Săn Bong Bóng's laser on touch screens: a tap flashes, a
+   * hold keeps the beam on). Shown only on touch screens (styles: body.touch); not a skill, so
+   * no recharge sweep.
+   */
+  addHold(cls: string, name: string, icon: keyof typeof icons, press: () => void, release: () => void): void {
+    const btn = el('button', `manta-skill ${cls} touch-only`);
+    btn.type = 'button';
+    btn.dataset.name = name;
+    btn.setAttribute('aria-label', name);
+    const ic = el('span', 'manta-skill-icon');
+    ic.innerHTML = icons[icon];
+    btn.append(ic);
+    btn.addEventListener('pointerdown', (e) => {
+      // Not a drag-look, and keep getting the finger's up even if it slides off.
+      e.stopPropagation();
+      e.preventDefault();
+      btn.setPointerCapture(e.pointerId);
+      btn.classList.add('held');
+      press();
+    });
+    const up = (): void => {
+      btn.classList.remove('held');
+      release();
+    };
+    btn.addEventListener('pointerup', up);
+    btn.addEventListener('pointercancel', up);
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
+    this.root.append(btn);
+  }
+
+  /**
    * Under the menu's ☰ and as big as it (`handle`: its size, see Panel.dockRect); null: the
    * panel is open over that spot.
    */

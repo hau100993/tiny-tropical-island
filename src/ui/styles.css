@@ -4411,3 +4411,11 @@ body.ui-hidden .feed-bubble {
     animation: none;
   }
 }
+
+/* Săn Bong Bóng's fire button (MantaSkillBar.addHold): touch screens only, held for the beam. */
+.manta-skill.laser { --el: #c9a8ff; --cd: 0; }
+body:not(.touch) .manta-skill.touch-only { display: none; }
+.manta-skill.held {
+  transform: scale(0.92);
+  box-shadow: 0 0 26px color-mix(in srgb, var(--el) 90%, transparent), inset 0 0 10px color-mix(in srgb, var(--el) 70%, transparent);
+}

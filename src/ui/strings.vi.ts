@@ -485,6 +485,8 @@ export const vi = {
       view: 'Nhấn V: góc nhìn FPV, qua mắt Cá Đuối',
       skills: 'Nhấn 1 – 4: ra tuyệt chiêu',
       trick: 'Đang bay nhanh (Shift + W), nhấn thêm Q: Cá Đuối xoay 3 vòng',
+      shoot: 'Click chuột: bắn bong bóng bằng tia băng · giữ chuột: tia liền',
+      shootTouch: 'Chạm nút tia băng: bắn bong bóng · giữ: tia liền',
     },
     ringRunning: 'Đang bay đường vòng băng: bay hết vòng hoặc chờ hết giờ',
     ringMiss: 'Trượt vòng! Vòng lại bay xuyên qua',
@@ -495,6 +497,7 @@ export const vi = {
     /** Săn Bong Bóng: the readout while you shoot bubbles from the manta. */
     hunt: {
       title: 'Săn Bong Bóng',
+      fire: 'Bắn tia băng',
       count: (n: number) => `${n} bong bóng`,
       combo: (n: number) => `×${n}`,
       toward: (k: number, block: number) => `${k}/${block} → 🍅`,
@@ -658,12 +661,13 @@ export const vi = {
           `Đi bộ (${k('KeyC', 'C')}) ra bãi biển rồi nhấn ${k('ShiftSpace', 'Shift + Space')} để huýt sáo, hoặc nhấp vào mặt biển 7 lần liên tiếp: Cá Đuối trồi lên từ biển, lượn một vòng rồi bay tới cạnh bạn.`,
           'Đứng gần nó nhấn Space để leo lên lưng. W bay tới, chuột lái hướng (nhìn lên để bay lên), A / D rẽ, Space hạ xuống, lăn chuột: camera xa / gần.',
           'Phím 1 – 4: tuyệt chiêu Băng Giá, Sao Băng, Cực Quang và Vòng Tròn Băng Giá (bay xuyên hết các vòng được một 🍅).',
+          'Săn Bong Bóng: click chuột bắn tia băng vào bong bóng quanh bạn, giữ chuột là tia liền; cứ 30 bong bóng được một 🍅.',
           `Nhấn ${k('ShiftSpace', 'Shift + Space')} lần nữa để đáp xuống và nhảy khỏi lưng.`,
         ],
         touch: () => [
           'Đi bộ ra bãi biển, chạm "Huýt sáo gọi Cá Đuối" trong bong bóng trên đầu nhân vật, hoặc chạm mặt biển 7 lần liên tiếp.',
           'Chạm "Cưỡi Cá Đuối" để leo lên; cần điều khiển để bay, nút Bay lên / Hạ xuống.',
-          'Các nút tròn bên phải là tuyệt chiêu; nút ở góc để đáp xuống.',
+          'Các nút tròn bên phải là tuyệt chiêu; nút tia băng (chạm hoặc giữ) bắn bong bóng, 30 bong bóng được một 🍅; nút ở góc để đáp xuống.',
         ],
       },
       done: {
@@ -698,6 +702,7 @@ export const vi = {
     manta: 'Cá Đuối Trời: huýt sáo gọi / cưỡi lên / đáp xuống',
     mantaSkill: 'Cưỡi Cá Đuối: 1 Hơi Thở Băng Giá · 2 Mưa Sao Băng · 3 Dải Lụa Cực Quang · 4 Vòng Tròn Băng Giá',
     mantaTrick: 'Cưỡi Cá Đuối đang bay nhanh (Shift + W), nhấn thêm Q: Vũ Điệu Xoắn Ốc (xoay 3 vòng)',
+    mantaShoot: 'Cưỡi Cá Đuối: click bắn tia băng vào bong bóng, giữ chuột: tia liền (Săn Bong Bóng)',
     mouse: 'Kéo: xoay · Cuộn: thu phóng · Chuột phải: dời · Nhấp vào nước: gợn sóng',
     sliderWheel: 'Thanh trượt: lăn chuột để chỉnh 5% (giờ: 15 phút) · giữ Shift để chỉnh mịn · nhấp đúp: về mặc định',
     sceneKeys: '1 – 9: chọn cảnh theo thứ tự trên bảng (đang cưỡi Cá Đuối: 1 – 4 là tuyệt chiêu)',

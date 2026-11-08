@@ -1019,6 +1019,7 @@ is solid: you walk round it, not through it. A card reminds you of the whistle (
 | Wheel / pinch | Camera closer or further (3–24 m), as walking; in past the closest: the eyes view, out again: behind |
 | `V` | Character view ↔ eyes view: from just over the tip of its head, so nothing blocks the view (its wings at the edges) |
 | `Shift` + `Space` | Land: it comes down where it is and you hop off to its right (wet sand and the shallows count: you wade off). Over the sea you drop into the water and swim. No room right there (palms, bushes, a roof): it glides to the nearest open spot within ~35 m, ahead first, and comes down there. Only deep in the forest does it say to find an open place |
+| Left click / hold | Săn Bong Bóng: click flashes the frost laser at a bubble, holding keeps a beam on (see *Săn Bong Bóng* below); on touch, the round laser button |
 | (tips) | Riding, quick tips show in the bubble over your head one after another (`V`: the FPV view, `1` – `4`: skills, `Shift` + `W` + `Q`: the barrel rolls), each until you have used it once (remembered in this browser) |
 | `1` – `4` | Its four skills (see below); also the round buttons under the menu's ☰. (Riding, the number keys cast skills instead of picking scenes) |
 | `Q` while flying fast (`Shift` + `W` held) | **Vũ Điệu Xoắn Ốc**: three barrel rolls about its own axis in 2.4 s (wound up, whipped round, settled level), lifting ~2 m at the middle and a little faster after; frost and rainbow motes stream off the wing tips (their wind spirals), a chime and a whoosh each turn. You stay on its back, upside down at times. Through its eyes (`V`) the world turns round with it (not with reduced motion). Needs some height (≥ 4 m over what's below), flying fast (Shift + W held), not on the ice |
@@ -1060,6 +1061,35 @@ A big name card appears when one is cast. On the manta `1` – `4` cast its skil
 | `2` | **Mưa Sao Băng** | For 12 s shooting stars streak down across your view: they all come from one radiant just above the top of the view, so perspective fans them out as in a real shower. Each has a white-hot head that flares as it burns out, a short bright tail and a faint coloured train (blue-white, green, violet or orange) that lingers and spreads for ~1.5 s, then bursts into glittering ice crystals. Snow falls over the island for ~40 s from a clear sky (it settles a little, then melts; the sky doesn't grey) with crystals twinkling round you | 30 s |
 | `3` | **Dải Lụa Cực Quang** | For 10 s an aurora unfurls up from both wing tips along your path: two curtains, green at the foot to violet at the top, folding and shimmering; they hang there for ~45 s. Fly along between them again and their wind carries you past sprint speed, shedding rainbow motes | 18 s |
 | `4` | **Vòng Tròn Băng Giá** | An FPV-style race: a course of ice rings forms ahead of you. Each is built in layers, as magic-ring effects are: a thin tube of clear ice (4–5 cm, never thinner than a pixel far off) that glints as you move (ice grains that flash when the light lines up, after Shopf / Wang & Bowles) with a hint of rainbow at its edges, a soft halo, a six-armed snowflake seal turning slowly inside (a hexagonal plate with branching arms, as snow grows), a dashed rune ring, six small snowflakes on the frame, a nearly clear film that shows colours only at a grazing look, and star-shaped sparkles orbiting it with snow swirling into the middle. The frame is a circle or a snowflake's hexagon (random per course). The rings ahead stay faint outlines. Every cast is new and random: the difficulty (**Dễ** / **Vừa** / **Khó**: 5–7 rings of radius 5–6 m, 40–50 m apart, with gentle bends; 7–10 rings of 4–5 m; or 9–13 rings of 3.2–4 m, 27–36 m apart, with sharp bends and climbs), the number of rings, each ring's size, and the line's shape (slalom, arc, wave, helix, zig-zag, or a mix that changes every three rings); it stays clear of the island's hills and trees and bends back toward the island if it runs far out. Three rings show at a time; the next one pulses, and shines when you are lined up on its hole. Fly through it and a ring of light races out from the frame, the sparkles scatter and the ice bursts into ~110 slivers thrown on with you, with a burst of speed (+3.5 m/s). The sound, in layers: the air rushing past, the ice snapping (a crack over a low thump), a glassy FM bell on the ring's note (a step up a pentatonic scale each ring, so a run climbs like a tune) and its octave, and the slivers tinkling down; right through the middle: a sparkling run of notes up and rainbow motes too. Each ring has its own time (a bar at the top, amber then red); missing it beside the ring, turn round and try again. Fly them all: **🍅 +1** (one tomato per course flown to the end). Out of time: the rest melt away. A readout at the top shows rings passed, the clock and the difficulty | 3 s after a course |
+
+### Săn Bong Bóng: shooting bubbles from the manta (Phase 15r)
+
+While you ride, soap bubbles drift round you (8 / 12 / 16 by quality, 40–140 m away, mostly
+ahead, 1.2–3.5 m across, rising slowly). **Click** to flash the manta's frost laser at one; **hold**
+the button for a continuous beam that heats up over 1.5 s (wider, its halo turning from ice blue
+to violet) and bursts each bubble it rests on for a moment. While you steer with the mouse (a
+movement key held) you aim at a small crosshair in the middle of the screen, which lights up on a
+bubble; standing still you aim at the cursor. On a touch screen a round laser button joins the
+skill buttons (tap: flash, hold: beam, aimed at the middle). A hit bubble bursts like a real one:
+a hole opens where the beam struck and its ragged rim races round the film, throwing droplets and
+a few violet crystals; a new bubble grows in 1–3 s later. Shooting the sea ripples it. Sounds: a
+glassy "pew", the beam's hum rising with its heat, and a pop with a glass chime that climbs a
+pentatonic scale while you chain bursts (each within 2 s of the last: ×2, ×3 … on the readout; from
+×5 a slight shake, none with reduced motion). A readout at the top counts the bubbles and the way
+to the next tomato: every **30 bubbles = 🍅 +1** (the count is kept in `localStorage`
+`tsw.bubbleHunt`; each tomato's ledger id comes from the time of its 30th burst, so it is paid once
+and synced devices never collide). Getting off the manta stops the laser and the bubbles fade away;
+nothing is drawn or updated while you don't ride.
+
+How it works: each bubble's position is a formula of time (a slow drift of sines plus a rise),
+evaluated the same way in TypeScript (`activities/flight/bubbleField.ts`, for the hit test: a ray
+from the camera against spheres 1.3× their size) and in the vertex shader
+(`world/creatures/huntBubbles.ts`, one instanced sphere), so the CPU uploads a bubble's numbers
+once when it spawns and never reads anything back from the GPU. The burst is in the fragment
+shader: the angle from the hit point grows from 0 to π in 90 ms and the film nearer than it is
+discarded. The beam (`world/creatures/laserBeam.ts`) is one quad turned about its own axis to face
+the camera, at least 2.5 px wide at any distance. The soap film's colour is shared with Bọt's giant
+bubble (`bubbleFilm.glsl.ts`). +4 draw calls while riding.
 
 How they are drawn: the ice road and the aurora curtains are one ribbon class each
 (`world/creatures/trailRibbon.ts`): a ring buffer of path points with a cross-section (the ice: a
