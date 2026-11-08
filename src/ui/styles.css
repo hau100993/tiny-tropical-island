@@ -4288,3 +4288,48 @@ body.ui-hidden .feed-bubble {
     transition: none;
   }
 }
+
+/* Săn Bong Bóng: the aim mark at the screen centre while the mouse steers the manta
+   (ui/Crosshair.ts): a thin frost ring with a dot, lit and tightened on a bubble. */
+.crosshair {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(220, 245, 255, 0.75);
+  box-shadow: 0 0 6px rgba(120, 200, 255, 0.55), inset 0 0 4px rgba(120, 200, 255, 0.35);
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 150ms ease, transform 150ms ease, border-color 120ms ease;
+  z-index: 3;
+}
+.crosshair::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 4px rgba(150, 220, 255, 0.9);
+}
+.crosshair.shown {
+  opacity: 1;
+  transform: scale(1);
+}
+.crosshair.shown.on {
+  border-color: #c9a8ff;
+  box-shadow: 0 0 10px rgba(190, 150, 255, 0.85), inset 0 0 6px rgba(190, 150, 255, 0.5);
+  transform: scale(0.82);
+}
+@media (prefers-reduced-motion: reduce) {
+  .crosshair {
+    transition: none;
+  }
+}

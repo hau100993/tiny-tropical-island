@@ -71,3 +71,13 @@ describe('earnBubble', () => {
     expect(tomatoes(b.ledger)).toBe(tomatoes(a.ledger));
   });
 });
+
+describe('HuntScore.resetClock', () => {
+  it('breaks the chain when the clock restarts at 0', () => {
+    const s = new HuntScore({ total: 0, toward: 0 });
+    s.add(5000, 0);
+    s.resetClock();
+    s.add(0.5, 0);
+    expect(s.combo).toBe(1);
+  });
+});

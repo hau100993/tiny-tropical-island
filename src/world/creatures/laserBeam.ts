@@ -7,7 +7,7 @@ const SPAN = 5;
 
 /**
  * The beam: one quad between uFrom and uTo, turned about its own axis to face the camera (an
- * axial billboard), at least 1.5 px wide at any distance.
+ * axial billboard), at least 2.5 px wide at any distance.
  */
 const BEAM_VERT = /* glsl */ `
 uniform vec3 uFrom;
@@ -28,13 +28,13 @@ void main() {
   float dist = length(toCam);
   vec3 side = cross(dir, toCam / max(dist, 0.001));
   side = length(side) > 1e-4 ? normalize(side) : vec3(0.0, 1.0, 0.0);
-  float minW = 1.5 * dist / uPx;
+  float minW = 2.5 * dist / uPx;
   float hw = max(uWidth, minW);
   p += side * position.y * hw * SPAN;
   vAcross = position.y * SPAN;
   vAlong = position.x * len;
   vLen = len;
-  // Held at the 1.5 px floor, it dims instead of growing: a thin beam far away stays thin.
+  // Held at the 2.5 px floor, it dims instead of growing: a thin beam far away stays thin.
   vThin = uWidth / hw;
   gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
 }
@@ -166,7 +166,7 @@ export class LaserBeam {
   set(from: THREE.Vector3, to: THREE.Vector3, strength: number, heat: number, hit: boolean, flicker: boolean): void {
     (this.u.uFrom.value as THREE.Vector3).copy(from);
     (this.u.uTo.value as THREE.Vector3).copy(to);
-    this.u.uWidth.value = (0.06 + 0.1 * heat) * strength;
+    this.u.uWidth.value = (0.12 + 0.16 * heat) * strength;
     this.u.uStrength.value = strength;
     this.u.uHeat.value = heat;
     this.u.uFlicker.value = flicker ? 1 : 0;

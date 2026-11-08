@@ -194,6 +194,17 @@ export class BubbleField {
     for (const s of this.slots) if (s.live && s.fadeAt < 0) this.fade(s, now);
   }
 
+  /** The shared clock went back to 0 (App.resetTime): every slot empty, refilled on the new clock. */
+  reset(): void {
+    for (const s of this.slots) {
+      s.live = false;
+      s.burstAt = -1;
+      s.respawnAt = -1;
+      s.fadeAt = -1;
+    }
+    this.version++;
+  }
+
   /** Anything still to draw: a bubble not fully faded, or a burst still opening. */
   visible(now: number): boolean {
     for (const s of this.slots) {

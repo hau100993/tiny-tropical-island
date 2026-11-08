@@ -52,6 +52,11 @@ export class HuntScore {
     return `b${Math.round(wall)}`;
   }
 
+  /** The shared clock went back to 0 (App.resetTime): the last burst's time means nothing now. */
+  resetClock(): void {
+    this.last = -Infinity;
+  }
+
   save(): HuntSave {
     return { total: this.total, toward: this.toward };
   }

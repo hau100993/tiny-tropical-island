@@ -195,3 +195,17 @@ describe('BubbleField', () => {
     expect(f.visible(3 + FIELD.grow + 0.01)).toBe(false);
   });
 });
+
+describe('BubbleField.reset (the shader clock went back to 0)', () => {
+  it('empties every slot so they respawn on the new clock', () => {
+    const f = new BubbleField(8, seeded(10));
+    f.count = 8;
+    f.update(5000, 0, 50, 0, 0, flat);
+    const v = f.version;
+    f.reset();
+    expect(f.version).toBeGreaterThan(v);
+    for (const s of f.slots) expect(s.live).toBe(false);
+    f.update(0, 0, 50, 0, 0, flat);
+    for (const s of f.slots) expect(s.born).toBe(0);
+  });
+});

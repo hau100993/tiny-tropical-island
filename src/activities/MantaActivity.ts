@@ -1055,6 +1055,13 @@ export class MantaActivity {
     return true;
   }
 
+  /** The front of its head (where the laser leaves), world; false before the model is here. */
+  nose(out: THREE.Vector3): boolean {
+    if (!this.model || this._state === 'away') return false;
+    this.model.nose(0, out);
+    return true;
+  }
+
   dispose(): void {
     this.model?.dispose();
     this.model = null;

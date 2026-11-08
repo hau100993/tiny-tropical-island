@@ -45,7 +45,7 @@ export class DragLook {
   private overScene = false;
   /** Its last position across the scene, 0 (left) … 1 (right). */
   private across = 0.5;
-  private steering = false;
+  private _steering = false;
   /** How long the cursor has been in the edge band while steering (s; see EDGE_RAMP). */
   private edgeTime = 0;
 
@@ -121,6 +121,11 @@ export class DragLook {
     return this.pressed;
   }
 
+  /** The mouse steers with the cursor hidden (aim at the screen centre). */
+  get steering(): boolean {
+    return this._steering;
+  }
+
   /** Lets go of the press that turns the view (a second finger came down: a pinch). */
   release(): void {
     this.pressed = false;
@@ -140,7 +145,9 @@ export class DragLook {
     if (!this.active) return;
     this.moving = moving;
     const steer = moving && this.overScene && !this.pressed;
-    this.setSteering(steer);
+    // The cursor stays hidden while a press is held on the move too (the manta's laser aims at
+    // the screen centre meanwhile); edge turning stays off while pressed.
+    this.setSteering(moving && this.overScene);
     // At the edge: keep turning toward it, faster nearer the edge, building up over EDGE_RAMP.
     const left = (EDGE - this.across) / EDGE;
     const right = (this.across - (1 - EDGE)) / EDGE;
@@ -155,8 +162,8 @@ export class DragLook {
 
   /** The cursor hides over the scene while steering (styles: body.steering). */
   private setSteering(on: boolean): void {
-    if (on === this.steering) return;
-    this.steering = on;
+    if (on === this._steering) return;
+    this._steering = on;
     document.body.classList.toggle('steering', on);
   }
 }

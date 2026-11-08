@@ -53,6 +53,7 @@ import type { CircleCollider } from '../controls/collision';
 import { COOLDOWN, MANTA_SKILLS, MantaSkills, type MantaSkillId } from '../activities/MantaSkills';
 import { MantaSkillBar } from '../ui/MantaSkillBar';
 import { RingHud } from '../ui/RingHud';
+import { BubbleHunt } from '../activities/BubbleHunt';
 import { Skyline } from '../activities/flight/skyline';
 import { ISLAND_CONFIG } from '../world/heightmap';
 import type { PopUp, SurfEvent } from '../activities/surfPhysics';
@@ -176,6 +177,8 @@ export class App {
   private readonly mantaSkills: MantaSkills;
   private mantaBar!: MantaSkillBar<MantaSkillId>;
   private ringHud!: RingHud;
+  /** Săn Bong Bóng: the manta's laser and the bubbles round you (made with the UI layer). */
+  private hunt!: BubbleHunt;
   private readonly swimFx: SwimEffects;
   /** Air bubbles under water (exhaled while diving). */
   private readonly bubbles: Spray;
@@ -532,6 +535,7 @@ export class App {
       },
     );
     this.ringHud = new RingHud(ui);
+    this.hunt = this.createHunt(ui);
     this.floatBars = new FloatBars(ui);
     this.hurtEl = document.createElement('div');
     this.hurtEl.className = 'hurt-flash';
@@ -1206,6 +1210,7 @@ export class App {
     this.world.dayNight.onTimeReset();
     this.world.footprints.clear();
     this.mantaSkills.reset();
+    this.hunt.reset();
   }
 
   /** Long visible sessions: restart the shader clock behind a short fade, never mid-activity. */
@@ -1264,6 +1269,7 @@ export class App {
     this.world.water.setStepRate(fps);
     this.world.weather.setQuality(profile);
     this.mantaSkills.setQuality(profile.iceSpikes, profile.iceShards);
+    this.hunt.setQuality(profile.huntBubbles);
     this.world.grass.setCount(profile.grassCount);
     this.world.flowers.setCount(profile.flowerCount);
     this.env.waveStrength.target = s.waveStrength;
@@ -2253,6 +2259,18 @@ export class App {
   }
 
   /** The manta's skills (1 – 4 while riding), drawn with the shared particles and sounds. */
+  private createHunt(ui: HTMLElement): BubbleHunt {
+    const w = this.world;
+    return new BubbleHunt(this.scene, sharedUniforms, this.manta, this.camera, this.renderer.domElement, ui, {
+      flying: () => this.cameras.mode === 'fly' && this.manta.state === 'riding',
+      floor: (x, z) => this.manta.floorAt(x, z),
+      heightAt: (x, z) => w.heightmap.heightAt(x, z),
+      seaHeight: (x, z) => this.seaHeight(x, z),
+      ripple: (x, z) => w.water.addRipple(x, z, 1.2, -0.25),
+      reducedMotion: () => this.reducedMotion.matches,
+    });
+  }
+
   private createMantaSkills(): MantaSkills {
     const w = this.world;
     return new MantaSkills(this.scene, sharedUniforms, this.manta, this.camera, {
@@ -2937,6 +2955,7 @@ export class App {
     this.smoke.setViewport(this.drawingBuffer.y, fov);
     this.dust.setViewport(this.drawingBuffer.y, fov);
     this.mantaSkills.setViewport(this.drawingBuffer.y, fov);
+    this.hunt?.setViewport(this.drawingBuffer.y, fov);
   };
 
   private tick = (dt: number, elapsed: number): void => {
@@ -3005,6 +3024,7 @@ export class App {
     this.rainbow.update(dt);
     this.fx.update(dt);
     this.mantaSkills.update(dt);
+    this.hunt.update(dt);
     const m = this.mantaSkills;
     this.mantaBar.update(s.mantaSkillBar && this.cameras.mode === 'fly' && this.manta.state === 'riding', (id) => [m.cooldown(id), COOLDOWN[id]]);
     this.dogSkills.update(dt);
