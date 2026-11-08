@@ -296,6 +296,14 @@ export class HuntBubbles {
 
   private lastSplash = -Infinity;
 
+  /** The shared clock went back to 0: droplets born on the old clock are forgotten. */
+  reset(): void {
+    (this.dBirth.array as Float32Array).fill(-1);
+    this.dBirth.needsUpdate = true;
+    this.lastSplash = -Infinity;
+    this.version = -1;
+  }
+
   private dropsFlying(now: number): boolean {
     return now - this.lastSplash < DROP_LIFE;
   }

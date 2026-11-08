@@ -159,23 +159,39 @@ export class BubbleField {
   }
 
   /**
-   * The nearest hittable bubble along the ray (d unit) within maxT, its radius × FIELD.inflate;
-   * −1 if none. Writes the distance into hit[0].
+   * The bubble along the ray (d unit) within maxT: the nearest one the ray truly hits, else the
+   * nearest within its radius × FIELD.inflate (the aim assist); −1 if none. Writes the distance
+   * to the hit into hit[0] (on the real film for a true hit).
    */
   pick(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxT: number, now: number, hit: Float32Array): number {
     let best = -1;
     let bestT = maxT;
+    let assist = -1;
+    let assistT = maxT;
     for (let i = 0; i < this.count; i++) {
       if (!this.hittable(i, now)) continue;
       this.posAt(i, now, tmp);
-      const t = raySphere(ox, oy, oz, dx, dy, dz, tmp[0], tmp[1], tmp[2], this.slots[i].radius * FIELD.inflate);
-      if (t >= 0 && t <= bestT) {
-        best = i;
-        bestT = t;
+      const r = this.slots[i].radius;
+      const t = raySphere(ox, oy, oz, dx, dy, dz, tmp[0], tmp[1], tmp[2], r);
+      if (t >= 0) {
+        if (t <= bestT) {
+          best = i;
+          bestT = t;
+        }
+        continue;
+      }
+      const ta = raySphere(ox, oy, oz, dx, dy, dz, tmp[0], tmp[1], tmp[2], r * FIELD.inflate);
+      if (ta >= 0 && ta <= assistT) {
+        assist = i;
+        assistT = ta;
       }
     }
-    if (best >= 0) hit[0] = bestT;
-    return best;
+    if (best >= 0) {
+      hit[0] = bestT;
+      return best;
+    }
+    if (assist >= 0) hit[0] = assistT;
+    return assist;
   }
 
   /** Starts the burst (dir: from the centre to the hit point, unit) and schedules the regrowth. */

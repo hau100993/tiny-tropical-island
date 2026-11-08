@@ -98,7 +98,8 @@ describe('BubbleField', () => {
     place(f.slots[1], 0, 0, 20, 1);
     const hit = new Float32Array(1);
     expect(f.pick(0, 0, 0, 0, 0, 1, 250, 0, hit)).toBe(1);
-    expect(hit[0]).toBeCloseTo(20 - FIELD.inflate);
+    // On its real film (a true hit), not on the inflated sphere.
+    expect(hit[0]).toBeCloseTo(20 - 1);
   });
 
   it('pick ignores bubbles beyond the range', () => {
@@ -207,5 +208,27 @@ describe('BubbleField.reset (the shader clock went back to 0)', () => {
     for (const s of f.slots) expect(s.live).toBe(false);
     f.update(0, 0, 50, 0, 0, flat);
     for (const s of f.slots) expect(s.born).toBe(0);
+  });
+});
+
+describe('BubbleField.pick ranking', () => {
+  it('a bubble the ray truly hits beats a nearer one only caught by the aim assist', () => {
+    const f = new BubbleField(2, seeded(11));
+    f.count = 2;
+    // Near one at 30 m, the ray passing 1.2 R from its centre (inside 1.3 R, outside R).
+    place(f.slots[0], 1.2 * 2, 0, 30, 2);
+    // Far one at 50 m, dead on.
+    place(f.slots[1], 0, 0, 50, 1.5);
+    const hit = new Float32Array(1);
+    expect(f.pick(0, 0, 0, 0, 0, 1, 250, 0, hit)).toBe(1);
+    // The hit is on its real film, not on the inflated sphere.
+    expect(hit[0]).toBeCloseTo(50 - 1.5, 3);
+  });
+  it('with no true hit the nearest assisted one wins', () => {
+    const f = new BubbleField(1, seeded(12));
+    f.count = 1;
+    place(f.slots[0], 1.2 * 2, 0, 30, 2);
+    const hit = new Float32Array(1);
+    expect(f.pick(0, 0, 0, 0, 0, 1, 250, 0, hit)).toBe(0);
   });
 });

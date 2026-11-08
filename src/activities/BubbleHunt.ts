@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { SharedUniforms } from '../core/uniforms';
 import { BubbleField } from './flight/bubbleField';
 import { Exposure, LaserFire } from './flight/laserFire';
+import { rayBlock } from './flight/aimRay';
 import type { MantaActivity } from './MantaActivity';
 import { HuntBubbles } from '../world/creatures/huntBubbles';
 import { LaserBeam } from '../world/creatures/laserBeam';
@@ -19,16 +20,13 @@ const CAPACITY = 16;
 const DROPLETS = 640;
 /** The laser's reach (m). */
 const RANGE = 250;
-/** Ground / sea search along the aim ray: step (m) and refinement halvings. */
-const MARCH_STEP = 2;
-const MARCH_REFINE = 5;
 /** A held beam on the sea ripples it this often (s). */
 const SEA_RIPPLE_EVERY = 0.1;
 
 export interface HuntHooks {
   /** On the manta's back in the flying view. */
   flying(): boolean;
-  /** The flight's floor (skyline + ice) for spawning. */
+  /** The skyline floor (ground, sea level, tree / house / rock tops): spawning, and what blocks the laser. */
   floor(x: number, z: number): number;
   heightAt(x: number, z: number): number;
   seaHeight(x: number, z: number): number;
@@ -115,6 +113,11 @@ export class BubbleHunt {
 
   private readonly onMove = (e: PointerEvent): void => {
     if (e.pointerId !== this.pointer) return;
+    // The button is up but its pointerup never came (outside the window, a dropped event).
+    if (e.pointerType === 'mouse' && (e.buttons & 1) === 0) {
+      this.letGo();
+      return;
+    }
     this.cursorX = e.clientX;
     this.cursorY = e.clientY;
   };
@@ -130,6 +133,8 @@ export class BubbleHunt {
   private letGo(): void {
     this.pointer = -1;
     this.fire.release(this.now);
+    // Now, not at the next frame: a hidden tab runs no frames but keeps playing sound.
+    this.hooks.hum?.(false, 0);
   }
 
   /** The touch button: fire aimed at the centre. */
@@ -160,6 +165,7 @@ export class BubbleHunt {
     this.exposure.clearAll();
     this.pointer = -1;
     this.score.resetClock();
+    this.bubbles.reset();
   }
 
   update(dt: number): void {
@@ -196,7 +202,13 @@ export class BubbleHunt {
     this.ray.setFromCamera(ndc, this.camera);
     const o = this.ray.ray.origin;
     const d = this.ray.ray.direction;
-    const picked = this.field.pick(o.x, o.y, o.z, d.x, d.y, d.z, RANGE, now, hitT);
+    let picked = this.field.pick(o.x, o.y, o.z, d.x, d.y, d.z, RANGE, now, hitT);
+    // A hill, a tree or the house in front of the bubble takes the shot (and the crosshair).
+    let blockT = -2;
+    if (picked >= 0) {
+      blockT = rayBlock(o.x, o.y, o.z, d.x, d.y, d.z, hitT[0], this.hooks.floor);
+      if (blockT >= 0) picked = -1;
+    }
     this.crosshair.set(centred && (steering || this.pointer !== -1), picked >= 0);
 
     const mode = this.fire.mode;
@@ -215,7 +227,7 @@ export class BubbleHunt {
     let sea = false;
     if (struck) end.copy(d).multiplyScalar(hitT[0]).add(o);
     else {
-      const t = this.march(o, d);
+      const t = blockT >= 0 ? blockT : rayBlock(o.x, o.y, o.z, d.x, d.y, d.z, RANGE, this.hooks.floor);
       if (t >= 0) {
         end.copy(d).multiplyScalar(t).add(o);
         struck = true;
@@ -248,33 +260,6 @@ export class BubbleHunt {
     this.hooks.burst?.(centre[0], centre[1], centre[2], combo);
     if (combo >= SCORE.shakeAt && !this.hooks.reducedMotion()) this.hooks.shake?.(centre[0], centre[1], centre[2]);
     if (id && this.hooks.reward?.(id, wall)) this.hud.tomato();
-  }
-
-  /** Where the aim ray meets the ground or the sea within RANGE, or −1 (only while firing). */
-  private march(o: THREE.Vector3, d: THREE.Vector3): number {
-    let prev = 0;
-    for (let t = MARCH_STEP; t <= RANGE; t += MARCH_STEP) {
-      if (!this.below(o, d, t)) {
-        prev = t;
-        continue;
-      }
-      let lo = prev;
-      let hi = t;
-      for (let k = 0; k < MARCH_REFINE; k++) {
-        const mid = (lo + hi) / 2;
-        if (this.below(o, d, mid)) hi = mid;
-        else lo = mid;
-      }
-      return hi;
-    }
-    return -1;
-  }
-
-  /** The point t along the ray is under the ground or the sea. */
-  private below(o: THREE.Vector3, d: THREE.Vector3, t: number): boolean {
-    const x = o.x + d.x * t;
-    const z = o.z + d.z * t;
-    return o.y + d.y * t <= Math.max(this.hooks.heightAt(x, z), this.hooks.seaHeight(x, z));
   }
 
   dispose(): void {
