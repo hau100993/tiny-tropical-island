@@ -42,7 +42,7 @@ export interface Ledger {
 }
 
 /** How each kind changes the tomato count per unit of `n`. Unknown kinds (a newer save) count 0. */
-const TOMATO_SIGN: Readonly<Record<string, number>> = { focus: 1, gift: 1, ring: 1, feed: -1, evolve: -1, egg: -1, trust: -1 };
+const TOMATO_SIGN: Readonly<Record<string, number>> = { focus: 1, gift: 1, ring: 1, bubble: 1, feed: -1, evolve: -1, egg: -1, trust: -1 };
 
 const GIFT_ID = 'gift';
 const MAX_EVENTS = 50_000;
@@ -115,6 +115,15 @@ export function earnRing(l: Readonly<Ledger>, startedAt: number): { ledger: Ledg
   const id = `r${Math.round(startedAt)}`;
   if (l.events.some((e) => e.id === id)) return { ledger: l as Ledger, earned: false };
   return { ledger: withEvent(l, { id, t: startedAt, kind: 'ring', n: 1 }), earned: true };
+}
+
+/**
+ * Săn Bong Bóng: a block of bubbles burst from the manta, one tomato. `id` is `b<ms of the
+ * block's last burst>` (see HuntScore.add), so it is paid once and two devices never collide.
+ */
+export function earnBubble(l: Readonly<Ledger>, id: string, t: number): { ledger: Ledger; earned: boolean } {
+  if (l.events.some((e) => e.id === id)) return { ledger: l as Ledger, earned: false };
+  return { ledger: withEvent(l, { id, t, kind: 'bubble', n: 1 }), earned: true };
 }
 
 /** Union by id. The same id twice: the larger `n` wins (only the gift can differ). */

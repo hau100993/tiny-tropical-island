@@ -1,5 +1,5 @@
 import { parseJson, readStored, writeStored } from '../core/storage';
-import { addStartingGift, earnFocus, earnRing, emptyLedger, mergeLedgers, parseLedger, tomatoes, withEvent, type EarnResult, type Ledger } from './ledger';
+import { addStartingGift, earnBubble, earnFocus, earnRing, emptyLedger, mergeLedgers, parseLedger, tomatoes, withEvent, type EarnResult, type Ledger } from './ledger';
 import { buildRoster, type Action, type Roster } from './roster';
 
 export const PETS_KEY = 'tsw.pets';
@@ -95,6 +95,18 @@ export class TomatoWallet {
     let earned = false;
     this.commit((l) => {
       const r = earnRing(l, startedAt);
+      earned = r.earned;
+      return r.ledger;
+    });
+    if (earned) this.askPersist();
+    return earned;
+  }
+
+  /** A block of bubbles burst from the manta (see earnBubble): one tomato. */
+  earnBubble(id: string, t: number): boolean {
+    let earned = false;
+    this.commit((l) => {
+      const r = earnBubble(l, id, t);
       earned = r.earned;
       return r.ledger;
     });
