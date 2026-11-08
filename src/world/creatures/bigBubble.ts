@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { SharedUniforms } from '../../core/uniforms';
+import { BUBBLE_FILM_GLSL } from './bubbleFilm.glsl';
 
 /**
  * Where Bọt's giant bubble is (BubbleCrab drives it; radius 0 hides it); `fade` 1 … 0: as it
@@ -40,20 +41,10 @@ varying vec3 vPos;
 uniform float uTime;
 uniform float uDayLight;
 uniform float uFade;
-vec3 hue(float h) {
-  return clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
-}
+${BUBBLE_FILM_GLSL}
 void main() {
-  vec3 n = normalize(vN);
-  vec3 v = normalize(vView);
-  float c = abs(dot(n, v));
-  float fres = pow(1.0 - c, 2.5);
-  float thick = vPos.y * 1.3 + sin(vPos.x * 4.0 + uTime * 0.9) * 0.35 + sin(vPos.z * 5.0 - uTime * 0.7) * 0.25;
-  vec3 film = hue(fract(thick + c * 0.8 + uTime * 0.05)) * 0.8 + 0.2;
-  float spec = pow(max(0.0, dot(reflect(-v, n), normalize(vec3(0.3, 1.0, 0.2)))), 60.0);
-  float a = 0.06 + fres * 0.75 + spec;
-  vec3 col = film * (0.4 + 0.8 * fres) * (0.45 + 0.55 * uDayLight) + spec * 1.6;
-  gl_FragColor = vec4(col, clamp(a, 0.0, 1.0) * uFade);
+  vec4 f = bubbleFilm(normalize(vN), normalize(vView), vPos, uTime, uDayLight);
+  gl_FragColor = vec4(f.rgb, f.a * uFade);
 }
 `;
 

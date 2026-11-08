@@ -31,20 +31,22 @@ export interface QualityProfile {
   /** The manta's ice road: crystal spikes and drifting shards at most (instances of one mesh each). */
   iceSpikes: number;
   iceShards: number;
+  /** Săn Bong Bóng: bubbles drifting round the manta while you ride. */
+  huntBubbles: number;
 }
 
 export const QUALITY_PROFILES: Record<QualityLevel, QualityProfile> = {
   low: {
     pixelRatioCap: 1.0, shadowMapSize: 0, msaa: false, waterSimRes: 128, refraction: false, reflection: false, causticsRes: 0,
-    grassCount: 4000, flowerCount: 1500, rainCount: 3000, snowCount: 2000, bloom: false, iceSpikes: 200, iceShards: 60,
+    grassCount: 4000, flowerCount: 1500, rainCount: 3000, snowCount: 2000, bloom: false, iceSpikes: 200, iceShards: 60, huntBubbles: 8,
   },
   medium: {
     pixelRatioCap: 1.25, shadowMapSize: 1024, msaa: true, waterSimRes: 256, refraction: true, reflection: false, causticsRes: 384,
-    grassCount: 15000, flowerCount: 5000, rainCount: 10000, snowCount: 6000, bloom: false, iceSpikes: 400, iceShards: 120,
+    grassCount: 15000, flowerCount: 5000, rainCount: 10000, snowCount: 6000, bloom: false, iceSpikes: 400, iceShards: 120, huntBubbles: 12,
   },
   high: {
     pixelRatioCap: 1.5, shadowMapSize: 2048, msaa: true, waterSimRes: 512, refraction: true, reflection: true, causticsRes: 512,
-    grassCount: 40000, flowerCount: 10000, rainCount: 25000, snowCount: 15000, bloom: true, iceSpikes: 600, iceShards: 200,
+    grassCount: 40000, flowerCount: 10000, rainCount: 25000, snowCount: 15000, bloom: true, iceSpikes: 600, iceShards: 200, huntBubbles: 16,
   },
 };
 
