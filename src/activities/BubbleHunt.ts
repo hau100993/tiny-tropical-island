@@ -32,6 +32,8 @@ export interface HuntHooks {
   burst?(x: number, y: number, z: number): void;
   /** The laser fired: a flash (`beam` false) or the beam starting. */
   shot?(beam: boolean): void;
+  /** The held beam's hum: on, and its heat 0 … 1 (called every flying frame). */
+  hum?(on: boolean, heat: number): void;
 }
 
 const ndc = new THREE.Vector2();
@@ -155,6 +157,7 @@ export class BubbleHunt {
         this.exposure.clearAll();
         this.beam.hide();
         this.crosshair.set(false, false);
+        this.hooks.hum?.(false, 0);
       }
       this.bubbles.sync(this.field, this.field.visible(now), now);
       return;
@@ -178,6 +181,7 @@ export class BubbleHunt {
     this.crosshair.set(centred && (steering || this.pointer !== -1), picked >= 0);
 
     const mode = this.fire.mode;
+    this.hooks.hum?.(mode === 'beam', this.fire.heat);
     if (mode === 'off') {
       this.wasBeam = false;
       this.beam.hide();

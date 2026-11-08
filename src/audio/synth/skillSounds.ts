@@ -1,4 +1,5 @@
 import { makeFilter, makeGain, type AudioEngine } from '../AudioEngine';
+import { comboNote } from './huntNotes';
 
 /**
  * The big sounds of the creatures' skills (no samples): `boom` (a blast: a falling sine thump
@@ -12,9 +13,11 @@ import { makeFilter, makeGain, type AudioEngine } from '../AudioEngine';
  * shimmering chord), `scrape` (one stroke of ice under a gliding body), `crack` (ice
  * spikes bursting up: a sharp snap, a dull knock and the falling "pew" of a frozen lake cracking),
  * `shatter` (a crystal breaking: glassy
- * tinkles falling).
+ * tinkles falling), and Săn Bong Bóng's: `laser` (the frost laser's flash: a glassy FM "pew"
+ * falling 2.4 kHz → 600 Hz over a tick of noise) and `bubblePop` (a bubble burst: a pop and a
+ * glass chime on the combo's pentatonic step, `size` × 10 = the combo).
  */
-export type SkillSound = 'boom' | 'thunder' | 'zap' | 'whoosh' | 'splash' | 'charge' | 'sonic' | 'frost' | 'starfall' | 'aurora' | 'scrape' | 'crack' | 'shatter' | 'surge' | 'breach' | 'gate' | 'perfect' | 'course' | 'fizzle';
+export type SkillSound = 'boom' | 'thunder' | 'zap' | 'whoosh' | 'splash' | 'charge' | 'sonic' | 'frost' | 'starfall' | 'aurora' | 'scrape' | 'crack' | 'shatter' | 'surge' | 'breach' | 'gate' | 'perfect' | 'course' | 'fizzle' | 'laser' | 'bubblePop';
 
 /** Ring `size` × 16 of a course: its note, a step up a pentatonic scale from C5 per ring. */
 function gateNote(size: number): number {
@@ -206,6 +209,47 @@ export class SkillSounds {
         });
         this.noise(p, n.white, t + 0.4, 'highpass', 6000, 9000, 0.3, 1.6, 0.1 * gain);
         break;
+      case 'laser': {
+        // The flash: an FM sine sweeping down (the 3.5× modulator makes it glassy), a tick of noise.
+        const osc = ctx.createOscillator();
+        osc.frequency.setValueAtTime(2400, t);
+        osc.frequency.exponentialRampToValueAtTime(600, t + 0.12);
+        const mod = ctx.createOscillator();
+        mod.frequency.setValueAtTime(2400 * 3.5, t);
+        mod.frequency.exponentialRampToValueAtTime(600 * 3.5, t + 0.12);
+        const depth = ctx.createGain();
+        depth.gain.setValueAtTime(1200, t);
+        depth.gain.exponentialRampToValueAtTime(40, t + 0.12);
+        mod.connect(depth).connect(osc.frequency);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.16 * gain, t + 0.004);
+        g.gain.setTargetAtTime(0, t + 0.02, 0.04);
+        osc.connect(g).connect(p);
+        osc.start(t);
+        mod.start(t);
+        osc.stop(t + 0.25);
+        mod.stop(t + 0.25);
+        osc.onended = () => {
+          osc.disconnect();
+          mod.disconnect();
+          depth.disconnect();
+          g.disconnect();
+        };
+        this.noise(p, n.white, t, 'highpass', 5000, 3000, 0.001, 0.01, 0.2 * gain);
+        break;
+      }
+      case 'bubblePop': {
+        // The film snapping (a sine dropping an octave in 50 ms over a click), then a glass chime
+        // a step up the pentatonic scale per combo, so a chain of bursts plays a tune.
+        const f0 = 700 + Math.random() * 120;
+        this.tone(p, 'sine', f0, f0 * 0.5, t, 0.05, 0.22 * gain);
+        this.noise(p, n.white, t, 'highpass', 2500, 2500, 0.001, 0.015, 0.14 * gain);
+        const f = comboNote(s * 10);
+        this.bell(p, f, t + 0.02, 0.35, 0.09 * gain);
+        this.bell(p, f * 2, t + 0.04, 0.2, 0.025 * gain);
+        break;
+      }
       case 'fizzle':
         // Out of time: a soft falling chime and the rings melting with a hiss.
         [784, 659.25, 523.25].forEach((f, i) => this.tone(p, 'sine', f, f * 0.98, t + i * 0.16, 0.5, 0.1 * gain));

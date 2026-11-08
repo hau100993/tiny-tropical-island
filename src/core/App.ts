@@ -2268,6 +2268,14 @@ export class App {
       seaHeight: (x, z) => this.seaHeight(x, z),
       ripple: (x, z) => w.water.addRipple(x, z, 1.2, -0.25),
       reducedMotion: () => this.reducedMotion.matches,
+      // With the activity sounds, as the manta's skills.
+      shot: (beam) => {
+        if (!beam && this.settings.get().footsteps) this.mixer.playSkill('laser', 0, 0.8, 0);
+      },
+      burst: () => {
+        if (this.settings.get().footsteps) this.mixer.playSkill('bubblePop', 0.1, 0.8, 0);
+      },
+      hum: (on, heat) => this.mixer.setLaserHum(on && this.settings.get().footsteps, heat),
     });
   }
 

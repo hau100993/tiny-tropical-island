@@ -14,6 +14,7 @@ import { loadAudioFileConfig } from './file/config';
 import { scheduleChime, type ChimeKind } from './synth/chime';
 import { schedulePop } from './synth/pop';
 import { MIXER_KEY, parseMixerState } from './mixerState';
+import { LaserHum } from './synth/laserHum';
 import { LAYER_IDS, type AudioLayer, type LayerId, type LayerState, type MixerState, type SpatialMix } from './types';
 import { parseJson, readStored, writeStored } from '../core/storage';
 
@@ -36,6 +37,8 @@ export class Mixer {
   private footsteps: Footsteps | null = null;
   private surf: SurfSound | null = null;
   private skills: SkillSounds | null = null;
+  /** The manta's held laser (made on first use). */
+  private laserHum: LaserHum | null = null;
   /** Last spatial mix sent per layer (only resent when it changes noticeably). */
   private readonly spatialSent = new Map<LayerId, SpatialMix>();
   private readonly spatialTmp: SpatialMix = { gain: 1, pan: 0, occlusion: 0 };
@@ -278,6 +281,17 @@ export class Mixer {
   /** A creature skill's big sound (see SkillSounds). */
   playSkill(kind: SkillSound, size: number, gain: number, pan: number): void {
     this.skills?.play(kind, size, gain, pan);
+  }
+
+  /** The manta's held laser beam: on while held, its heat 0 … 1 (see LaserHum). */
+  setLaserHum(on: boolean, heat: number): void {
+    if (!this.engine) return;
+    if (!this.laserHum) {
+      if (!on) return;
+      this.laserHum = new LaserHum(this.engine);
+    }
+    this.laserHum.setEnabled(on);
+    if (on) this.laserHum.setHeat(heat);
   }
 
   /** Mầm's leaves (see Footsteps.leaves). */
