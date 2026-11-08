@@ -36,9 +36,13 @@ function `pos(t)` of its spawn parameters, evaluated identically in TypeScript a
 shader (the `bubbleAt` pattern of `world/todoBubbles.ts`). No GPU readback. GPU picking was
 rejected: a readback stall for ~12 targets.
 
-The hit ray comes from the camera through the screen centre (pointer locked). The drawn beam joins
-the manta's mouth to the first hit point on that ray, so the crosshair is always truthful (no
-parallax error between mouth and camera).
+The app never captures the mouse (no pointer lock; `controls/dragLook.ts`): while a movement key
+is held, plain mouse moves steer and the cursor hides (`body.steering`); standing still, the
+cursor shows and a left drag turns the view. So the hit ray comes from the camera through the
+screen centre while steering (the crosshair shows there), and through the cursor otherwise. The
+drawn beam joins the manta's mouth to the first hit point on that ray, so what you aim at is what
+you hit (no parallax error between mouth and camera). Holding fire while dragging sweeps the
+beam with the view, which is the intended "sweep" gesture.
 
 ### Units
 
@@ -87,14 +91,16 @@ and update `BubbleHunt`, fly tip), `audio/synth/skillSounds.ts` (zap, beam hum, 
 - Look: core = narrow falloff around the axis (near-white), halo = wider faded falloff in the
   colour, noise scrolling along the length, additive blending, depth-tested so it passes behind
   terrain correctly. Muzzle flare sprite at the mouth; impact flare + frost sparks at the end.
-- Aim assist: bubble hit radius × 1.3. Crosshair lights when the centre ray is on a bubble.
+- Aim assist: bubble hit radius × 1.3. Crosshair (shown only while steering) lights when the
+  centre ray is on a bubble.
 
 ## 6. Scoring and feedback
 
 - HUD counter of bubbles burst. Combo: bursts within 2 s of each other raise ×2, ×3, …
-- Every 30 bubbles: 🍅 +1 through the ledger (kind `bubble`, id from the running total so each
-  block of 30 pays once). The running total is kept in `localStorage` (`tsw.bubbleHunt`), with
-  try/catch.
+- Every 30 bubbles: 🍅 +1 through the ledger (kind `bubble`, id `b<ms timestamp of the 30th
+  burst>`, so it pays once and two synced devices never collide). Only the count toward the next
+  tomato (0–29) and the lifetime total are kept in `localStorage` (`tsw.bubbleHunt`), with
+  try/catch; losing them loses at most 29 bubbles of progress, never a paid tomato.
 - Sounds (synthesized): flash = short downward FM "zap"; beam = a hum whose filter opens with heat;
   burst = `pop.ts` plus a glassy chime on a pentatonic step that climbs with the combo.
 - Screen shake only at combo ≥ 5. With `prefers-reduced-motion`: no shake, no beam flicker.
@@ -102,8 +108,8 @@ and update `BubbleHunt`, fly tip), `audio/synth/skillSounds.ts` (zap, beam hum, 
 
 ## 7. Input and conflicts
 
-- Left button while pointer-locked and flying = fire. The click that (re)acquires pointer lock
-  does not fire.
+- Left button on the scene while flying (camera mode `fly`, manta state `riding`) = fire, aimed
+  as in §3. Presses on the menu, cards or skill buttons never fire (they don't reach the canvas).
 - Sea-click summoning (15o) and the shark shoo click are inactive while riding; verified during
   implementation.
 - Not flying (landed, climbing on, autopilot hand-over) = no firing.
