@@ -46,7 +46,7 @@ Want it silent? Press `M` or the speaker button next to *Âm lượng chung* (mu
 
 ## Controls
 
-On start a short **guided tour** ("Hướng dẫn nhanh", 13 steps) plays over the scene: a drawn pointer glides to each place (☰, the clock, volume, each tab, the shortcut and full-screen buttons), "clicks" it so the panel really opens or changes tab, the place is lit and the rest dimmed, and a card says what it does; the last steps show dragging on the island and how to ride Cá Đuối Trời (call it with Shift + Space or seven clicks on the sea, climb on with Space, fly with W and the mouse, skills on 1 – 4, land with Shift + Space). `→` / `Enter` next, `←` back, `Esc` skip. Tick **"Không hiển thị lại"** to stop it opening by itself; **Cài đặt → Xem lại hướng dẫn** plays it again. On touch screens the keyboard step is skipped and the pointer is a fingertip.
+On start a short **guided tour** ("Hướng dẫn nhanh", 13 steps) plays over the scene: a drawn pointer glides to each place (☰, the clock, volume, each tab, the shortcut and full-screen buttons), "clicks" it so the panel really opens or changes tab, the place is lit and the rest dimmed, and a card says what it does; the last steps show dragging on the island and how to ride Cá Đuối Trời (call it with Shift + Space or seven clicks on the sea, climb on with Space, fly with W and the mouse, skills on 1 – 4, land with Shift + Space). `→` / `Enter` next, `←` back, `Esc` skip. It opens by itself only until it has been seen once: finishing it (**Bắt đầu**) or skipping it (×, `Esc`) both count; **Cài đặt → Xem lại hướng dẫn** plays it again. The step counter counts only the steps shown on that device. On touch screens the keyboard step is skipped and the pointer is a fingertip.
 
 | Input | Action |
 |---|---|
@@ -57,7 +57,7 @@ On start a short **guided tour** ("Hướng dẫn nhanh", 13 steps) plays over t
 | `M` | Mute / unmute everything |
 | `P` | Collapse / expand the control panel (or click its title). The page opens with the panel tucked away as in walk mode (faded, then a small round handle; point at the top-right corner to peek); the first click in it or `P` opens it. Walking, the ›/‹ button and `P` shut or open the peeking panel at once. The panel and the cards are liquid glass: clear, blurred and slightly saturated behind, tinted teal, with a bright top rim; dark glass when Windows is in dark mode |
 | `1` – `9` | Pick a scene, in the order of the panel's cards (the key shows on each card) |
-| `H` | Hide all UI (clean wallpaper view); press again to show. While hidden, the panel stays as a small faint **☰ handle** in the top-right corner: point at it (or the corner) to open it |
+| `H` | Hide all UI (clean wallpaper view); press again to show. While hidden, the panel stays as a small faint **☰ handle** in the top-right corner: clicking it (or `P`) shows the whole UI again and opens the panel |
 | `F` | Full screen on / off (also the ⛶ button in the panel header; `Esc` leaves it too). In full screen the mouse cursor hides over the scene after 3 s without moving. `F11` (the browser's own full screen) works as well. |
 | `N` | Stop / run the clock (stopping the real-time clock freezes the island at that moment) |
 | `C` | Walk around the island; press again to go back to the orbit view |
@@ -110,7 +110,7 @@ appear, like a mobile game.
   ("Toàn cảnh") both are undone. iPhone Safari allows neither: a short "Xoay ngang điện thoại để
   chơi dễ hơn" hint shows instead while the phone is upright.
 
-- **Held upright:** the panel is a sheet along the bottom of the screen (up to 62% of the height),
+- **Held upright:** the panel is a sheet along the bottom of the screen (up to 62% of the height; walking or playing, its ☰ waits in the top corner and opens the same sheet, above the joystick),
   the Pomodoro card moves to the top, and the camera zooms out (vertical view up to ~81°, was
   55°) so the island isn't cut off at the sides.
 - **Sideways:** the panel stays at the top right, with larger text and finger-sized buttons (~40 px).
@@ -201,7 +201,7 @@ back as it was, **Lưu cảnh** stores the scene and plays it. The editor has fo
 
 Built-ins can be edited too (effects, time, sound); **Khôi phục gốc** (at the bottom of the
 editor, once edited) restores their original effects and time. **Xóa** (your own scenes, at the
-bottom of the editor) and **Khôi phục gốc** ask for a second click. Up to 30 scenes of
+bottom of the editor) and **Khôi phục gốc** ask for a second click (a double-click does not count as one: the second click must come at least half a second later; the same goes for **Xóa file**). Up to 30 scenes of
 your own.
 
 **Âm thanh của tôi** holds your recordings (e.g. a one-hour rain MP3 you downloaded):
@@ -1312,6 +1312,7 @@ audio files in the repo.
 | Google Identity Services (`accounts.google.com/gsi/client`) and the Google Drive REST API | Google's terms of service | not bundled: loaded at run time only after a player turns on the optional Drive sync (Phase 13s) |
 | [three.js](https://threejs.org) 0.186.1 (incl. `OrbitControls`, `BufferGeometryUtils`, `FullScreenQuad`, and `EffectComposer`, `RenderPass`, `ShaderPass`, `UnrealBloomPass`, `OutputPass` for the skills' glow) | MIT | runtime dependency |
 | [Vite](https://vite.dev), [TypeScript](https://www.typescriptlang.org), [Vitest](https://vitest.dev) | MIT / Apache-2.0 / MIT | dev tools only |
+| [playwright-core](https://playwright.dev), [axe-core](https://github.com/dequelabs/axe-core) | Apache-2.0 / MPL-2.0 | `qa/` only (virtual UX test team, see [qa/README.md](qa/README.md)); not part of the app |
 | Simplex noise | public domain | reimplemented after Stefan Gustavson's reference |
 | Gerstner waves | — | technique from *GPU Gems* (2004), ch. 1 |
 | [WebGL Water](https://madebyevan.com/webgl-water/) by Evan Wallace | MIT | the heightfield ripple simulation (drop + update passes) and the caustics-by-area-ratio technique are reimplemented after it in `src/water/` |

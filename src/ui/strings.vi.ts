@@ -554,7 +554,7 @@ export const vi = {
     title: 'Hướng dẫn nhanh',
     reopen: 'Xem lại hướng dẫn',
     reopenHint: 'Mở lại phần hướng dẫn cho người mới',
-    dontShow: 'Không hiển thị lại',
+    again: 'Xem lại: Cài đặt → Xem lại hướng dẫn',
     prev: 'Trước',
     next: 'Tiếp',
     done: 'Bắt đầu',

@@ -671,6 +671,27 @@ it reads the floor under the manta and 1 s ahead and climbs early.
 shadow square, vegetation fading): ceiling kept moderate, checked with screenshots in 15a. Motion
 sickness: smoothed camera, no roll or FOV kick with reduced motion.
 
+### UX test team (2026-11-07/08)
+
+A virtual test team lives in `qa/` (see `qa/README.md`, run with `/ux-test`): five personas on a
+laptop, two PCs, a tablet and a phone, driven by Playwright through Edge. First run: 62 findings,
+merged into 18 issues (report published as an Artifact). Fixed from the "Sửa trước" group, each
+re-checked in the browser with `qa/runs/2026-11-07/verify/fixes.sh`:
+- **G1** Touch, walking: the opened panel sits above the on-screen controls (`.panel.peek`
+  z-index 5), so the joystick's invisible zone no longer swallows taps on it; upright it opens as
+  the bottom sheet.
+- **G2** Two-step delete/reset (scene editor, recordings): a double-click no longer confirms
+  (`src/ui/armConfirm.ts`, ≥ 500 ms between the clicks; unit-tested).
+- **G3** UI hidden with H: clicking ☰ (or P) shows the whole UI again instead of a peek that
+  closes when the pointer leaves.
+- **G4** Welcome tour: seen once (finished or skipped) = no longer opens by itself; the
+  "Không hiển thị lại" box is gone; the counter counts only the steps shown (12 on touch).
+
+**Next (awaiting the user's choice):** the report's "Nên làm" group (small targets, text < 12 px,
+Pomodoro card, key hints on touch, cut scene names, silent refusals, tomatoes, sound wording,
+number keys in the scene editor, slider bubble), then "Để sau". New from the re-check: the pet
+feed bubble ("Cho Mầm ăn?") draws over the open panel on a phone.
+
 ---
 
 ## 8. Risks & mitigations

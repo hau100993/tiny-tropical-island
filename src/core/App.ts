@@ -575,6 +575,7 @@ export class App {
       togglePomodoro: () => this.pomodoro.setVisible(!this.pomodoro.isVisible),
       toggleTimePaused: () => this.toggleTimePaused(),
       fullscreen: this.fullscreen,
+      showUi: () => this.setUiHidden(false),
     });
     // Before the Pomodoro: its first tick may already report finished focus sessions.
     this.deskDash = new DeskDash(w.house.screens[1], this.renderer.capabilities.getMaxAnisotropy(), {
@@ -1016,10 +1017,7 @@ export class App {
       code: 'KeyH',
       keyLabel: 'H',
       label: vi.shortcuts.hideUI,
-      action: () => {
-        // The panel stays as a small handle in its corner (Panel.setUiHidden).
-        this.panel.setUiHidden(document.body.classList.toggle('ui-hidden'));
-      },
+      action: () => this.setUiHidden(!document.body.classList.contains('ui-hidden')),
     });
     this.keymap.register({
       code: 'KeyU',
@@ -2000,6 +1998,12 @@ export class App {
    * N key / "Dừng" button: stop or restart the clock. Stopping the computer's clock freezes the
    * island at the current time (the island clock takes over from there).
    */
+  /** Hides all UI (H) or shows it again; the panel stays as a small handle in its corner. */
+  private setUiHidden(on: boolean): void {
+    document.body.classList.toggle('ui-hidden', on);
+    this.panel.setUiHidden(on);
+  }
+
   private toggleTimePaused(): void {
     const s = this.settings.get();
     if (s.timeMode === 'real') this.settings.update({ timeMode: 'free', timePaused: true });

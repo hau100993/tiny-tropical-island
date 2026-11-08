@@ -610,6 +610,13 @@ body.walking .panel.peek {
   opacity: 1;
 }
 
+/* Opened while tucked away (walking, H): above the on-screen controls (z-index 4), whose
+   invisible joystick zone covers the left half of the screen and would swallow taps meant for
+   the panel. Still below the cards, the shortcut sheet and the tour. */
+.panel.peek {
+  z-index: 5;
+}
+
 /* Shut, the panel is only a small round ☰ where its own ☰ button was. Walking, just opened or
    with H it is fainter, and fainter still once left alone (.faint); pointed at, it lights up. */
 .panel.handle {
@@ -2226,13 +2233,10 @@ body.touch .preset-edit {
   border-top: 1px solid var(--panel-border);
 }
 
-.guide-dont-show {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+/* Where to find it again (it opens by itself only until seen once). */
+.guide-again {
   color: var(--panel-muted);
-  cursor: pointer;
-  user-select: none;
+  font-size: 12px;
 }
 
 .guide-nav {
@@ -3052,9 +3056,11 @@ body:is(.walking, .ui-hidden).touch .panel.handle {
 }
 
 /* Upright phone: the panel is a sheet along the bottom, full width (the thumbs' reach); walking
-   it stays tucked in the top corner, out of the way of the controls. */
+   its ☰ stays tucked in the top corner, out of the way of the controls, and opened it is the
+   same sheet (above the controls, .panel.peek). */
 @media (orientation: portrait) {
-  body.touch:not(.walking) .panel {
+  body.touch:not(.walking) .panel,
+  body.touch.walking .panel.peek {
     top: auto;
     left: max(8px, env(safe-area-inset-left));
     right: max(8px, env(safe-area-inset-right));

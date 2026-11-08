@@ -58,6 +58,8 @@ export interface PanelDeps {
   togglePomodoro: () => void;
   /** Full screen (F): the header button toggles it and shows its state. */
   fullscreen: Fullscreen;
+  /** Leaves the hidden-UI mode (H): the ☰ handle's click brings everything back. */
+  showUi: () => void;
 }
 
 const TAB_ICONS: Readonly<Record<PanelTab, string>> = {
@@ -570,6 +572,16 @@ export class Panel {
    */
   toggle(): void {
     const open = !this.root.classList.contains('collapsed');
+    // UI hidden with H: ☰ (or P) is the way back that the tour and the shortcut card point to,
+    // so it shows the whole UI again instead of a peek that shuts as the pointer leaves.
+    if (this.uiHidden && !open) {
+      this.deps.showUi();
+      if (!this.tucked) {
+        if (this.deps.settings.get().panelCollapsed) this.deps.settings.update({ panelCollapsed: false });
+        else this.syncCollapsed();
+        return;
+      }
+    }
     if (this.tucked) {
       if (open) {
         window.clearTimeout(this.closeTimer);

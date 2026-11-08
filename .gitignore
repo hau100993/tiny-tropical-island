@@ -33,3 +33,9 @@ public/audio/**/*.webm
 
 # Editor and stray backup copies.
 *.bak
+
+# Virtual UX test team (qa/): run output and its own dependencies.
+qa/runs/
+qa/node_modules/
+qa/st.log
+qa/fixtures/

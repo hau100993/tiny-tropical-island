@@ -1,4 +1,5 @@
 import { backBar, button, CLOCK_MARKS, el, PERCENT, slider, toggle, VOLUME, type SliderControl } from './components';
+import { isConfirmClick } from './armConfirm';
 import { icons } from './icons';
 import { vi } from './strings.vi';
 import { fromSkyBalance, skyBalance, type SettingsStore } from '../core/settings';
@@ -67,6 +68,8 @@ export class SceneEditor {
   private clock!: SliderControl;
   /** Delete / reset wait for a second click (a browser confirm() can be blocked). */
   private armed = false;
+  /** When it was armed (performance.now() ms): a double-click must not confirm. */
+  private armedAt = 0;
   private armTimer = 0;
   private aimToggle!: ReturnType<typeof toggle>;
   private readonly title: string;
@@ -222,6 +225,9 @@ export class SceneEditor {
       const label = remove === 'delete' ? vi.scene.delete : vi.scene.reset;
       const confirm = remove === 'delete' ? vi.scene.confirmDeleteBtn : vi.scene.confirmResetBtn;
       const b = button(label, () => {
+        const now = performance.now();
+        // The second click of a double-click: still armed, waiting for a deliberate one.
+        if (this.armed && !isConfirmClick(this.armedAt, now)) return;
         window.clearTimeout(this.armTimer);
         if (this.armed) {
           if (remove === 'delete') this.deleteScene();
@@ -229,6 +235,7 @@ export class SceneEditor {
           return;
         }
         this.armed = true;
+        this.armedAt = now;
         b.textContent = confirm;
         b.classList.add('danger');
         this.armTimer = window.setTimeout(() => {

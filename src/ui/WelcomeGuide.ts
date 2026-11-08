@@ -88,8 +88,8 @@ interface Box {
 /**
  * "Hướng dẫn nhanh": a guided tour on start. A drawn pointer glides to each place in the panel
  * and "clicks" it (the panel really opens, the tab really changes), that place is lit and the
- * rest dimmed, and a card beside it says what it does. Opens by itself until "Không hiển thị lại"
- * is ticked (settings.guideHidden); Cài đặt can start it again.
+ * rest dimmed, and a card beside it says what it does. Opens by itself on start until it has
+ * been seen once, finished or skipped (settings.guideHidden); Cài đặt can start it again.
  *
  * Everything is DOM and CSS; one requestAnimationFrame loop runs only while the tour is open. It
  * measures the targets every frame, so the pointer and the light follow the panel as it slides.
@@ -104,7 +104,6 @@ export class WelcomeGuide {
   private readonly body: HTMLElement;
   private readonly prevBtn: HTMLButtonElement;
   private readonly nextBtn: HTMLButtonElement;
-  private readonly dontShow: HTMLInputElement;
   private index = 0;
   private raf = 0;
   private lastT = 0;
@@ -157,15 +156,11 @@ export class WelcomeGuide {
     this.body = el('ul', 'guide-lines');
     this.body.setAttribute('aria-live', 'polite');
     const foot = el('div', 'guide-foot');
-    const label = el('label', 'guide-dont-show');
-    this.dontShow = el('input');
-    this.dontShow.type = 'checkbox';
-    label.append(this.dontShow, el('span', '', vi.guide.dontShow));
     const nav = el('div', 'guide-nav');
     this.prevBtn = button(vi.guide.prev, () => this.go(this.index - 1, -1), 'btn small');
     this.nextBtn = button(vi.guide.next, () => this.next(), 'btn small primary');
     nav.append(this.prevBtn, this.nextBtn);
-    foot.append(label, nav);
+    foot.append(el('span', 'guide-again', vi.guide.again), nav);
     this.card.append(head, this.title, this.body, foot);
 
     this.root.append(this.light, this.card, this.pointer);
@@ -186,7 +181,7 @@ export class WelcomeGuide {
     parent.append(this.root);
   }
 
-  /** On start: opens unless "Không hiển thị lại" was ticked before. */
+  /** On start: opens until it has been seen once (finished or skipped). */
   showOnStart(): void {
     if (!this.settings.get().guideHidden) this.show();
   }
@@ -194,7 +189,6 @@ export class WelcomeGuide {
   show(): void {
     if (!this.root.hidden) return;
     this.restore = { open: this.host.isPanelOpen(), tab: this.host.currentTab() };
-    this.dontShow.checked = this.settings.get().guideHidden;
     this.root.hidden = false;
     this.px = window.innerWidth / 2;
     this.py = window.innerHeight / 2;
@@ -235,7 +229,9 @@ export class WelcomeGuide {
 
     const text = vi.guide.steps[step.id];
     const lines = isTouch() && 'touch' in text ? text.touch() : text.lines((code, fb) => this.keymap.keyLabel(code, fb));
-    this.count.textContent = vi.guide.step(i + 1, STEPS.length);
+    // Counted over the steps shown here (touch screens skip the keyboard step): no 9 → 11.
+    const shown = STEPS.filter((s) => !(s.keyboard && isTouch()));
+    this.count.textContent = vi.guide.step(shown.indexOf(step) + 1, shown.length);
     this.title.textContent = text.title;
     this.body.replaceChildren(...lines.map((line) => el('li', '', line)));
     this.prevBtn.disabled = i === 0;
@@ -260,7 +256,8 @@ export class WelcomeGuide {
       this.host.showPanel(this.restore.open);
     }
     this.host.release();
-    if (this.dontShow.checked !== this.settings.get().guideHidden) this.settings.update({ guideHidden: this.dontShow.checked });
+    // Seen once (finished, skipped with × or Esc): it no longer opens by itself.
+    if (!this.settings.get().guideHidden) this.settings.update({ guideHidden: true });
   }
 
   /** Everything straight to its place (resize, start). */

@@ -1,0 +1,347 @@
+<title>Đảo Nhiệt Đới · Báo cáo UX</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,650&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a field logbook — run header, a severity strip, three fix lanes, the five testers,
+   then the full filterable log of findings. */
+:root {
+  --bg: #f3f6f5;
+  --surface: #ffffff;
+  --sunk: #e7eeec;
+  --fg: #16302c;
+  --muted: #557069;
+  --line: #d3dfdc;
+  --accent: #0b7a72;
+  --accent-soft: #d5ece9;
+  --sev-critical: #b4232a;
+  --sev-high: #d4572a;
+  --sev-mid: #c9930f;
+  --sev-low: #7d8f8b;
+  --ok: #217a45;
+  --ok-soft: #dcefe2;
+  --warn-soft: #f8ecd2;
+  --no-soft: #ece8e8;
+  --quote: #f0f5f4;
+  --font-display: "Fraunces", "Georgia", serif;
+  --font-body: "Be Vietnam Pro", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Consolas", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1c1a; --surface: #152724; --sunk: #1b302c; --fg: #e3efec; --muted: #93aca6; --line: #2a4440;
+    --accent: #4cc2b7; --accent-soft: #173f3b; --sev-critical: #ef6b6f; --sev-high: #f08a5d; --sev-mid: #e5b84a; --sev-low: #8ea29e;
+    --ok: #6fcf93; --ok-soft: #173a26; --warn-soft: #3a3016; --no-soft: #2b2a2a; --quote: #1a2f2c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1c1a; --surface: #152724; --sunk: #1b302c; --fg: #e3efec; --muted: #93aca6; --line: #2a4440;
+  --accent: #4cc2b7; --accent-soft: #173f3b; --sev-critical: #ef6b6f; --sev-high: #f08a5d; --sev-mid: #e5b84a; --sev-low: #8ea29e;
+  --ok: #6fcf93; --ok-soft: #173a26; --warn-soft: #3a3016; --no-soft: #2b2a2a; --quote: #1a2f2c; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 64px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 40px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 650; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(28px, 4.4vw, 42px); line-height: 1.1; }
+h2 { font-size: 24px; }
+h3 { font-size: 17px; font-family: var(--font-body); font-weight: 600; letter-spacing: 0; }
+p { margin: 0; }
+.eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); font-weight: 600; }
+.mono { font-family: var(--font-mono); font-size: 12.5px; }
+.muted { color: var(--muted); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* header */
+header { display: grid; gap: 14px; }
+header .lead { max-width: 68ch; color: var(--muted); }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--muted); }
+.meta b { color: var(--fg); font-weight: 600; }
+
+/* summary strip */
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 12px; min-width: 0; }
+.bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--sunk); }
+.bar span { display: block; height: 100%; }
+.legend { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 10px; font-size: 14px; align-items: center; }
+.legend .n { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+.dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.big { font-family: var(--font-display); font-size: 40px; line-height: 1; font-variant-numeric: tabular-nums; }
+
+/* fix lanes */
+.lanes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .lanes { grid-template-columns: 1fr; } }
+.lane { display: grid; gap: 12px; min-width: 0; }
+.lane > header { display: flex; align-items: baseline; gap: 10px; border-bottom: 2px solid var(--fg); padding-bottom: 6px; }
+.lane[data-b="Sửa trước"] > header { border-color: var(--sev-high); }
+.lane[data-b="Nên làm"] > header { border-color: var(--sev-mid); }
+.lane[data-b="Để sau"] > header { border-color: var(--sev-low); }
+.fix { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 8px; min-width: 0; }
+.fix .gid { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.fix p { font-size: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--font-mono); font-size: 12px; border: 1px solid var(--line); background: var(--sunk); border-radius: 999px; padding: 2px 9px; cursor: pointer; }
+.chip:hover { border-color: var(--accent); }
+.tag { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+.t-ok { background: var(--ok-soft); color: var(--ok); }
+.t-design { background: var(--warn-soft); color: var(--fg); }
+.t-no { background: var(--no-soft); color: var(--muted); }
+.t-none { background: var(--sunk); color: var(--muted); }
+.falsepos { border-style: dashed; }
+
+/* personas */
+.people { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.person { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.person .top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.score { font-family: var(--font-display); font-size: 26px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.score small { font-size: 14px; color: var(--muted); }
+.person blockquote { margin: 0; padding: 10px 12px; background: var(--quote); border-radius: 8px; font-size: 14px; }
+.person ul { margin: 0; padding-left: 18px; font-size: 14px; display: grid; gap: 3px; }
+.person .lbl { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
+
+/* filters + log */
+.filters { display: grid; gap: 10px; position: sticky; top: env(safe-area-inset-top, 0px); background: var(--bg); padding-block: 10px; z-index: 5; border-bottom: 1px solid var(--line); }
+.frow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.frow .eyebrow { min-width: 86px; }
+.fbtn { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 12px; font-size: 13px; cursor: pointer; }
+.fbtn[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.count { font-size: 13px; color: var(--muted); }
+.log { display: grid; gap: 10px; }
+details.f { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; border-left: 5px solid var(--sev-low); min-width: 0; }
+details.f[data-sev="nghiêm trọng"] { border-left-color: var(--sev-critical); }
+details.f[data-sev="cao"] { border-left-color: var(--sev-high); }
+details.f[data-sev="trung bình"] { border-left-color: var(--sev-mid); }
+details.f > summary { list-style: none; cursor: pointer; padding: 12px 14px; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; }
+details.f > summary::-webkit-details-marker { display: none; }
+.f .ttl { font-weight: 600; }
+.f .sub { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--muted); grid-column: 1 / -1; }
+.f .body { padding: 0 14px 16px; display: grid; gap: 12px; min-width: 0; }
+.f .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 640px) { .f .two { grid-template-columns: 1fr; } }
+.f .box { background: var(--sunk); border-radius: 8px; padding: 10px 12px; font-size: 14px; min-width: 0; }
+.f ol { margin: 0; padding-left: 20px; font-size: 14px; display: grid; gap: 2px; }
+.f blockquote { margin: 0; font-family: var(--font-display); font-size: 17px; font-style: italic; border-left: 3px solid var(--accent); padding-left: 12px; }
+.verify { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 14px; }
+.shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.shots button { padding: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--sunk); cursor: zoom-in; display: grid; text-align: left; }
+.shots img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top; display: block; max-width: 100%; }
+.shots span { font-family: var(--font-mono); font-size: 11.5px; padding: 4px 6px; color: var(--muted); overflow-wrap: anywhere; }
+.empty { padding: 24px; text-align: center; color: var(--muted); }
+
+/* limits */
+.limits ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; max-width: 80ch; }
+
+/* lightbox */
+.lb { position: fixed; inset: 0; background: rgba(5, 15, 13, 0.86); display: grid; place-items: center; z-index: 50; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.lb img { max-width: 100%; max-height: 88vh; border-radius: 6px; }
+.lb button { position: absolute; top: max(14px, env(safe-area-inset-top, 0px)); right: max(14px, env(safe-area-inset-right, 0px)); background: var(--surface); border: 0; border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+@media (prefers-reduced-motion: no-preference) { details.f > .body { animation: open 0.18s ease-out; } @keyframes open { from { opacity: 0.4; transform: translateY(-3px); } } }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow" id="run-eyebrow">Đội kiểm thử ảo · lần chạy</span>
+    <h1>Đảo Nhiệt Đới qua mắt năm người dùng</h1>
+    <p class="lead">Năm nhân vật AI dùng thử đảo trên đúng loại máy của mình (laptop, hai PC, máy tính bảng, điện thoại), ghi lại suy nghĩ và chụp màn hình từng bước. Mọi lỗi từ mức cao trở lên đã được chạy lại bằng script riêng; phần còn lại dựa trên hai lần tái hiện của chính người thử.</p>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <section class="summary" aria-label="Tóm tắt">
+    <div class="panel">
+      <span class="eyebrow">Phát hiện theo mức</span>
+      <div class="bar" id="sev-bar"></div>
+      <div class="legend" id="sev-legend"></div>
+    </div>
+    <div class="panel">
+      <span class="eyebrow">Kiểm chứng</span>
+      <div class="legend" id="lab-legend"></div>
+    </div>
+    <div class="panel">
+      <span class="eyebrow">Sau khi gộp trùng</span>
+      <div><span class="big" id="n-groups"></span> <span class="muted">vấn đề riêng biệt</span></div>
+      <p class="muted" id="n-groups-sub"></p>
+    </div>
+  </section>
+
+  <section style="display:grid;gap:16px" aria-labelledby="h-fix">
+    <h2 id="h-fix">Đề xuất sửa</h2>
+    <div class="lanes" id="lanes"></div>
+  </section>
+
+  <section style="display:grid;gap:16px" aria-labelledby="h-people">
+    <h2 id="h-people">Năm người thử nói gì</h2>
+    <div class="people" id="people"></div>
+  </section>
+
+  <section style="display:grid;gap:12px" aria-labelledby="h-log">
+    <h2 id="h-log">Toàn bộ phát hiện</h2>
+    <div class="filters">
+      <div class="frow" id="f-persona"><span class="eyebrow">Người thử</span></div>
+      <div class="frow" id="f-sev"><span class="eyebrow">Mức</span></div>
+      <div class="frow" id="f-label"><span class="eyebrow">Kiểm chứng</span></div>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="log" id="log"></div>
+  </section>
+
+  <section class="limits panel" aria-labelledby="h-lim">
+    <h2 id="h-lim">Giới hạn của lần thử</h2>
+    <ul id="limits"></ul>
+  </section>
+</div>
+
+<div class="lb" id="lb" hidden><button type="button" id="lb-close">Đóng</button><img id="lb-img" alt=""></div>
+
+<script>
+const D = /*__DATA__*/null;
+const SEV = ['nghiêm trọng', 'cao', 'trung bình', 'thấp'];
+const SEV_VAR = { 'nghiêm trọng': '--sev-critical', 'cao': '--sev-high', 'trung bình': '--sev-mid', 'thấp': '--sev-low' };
+const LABELS = ['Đã xác nhận', 'Đúng thiết kế hiện tại nhưng khó dùng', 'Cố ý / đã biết', 'Chưa xác nhận', 'Chưa kiểm chứng lại'];
+const LAB_CLS = { 'Đã xác nhận': 't-ok', 'Đúng thiết kế hiện tại nhưng khó dùng': 't-design', 'Cố ý / đã biết': 't-design', 'Chưa xác nhận': 't-no', 'Chưa kiểm chứng lại': 't-none' };
+const $ = (s) => document.querySelector(s);
+const h = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null) continue;
+    if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v);
+  }
+  for (const k of kids.flat()) if (k != null) e.append(k.nodeType ? k : String(k));
+  return e;
+};
+const byId = Object.fromEntries(D.findings.map((f) => [f.id, f]));
+const pname = Object.fromEntries(D.personas.map((p) => [p.id, p.title.split('—')[0].trim()]));
+
+// header
+$('#run-eyebrow').textContent = `Đội kiểm thử ảo · lần chạy ${D.run}`;
+$('#meta').append(
+  h('span', {}, h('b', {}, D.personas.length), ' người thử'),
+  h('span', {}, h('b', {}, D.findings.length), ' phát hiện thô'),
+  h('span', {}, 'Thiết bị: ', h('b', {}, D.personas.map((p) => p.device).join(', '))),
+);
+
+// severity strip
+const sevCount = Object.fromEntries(SEV.map((s) => [s, D.findings.filter((f) => f.severity === s).length]));
+for (const s of SEV) {
+  if (sevCount[s]) $('#sev-bar').append(h('span', { style: `width:${(100 * sevCount[s]) / D.findings.length}%;background:var(${SEV_VAR[s]})`, title: `${s}: ${sevCount[s]}` }));
+  $('#sev-legend').append(h('span', { class: 'dot', style: `background:var(${SEV_VAR[s]})` }), h('span', {}, s[0].toUpperCase() + s.slice(1)), h('span', { class: 'n' }, sevCount[s]));
+}
+for (const l of LABELS) {
+  const n = D.findings.filter((f) => f.label === l).length;
+  if (!n) continue;
+  $('#lab-legend').append(h('span', { class: `tag ${LAB_CLS[l]}` }, '●'), h('span', {}, l), h('span', { class: 'n' }, n));
+}
+const real = D.groups.filter((g) => g.bucket !== 'Báo nhầm');
+$('#n-groups').textContent = real.length;
+$('#n-groups-sub').textContent = `${D.findings.length} phát hiện thô gộp lại thành ${real.length} vấn đề; ${D.groups.length - real.length} báo nhầm đã loại.`;
+
+// lanes
+function groupSev(g) {
+  const idx = Math.min(...g.members.map((m) => SEV.indexOf(byId[m]?.severity ?? 'thấp')));
+  return SEV[idx];
+}
+function groupLabel(g) {
+  const ls = g.members.map((m) => byId[m]?.label);
+  return LABELS.find((l) => ls.includes(l));
+}
+for (const bucket of ['Sửa trước', 'Nên làm', 'Để sau']) {
+  const gs = D.groups.filter((g) => g.bucket === bucket);
+  const lane = h('div', { class: 'lane', 'data-b': bucket }, h('header', {}, h('h3', {}, bucket), h('span', { class: 'count' }, `${gs.length} mục`)));
+  for (const g of gs) lane.append(fixCard(g));
+  $('#lanes').append(lane);
+}
+const fp = D.groups.filter((g) => g.bucket === 'Báo nhầm');
+if (fp.length) {
+  const lane = $('#lanes').lastElementChild;
+  for (const g of fp) lane.append(fixCard(g, true));
+}
+function fixCard(g, falsePos) {
+  const sev = groupSev(g);
+  const lab = groupLabel(g);
+  const personas = [...new Set(g.members.map((m) => byId[m]?.persona))].map((p) => pname[p]).join(', ');
+  return h('article', { class: 'fix' + (falsePos ? ' falsepos' : '') },
+    h('div', { class: 'chips' }, h('span', { class: 'gid' }, g.id), h('span', { class: 'tag', style: `background:var(${SEV_VAR[sev]});color:var(--surface)` }, falsePos ? 'báo nhầm' : sev), h('span', { class: `tag ${LAB_CLS[lab]}` }, lab)),
+    h('h3', {}, g.title),
+    h('p', {}, h('b', {}, 'Cách sửa: '), g.fix),
+    h('p', { class: 'muted', style: 'font-size:13px' }, `Báo bởi: ${personas}`),
+    h('div', { class: 'chips' }, g.members.map((m) => h('button', { class: 'chip', type: 'button', onclick: () => jump(m) }, m))),
+  );
+}
+
+// personas
+for (const p of D.personas) {
+  const n = D.findings.filter((f) => f.persona === p.id).length;
+  $('#people').append(h('article', { class: 'person' },
+    h('div', { class: 'top' }, h('h3', {}, p.title), p.score != null ? h('span', { class: 'score' }, p.score, h('small', {}, '/10')) : null),
+    h('span', { class: 'muted', style: 'font-size:13px' }, `${p.deviceLabel} · ${n} phát hiện`),
+    p.impression ? h('blockquote', {}, p.impression) : null,
+    p.likes.length ? h('span', { class: 'lbl' }, 'Điều thích') : null,
+    p.likes.length ? h('ul', {}, p.likes.map((l) => h('li', {}, l))) : null,
+    p.notDone.length ? h('span', { class: 'lbl' }, 'Không làm được') : null,
+    p.notDone.length ? h('ul', {}, p.notDone.map((l) => h('li', {}, l))) : null,
+  ));
+}
+
+// filters
+const state = { persona: 'all', sev: 'all', label: 'all' };
+function filterRow(sel, key, opts) {
+  const row = $(sel);
+  for (const [val, text] of [['all', 'Tất cả'], ...opts]) {
+    row.append(h('button', { class: 'fbtn', type: 'button', 'aria-pressed': String(state[key] === val), 'data-k': key, 'data-v': val, onclick: () => { state[key] = val; render(); } }, text));
+  }
+}
+filterRow('#f-persona', 'persona', D.personas.map((p) => [p.id, pname[p.id]]));
+filterRow('#f-sev', 'sev', SEV.filter((s) => sevCount[s]).map((s) => [s, `${s} (${sevCount[s]})`]));
+filterRow('#f-label', 'label', LABELS.filter((l) => D.findings.some((f) => f.label === l)).map((l) => [l, l]));
+
+function findingEl(f) {
+  return h('details', { class: 'f', 'data-sev': f.severity, id: `f-${f.id}` },
+    h('summary', {},
+      h('span', { class: 'ttl' }, f.title),
+      h('span', { class: `tag ${LAB_CLS[f.label]}` }, f.label),
+      h('span', { class: 'sub' },
+        h('span', { class: 'mono' }, f.id), h('span', {}, pname[f.persona]), h('span', {}, f.severity), h('span', {}, [f.type, f.rule].filter(Boolean).join(' · ')),
+        h('span', {}, `tái hiện ${f.repro} · tin cậy ${f.confidence}`), f.group ? h('span', { class: 'mono' }, f.group) : null),
+    ),
+    h('div', { class: 'body' },
+      f.where ? h('p', { class: 'muted', style: 'font-size:14px' }, 'Ở đâu: ', f.where) : null,
+      h('div', { class: 'box' }, h('b', {}, 'Các bước'), h('ol', {}, f.steps.map((s) => h('li', {}, s)))),
+      h('div', { class: 'two' }, h('div', { class: 'box' }, h('b', {}, 'Mong đợi'), h('p', {}, f.expected)), h('div', { class: 'box' }, h('b', {}, 'Thực tế'), h('p', {}, f.actual))),
+      f.quote ? h('blockquote', {}, `“${f.quote}”`) : null,
+      f.verifyNote ? h('div', { class: 'verify' }, h('b', {}, `${f.label}: `), f.verifyNote) : null,
+      f.shots.length ? h('div', { class: 'shots' }, f.shots.map((s) => h('button', { type: 'button', onclick: () => openLb(s.src, s.caption) }, h('img', { src: s.src, alt: s.caption, loading: 'lazy' }), h('span', {}, s.caption)))) : null,
+    ),
+  );
+}
+function render() {
+  document.querySelectorAll('.fbtn').forEach((b) => b.setAttribute('aria-pressed', String(state[b.dataset.k] === b.dataset.v)));
+  const list = D.findings
+    .filter((f) => (state.persona === 'all' || f.persona === state.persona) && (state.sev === 'all' || f.severity === state.sev) && (state.label === 'all' || f.label === state.label))
+    .sort((a, b) => SEV.indexOf(a.severity) - SEV.indexOf(b.severity) || LABELS.indexOf(a.label) - LABELS.indexOf(b.label));
+  const log = $('#log');
+  log.replaceChildren(...(list.length ? list.map(findingEl) : [h('p', { class: 'empty' }, 'Không có phát hiện nào khớp bộ lọc. Chọn "Tất cả" ở một hàng để mở rộng.')]));
+  $('#count').textContent = `Đang hiện ${list.length} / ${D.findings.length} phát hiện`;
+}
+function jump(id) {
+  state.persona = 'all'; state.sev = 'all'; state.label = 'all';
+  render();
+  const el = document.getElementById(`f-${id}`);
+  if (el) { el.open = true; el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); }
+}
+render();
+
+// limits
+for (const l of D.limits) $('#limits').append(h('li', {}, l));
+
+// lightbox
+function openLb(src, alt) { $('#lb-img').src = src; $('#lb-img').alt = alt; $('#lb').hidden = false; $('#lb-close').focus(); }
+function closeLb() { $('#lb').hidden = true; $('#lb-img').removeAttribute('src'); }
+$('#lb-close').addEventListener('click', closeLb);
+$('#lb').addEventListener('click', (e) => { if (e.target.id === 'lb') closeLb(); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#lb').hidden) closeLb(); });
+</script>

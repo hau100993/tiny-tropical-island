@@ -1,0 +1,12 @@
+{
+  "name": "tropical-qa",
+  "private": true,
+  "description": "Virtual UX test team for the island (not part of the app build).",
+  "scripts": {
+    "fixtures": "node make-fixtures.cjs"
+  },
+  "dependencies": {
+    "axe-core": "4.10.3",
+    "playwright-core": "1.56.1"
+  }
+}

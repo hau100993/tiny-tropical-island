@@ -1,3 +1,4 @@
+import { isConfirmClick } from './armConfirm';
 import { button, el, slider, toggle, VOLUME } from './components';
 import { icons } from './icons';
 import { vi } from './strings.vi';
@@ -40,6 +41,8 @@ export class LibraryView {
   private pending = false;
   /** Delete button armed by a first click (a second one within a few seconds deletes). */
   private armed = '';
+  /** When it was armed (performance.now() ms): a double-click must not confirm. */
+  private armedAt = 0;
   private armTimer = 0;
 
   constructor(private readonly deps: LibraryViewDeps) {
@@ -243,6 +246,9 @@ export class LibraryView {
     // the first click arms it, a second click within a few seconds deletes.
     const armed = this.armed === t.id;
     const del = button(armed ? vi.library.confirmAgain : bundled ? vi.library.hide : vi.library.delete, () => {
+      const now = performance.now();
+      // The second click of a double-click: still armed, waiting for a deliberate one.
+      if (this.armed === t.id && !isConfirmClick(this.armedAt, now)) return;
       window.clearTimeout(this.armTimer);
       if (this.armed === t.id) {
         this.armed = '';
@@ -250,6 +256,7 @@ export class LibraryView {
         return;
       }
       this.armed = t.id;
+      this.armedAt = now;
       this.armTimer = window.setTimeout(() => {
         this.armed = '';
         this.render();
