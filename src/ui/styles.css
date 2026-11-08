@@ -4333,3 +4333,81 @@ body.ui-hidden .feed-bubble {
     transition: none;
   }
 }
+
+/* Săn Bong Bóng's readout (ui/HuntHud.ts): top middle like the ring course's, giving way to it. */
+.hunt-hud {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  color: var(--panel-fg);
+  background: var(--panel-bg);
+  border: 1px solid color-mix(in srgb, #c9a8ff 55%, transparent);
+  border-radius: 999px;
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-shadow), 0 0 14px rgba(190, 150, 255, 0.3);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -8px);
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+.hunt-hud.on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.ring-hud.on ~ .hunt-hud {
+  opacity: 0;
+}
+.hunt-hud-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+.hunt-hud-count {
+  font-size: 15px;
+  font-weight: 700;
+}
+.hunt-hud-toward {
+  opacity: 0.85;
+}
+.hunt-hud-toward.won {
+  opacity: 1;
+  font-weight: 700;
+  color: #ff9a7a;
+}
+.hunt-hud-combo {
+  display: none;
+  min-width: 2.2em;
+  padding: 1px 8px;
+  font-weight: 800;
+  text-align: center;
+  color: #fff;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #7fd8ff, #b48cff);
+}
+.hunt-hud-combo.on {
+  display: inline-block;
+}
+.hunt-hud-combo.pop {
+  animation: hunt-combo-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes hunt-combo-pop {
+  from {
+    transform: scale(1.5);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hunt-hud,
+  .hunt-hud-combo.pop {
+    transition: none;
+    animation: none;
+  }
+}

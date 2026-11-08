@@ -81,3 +81,14 @@ describe('HuntScore.resetClock', () => {
     expect(s.combo).toBe(1);
   });
 });
+
+describe('HuntScore.comboAt', () => {
+  it('is the chain while it can still grow, 0 once the gap has passed', () => {
+    const s = new HuntScore({ total: 0, toward: 0 });
+    expect(s.comboAt(0)).toBe(0);
+    s.add(1, 0);
+    s.add(2, 0);
+    expect(s.comboAt(3.9)).toBe(2);
+    expect(s.comboAt(4.1)).toBe(0);
+  });
+});

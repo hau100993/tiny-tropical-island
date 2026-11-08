@@ -52,6 +52,11 @@ export class HuntScore {
     return `b${Math.round(wall)}`;
   }
 
+  /** The chain as it stands at `now`: 0 once it can no longer grow. */
+  comboAt(now: number): number {
+    return now - this.last <= SCORE.comboGap ? this.combo : 0;
+  }
+
   /** The shared clock went back to 0 (App.resetTime): the last burst's time means nothing now. */
   resetClock(): void {
     this.last = -Infinity;

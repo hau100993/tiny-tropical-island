@@ -6,6 +6,12 @@ import type { MantaActivity } from './MantaActivity';
 import { HuntBubbles } from '../world/creatures/huntBubbles';
 import { LaserBeam } from '../world/creatures/laserBeam';
 import { Crosshair } from '../ui/Crosshair';
+import { HuntHud } from '../ui/HuntHud';
+import { HuntScore, parseHuntSave, SCORE } from './flight/huntScore';
+import { parseJson, readStored, writeStored } from '../core/storage';
+
+/** Where the bubble count is kept (see HuntSave). */
+export const HUNT_KEY = 'tsw.bubbleHunt';
 
 /** Bubble slots made (the quality picks how many are used). */
 const CAPACITY = 16;
@@ -28,8 +34,12 @@ export interface HuntHooks {
   seaHeight(x: number, z: number): number;
   ripple(x: number, z: number): void;
   reducedMotion(): boolean;
-  /** A bubble burst at (x, y, z). */
-  burst?(x: number, y: number, z: number): void;
+  /** A bubble burst at (x, y, z), `combo` (1 = not chained). */
+  burst?(x: number, y: number, z: number, combo: number): void;
+  /** A block of bubbles completed: pay the tomato (`id`, see earnBubble); true when paid. */
+  reward?(id: string, t: number): boolean;
+  /** A burst at a high combo: a small shake (never with reduced motion). */
+  shake?(x: number, y: number, z: number): void;
   /** The laser fired: a flash (`beam` false) or the beam starting. */
   shot?(beam: boolean): void;
   /** The held beam's hum: on, and its heat 0 … 1 (called every flying frame). */
@@ -55,6 +65,10 @@ export class BubbleHunt {
   private readonly bubbles: HuntBubbles;
   private readonly beam: LaserBeam;
   private readonly crosshair: Crosshair;
+  private readonly hud: HuntHud;
+  private readonly score = new HuntScore(parseHuntSave(parseJson(readStored(HUNT_KEY))));
+  /** Bubbles burst on this ride (the readout shows from the first). */
+  private ridePops = 0;
   private readonly ray = new THREE.Raycaster();
   /** The press now held: its pointer (−2 the touch button, −1 none) and whether it aims at the centre. */
   private pointer = -1;
@@ -77,6 +91,7 @@ export class BubbleHunt {
     this.bubbles = new HuntBubbles(scene, shared, CAPACITY, DROPLETS);
     this.beam = new LaserBeam(scene, shared);
     this.crosshair = new Crosshair(ui);
+    this.hud = new HuntHud(ui);
     dom.addEventListener('pointerdown', this.onDown);
     window.addEventListener('pointermove', this.onMove);
     window.addEventListener('pointerup', this.onUp);
@@ -144,6 +159,7 @@ export class BubbleHunt {
     this.fire.cancel();
     this.exposure.clearAll();
     this.pointer = -1;
+    this.score.resetClock();
   }
 
   update(dt: number): void {
@@ -158,11 +174,14 @@ export class BubbleHunt {
         this.beam.hide();
         this.crosshair.set(false, false);
         this.hooks.hum?.(false, 0);
+        this.hud.hide();
+        this.ridePops = 0;
       }
       this.bubbles.sync(this.field, this.field.visible(now), now);
       return;
     }
     this.wasFlying = true;
+    if (this.ridePops > 0) this.hud.show(this.score.total, this.score.toward, SCORE.block, this.score.comboAt(now));
     const f = this.manta.flight;
     this.field.update(now, f.x, f.y, f.z, f.yaw, this.hooks.floor);
     this.fire.update(now);
@@ -221,7 +240,14 @@ export class BubbleHunt {
     this.field.burst(i, now, tmp.x, tmp.y, tmp.z);
     this.bubbles.splash(centre[0], centre[1], centre[2], this.field.slots[i].radius, tmp.x, tmp.y, tmp.z, now);
     this.exposure.reset(i);
-    this.hooks.burst?.(centre[0], centre[1], centre[2]);
+    const wall = Date.now();
+    const id = this.score.add(now, wall);
+    writeStored(HUNT_KEY, this.score.save());
+    this.ridePops++;
+    const combo = this.score.combo;
+    this.hooks.burst?.(centre[0], centre[1], centre[2], combo);
+    if (combo >= SCORE.shakeAt && !this.hooks.reducedMotion()) this.hooks.shake?.(centre[0], centre[1], centre[2]);
+    if (id && this.hooks.reward?.(id, wall)) this.hud.tomato();
   }
 
   /** Where the aim ray meets the ground or the sea within RANGE, or −1 (only while firing). */

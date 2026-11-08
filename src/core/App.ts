@@ -2272,8 +2272,18 @@ export class App {
       shot: (beam) => {
         if (!beam && this.settings.get().footsteps) this.mixer.playSkill('laser', 0, 0.8, 0);
       },
-      burst: () => {
-        if (this.settings.get().footsteps) this.mixer.playSkill('bubblePop', 0.1, 0.8, 0);
+      burst: (_x, _y, _z, combo) => {
+        if (this.settings.get().footsteps) this.mixer.playSkill('bubblePop', combo / 10, 0.8, 0);
+      },
+      reward: (id, t) => {
+        const paid = this.wallet.earnBubble(id, t);
+        if (paid) this.avatar.cheer(1);
+        return paid;
+      },
+      // Felt by you (the combo), not by the far bubble: centred on the camera, unattenuated.
+      shake: () => {
+        const c = this.camera.position;
+        this.fx.shake(c.x, c.y, c.z, 0.08, 0.3);
       },
       hum: (on, heat) => this.mixer.setLaserHum(on && this.settings.get().footsteps, heat),
     });

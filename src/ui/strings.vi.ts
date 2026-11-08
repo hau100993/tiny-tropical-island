@@ -492,6 +492,14 @@ export const vi = {
     ringTimeout: (passed: number, total: number) => `Hết giờ · qua ${passed} / ${total} vòng`,
     cooldown: (name: string, s: number) => `${name}: còn ${s} giây nữa`,
     needSea: 'Bay thấp trên mặt biển để phun Hơi Thở Băng Giá',
+    /** Săn Bong Bóng: the readout while you shoot bubbles from the manta. */
+    hunt: {
+      title: 'Săn Bong Bóng',
+      count: (n: number) => `${n} bong bóng`,
+      combo: (n: number) => `×${n}`,
+      toward: (k: number, block: number) => `${k}/${block} → 🍅`,
+      tomato: '🍅 +1 từ bong bóng!',
+    },
   },
   layers: {
     waves: 'Sóng biển',
